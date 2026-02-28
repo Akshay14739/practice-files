@@ -1,1 +1,155 @@
-################################################################################\n# FILE: c3-03-network-data.tf\n# PURPOSE: Dynamically discover network resources (subnets, security groups)\n# EXPLANATION:\n#   - Instead of hardcoding subnet IDs, this file uses data sources to find them\n#   - Searches VPC for subnets tagged with specific types (public, node, pod, etc.)\n#   - Same approach for security groups - finds them by name pattern or tags\n#   - Makes the module reusable across different VPCs and environments\n# HOW IT WORKS:\n#   - User provides VPC ID\n#   - Each data source queries AWS for subnets/SGs matching the tag criteria\n#   - Results are passed to cluster and node group resources\n################################################################################\n\n# ============================================================================\n# SUBNET DISCOVERY DATA SOURCES\n# ============================================================================\n# PURPOSE: Dynamically fetch subnets from the VPC based on tags\n# WHY: Avoids hardcoding subnet IDs, makes module reusable\n# HOW: AWS searches for subnets in the VPC with tag key=SubnetType and specific values\n\n# Public Subnets\n# CONTAINS: Load balancers, NAT gateways, potentially bastion hosts\n# ROUTE: Has route to Internet Gateway (0.0.0.0/0 -> IGW)\ndata "aws_subnets" "public" {\n  vpc_id = var.vpc_id\n\n  filter {\n    name   = "tag:${var.subnet_tag_key}"      # Search for tag: SubnetType\n    values = [var.subnet_type_tags["public"]] # Tag value: public\n  }\n}\n\n# Bastion Subnets\n# CONTAINS: Jump servers (bastion hosts) for secure SSH access\n# ROUTE: Could be public or private depending on design\ndata "aws_subnets" "bastion" {\n  vpc_id = var.vpc_id\n\n  filter {\n    name   = "tag:${var.subnet_tag_key}"\n    values = [var.subnet_type_tags["bastion"]]\n  }\n}\n\n# Private Subnets for EKS Worker Nodes\n# CONTAINS: EC2 instances that run Kubernetes worker nodes\n# ROUTE: NO direct IGW route - must use NAT gateway for internet access\n# CRITICAL: These must be different from pod subnets for networking isolation\ndata "aws_subnets" "node" {\n  vpc_id = var.vpc_id\n\n  filter {\n    name   = "tag:${var.subnet_tag_key}"\n    values = [var.subnet_type_tags["node"]]\n  }\n}\n\n# Private Subnets for Databases\n# CONTAINS: RDS databases, DynamoDB VPC endpoints, other data stores\n# ROUTE: NO direct IGW route - isolated from public internet\n# SECURITY: Separate from pod/node subnets for network segmentation\ndata "aws_subnets" "db" {\n  vpc_id = var.vpc_id\n\n  filter {\n    name   = "tag:${var.subnet_tag_key}"\n    values = [var.subnet_type_tags["db"]]\n  }\n}\n\n# Private Subnets for Kubernetes Pod Deployment\n# CONTAINS: Kubernetes pods and container workloads\n# ROUTE: NO direct IGW route - controlled egress through NAT gateway\n# PURPOSE: Separate subnet for pods allows for different:\n#   - Network policies\n#   - Scaling behavior\n#   - Cost allocation (pods scale dynamically, nodes don't)\ndata "aws_subnets" "pod" {\n  vpc_id = var.vpc_id\n\n  filter {\n    name   = "tag:${var.subnet_tag_key}"\n    values = [var.subnet_type_tags["pod"]]\n  }\n}\n\n# ============================================================================\n# SECURITY GROUPS DISCOVERY DATA SOURCE\n# ============================================================================\n# PURPOSE: Dynamically fetch security groups for EKS cluster\n# WHY: Avoids hardcoding security group IDs\n# HOW: Searches by name pattern and optional tags\n# WHAT IT DOES:\n#   - Finds security groups by wildcard name (e.g., "eks-*")\n#   - Filters by tags if provided (e.g., Environment=prod)\ndata "aws_security_groups" "eks" {\n  vpc_id = var.vpc_id\n\n  # Name filter: Use wildcard pattern matching\n  # Default "*" matches all security groups; restrict to specific patterns\n  # Example filters: "eks-*", "*-cluster-sg", "platform-*"\n  filter {\n    name   = "group-name"\n    values = [var.security_group_name_filter]\n  }\n\n  # Optional tag filters: Add security group tags if you want more control\n  # Example: {Environment=prod, Team=platform} narrows down selection\n  # Uses dynamic block to iterate through all provided tags\n  dynamic "filter" {\n    for_each = var.security_group_tags\n    content {\n      name   = "tag:${filter.key}"\n      values = [filter.value]\n    }\n  }\n}\n\n# ============================================================================\n# OUTPUT VALUES FOR VERIFICATION\n# ============================================================================\n# PURPOSE: Display discovered subnet and security group IDs\n# USAGE: Run `terraform output` to see all discovered resources\n# USEFUL FOR: Debugging - confirm you got the right subnets/SGs\n\noutput "public_subnet_ids" {\n  description = "IDs of public subnets discovered"\n  value       = data.aws_subnets.public.ids\n}\n\noutput "bastion_subnet_ids" {\n  description = "IDs of bastion subnets discovered"\n  value       = data.aws_subnets.bastion.ids\n}\n\noutput "node_subnet_ids" {\n  description = "IDs of private subnets for EKS worker nodes"\n  value       = data.aws_subnets.node.ids\n}\n\noutput "db_subnet_ids" {\n  description = "IDs of private subnets for databases"\n  value       = data.aws_subnets.db.ids\n}\n\noutput "pod_subnet_ids" {\n  description = "IDs of private subnets for Kubernetes pod deployment"\n  value       = data.aws_subnets.pod.ids\n}\n\noutput "eks_security_group_ids" {\n  description = "IDs of security groups fetched for EKS cluster"\n  value       = data.aws_security_groups.eks.ids\n}
+################################################################################
+# FILE: c3-03-network-data.tf
+# PURPOSE: Dynamically discover network resources (subnets, security groups)
+# EXPLANATION:
+#   - Instead of hardcoding subnet IDs, this file uses data sources to find them
+#   - Searches VPC for subnets tagged with specific types (public, node, pod, etc.)
+#   - Same approach for security groups - finds them by name pattern or tags
+#   - Makes the module reusable across different VPCs and environments
+# HOW IT WORKS:
+#   - User provides VPC ID
+#   - Each data source queries AWS for subnets/SGs matching the tag criteria
+#   - Results are passed to cluster and node group resources
+################################################################################
+
+# ============================================================================
+# SUBNET DISCOVERY DATA SOURCES
+# ============================================================================
+# PURPOSE: Dynamically fetch subnets from the VPC based on tags
+# WHY: Avoids hardcoding subnet IDs, makes module reusable
+# HOW: AWS searches for subnets in the VPC with tag key=SubnetType and specific values
+
+# Public Subnets
+# CONTAINS: Load balancers, NAT gateways, potentially bastion hosts
+# ROUTE: Has route to Internet Gateway (0.0.0.0/0 -> IGW)
+data "aws_subnets" "public" {
+  vpc_id = var.vpc_id
+
+  filter {
+    name   = "tag:${var.subnet_tag_key}"      # Search for tag: SubnetType
+    values = [var.subnet_type_tags["public"]] # Tag value: public
+  }
+}
+
+# Bastion Subnets
+# CONTAINS: Jump servers (bastion hosts) for secure SSH access
+# ROUTE: Could be public or private depending on design
+data "aws_subnets" "bastion" {
+  vpc_id = var.vpc_id
+
+  filter {
+    name   = "tag:${var.subnet_tag_key}"
+    values = [var.subnet_type_tags["bastion"]]
+  }
+}
+
+# Private Subnets for EKS Worker Nodes
+# CONTAINS: EC2 instances that run Kubernetes worker nodes
+# ROUTE: NO direct IGW route - must use NAT gateway for internet access
+# CRITICAL: These must be different from pod subnets for networking isolation
+data "aws_subnets" "node" {
+  vpc_id = var.vpc_id
+
+  filter {
+    name   = "tag:${var.subnet_tag_key}"
+    values = [var.subnet_type_tags["node"]]
+  }
+}
+
+# Private Subnets for Databases
+# CONTAINS: RDS databases, DynamoDB VPC endpoints, other data stores
+# ROUTE: NO direct IGW route - isolated from public internet
+# SECURITY: Separate from pod/node subnets for network segmentation
+data "aws_subnets" "db" {
+  vpc_id = var.vpc_id
+
+  filter {
+    name   = "tag:${var.subnet_tag_key}"
+    values = [var.subnet_type_tags["db"]]
+  }
+}
+
+# Private Subnets for Kubernetes Pod Deployment
+# CONTAINS: Kubernetes pods and container workloads
+# ROUTE: NO direct IGW route - controlled egress through NAT gateway
+# PURPOSE: Separate subnet for pods allows for different:
+#   - Network policies
+#   - Scaling behavior
+#   - Cost allocation (pods scale dynamically, nodes don't)
+data "aws_subnets" "pod" {
+  vpc_id = var.vpc_id
+
+  filter {
+    name   = "tag:${var.subnet_tag_key}"
+    values = [var.subnet_type_tags["pod"]]
+  }
+}
+
+# ============================================================================
+# SECURITY GROUPS DISCOVERY DATA SOURCE
+# ============================================================================
+# PURPOSE: Dynamically fetch security groups for EKS cluster
+# WHY: Avoids hardcoding security group IDs
+# HOW: Searches by name pattern and optional tags
+# WHAT IT DOES:
+#   - Finds security groups by wildcard name (e.g., "eks-*")
+#   - Filters by tags if provided (e.g., Environment=prod)
+data "aws_security_groups" "eks" {
+  vpc_id = var.vpc_id
+
+  # Name filter: Use wildcard pattern matching
+  # Default "*" matches all security groups; restrict to specific patterns
+  # Example filters: "eks-*", "*-cluster-sg", "platform-*"
+  filter {
+    name   = "group-name"
+    values = [var.security_group_name_filter]
+  }
+
+  # Optional tag filters: Add security group tags if you want more control
+  # Example: {Environment=prod, Team=platform} narrows down selection
+  # Uses dynamic block to iterate through all provided tags
+  dynamic "filter" {
+    for_each = var.security_group_tags
+    content {
+      name   = "tag:${filter.key}"
+      values = [filter.value]
+    }
+  }
+}
+
+# ============================================================================
+# OUTPUT VALUES FOR VERIFICATION
+# ============================================================================
+# PURPOSE: Display discovered subnet and security group IDs
+# USAGE: Run `terraform output` to see all discovered resources
+# USEFUL FOR: Debugging - confirm you got the right subnets/SGs
+
+output "public_subnet_ids" {
+  description = "IDs of public subnets discovered"
+  value       = data.aws_subnets.public.ids
+}
+
+output "bastion_subnet_ids" {
+  description = "IDs of bastion subnets discovered"
+  value       = data.aws_subnets.bastion.ids
+}
+
+output "node_subnet_ids" {
+  description = "IDs of private subnets for EKS worker nodes"
+  value       = data.aws_subnets.node.ids
+}
+
+output "db_subnet_ids" {
+  description = "IDs of private subnets for databases"
+  value       = data.aws_subnets.db.ids
+}
+
+output "pod_subnet_ids" {
+  description = "IDs of private subnets for Kubernetes pod deployment"
+  value       = data.aws_subnets.pod.ids
+}
+
+output "eks_security_group_ids" {
+  description = "IDs of security groups fetched for EKS cluster"
+  value       = data.aws_security_groups.eks.ids
+}
