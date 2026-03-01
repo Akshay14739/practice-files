@@ -26,65 +26,97 @@ A comprehensive production-ready Terraform module that provisions a complete AWS
 - ✅ **kubectl** installed (for post-deployment verification)
 - ✅ **Git** (recommended, for version control)
 - ✅ IAM user with permissions to:
-  - Create VPC, Subnets, Security Groups, NAT Gateways
   - Create EKS clusters and node groups
   - Create IAM roles and policies
-  - Create S3 buckets
   - Create CloudWatch log groups
+  - Attach policies to IAM roles
 
 ### Knowledge Requirements
 - ✅ Basic understanding of AWS (VPC, IAM, EKS)
 - ✅ Familiarity with Terraform
 - ✅ Basic Kubernetes concepts
 
+### Pre-Deployment Setup - CRITICAL STEPS
+
+#### 1. **VPC Must Be Pre-Created**
+- ✅ VPC must already exist in AWS
+- ✅ You must provide the **VPC ID** in `c2-variables.tf`
+  - Example: `vpc_id = "vpc-0123456789abcdef0"`
+  - This is a **REQUIRED** variable with no default value
+
+#### 2. **S3 Bucket Name Must Be Updated**
+- ✅ Create an S3 bucket for Terraform state (must be globally unique)
+- ✅ **Update the bucket name in `c1-versions.tf`** (line with `bucket = "bucket-name"`)
+  - Replace `"bucket-name"` with your actual bucket name
+  - Enable versioning and server-side encryption on the bucket
+  - Example: `bucket = "my-unique-terraform-state-bucket"`"
+
+#### 3. **5 Subnets Must Be Pre-Created with Specific Tags**
+- ✅ All 5 subnets must already exist in the same VPC
+- ✅ Each subnet MUST have the tag `SubnetType` with correct value (shown below)
+- ✅ This module uses tag-based discovery to find subnets dynamically
+
+**Required Subnet Configuration:**
+
+| Subnet Type | Tag Key | Tag Value | Routing | Purpose |
+|------------|---------|-----------|---------|---------|
+| Public Subnet | `SubnetType` | `public` | → Internet Gateway | NAT Gateway, Bastion hosts |
+| Bastion Subnet | `SubnetType` | `bastion` | → NAT Gateway | Bastion/Jump hosts |
+| Node Subnet | `SubnetType` | `node` | → NAT Gateway | EKS worker nodes |
+| DB Subnet | `SubnetType` | `db` | → NAT Gateway | RDS databases |
+| Pod Subnet | `SubnetType` | `pod` | → NAT Gateway | Pod IP assignment |
+
 ---
 
-## 🖥️ Console-Side Requirements
+## 🖥️ Console-Side Requirements (Pre-Deployment Checklist)
 
-**BEFORE running Terraform**, you must manually create these resources in AWS Console:
+**BEFORE running `terraform init`, ensure these resources exist in AWS Console:**
 
-### 1. **Create VPC**
-- CIDR: `10.0.0.0/16` (or your preferred range)
-- Enable DNS resolution
-- Note the **VPC ID** (format: `vpc-xxxxxxxxx`)
+### Required: VPC with VPC ID
+- ✅ VPC must be created (e.g., CIDR: `10.0.0.0/16`)
+- ✅ You need the **VPC ID** to pass to Terraform (format: `vpc-xxxxxxxxx`)
+- ✅ Location: VPC Dashboard → Your VPCs → Copy VPC ID
 
-### 2. **Create 5 Subnets in the VPC**
+### Required: Internet Gateway (IGW)
+- ✅ Create Internet Gateway
+- ✅ Attach to your VPC
+- ✅ Add route in **public subnet route table**: `0.0.0.0/0 → IGW`
 
-| Subnet Name | CIDR | AZ | Tag Key | Tag Value | Route |
-|-------------|------|-----|---------|----------|-------|
-| Public-1a | 10.0.1.0/24 | us-east-1a | SubnetType | public | IGW |
-| Bastion-1a | 10.0.2.0/24 | us-east-1a | SubnetType | bastion | NAT |
-| Node-1a | 10.0.3.0/24 | us-east-1a | SubnetType | node | NAT |
-| DB-1a | 10.0.4.0/24 | us-east-1a | SubnetType | db | NAT |
-| Pod-1a | 10.0.5.0/24 | us-east-1a | SubnetType | pod | NAT |
+### Required: NAT Gateway for Private Subnets
+- ✅ Create NAT Gateway in **public subnet**
+- ✅ Allocate and assign **Elastic IP** to NAT Gateway
+- ✅ Add route in **all private subnet route tables**: `0.0.0.0/0 → NAT Gateway`
+  - Private subnets: bastion, node, db, pod
 
-**Requirements:**
-- ✅ Each subnet must have the tag `SubnetType` with specified value
-- ✅ Multiple subnets per type in different AZs (for HA, use 1a, 1b, 1c)
-- ✅ Public subnet must have route to Internet Gateway (IGW)
-- ✅ All private subnets (bastion, node, db, pod) must route through NAT Gateway
+### Required: 5 Subnets with SubnetType Tags
+All 5 subnets must exist and be tagged correctly:
 
-### 3. **Create Internet Gateway (IGW)**
-- Create IGW
-- Attach to VPC
-- Add route in public subnet route table: `0.0.0.0/0 → IGW`
+| Subnet Type | Example CIDR | AZ | Tag Key | Tag Value | Notes |
+|------------|------|-----|---------|----------|-------|
+| Public (IGW access) | 10.0.1.0/24 | us-east-1a | `SubnetType` | `public` | Routes to IGW, holds NAT GW |
+| Bastion | 10.0.2.0/24 | us-east-1a | `SubnetType` | `bastion` | Routes to NAT GW |
+| Node (EKS Workers) | 10.0.3.0/24 | us-east-1a | `SubnetType` | `node` | Routes to NAT GW |
+| DB | 10.0.4.0/24 | us-east-1a | `SubnetType` | `db` | Routes to NAT GW |
+| Pod | 10.0.5.0/24 | us-east-1a | `SubnetType` | `pod` | Routes to NAT GW |
 
-### 4. **Create NAT Gateway**
-- Create NAT Gateway in public subnet
-- Allocate Elastic IP
-- Add route in private subnet route tables: `0.0.0.0/0 → NAT Gateway`
+**How to Tag Subnets:**
+1. Go to VPC Dashboard → Subnets
+2. Select a subnet
+3. Click "Tags" tab → "Manage tags"
+4. Add tag: Key=`SubnetType`, Value=`public` (or appropriate value)
+5. Save and repeat for all 5 subnets
 
-### 5. **Create Security Groups**
-- Create at least one security group in the VPC
-- Configure inbound rules as needed
-- Note the **Security Group ID(s)**
+### Required: Security Groups
+- ✅ Create at least one security group in your VPC
+- ✅ Configure inbound rules as needed
+- ✅ Module will discover security groups automatically by name filter
 
-### 6. **Create S3 Bucket** (for Terraform State)
-- Bucket name: `my-terraform-state-bucket` (must be globally unique)
-- Enable versioning
-- Enable server-side encryption
-- Block public access
-- Note the **bucket name** exactly
+### Required: S3 Bucket for Terraform State
+- ✅ Create S3 bucket (globally unique name required)
+- ✅ Enable **Versioning** (Bucket → Properties → Versioning)
+- ✅ Enable **Server-side encryption** (Bucket → Properties → Default encryption)
+- ✅ Block public access (Bucket → Permissions → Block Public Access: ON)
+- ✅ **Update the bucket name in `c1-versions.tf`** before running `terraform init`
 
 ---
 
