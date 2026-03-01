@@ -415,7 +415,7 @@ kubectl get pods -n kube-system | grep pod-identity
 ## 🔐 Security Considerations
 
 1. **Restrict Public Access**
-   - Change `cluster_endpoint_public_access_cidrs` to your office IP
+   - Change `cluster_endpoint_public_access_cidrs` to your IP
    - Use bastion host for cluster access in production
 
 2. **IAM Policies**
