@@ -29,13 +29,6 @@ resource "aws_eks_node_group" "private_nodes" {
   # Multiple subnets = multi-AZ deployment for high availability
   subnet_ids = data.aws_subnets.node.ids
 
-  # SECURITY GROUPS: Applied to worker node EC2 instances
-  # Must allow:
-  #   - Traffic FROM application pods (container ports)
-  #   - Traffic TO control plane on port 443 (API server)
-  #   - kubelet metrics on ports 10250, 10251, 10252
-  security_groups = data.aws_security_groups.eks.ids
-
   # ========================================================================
   # INSTANCE CONFIGURATION
   # ========================================================================
