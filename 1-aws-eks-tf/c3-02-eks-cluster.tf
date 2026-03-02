@@ -36,21 +36,10 @@ resource "aws_eks_cluster" "main" {
       data.aws_subnets.pod.ids      # Pod deployment subnets
     )
     
-    # SECURITY GROUPS: Applied to control plane ENIs
-    # These security groups must allow:
-    #   - Worker nodes to reach API server (port 443/TCP)
-    #   - Load balancers for service discovery
     security_groups = data.aws_security_groups.eks.ids
     
-    # ENDPOINT CONFIGURATION
-    # private_access: Allows nodes and pods to reach API server via private endpoint
     endpoint_private_access = var.cluster_endpoint_private_access
-    
-    # public_access: Allows kubectl CLI from internet (with CIDR restrictions)
     endpoint_public_access  = var.cluster_endpoint_public_access
-    
-    # public_access_cidrs: Whitelist of IPs allowed to access public endpoint
-    # SECURITY: Restrict this to your office IP, VPN, or CI/CD systems
     public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
   }
 

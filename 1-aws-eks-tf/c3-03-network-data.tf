@@ -110,19 +110,16 @@ data "aws_subnets" "pod" {
 #   - Finds security groups by wildcard name (e.g., "eks-*")
 #   - Filters by tags if provided (e.g., Environment=prod)
 data "aws_security_groups" "eks" {
-  vpc_ids = [var.vpc_id]
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
 
-  # Name filter: Use wildcard pattern matching
-  # Default "*" matches all security groups; restrict to specific patterns
-  # Example filters: "eks-*", "*-cluster-sg", "platform-*"
   filter {
     name   = "group-name"
     values = [var.security_group_name_filter]
   }
 
-  # Optional tag filters: Add security group tags if you want more control
-  # Example: {Environment=prod, Team=platform} narrows down selection
-  # Uses dynamic block to iterate through all provided tags
   dynamic "filter" {
     for_each = var.security_group_tags
     content {
