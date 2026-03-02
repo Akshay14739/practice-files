@@ -23,7 +23,10 @@
 # CONTAINS: Load balancers, NAT gateways, potentially bastion hosts
 # ROUTE: Has route to Internet Gateway (0.0.0.0/0 -> IGW)
 data "aws_subnets" "public" {
-  vpc_id = var.vpc_id
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
 
   filter {
     name   = "tag:${var.subnet_tag_key}"      # Search for tag: SubnetType
