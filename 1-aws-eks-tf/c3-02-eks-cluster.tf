@@ -36,8 +36,6 @@ resource "aws_eks_cluster" "main" {
       data.aws_subnets.pod.ids      # Pod deployment subnets
     )
     
-    security_groups = data.aws_security_groups.eks.ids
-    
     endpoint_private_access = var.cluster_endpoint_private_access
     endpoint_public_access  = var.cluster_endpoint_public_access
     public_access_cidrs     = var.cluster_endpoint_public_access_cidrs
