@@ -63,7 +63,7 @@ A comprehensive production-ready Terraform module that provisions a complete AWS
 | Public Subnet | `SubnetType` | `public` | → Internet Gateway | NAT Gateway, Bastion hosts |
 | Bastion Subnet | `SubnetType` | `bastion` | → NAT Gateway | Bastion/Jump hosts |
 | Node Subnet | `SubnetType` | `node` | → NAT Gateway | EKS worker nodes |
-| DB Subnet | `SubnetType` | `db` | → NAT Gateway | RDS databases |
+| DB Subnet | `SubnetType` | `db` | → None (Isolated) | RDS databases |
 | Pod Subnet | `SubnetType` | `pod` | → NAT Gateway | Pod IP assignment |
 
 ---
@@ -85,8 +85,9 @@ A comprehensive production-ready Terraform module that provisions a complete AWS
 ### Required: NAT Gateway for Private Subnets
 - ✅ Create NAT Gateway in **public subnet**
 - ✅ Allocate and assign **Elastic IP** to NAT Gateway
-- ✅ Add route in **all private subnet route tables**: `0.0.0.0/0 → NAT Gateway`
-  - Private subnets: bastion, node, db, pod
+- ✅ Add route in **private subnet route tables** (bastion, node, pod): `0.0.0.0/0 → NAT Gateway`
+  - Private subnets WITH internet access: bastion, node, pod
+  - Private subnets WITHOUT internet access: db (isolated)
 
 ### Required: 5 Subnets with SubnetType Tags
 All 5 subnets must exist and be tagged correctly:
@@ -96,7 +97,7 @@ All 5 subnets must exist and be tagged correctly:
 | Public (IGW access) | 10.0.1.0/24 | us-east-1a | `SubnetType` | `public` | Routes to IGW, holds NAT GW |
 | Bastion | 10.0.2.0/24 | us-east-1a | `SubnetType` | `bastion` | Routes to NAT GW |
 | Node (EKS Workers) | 10.0.3.0/24 | us-east-1a | `SubnetType` | `node` | Routes to NAT GW |
-| DB | 10.0.4.0/24 | us-east-1a | `SubnetType` | `db` | Routes to NAT GW |
+| DB | 10.0.4.0/24 | us-east-1a | `SubnetType` | `db` | No internet route (isolated) |
 | Pod | 10.0.5.0/24 | us-east-1a | `SubnetType` | `pod` | Routes to NAT GW |
 
 **How to Tag Subnets:**
