@@ -9,8 +9,8 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "your-unique-terraform-state-bucket"
-    key            = "eks/terraform.tfstate"
+    bucket         = "harman-s3-eks-tf-testing"
+    key            = "terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
     dynamodb_table = "terraform-locks"
