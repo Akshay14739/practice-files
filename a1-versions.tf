@@ -9,7 +9,7 @@ terraform {
   }
 
   backend "s3" {
-    bucket         = "harman-s3-eks-tf-testing"
+    bucket         = "harman-s3-eks-tf-testing-1"
     key            = "terraform.tfstate"
     region         = "us-east-1"
     encrypt        = true
