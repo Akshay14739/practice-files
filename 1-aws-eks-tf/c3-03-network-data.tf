@@ -35,7 +35,10 @@ data "aws_subnets" "public" {
 # CONTAINS: Jump servers (bastion hosts) for secure SSH access
 # ROUTE: Could be public or private depending on design
 data "aws_subnets" "bastion" {
-  vpc_id = var.vpc_id
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
 
   filter {
     name   = "tag:${var.subnet_tag_key}"
@@ -48,7 +51,10 @@ data "aws_subnets" "bastion" {
 # ROUTE: NO direct IGW route - must use NAT gateway for internet access
 # CRITICAL: These must be different from pod subnets for networking isolation
 data "aws_subnets" "node" {
-  vpc_id = var.vpc_id
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
 
   filter {
     name   = "tag:${var.subnet_tag_key}"
@@ -61,7 +67,10 @@ data "aws_subnets" "node" {
 # ROUTE: NO direct IGW route - isolated from public internet
 # SECURITY: Separate from pod/node subnets for network segmentation
 data "aws_subnets" "db" {
-  vpc_id = var.vpc_id
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
 
   filter {
     name   = "tag:${var.subnet_tag_key}"
@@ -77,7 +86,10 @@ data "aws_subnets" "db" {
 #   - Scaling behavior
 #   - Cost allocation (pods scale dynamically, nodes don't)
 data "aws_subnets" "pod" {
-  vpc_id = var.vpc_id
+  filter {
+    name   = "vpc-id"
+    values = [var.vpc_id]
+  }
 
   filter {
     name   = "tag:${var.subnet_tag_key}"
@@ -95,7 +107,7 @@ data "aws_subnets" "pod" {
 #   - Finds security groups by wildcard name (e.g., "eks-*")
 #   - Filters by tags if provided (e.g., Environment=prod)
 data "aws_security_groups" "eks" {
-  vpc_id = var.vpc_id
+  vpc_ids = [var.vpc_id]
 
   # Name filter: Use wildcard pattern matching
   # Default "*" matches all security groups; restrict to specific patterns

@@ -10,6 +10,7 @@
 # ============================================================================
 # EKS CLUSTER OUTPUTS
 # ============================================================================
+/*
 output "eks_cluster_name" {
   description = "Name of the EKS cluster"
   value       = aws_eks_cluster.main.name
@@ -173,3 +174,5 @@ output "next_steps" {
        https://console.aws.amazon.com/cloudwatch/home?region=${var.aws_region}#logsV2:log-groups/aws/eks/${aws_eks_cluster.main.name}
   EOT
 }
+
+*/
