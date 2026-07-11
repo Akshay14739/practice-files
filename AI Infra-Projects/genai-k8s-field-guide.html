@@ -1,0 +1,1166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Field Guide · Kubernetes for Generative AI Solutions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d141f;
+    --bg-2:#0f1826;
+    --surface:#141d2c;
+    --surface-2:#17212f;
+    --surface-hi:#1b2636;
+    --line:#243044;
+    --line-soft:#1c2637;
+    --text:#e7eefa;
+    --text-2:#9aa7bd;
+    --text-3:#6c7a90;
+    --ai:#8fcb52;        /* AI world — green */
+    --ai-dim:#2b3a20;
+    --infra:#5a9bff;     /* Infra world — blue */
+    --infra-dim:#1d2c4a;
+    --bridge:#34c6c6;    /* Bridge — teal */
+    --bridge-dim:#123536;
+    --amber:#e0a458;
+    --radius:14px;
+    --maxw:1180px;
+    --sans:"IBM Plex Sans",system-ui,sans-serif;
+    --disp:"Space Grotesk",system-ui,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,monospace;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;scroll-padding-top:90px}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:var(--sans);font-size:16px;line-height:1.62;
+    -webkit-font-smoothing:antialiased;
+    background-image:
+      radial-gradient(900px 500px at 82% -8%, rgba(52,198,198,.10), transparent 60%),
+      radial-gradient(900px 500px at 6% -2%, rgba(90,155,255,.10), transparent 55%);
+    background-attachment:fixed;
+  }
+  a{color:inherit;text-decoration:none}
+  ::selection{background:rgba(143,203,82,.28)}
+
+  /* ---------- Masthead ---------- */
+  .masthead{
+    position:sticky;top:0;z-index:50;
+    background:rgba(13,20,31,.82);backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--line);
+  }
+  .masthead-inner{
+    max-width:var(--maxw);margin:0 auto;padding:11px 24px;
+    display:flex;align-items:center;gap:18px;
+  }
+  .brand{display:flex;align-items:center;gap:11px;font-family:var(--disp);font-weight:600;letter-spacing:-.01em}
+  .brand .glyph{
+    width:30px;height:30px;border-radius:8px;flex-shrink:0;
+    background:linear-gradient(135deg,var(--infra),var(--bridge) 55%,var(--ai));
+    display:grid;place-items:center;color:#0b111b;font-size:15px;font-weight:700;
+  }
+  .brand small{display:block;font-family:var(--mono);font-size:10.5px;font-weight:500;color:var(--text-3);letter-spacing:.02em;margin-top:-2px}
+  .mast-search{margin-left:auto;position:relative;display:flex;align-items:center}
+  .mast-search input{
+    width:230px;background:var(--surface);border:1px solid var(--line);
+    border-radius:9px;padding:8px 12px 8px 32px;color:var(--text);
+    font-family:var(--mono);font-size:12.5px;transition:border-color .18s,width .2s;
+  }
+  .mast-search input:focus{outline:none;border-color:var(--bridge);width:260px}
+  .mast-search input::placeholder{color:var(--text-3)}
+  .mast-search svg{position:absolute;left:10px;width:14px;height:14px;stroke:var(--text-3);pointer-events:none}
+  .search-count{font-family:var(--mono);font-size:11px;color:var(--bridge);margin-left:10px;white-space:nowrap;min-width:52px}
+
+  /* ---------- Layout shell ---------- */
+  .shell{max-width:var(--maxw);margin:0 auto;padding:0 24px;display:grid;grid-template-columns:212px 1fr;gap:38px;align-items:start}
+  nav.toc{position:sticky;top:78px;align-self:start;padding:26px 0;max-height:calc(100vh - 78px);overflow-y:auto}
+  nav.toc h4{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3);margin:0 0 12px;font-weight:600}
+  nav.toc a{
+    display:flex;align-items:center;gap:9px;padding:5px 10px;margin:1px -10px;border-radius:7px;
+    font-size:13px;color:var(--text-2);line-height:1.3;transition:background .15s,color .15s;
+  }
+  nav.toc a:hover{background:var(--surface);color:var(--text)}
+  nav.toc a .n{font-family:var(--mono);font-size:10.5px;color:var(--text-3);width:16px;flex-shrink:0}
+  nav.toc a .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+  nav.toc .grp{margin:18px 0 6px;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);opacity:.75;padding-left:2px}
+  nav.toc .grp:first-of-type{margin-top:4px}
+  main{padding:26px 0 90px;min-width:0}
+
+  /* ---------- Hero ---------- */
+  .hero{padding:30px 0 14px;border-bottom:1px solid var(--line-soft);margin-bottom:6px}
+  .eyebrow{font-family:var(--mono);font-size:11.5px;letter-spacing:.08em;color:var(--bridge);text-transform:uppercase;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .eyebrow .sep{color:var(--text-3)}
+  .hero h1{font-family:var(--disp);font-weight:600;font-size:clamp(27px,3.9vw,42px);line-height:1.08;letter-spacing:-.025em;margin:16px 0 0;max-width:19ch}
+  .hero h1 em{font-style:normal;color:var(--ai)}
+  .hero .lede{font-size:16.5px;color:var(--text-2);max-width:66ch;margin:16px 0 0}
+  .hero .lede b{color:var(--text);font-weight:600}
+
+  .hero-motif{margin:26px 0 4px}
+  .meta-strip{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+  .meta-chip{
+    font-family:var(--mono);font-size:12px;color:var(--text-2);
+    background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:7px 12px;
+    display:flex;align-items:center;gap:8px;
+  }
+  .meta-chip b{color:var(--text);font-weight:600}
+  .meta-chip .k{color:var(--text-3)}
+
+  /* ---------- Legend ---------- */
+  .legend{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:24px 0 6px}
+  .legend .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 15px;position:relative;overflow:hidden}
+  .legend .card::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+  .legend .ai::before{background:var(--ai)}
+  .legend .infra::before{background:var(--infra)}
+  .legend .bridge::before{background:var(--bridge)}
+  .legend .tag{font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;display:inline-flex;align-items:center;gap:7px}
+  .legend .ai .tag{color:var(--ai)}
+  .legend .infra .tag{color:var(--infra)}
+  .legend .bridge .tag{color:var(--bridge)}
+  .legend p{font-size:12.5px;color:var(--text-2);margin:8px 0 0;line-height:1.5}
+
+  /* ---------- Sections ---------- */
+  section.grp-head{padding:34px 0 6px}
+  .grp-head .kicker{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3)}
+  .grp-head h2{font-family:var(--disp);font-weight:600;font-size:22px;letter-spacing:-.01em;margin:6px 0 0;color:var(--text)}
+  .grp-head .rule{height:1px;background:linear-gradient(90deg,var(--line),transparent);margin-top:14px}
+
+  section.cat{padding:30px 0 8px;scroll-margin-top:84px}
+  .cat-head{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+  .cat-head .num{font-family:var(--mono);font-size:13px;color:var(--text-3);font-weight:500}
+  .cat-head h3{font-family:var(--disp);font-weight:600;font-size:clamp(19px,2.3vw,24px);letter-spacing:-.015em;margin:0}
+  .world-tag{font-family:var(--mono);font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:6px;white-space:nowrap}
+  .wt-ai{color:var(--ai);background:var(--ai-dim);border:1px solid rgba(143,203,82,.28)}
+  .wt-infra{color:var(--infra);background:var(--infra-dim);border:1px solid rgba(90,155,255,.28)}
+  .wt-bridge{color:var(--bridge);background:var(--bridge-dim);border:1px solid rgba(52,198,198,.28)}
+  .ch-ref{font-family:var(--mono);font-size:11.5px;color:var(--text-3);margin-left:auto}
+  .cat-intro{color:var(--text-2);font-size:14.5px;max-width:74ch;margin:2px 0 20px}
+
+  /* ---------- Term cards ---------- */
+  .terms{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}
+  .term{
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    padding:15px 16px 15px;position:relative;transition:transform .16s ease,border-color .16s,background .16s;
+    border-left-width:3px;
+  }
+  .term:hover{transform:translateY(-2px);background:var(--surface-hi);border-color:var(--line)}
+  .term.ai{border-left-color:var(--ai)}
+  .term.infra{border-left-color:var(--infra)}
+  .term.bridge{border-left-color:var(--bridge)}
+  .term .t-top{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+  .term h4{font-family:var(--disp);font-weight:600;font-size:16px;letter-spacing:-.01em;margin:0;color:var(--text)}
+  .term .abbr{font-family:var(--mono);font-size:11px;color:var(--text-3);font-weight:500}
+  .term .def{font-size:14px;color:var(--text-2);margin:9px 0 0;line-height:1.55}
+  .term .def b{color:var(--text);font-weight:600}
+  .term .bridge-note{
+    font-size:12.5px;color:var(--text-2);margin:11px 0 0;padding:9px 11px;
+    background:var(--bg-2);border-radius:8px;border:1px solid var(--line-soft);line-height:1.5;
+  }
+  .term .bridge-note::before{content:"↳ FOR YOU  ";font-family:var(--mono);font-size:9.5px;font-weight:600;letter-spacing:.08em;color:var(--bridge)}
+  .term.ai .bridge-note::before{color:var(--ai)}
+  .term.infra .bridge-note::before{color:var(--infra)}
+
+  /* ---------- Diagram panels ---------- */
+  figure.diagram{
+    margin:22px 0;background:linear-gradient(180deg,var(--surface),var(--bg-2));
+    border:1px solid var(--line);border-radius:var(--radius);padding:20px 20px 16px;overflow:hidden;
+  }
+  figure.diagram .d-label{font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--bridge);display:flex;align-items:center;gap:8px;margin-bottom:4px}
+  figure.diagram .d-label::before{content:"◈"}
+  figure.diagram figcaption{font-family:var(--disp);font-weight:600;font-size:16.5px;color:var(--text);margin-bottom:15px;letter-spacing:-.01em}
+  figure.diagram svg{width:100%;height:auto;display:block}
+  .d-foot{font-size:12.5px;color:var(--text-3);margin-top:13px;padding-top:12px;border-top:1px solid var(--line-soft);line-height:1.5}
+  .d-foot b{color:var(--text-2);font-weight:600}
+
+  /* SVG shared text styles */
+  .svg-mono{font-family:var(--mono);font-size:12px;fill:var(--text)}
+  .svg-mono-sm{font-family:var(--mono);font-size:10.5px;fill:var(--text-2)}
+  .svg-lbl{font-family:"IBM Plex Sans",sans-serif;font-size:13px;fill:var(--text);font-weight:600}
+  .svg-sub{font-family:"IBM Plex Sans",sans-serif;font-size:11.5px;fill:var(--text-2)}
+  .svg-cap{font-family:var(--mono);font-size:10px;fill:var(--text-3);letter-spacing:.06em}
+
+  .no-results{display:none;text-align:center;padding:50px 20px;color:var(--text-2);font-size:15px}
+  .no-results.show{display:block}
+  .no-results code{font-family:var(--mono);color:var(--bridge);background:var(--surface);padding:2px 7px;border-radius:5px}
+
+  footer{max-width:var(--maxw);margin:0 auto;padding:34px 24px 60px;border-top:1px solid var(--line);color:var(--text-3);font-size:13px}
+  footer b{color:var(--text-2)}
+  footer .fnote{font-family:var(--mono);font-size:11.5px;margin-top:10px;color:var(--text-3);line-height:1.6}
+
+  .mobile-toc-toggle{display:none}
+
+  /* ---------- Responsive ---------- */
+  @media(max-width:900px){
+    .shell{grid-template-columns:1fr;gap:0}
+    nav.toc{display:none;position:fixed;inset:64px 0 0 0;top:64px;background:var(--bg);z-index:40;padding:20px 24px;max-height:none;overflow-y:auto;border-right:none}
+    nav.toc.open{display:block}
+    .mobile-toc-toggle{display:inline-flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--line);color:var(--text);border-radius:9px;padding:8px 12px;font-family:var(--mono);font-size:12px;cursor:pointer}
+    .mast-search input{width:150px}
+    .mast-search input:focus{width:170px}
+    .legend{grid-template-columns:1fr}
+    .brand small{display:none}
+  }
+  @media(max-width:560px){
+    .shell{padding:0 16px}
+    .masthead-inner{padding:10px 16px;gap:10px}
+    .mast-search{display:none}
+    .terms{grid-template-columns:1fr}
+    .meta-strip{gap:8px}
+  }
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important;transition:none!important;scroll-behavior:auto!important}
+  }
+  /* focus */
+  a:focus-visible,input:focus-visible,button:focus-visible{outline:2px solid var(--bridge);outline-offset:2px;border-radius:6px}
+
+  .fade{opacity:0;transform:translateY(8px);animation:fade .5s ease forwards}
+  @keyframes fade{to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <a class="brand" href="#top">
+      <span class="glyph">K</span>
+      <span>GenAI × K8s Field Guide<small>Companion glossary · Packt, 2025</small></span>
+    </a>
+    <button class="mobile-toc-toggle" id="tocToggle" aria-label="Toggle contents">☰ Contents</button>
+    <div class="mast-search">
+      <svg viewBox="0 0 24 24" fill="none" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="search" type="search" placeholder="filter terms…" autocomplete="off" aria-label="Filter terms">
+      <span class="search-count" id="count"></span>
+    </div>
+  </div>
+</header>
+
+<div class="shell" id="top">
+
+  <!-- ============ SIDE NAV ============ -->
+  <nav class="toc" id="toc">
+    <h4>Contents</h4>
+    <div class="grp">Part 1 · Foundations</div>
+    <a href="#s1"><span class="n">01</span><span class="dot" style="background:var(--ai)"></span>AI &amp; ML Foundations</a>
+    <a href="#s2"><span class="n">02</span><span class="dot" style="background:var(--ai)"></span>Transformers &amp; LLMs</a>
+    <a href="#s3"><span class="n">03</span><span class="dot" style="background:var(--infra)"></span>Containers &amp; Kubernetes</a>
+    <a href="#s4"><span class="n">04</span><span class="dot" style="background:var(--infra)"></span>Cloud &amp; AWS</a>
+    <div class="grp">Part 2 · Productionalizing</div>
+    <a href="#s5"><span class="n">05</span><span class="dot" style="background:var(--bridge)"></span>RAG, Fine-tuning &amp; Co.</a>
+    <a href="#s6"><span class="n">06</span><span class="dot" style="background:var(--ai)"></span>GenAI Toolchain</a>
+    <a href="#s7"><span class="n">07</span><span class="dot" style="background:var(--infra)"></span>Scaling &amp; Autoscaling</a>
+    <a href="#s8"><span class="n">08</span><span class="dot" style="background:var(--infra)"></span>Cost Optimization</a>
+    <a href="#s9"><span class="n">09</span><span class="dot" style="background:var(--infra)"></span>Networking</a>
+    <a href="#s10"><span class="n">10</span><span class="dot" style="background:var(--infra)"></span>Security</a>
+    <a href="#s11"><span class="n">11</span><span class="dot" style="background:var(--bridge)"></span>GPUs &amp; Accelerators</a>
+    <div class="grp">Part 3 · Operating</div>
+    <a href="#s12"><span class="n">12</span><span class="dot" style="background:var(--bridge)"></span>GenAIOps &amp; Pipelines</a>
+    <a href="#s13"><span class="n">13</span><span class="dot" style="background:var(--bridge)"></span>Observability</a>
+    <a href="#s14"><span class="n">14</span><span class="dot" style="background:var(--infra)"></span>HA &amp; Disaster Recovery</a>
+    <a href="#s15"><span class="n">15</span><span class="dot" style="background:var(--ai)"></span>Coding Assistants</a>
+  </nav>
+
+  <!-- ============ MAIN ============ -->
+  <main>
+
+    <!-- HERO -->
+    <div class="hero fade">
+      <div class="eyebrow">
+        <span>Field Guide</span><span class="sep">/</span>
+        <span>Kubernetes for Generative AI Solutions</span><span class="sep">/</span>
+        <span>DevOps&nbsp;→&nbsp;AI&nbsp;Infra</span>
+      </div>
+      <h1>You already run the cluster. Here's the vocabulary for <em>what runs on it.</em></h1>
+      <p class="lede">Every jargon term in the book, explained in one plain sentence — then colour-coded by which world it lives in. <b>Blue</b> is the infrastructure you already own. <b>Green</b> is the AI you're learning. <b>Teal</b> is the bridge where your Kubernetes background becomes your unfair advantage.</p>
+
+      <!-- HERO MOTIF -->
+      <div class="hero-motif">
+        <svg viewBox="0 0 900 130" role="img" aria-label="Career pivot: DevOps and SRE flows through Kubernetes into AI Infrastructure">
+          <defs>
+            <linearGradient id="flow" x1="0" x2="1">
+              <stop offset="0" stop-color="#5a9bff"/><stop offset="0.5" stop-color="#34c6c6"/><stop offset="1" stop-color="#8fcb52"/>
+            </linearGradient>
+            <marker id="ah" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#8fcb52" stroke-width="1.4"/></marker>
+          </defs>
+          <line x1="150" y1="65" x2="748" y2="65" stroke="url(#flow)" stroke-width="2.5" marker-end="url(#ah)"/>
+          <!-- left node -->
+          <g>
+            <rect x="18" y="40" width="150" height="50" rx="10" fill="#141d2c" stroke="#5a9bff" stroke-width="1.3"/>
+            <text x="93" y="62" text-anchor="middle" class="svg-lbl" fill="#5a9bff">DevOps · SRE</text>
+            <text x="93" y="79" text-anchor="middle" class="svg-cap">WHERE YOU ARE</text>
+          </g>
+          <!-- middle node -->
+          <g>
+            <rect x="378" y="34" width="150" height="62" rx="12" fill="#12303a" stroke="#34c6c6" stroke-width="1.6"/>
+            <text x="453" y="60" text-anchor="middle" class="svg-lbl" fill="#34c6c6">Kubernetes</text>
+            <text x="453" y="78" text-anchor="middle" class="svg-cap">THE THROUGH-LINE</text>
+          </g>
+          <!-- right node -->
+          <g>
+            <rect x="732" y="40" width="152" height="50" rx="10" fill="#141d2c" stroke="#8fcb52" stroke-width="1.3"/>
+            <text x="808" y="62" text-anchor="middle" class="svg-lbl" fill="#8fcb52">AI Infrastructure</text>
+            <text x="808" y="79" text-anchor="middle" class="svg-cap">WHERE YOU'RE GOING</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="meta-strip">
+        <span class="meta-chip"><span class="k">covers</span> <b>14</b> chapters</span>
+        <span class="meta-chip"><span class="k">defines</span> <b>174</b> terms</span>
+        <span class="meta-chip"><span class="k">includes</span> <b>9</b> diagrams</span>
+        <span class="meta-chip"><span class="k">read time</span> <b>~35</b> min</span>
+      </div>
+
+      <div class="legend">
+        <div class="card infra">
+          <span class="tag">● Infra world</span>
+          <p>Containers, K8s, cloud, networking, scaling, security, HA/DR. Your home turf — here the definitions flag the <em>GenAI-specific twist</em>.</p>
+        </div>
+        <div class="card ai">
+          <span class="tag">● AI world</span>
+          <p>Models, transformers, embeddings, fine-tuning, frameworks. The genuinely new material — read these closely.</p>
+        </div>
+        <div class="card bridge">
+          <span class="tag">● Bridge</span>
+          <p>GPUs, RAG plumbing, GenAIOps, observability. Where infra skills meet AI workloads — your fastest path to value.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="no-results" id="noResults">No terms match <code id="nrQuery"></code>. Try a shorter query, or clear the filter.</div>
+
+    <!-- ================= PART 1 ================= -->
+    <section class="grp-head">
+      <div class="kicker">Part 1</div>
+      <h2>GenAI &amp; Kubernetes Foundation</h2>
+      <div class="rule"></div>
+    </section>
+
+    <!-- ===== 01 AI & ML FOUNDATIONS ===== -->
+    <section class="cat" id="s1">
+      <div class="cat-head">
+        <span class="num">01</span>
+        <h3>AI &amp; Machine Learning Foundations</h3>
+        <span class="world-tag wt-ai">AI world</span>
+        <span class="ch-ref">Chapter 1</span>
+      </div>
+      <p class="cat-intro">The nested family tree that GenAI sits inside. Get this hierarchy straight first — the whole book assumes you know that an LLM is a very specific kind of a much broader thing.</p>
+
+      <figure class="diagram">
+        <div class="d-label">Taxonomy</div>
+        <figcaption>The Russian dolls: how AI, ML, DL, GenAI and LLMs nest</figcaption>
+        <svg viewBox="0 0 760 300" role="img" aria-label="Nested boxes showing AI contains ML contains Deep Learning contains GenAI contains LLMs">
+          <rect x="10" y="10" width="740" height="280" rx="14" fill="none" stroke="#3a465c" stroke-width="1.4"/>
+          <text x="26" y="34" class="svg-lbl" fill="#c9d4e6">Artificial Intelligence — any machine mimicking human intelligence</text>
+          <rect x="34" y="48" width="692" height="228" rx="12" fill="rgba(90,155,255,.05)" stroke="#40507080" stroke-width="1.2"/>
+          <text x="50" y="70" class="svg-lbl" fill="#8aa9dd">Machine Learning — systems that learn patterns from data instead of hard-coded rules</text>
+          <rect x="58" y="84" width="644" height="176" rx="11" fill="rgba(52,198,198,.05)" stroke="#2a5a6a80" stroke-width="1.2"/>
+          <text x="74" y="106" class="svg-lbl" fill="#5fbebe">Deep Learning — ML using many-layered neural networks (CNNs, RNNs)</text>
+          <rect x="82" y="120" width="596" height="124" rx="10" fill="rgba(143,203,82,.06)" stroke="#5a7a3080" stroke-width="1.2"/>
+          <text x="98" y="142" class="svg-lbl" fill="#a8d76b">Generative AI — DL that creates new content: text, images, code, audio</text>
+          <rect x="106" y="156" width="548" height="72" rx="9" fill="rgba(143,203,82,.14)" stroke="#8fcb52" stroke-width="1.5"/>
+          <text x="122" y="182" class="svg-lbl" fill="#c6e89a">LLMs — GenAI specialised for human language (GPT, Claude, Llama)</text>
+          <text x="122" y="204" class="svg-sub" fill="#9aa7bd">A subset of Foundation Models, which are the broad pre-trained bases you adapt.</text>
+        </svg>
+        <div class="d-foot"><b>Read it inward:</b> every LLM is GenAI, every GenAI is deep learning, and so on out to AI. The book lives almost entirely in the two innermost boxes.</div>
+      </figure>
+
+      <div class="terms">
+        <div class="term ai" data-term="artificial intelligence ai"><div class="t-top"><h4>Artificial Intelligence</h4><span class="abbr">AI</span></div><p class="def">Any technique that makes a machine do things we'd call "intelligent" — the broadest umbrella, from 1970s rule-engines to today's chatbots.</p></div>
+        <div class="term ai" data-term="machine learning ml"><div class="t-top"><h4>Machine Learning</h4><span class="abbr">ML</span></div><p class="def">Software that <b>learns patterns from examples</b> rather than following rules a programmer wrote by hand — show it 10,000 spam emails and it figures out what spam looks like.</p></div>
+        <div class="term ai" data-term="deep learning dl neural network"><div class="t-top"><h4>Deep Learning</h4><span class="abbr">DL</span></div><p class="def">ML built from <b>neural networks stacked many layers deep</b>, loosely inspired by how brain neurons connect — this is what made modern AI actually work.</p></div>
+        <div class="term ai" data-term="generative ai genai"><div class="t-top"><h4>Generative AI</h4><span class="abbr">GenAI</span></div><p class="def">Deep learning that <b>produces new content</b> — text, images, music, code — instead of just classifying or predicting. The whole subject of this book.</p></div>
+        <div class="term ai" data-term="neural network"><div class="t-top"><h4>Neural Network</h4></div><p class="def">A web of simple math units ("neurons") in layers that pass signals forward; training nudges the connection strengths until the right outputs come out.</p></div>
+        <div class="term ai" data-term="cnn convolutional neural network"><div class="t-top"><h4>CNN</h4><span class="abbr">Convolutional NN</span></div><p class="def">A neural net built for <b>images</b> — it scans for visual features (edges, shapes) much like your eye's visual cortex. Great at "what's in this picture?"</p></div>
+        <div class="term ai" data-term="rnn recurrent neural network"><div class="t-top"><h4>RNN</h4><span class="abbr">Recurrent NN</span></div><p class="def">A neural net for <b>sequences</b> (text, time-series) that reads one item at a time and remembers what came before — the pre-transformer way to handle language.</p></div>
+        <div class="term ai" data-term="lstm gru long short-term memory"><div class="t-top"><h4>LSTM / GRU</h4><span class="abbr">memory cells</span></div><p class="def">Upgraded RNNs with a built-in "memory gate" so they don't forget the start of a long sentence by the time they reach the end.</p></div>
+        <div class="term ai" data-term="nlp natural language processing"><div class="t-top"><h4>NLP</h4><span class="abbr">Natural Language Processing</span></div><p class="def">The field of getting computers to <b>understand and produce human language</b> — the home turf of LLMs.</p></div>
+        <div class="term ai" data-term="svm support vector machine"><div class="t-top"><h4>SVM</h4><span class="abbr">Support Vector Machine</span></div><p class="def">A classic (pre-deep-learning) ML method that draws the cleanest possible dividing line between two categories of data.</p></div>
+        <div class="term ai" data-term="backpropagation gradient descent training"><div class="t-top"><h4>Backpropagation</h4><span class="abbr">+ gradient descent</span></div><p class="def">The core training trick: measure how wrong the network was, then walk the error backwards through every layer to tweak each knob slightly in the right direction. Repeat millions of times.</p></div>
+        <div class="term ai" data-term="sota state of the art"><div class="t-top"><h4>SOTA</h4><span class="abbr">State Of The Art</span></div><p class="def">The current best-performing model or technique for a task — the bar everyone benchmarks against.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 02 TRANSFORMERS & LLMs ===== -->
+    <section class="cat" id="s2">
+      <div class="cat-head">
+        <span class="num">02</span>
+        <h3>Transformers &amp; Large Language Models</h3>
+        <span class="world-tag wt-ai">AI world</span>
+        <span class="ch-ref">Chapter 1</span>
+      </div>
+      <p class="cat-intro">The 2017 "Attention Is All You Need" architecture that powers every modern LLM. You don't need the math, but you do need the vocabulary — tokens, embeddings, attention — because it explains why these models are so hungry for GPU memory.</p>
+
+      <figure class="diagram">
+        <div class="d-label">How text flows through a transformer</div>
+        <figcaption>From words to a prediction, one pipeline</figcaption>
+        <svg viewBox="0 0 860 250" role="img" aria-label="Pipeline: text becomes tokens, then embeddings plus positional encoding, then self-attention, then output token">
+          <defs><marker id="a2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#6c7a90" stroke-width="1.3"/></marker></defs>
+          <!-- stage boxes -->
+          <g>
+            <rect x="14" y="70" width="132" height="70" rx="10" fill="#141d2c" stroke="#5a7a30" stroke-width="1.3"/>
+            <text x="80" y="94" text-anchor="middle" class="svg-lbl">1 · Tokenize</text>
+            <text x="80" y="114" text-anchor="middle" class="svg-sub">"the brown hat"</text>
+            <text x="80" y="130" text-anchor="middle" class="svg-cap">→ the · brown · hat</text>
+          </g>
+          <line x1="150" y1="105" x2="178" y2="105" stroke="#6c7a90" stroke-width="1.4" marker-end="url(#a2)"/>
+          <g>
+            <rect x="182" y="70" width="150" height="70" rx="10" fill="#141d2c" stroke="#5a7a30" stroke-width="1.3"/>
+            <text x="257" y="94" text-anchor="middle" class="svg-lbl">2 · Embed</text>
+            <text x="257" y="114" text-anchor="middle" class="svg-sub">each token → vector</text>
+            <text x="257" y="130" text-anchor="middle" class="svg-cap">[0.1, 0.2, …]</text>
+          </g>
+          <line x1="336" y1="105" x2="364" y2="105" stroke="#6c7a90" stroke-width="1.4" marker-end="url(#a2)"/>
+          <g>
+            <rect x="368" y="70" width="150" height="70" rx="10" fill="#141d2c" stroke="#8fcb52" stroke-width="1.5"/>
+            <text x="443" y="90" text-anchor="middle" class="svg-lbl" fill="#a8d76b">3 · Self-Attention</text>
+            <text x="443" y="110" text-anchor="middle" class="svg-sub">weigh every word</text>
+            <text x="443" y="126" text-anchor="middle" class="svg-sub">against every other</text>
+          </g>
+          <line x1="522" y1="105" x2="550" y2="105" stroke="#6c7a90" stroke-width="1.4" marker-end="url(#a2)"/>
+          <g>
+            <rect x="554" y="70" width="140" height="70" rx="10" fill="#141d2c" stroke="#5a7a30" stroke-width="1.3"/>
+            <text x="624" y="94" text-anchor="middle" class="svg-lbl">4 · Feed-forward</text>
+            <text x="624" y="114" text-anchor="middle" class="svg-sub">refine + reason</text>
+          </g>
+          <line x1="698" y1="105" x2="726" y2="105" stroke="#6c7a90" stroke-width="1.4" marker-end="url(#a2)"/>
+          <g>
+            <rect x="730" y="70" width="118" height="70" rx="10" fill="#12303a" stroke="#34c6c6" stroke-width="1.4"/>
+            <text x="789" y="98" text-anchor="middle" class="svg-lbl" fill="#5fbebe">5 · Next</text>
+            <text x="789" y="116" text-anchor="middle" class="svg-sub">predict "on…"</text>
+          </g>
+          <!-- positional encoding callout -->
+          <g>
+            <rect x="182" y="168" width="150" height="46" rx="8" fill="rgba(224,164,88,.08)" stroke="#7a5e2e" stroke-width="1.1" stroke-dasharray="4 3"/>
+            <text x="257" y="188" text-anchor="middle" class="svg-cap" fill="#e0a458">+ POSITIONAL ENCODING</text>
+            <text x="257" y="204" text-anchor="middle" class="svg-sub">stamps word order in</text>
+          </g>
+          <line x1="257" y1="168" x2="257" y2="142" stroke="#7a5e2e" stroke-width="1.1" stroke-dasharray="4 3"/>
+          <text x="14" y="30" class="svg-cap" fill="#6c7a90">INPUT PROMPT</text>
+          <text x="789" y="30" text-anchor="middle" class="svg-cap" fill="#6c7a90">OUTPUT</text>
+        </svg>
+        <div class="d-foot"><b>Why it matters to you:</b> steps 2–4 run in parallel across the whole prompt at once — that parallelism is exactly why transformers need GPUs, and why the "context window" (how many tokens fit) drives memory cost.</div>
+      </figure>
+
+      <div class="terms">
+        <div class="term ai" data-term="transformer attention is all you need"><div class="t-top"><h4>Transformer</h4></div><p class="def">The neural-network design (2017) behind all modern LLMs. Its superpower is processing a whole sentence <b>in parallel</b> while still tracking how every word relates to every other.</p></div>
+        <div class="term ai" data-term="fm foundation model"><div class="t-top"><h4>Foundation Model</h4><span class="abbr">FM</span></div><p class="def">A huge model pre-trained on broad data that serves as a <b>reusable base</b> — you adapt it to your task rather than training from scratch. Think "base image" for AI.</p><p class="bridge-note">Mentally map it to a golden AMI or base container image: expensive to build once, then everyone customizes on top.</p></div>
+        <div class="term ai" data-term="llm large language model"><div class="t-top"><h4>Large Language Model</h4><span class="abbr">LLM</span></div><p class="def">A foundation model specialised for language — it predicts the next word over and over to generate fluent text. GPT, Claude, and Llama are LLMs.</p></div>
+        <div class="term ai" data-term="token tokenization"><div class="t-top"><h4>Token / Tokenization</h4></div><p class="def">Models don't read words — they read <b>tokens</b>, the sub-word chunks text is chopped into. Pricing, context limits, and speed are all measured in tokens.</p></div>
+        <div class="term ai" data-term="embedding vector embedding"><div class="t-top"><h4>Embedding</h4><span class="abbr">vector</span></div><p class="def">A list of numbers that captures a token's <b>meaning</b> as coordinates in space, so "king" and "queen" land near each other. The universal currency of GenAI.</p></div>
+        <div class="term ai" data-term="self-attention multi-head attention query key value"><div class="t-top"><h4>Self-Attention</h4><span class="abbr">multi-head</span></div><p class="def">The mechanism that lets each word "look at" all the others and decide which matter most for meaning — like a team of detectives each chasing a different clue in the same sentence.</p></div>
+        <div class="term ai" data-term="query key value qkv"><div class="t-top"><h4>Query / Key / Value</h4><span class="abbr">Q · K · V</span></div><p class="def">The three vectors attention computes per word: the <b>question</b> a word is asking, the <b>labels</b> other words offer, and the <b>information</b> retrieved when they match.</p></div>
+        <div class="term ai" data-term="positional encoding"><div class="t-top"><h4>Positional Encoding</h4></div><p class="def">Since attention sees all words at once, this adds a "position stamp" so the model knows word <b>order</b> — that "dog bites man" ≠ "man bites dog".</p></div>
+        <div class="term ai" data-term="encoder decoder architecture"><div class="t-top"><h4>Encoder / Decoder</h4></div><p class="def">The two halves of a transformer: the encoder <b>understands</b> the input, the decoder <b>generates</b> the output. Chat models are mostly decoder-only.</p></div>
+        <div class="term ai" data-term="context window"><div class="t-top"><h4>Context Window</h4></div><p class="def">The maximum number of tokens a model can consider at once — its short-term memory. Bigger windows fit more of your documents but cost more GPU memory.</p></div>
+        <div class="term ai" data-term="parameters weights"><div class="t-top"><h4>Parameters / Weights</h4></div><p class="def">The billions of internal numbers a model learns during training. "A 70B model" means 70 billion of them — and roughly how much GPU RAM you'll need to hold it.</p></div>
+        <div class="term ai" data-term="inference"><div class="t-top"><h4>Inference</h4></div><p class="def">Actually <b>using</b> a trained model to get an answer (as opposed to training it). In production this is the workload you scale, monitor, and pay for per request.</p><p class="bridge-note">This is your bread and butter: inference is just a stateless-ish service you deploy, autoscale, and observe — only it's pinned to a GPU.</p></div>
+        <div class="term ai" data-term="training"><div class="t-top"><h4>Training</h4></div><p class="def">The expensive up-front process of teaching a model from data by adjusting all its weights — done once (or rarely), often across many GPUs for days.</p></div>
+        <div class="term ai" data-term="gpt generative pre-trained transformer"><div class="t-top"><h4>GPT</h4><span class="abbr">Generative Pre-trained Transformer</span></div><p class="def">OpenAI's family of decoder-only LLMs that popularised the "chatbot" era; the archetype most people picture when they hear "LLM".</p></div>
+        <div class="term ai" data-term="bert bidirectional encoder"><div class="t-top"><h4>BERT</h4><span class="abbr">Bidirectional Encoder</span></div><p class="def">Google's encoder-style transformer that reads text both directions at once — excellent at <b>understanding</b> (search, classification) rather than generating.</p></div>
+        <div class="term ai" data-term="temperature parameter"><div class="t-top"><h4>Temperature</h4></div><p class="def">A dial (0–1+) controlling randomness: low = safe, repeatable answers; high = creative, varied ones. You tune it per use case.</p></div>
+        <div class="term ai" data-term="hallucination"><div class="t-top"><h4>Hallucination</h4></div><p class="def">When a model states something false with total confidence. The main reason production systems bolt on <b>RAG</b> to keep answers grounded in real data.</p></div>
+        <div class="term ai" data-term="vector database milvus pinecone faiss chroma elasticsearch"><div class="t-top"><h4>Vector Database</h4><span class="abbr">Milvus · Pinecone · FAISS</span></div><p class="def">A database that stores embeddings and finds the <b>most similar</b> ones fast — the retrieval engine behind RAG. It answers "what's closest in meaning?" not "what matches exactly?"</p></div>
+        <div class="term ai" data-term="cosine similarity euclidean distance"><div class="t-top"><h4>Cosine Similarity</h4><span class="abbr">/ Euclidean distance</span></div><p class="def">The math for measuring how "close" two embeddings are — i.e. how related two pieces of text are in meaning. It's what a vector search actually computes.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 03 CONTAINERS & KUBERNETES ===== -->
+    <section class="cat" id="s3">
+      <div class="cat-head">
+        <span class="num">03</span>
+        <h3>Containers &amp; Kubernetes Core</h3>
+        <span class="world-tag wt-infra">Infra world</span>
+        <span class="ch-ref">Chapters 2–3</span>
+      </div>
+      <p class="cat-intro">This is your living room — you know it cold. Skim it. The only new angle: the book frames every K8s primitive around <em>packaging a model + its heavy dependencies</em> and scheduling it onto GPU nodes, so the definitions below flag where GenAI changes the calculus.</p>
+
+      <figure class="diagram">
+        <div class="d-label">Where a GenAI workload actually lands</div>
+        <figcaption>Kubernetes architecture, with a GPU model-serving pod</figcaption>
+        <svg viewBox="0 0 820 320" role="img" aria-label="Kubernetes control plane and worker nodes, one worker hosting a GPU pod serving a model">
+          <!-- control plane -->
+          <rect x="14" y="20" width="360" height="120" rx="12" fill="rgba(90,155,255,.06)" stroke="#5a9bff" stroke-width="1.3"/>
+          <text x="30" y="42" class="svg-lbl" fill="#8aa9dd">Control Plane — the brain</text>
+          <g class="svg-mono-sm">
+            <rect x="30" y="54" width="76" height="34" rx="6" fill="#141d2c" stroke="#40507080"/><text x="68" y="75" text-anchor="middle" class="svg-cap">API server</text>
+            <rect x="114" y="54" width="76" height="34" rx="6" fill="#141d2c" stroke="#40507080"/><text x="152" y="75" text-anchor="middle" class="svg-cap">scheduler</text>
+            <rect x="198" y="54" width="76" height="34" rx="6" fill="#141d2c" stroke="#40507080"/><text x="236" y="70" text-anchor="middle" class="svg-cap">controller</text><text x="236" y="82" text-anchor="middle" class="svg-cap">manager</text>
+            <rect x="282" y="54" width="76" height="34" rx="6" fill="#141d2c" stroke="#40507080"/><text x="320" y="75" text-anchor="middle" class="svg-cap">etcd</text>
+            <rect x="30" y="96" width="328" height="30" rx="6" fill="#0f1826" stroke="#40507080"/><text x="194" y="115" text-anchor="middle" class="svg-cap">"desired state" store + reconcile loop</text>
+          </g>
+          <!-- worker nodes -->
+          <text x="410" y="16" class="svg-lbl" fill="#8aa9dd">Worker Nodes — the muscle</text>
+          <!-- node 1 (cpu) -->
+          <rect x="410" y="22" width="184" height="130" rx="11" fill="#141d2c" stroke="#40507080" stroke-width="1.2"/>
+          <text x="424" y="42" class="svg-cap" fill="#9aa7bd">NODE · CPU (app/API)</text>
+          <rect x="424" y="52" width="156" height="40" rx="7" fill="#0f1826" stroke="#40507080"/><text x="502" y="76" text-anchor="middle" class="svg-sub">Pod · chatbot API</text>
+          <rect x="424" y="100" width="156" height="26" rx="6" fill="#0f1826" stroke="#40507080"/><text x="502" y="117" text-anchor="middle" class="svg-cap">kubelet · kube-proxy · CRI</text>
+          <!-- node 2 (gpu) -->
+          <rect x="606" y="22" width="200" height="130" rx="11" fill="#12303a" stroke="#34c6c6" stroke-width="1.5"/>
+          <text x="620" y="42" class="svg-cap" fill="#5fbebe">NODE · GPU (model)</text>
+          <rect x="620" y="52" width="172" height="40" rx="7" fill="#0f1826" stroke="#34c6c6"/><text x="706" y="70" text-anchor="middle" class="svg-sub" fill="#5fbebe">Pod · Llama 3 serving</text><text x="706" y="84" text-anchor="middle" class="svg-cap" fill="#8fcb52">requests nvidia.com/gpu:1</text>
+          <rect x="620" y="100" width="172" height="26" rx="6" fill="#0f1826" stroke="#40507080"/><text x="706" y="117" text-anchor="middle" class="svg-cap">kubelet + NVIDIA device plugin</text>
+          <!-- arrows -->
+          <defs><marker id="a3" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#5a9bff" stroke-width="1.3"/></marker></defs>
+          <line x1="374" y1="80" x2="406" y2="80" stroke="#5a9bff" stroke-width="1.4" marker-end="url(#a3)"/>
+          <text x="390" y="72" text-anchor="middle" class="svg-cap" fill="#6c7a90">schedules</text>
+          <!-- kubectl -->
+          <rect x="14" y="170" width="130" height="40" rx="8" fill="#141d2c" stroke="#40507080"/><text x="79" y="188" text-anchor="middle" class="svg-sub">You · kubectl</text><text x="79" y="202" text-anchor="middle" class="svg-cap">apply -f model.yaml</text>
+          <line x1="144" y1="150" x2="144" y2="140" stroke="#5a9bff" stroke-width="1.4" marker-end="url(#a3)"/>
+          <line x1="79" y1="168" x2="79" y2="90" stroke="#40507080" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <text x="150" y="250" class="svg-sub" fill="#9aa7bd">The only real change from your world: some nodes carry GPUs, and pods must explicitly</text>
+          <text x="150" y="270" class="svg-sub" fill="#9aa7bd"><tspan class="svg-mono" fill="#8fcb52">request</tspan> them — the scheduler then places the pod only where a matching GPU is free.</text>
+        </svg>
+        <div class="d-foot"><b>The one mental shift:</b> a GPU is a scarce, expensive, non-shareable-by-default resource. Everything in Chapters 6–10 exists to squeeze more work onto fewer GPU-hours.</div>
+      </figure>
+
+      <div class="terms">
+        <div class="term infra" data-term="container"><div class="t-top"><h4>Container</h4></div><p class="def">A lightweight, isolated package holding an app plus everything it needs to run, sharing the host OS kernel. You know this — for GenAI it also bundles the model weights and CUDA libs.</p></div>
+        <div class="term infra" data-term="container image dockerfile"><div class="t-top"><h4>Container Image</h4><span class="abbr">/ Dockerfile</span></div><p class="def">The read-only blueprint a container is launched from. GenAI images are <b>large</b> (multi-GB model + framework), which is why registry, caching, and pull-time suddenly matter.</p></div>
+        <div class="term infra" data-term="docker"><div class="t-top"><h4>Docker</h4></div><p class="def">The tooling that builds and runs containers from a Dockerfile — the on-ramp the book uses to package your first GenAI model locally.</p></div>
+        <div class="term infra" data-term="registry ecr container registry"><div class="t-top"><h4>Registry</h4><span class="abbr">e.g. ECR</span></div><p class="def">A store for container images that clusters pull from. Amazon <b>ECR</b> is the AWS one used throughout the book.</p></div>
+        <div class="term infra" data-term="oci open container initiative"><div class="t-top"><h4>OCI</h4><span class="abbr">Open Container Initiative</span></div><p class="def">The vendor-neutral standard for image and runtime formats, so an image built anywhere runs anywhere.</p></div>
+        <div class="term infra" data-term="kubernetes k8s"><div class="t-top"><h4>Kubernetes</h4><span class="abbr">K8s</span></div><p class="def">The orchestrator that schedules, scales, heals, and networks containers across a fleet of machines. The book's whole premise: it's the ideal control layer for GPU-hungry GenAI.</p></div>
+        <div class="term infra" data-term="pod"><div class="t-top"><h4>Pod</h4></div><p class="def">The smallest deployable unit — one or more containers that live and die together. A model-serving pod is what you'll scale and pin to a GPU.</p></div>
+        <div class="term infra" data-term="node worker"><div class="t-top"><h4>Node</h4></div><p class="def">A worker machine (an EC2 instance) that runs pods. For GenAI these are often <b>pricey GPU instances</b> — which flips your cost and scheduling instincts.</p><p class="bridge-note">Your CPU-node autoscaling intuition mostly holds, but a GPU node can cost 20–40× a CPU node, so "just add nodes" is now a budget decision.</p></div>
+        <div class="term infra" data-term="cluster"><div class="t-top"><h4>Cluster</h4></div><p class="def">The control plane plus all its worker nodes, managed as one system. Usually a mix of cheap CPU nodes and a smaller pool of GPU nodes.</p></div>
+        <div class="term infra" data-term="control plane data plane"><div class="t-top"><h4>Control Plane</h4></div><p class="def">The "brain" — API server, scheduler, etcd, controllers — that stores desired state and continuously drives reality toward it. On EKS, AWS runs this for you.</p></div>
+        <div class="term infra" data-term="kubelet"><div class="t-top"><h4>kubelet</h4></div><p class="def">The agent on each node that talks to the control plane and makes sure the pods it's told to run are actually running and healthy.</p></div>
+        <div class="term infra" data-term="cri container runtime interface"><div class="t-top"><h4>CRI</h4><span class="abbr">Container Runtime Interface</span></div><p class="def">The pluggable API letting kubelet drive whatever runtime (containerd, CRI-O) actually starts containers.</p></div>
+        <div class="term infra" data-term="kubectl"><div class="t-top"><h4>kubectl</h4></div><p class="def">The command-line tool you use to talk to a cluster — apply YAML, inspect pods, read logs.</p></div>
+        <div class="term infra" data-term="yaml manifest"><div class="t-top"><h4>YAML / Manifest</h4></div><p class="def">The declarative text format where you describe what you want (deployments, services, GPU requests); Kubernetes makes it real.</p></div>
+        <div class="term infra" data-term="deployment"><div class="t-top"><h4>Deployment</h4></div><p class="def">A controller that keeps N identical pod replicas running and handles rolling updates — how you ship and version a model service.</p></div>
+        <div class="term infra" data-term="service"><div class="t-top"><h4>Service</h4></div><p class="def">A stable network endpoint + load-balancer in front of a set of pods, so callers don't care which replica answers.</p></div>
+        <div class="term infra" data-term="namespace"><div class="t-top"><h4>Namespace</h4></div><p class="def">A logical partition inside a cluster for isolating teams, environments, or tenants — familiar from your multi-tenant platform work.</p></div>
+        <div class="term infra" data-term="helm chart"><div class="t-top"><h4>Helm</h4></div><p class="def">The "package manager" for Kubernetes — bundles many manifests into one templated, versioned install. Most GenAI tools (Prometheus, GPU Operator) ship as Helm charts.</p></div>
+        <div class="term infra" data-term="crd custom resource definition"><div class="t-top"><h4>CRD</h4><span class="abbr">Custom Resource Definition</span></div><p class="def">A way to teach Kubernetes a brand-new object type. GPU, autoscaling, and MLOps tools all register CRDs to extend the API.</p></div>
+        <div class="term infra" data-term="operator gpu operator"><div class="t-top"><h4>Operator</h4></div><p class="def">Software that packages an app's operational know-how as a controller watching CRDs. The <b>NVIDIA GPU Operator</b> is the one you'll meet — it installs drivers, device plugins, and DCGM for you.</p><p class="bridge-note">An Operator is to a GPU driver stack what a Deployment controller is to replicas: it watches desired state and reconciles the messy setup automatically.</p></div>
+        <div class="term infra" data-term="kind kubernetes in docker"><div class="t-top"><h4>kind</h4><span class="abbr">K8s in Docker</span></div><p class="def">A tiny throwaway cluster that runs inside Docker on your laptop — the book uses it for local testing before you touch AWS.</p></div>
+        <div class="term infra" data-term="cncf cloud native computing foundation"><div class="t-top"><h4>CNCF</h4><span class="abbr">Cloud Native Computing Foundation</span></div><p class="def">The open-source home of Kubernetes and most cloud-native tooling — a signal of which projects are "safe" bets.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 04 CLOUD & AWS ===== -->
+    <section class="cat" id="s4">
+      <div class="cat-head">
+        <span class="num">04</span>
+        <h3>Cloud &amp; AWS Building Blocks</h3>
+        <span class="world-tag wt-infra">Infra world</span>
+        <span class="ch-ref">Chapter 3</span>
+      </div>
+      <p class="cat-intro">All familiar. The book standardises on <em>Amazon EKS provisioned with Terraform</em>, and adds two AWS-specific accelerators (Trainium/Inferentia) as a cheaper alternative to NVIDIA GPUs — worth knowing for cost conversations.</p>
+      <div class="terms">
+        <div class="term infra" data-term="aws amazon web services"><div class="t-top"><h4>AWS</h4><span class="abbr">Amazon Web Services</span></div><p class="def">The cloud the book builds on. You live here already.</p></div>
+        <div class="term infra" data-term="eks elastic kubernetes service"><div class="t-top"><h4>Amazon EKS</h4><span class="abbr">Elastic K8s Service</span></div><p class="def">AWS's managed Kubernetes — AWS runs the control plane, you bring the (GPU) worker nodes. The book's default platform, and your day job.</p></div>
+        <div class="term infra" data-term="ec2 elastic compute"><div class="t-top"><h4>EC2</h4><span class="abbr">Elastic Compute Cloud</span></div><p class="def">AWS virtual machines — your K8s nodes are EC2 instances. GenAI adds GPU families (P/G series) to the menu.</p></div>
+        <div class="term infra" data-term="ebs elastic block store"><div class="t-top"><h4>EBS</h4><span class="abbr">Elastic Block Store</span></div><p class="def">Network-attached disks for EC2/pods — where model weights and datasets often live. The book's storage-cost chapter tunes these (gp2 → gp3).</p></div>
+        <div class="term infra" data-term="ecr elastic container registry"><div class="t-top"><h4>ECR</h4><span class="abbr">Elastic Container Registry</span></div><p class="def">AWS's private image registry that EKS pulls your (large) GenAI images from.</p></div>
+        <div class="term infra" data-term="vpc virtual private cloud"><div class="t-top"><h4>VPC</h4><span class="abbr">Virtual Private Cloud</span></div><p class="def">Your isolated network in AWS where the cluster runs — subnets, routing, security groups. Standard stuff for you.</p></div>
+        <div class="term infra" data-term="az availability zone"><div class="t-top"><h4>Availability Zone</h4><span class="abbr">AZ</span></div><p class="def">An isolated datacenter within a region. Spreading nodes across AZs is the base layer of the HA chapter — but GPU capacity per AZ can be scarce.</p></div>
+        <div class="term infra" data-term="iam identity access management"><div class="t-top"><h4>IAM</h4><span class="abbr">Identity &amp; Access Management</span></div><p class="def">AWS's permissions system — who/what can do what. The security chapter leans on it heavily.</p></div>
+        <div class="term infra" data-term="irsa iam roles for service accounts"><div class="t-top"><h4>IRSA</h4><span class="abbr">IAM Roles for Service Accounts</span></div><p class="def">The clean way to give a specific pod specific AWS permissions (via OIDC) instead of sharing node-wide credentials.</p></div>
+        <div class="term infra" data-term="oidc openid connect"><div class="t-top"><h4>OIDC</h4><span class="abbr">OpenID Connect</span></div><p class="def">The identity-federation standard that lets EKS trade a pod's service-account token for real IAM permissions — the mechanism under IRSA.</p></div>
+        <div class="term infra" data-term="terraform iac infrastructure as code"><div class="t-top"><h4>Terraform / IaC</h4></div><p class="def">Declarative infrastructure provisioning. The book spins up the entire EKS cluster with Terraform — right in your wheelhouse.</p></div>
+        <div class="term infra" data-term="eksctl"><div class="t-top"><h4>eksctl</h4></div><p class="def">A CLI shortcut for creating and managing EKS clusters and node groups, used alongside Terraform in the book.</p></div>
+        <div class="term bridge" data-term="trainium inferentia neuron aws accelerator"><div class="t-top"><h4>Trainium / Inferentia</h4><span class="abbr">+ Neuron SDK</span></div><p class="def">AWS's own AI chips — <b>Trainium</b> for training, <b>Inferentia</b> for inference — a cheaper, NVIDIA-free option. The <b>Neuron</b> SDK is how your code targets them.</p><p class="bridge-note">Your lever in cost reviews: if a workload fits, moving inference from GPU to Inferentia can cut the per-request bill substantially.</p></div>
+        <div class="term infra" data-term="gke aks gcp azure"><div class="t-top"><h4>GKE / AKS / GCP</h4></div><p class="def">Google's and Azure's managed Kubernetes (and Google's cloud). Mentioned for portability — the patterns transfer across all three.</p></div>
+      </div>
+    </section>
+
+    <!-- ================= PART 2 ================= -->
+    <section class="grp-head">
+      <div class="kicker">Part 2</div>
+      <h2>Productionalizing GenAI Workloads Using K8s</h2>
+      <div class="rule"></div>
+    </section>
+
+    <!-- ===== 05 RAG, FINE-TUNING & CO ===== -->
+    <section class="cat" id="s5">
+      <div class="cat-head">
+        <span class="num">05</span>
+        <h3>Model Customization — RAG, Fine-tuning &amp; Friends</h3>
+        <span class="world-tag wt-bridge">Bridge</span>
+        <span class="ch-ref">Chapters 4–5</span>
+      </div>
+      <p class="cat-intro">The heart of the book, and the single most valuable concept for AI-infra work: a base model rarely knows <em>your</em> data, so you adapt it. There's a ladder of techniques from cheap-and-instant to expensive-and-deep. Know when to reach for which.</p>
+
+      <figure class="diagram">
+        <div class="d-label">The pattern you'll deploy most</div>
+        <figcaption>How RAG (Retrieval-Augmented Generation) works</figcaption>
+        <svg viewBox="0 0 840 300" role="img" aria-label="RAG flow: question is embedded, searched against a vector database of your documents, top matches are added to the prompt, and the LLM answers grounded in them">
+          <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#34c6c6" stroke-width="1.4"/></marker>
+          <marker id="arg" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#6c7a90" stroke-width="1.3"/></marker></defs>
+          <!-- user q -->
+          <rect x="14" y="120" width="128" height="56" rx="10" fill="#141d2c" stroke="#40507080"/><text x="78" y="144" text-anchor="middle" class="svg-lbl">User asks</text><text x="78" y="162" text-anchor="middle" class="svg-cap">"return policy?"</text>
+          <line x1="142" y1="148" x2="176" y2="148" stroke="#6c7a90" stroke-width="1.3" marker-end="url(#arg)"/>
+          <!-- embed q -->
+          <rect x="180" y="120" width="120" height="56" rx="10" fill="#141d2c" stroke="#5a7a30"/><text x="240" y="144" text-anchor="middle" class="svg-lbl">Embed it</text><text x="240" y="162" text-anchor="middle" class="svg-cap">→ vector</text>
+          <line x1="300" y1="148" x2="334" y2="148" stroke="#34c6c6" stroke-width="1.4" marker-end="url(#ar)"/>
+          <!-- vector db -->
+          <rect x="338" y="96" width="150" height="104" rx="11" fill="#12303a" stroke="#34c6c6" stroke-width="1.5"/>
+          <text x="413" y="120" text-anchor="middle" class="svg-lbl" fill="#5fbebe">Vector DB</text>
+          <text x="413" y="138" text-anchor="middle" class="svg-cap">YOUR docs, pre-embedded</text>
+          <ellipse cx="378" cy="162" rx="9" ry="6" fill="none" stroke="#8fcb52"/><ellipse cx="404" cy="172" rx="9" ry="6" fill="none" stroke="#8fcb52"/><ellipse cx="435" cy="160" rx="9" ry="6" fill="#8fcb5233" stroke="#8fcb52"/><ellipse cx="452" cy="178" rx="9" ry="6" fill="none" stroke="#5a7a30"/>
+          <text x="413" y="196" text-anchor="middle" class="svg-cap" fill="#8fcb52">find nearest matches</text>
+          <line x1="488" y1="148" x2="522" y2="148" stroke="#34c6c6" stroke-width="1.4" marker-end="url(#ar)"/>
+          <!-- augment -->
+          <rect x="526" y="112" width="140" height="72" rx="10" fill="#141d2c" stroke="#5a7a30"/><text x="596" y="136" text-anchor="middle" class="svg-lbl">Stuff into prompt</text><text x="596" y="154" text-anchor="middle" class="svg-cap">question +</text><text x="596" y="168" text-anchor="middle" class="svg-cap">retrieved facts</text>
+          <line x1="666" y1="148" x2="700" y2="148" stroke="#6c7a90" stroke-width="1.3" marker-end="url(#arg)"/>
+          <!-- llm -->
+          <rect x="704" y="112" width="122" height="72" rx="10" fill="#141d2c" stroke="#8fcb52" stroke-width="1.4"/><text x="765" y="140" text-anchor="middle" class="svg-lbl" fill="#a8d76b">LLM</text><text x="765" y="160" text-anchor="middle" class="svg-cap">grounded</text><text x="765" y="174" text-anchor="middle" class="svg-cap">answer ✓</text>
+          <!-- offline ingest -->
+          <rect x="338" y="26" width="150" height="40" rx="8" fill="rgba(224,164,88,.07)" stroke="#7a5e2e" stroke-dasharray="4 3"/><text x="413" y="44" text-anchor="middle" class="svg-cap" fill="#e0a458">OFFLINE, ONCE:</text><text x="413" y="58" text-anchor="middle" class="svg-cap">your PDFs → chunks → embeddings</text>
+          <line x1="413" y1="66" x2="413" y2="92" stroke="#7a5e2e" stroke-width="1.1" stroke-dasharray="4 3" marker-end="url(#arg)"/>
+        </svg>
+        <div class="d-foot"><b>Why this is your sweet spot:</b> RAG is 90% infrastructure — an embedding service, a vector DB, a retrieval API, caching. No model retraining. You can build and operate this <b>today</b> with skills you already have.</div>
+      </figure>
+
+      <figure class="diagram">
+        <div class="d-label">Decision framework</div>
+        <figcaption>The customization ladder — cheapest first</figcaption>
+        <svg viewBox="0 0 820 250" role="img" aria-label="Four customization approaches ordered by cost and depth: prompt engineering, RAG, fine-tuning with LoRA, full training">
+          <!-- axis -->
+          <line x1="40" y1="210" x2="790" y2="210" stroke="#3a465c" stroke-width="1.3"/>
+          <text x="40" y="234" class="svg-cap" fill="#6c7a90">CHEAP · FAST · SHALLOW</text>
+          <text x="790" y="234" text-anchor="end" class="svg-cap" fill="#6c7a90">EXPENSIVE · SLOW · DEEP</text>
+          <defs><linearGradient id="ladder" x1="0" x2="1"><stop offset="0" stop-color="#8fcb52"/><stop offset="1" stop-color="#e0a458"/></linearGradient></defs>
+          <rect x="40" y="204" width="750" height="4" rx="2" fill="url(#ladder)" opacity=".5"/>
+          <!-- 4 rungs -->
+          <g>
+            <rect x="40" y="40" width="168" height="150" rx="11" fill="#141d2c" stroke="#8fcb52" stroke-width="1.3"/>
+            <text x="124" y="64" text-anchor="middle" class="svg-lbl" fill="#a8d76b">1 · Prompt eng.</text>
+            <text x="124" y="86" text-anchor="middle" class="svg-sub">Give examples &amp;</text><text x="124" y="102" text-anchor="middle" class="svg-sub">instructions in</text><text x="124" y="118" text-anchor="middle" class="svg-sub">the prompt itself.</text>
+            <text x="124" y="146" text-anchor="middle" class="svg-cap" fill="#8fcb52">no infra, no cost</text>
+            <text x="124" y="166" text-anchor="middle" class="svg-cap" fill="#6c7a90">try this first</text>
+          </g>
+          <g>
+            <rect x="228" y="40" width="168" height="150" rx="11" fill="#12303a" stroke="#34c6c6" stroke-width="1.5"/>
+            <text x="312" y="64" text-anchor="middle" class="svg-lbl" fill="#5fbebe">2 · RAG</text>
+            <text x="312" y="86" text-anchor="middle" class="svg-sub">Retrieve your docs</text><text x="312" y="102" text-anchor="middle" class="svg-sub">at query time to</text><text x="312" y="118" text-anchor="middle" class="svg-sub">ground answers.</text>
+            <text x="312" y="146" text-anchor="middle" class="svg-cap" fill="#34c6c6">your data, no retrain</text>
+            <text x="312" y="166" text-anchor="middle" class="svg-cap" fill="#6c7a90">← YOUR zone</text>
+          </g>
+          <g>
+            <rect x="416" y="40" width="168" height="150" rx="11" fill="#141d2c" stroke="#7a8f50" stroke-width="1.3"/>
+            <text x="500" y="64" text-anchor="middle" class="svg-lbl">3 · Fine-tune</text>
+            <text x="500" y="86" text-anchor="middle" class="svg-sub">Actually adjust</text><text x="500" y="102" text-anchor="middle" class="svg-sub">weights on your</text><text x="500" y="118" text-anchor="middle" class="svg-sub">data (LoRA/QLoRA).</text>
+            <text x="500" y="146" text-anchor="middle" class="svg-cap" fill="#e0a458">needs GPUs + data</text>
+            <text x="500" y="166" text-anchor="middle" class="svg-cap" fill="#6c7a90">for style/behaviour</text>
+          </g>
+          <g>
+            <rect x="604" y="40" width="186" height="150" rx="11" fill="#141d2c" stroke="#7a5e2e" stroke-width="1.3"/>
+            <text x="697" y="64" text-anchor="middle" class="svg-lbl">4 · Full training</text>
+            <text x="697" y="86" text-anchor="middle" class="svg-sub">Train a model from</text><text x="697" y="102" text-anchor="middle" class="svg-sub">scratch — massive</text><text x="697" y="118" text-anchor="middle" class="svg-sub">GPU clusters, weeks.</text>
+            <text x="697" y="146" text-anchor="middle" class="svg-cap" fill="#e0a458">rarely you</text>
+            <text x="697" y="166" text-anchor="middle" class="svg-cap" fill="#6c7a90">frontier labs only</text>
+          </g>
+        </svg>
+        <div class="d-foot"><b>The rule of thumb the book teaches:</b> start left, only move right when the cheaper rung genuinely can't do the job. RAG solves "the model doesn't know my facts"; fine-tuning solves "the model doesn't behave/sound the way I need".</div>
+      </figure>
+
+      <div class="terms">
+        <div class="term bridge" data-term="rag retrieval augmented generation"><div class="t-top"><h4>RAG</h4><span class="abbr">Retrieval-Augmented Generation</span></div><p class="def">Fetch relevant snippets from <b>your own data</b> and feed them into the prompt so the model answers from facts instead of guessing. Kills hallucination, needs no retraining — and it's mostly infra to run.</p></div>
+        <div class="term bridge" data-term="fine-tuning"><div class="t-top"><h4>Fine-tuning</h4></div><p class="def">Continue training a base model a little more on your specific data so it internalises your style, format, or domain. Requires GPUs and a curated dataset.</p></div>
+        <div class="term bridge" data-term="prompt engineering few-shot"><div class="t-top"><h4>Prompt Engineering</h4></div><p class="def">Getting better outputs purely by crafting the input — instructions, examples, formatting. Zero infrastructure; always the first thing to try.</p></div>
+        <div class="term ai" data-term="peft parameter efficient fine-tuning"><div class="t-top"><h4>PEFT</h4><span class="abbr">Parameter-Efficient Fine-Tuning</span></div><p class="def">Fine-tuning that updates only a <b>tiny slice</b> of the model's weights instead of all of them — slashing GPU and memory cost. LoRA is the popular flavour.</p></div>
+        <div class="term ai" data-term="lora low rank adaptation"><div class="t-top"><h4>LoRA</h4><span class="abbr">Low-Rank Adaptation</span></div><p class="def">The most common PEFT method: freeze the big model, train small "adapter" matrices alongside it (80%+ fewer weights to update). Cheap, fast, swappable.</p></div>
+        <div class="term ai" data-term="qlora quantized lora"><div class="t-top"><h4>QLoRA</h4><span class="abbr">Quantized LoRA</span></div><p class="def">LoRA plus quantization — compress the frozen model to 4-bit first, so you can fine-tune a big model on a <b>single</b> modest GPU.</p></div>
+        <div class="term ai" data-term="quantization precision fp16 int8"><div class="t-top"><h4>Quantization</h4></div><p class="def">Shrinking a model by storing its numbers at lower precision (32-bit → 8-bit → 4-bit). Smaller, faster, cheaper to serve — with a small accuracy trade-off.</p><p class="bridge-note">Directly a cost/latency lever you own: a quantized model may fit on a smaller GPU or serve more requests per node.</p></div>
+        <div class="term ai" data-term="distillation student teacher model"><div class="t-top"><h4>Distillation</h4></div><p class="def">Train a small "student" model to mimic a big "teacher" model — most of the quality at a fraction of the serving cost.</p></div>
+        <div class="term ai" data-term="pruning"><div class="t-top"><h4>Pruning</h4></div><p class="def">Snip away the least-useful connections in a trained model to make it leaner and faster without much accuracy loss.</p></div>
+        <div class="term ai" data-term="rlhf reinforcement learning human feedback"><div class="t-top"><h4>RLHF</h4><span class="abbr">RL from Human Feedback</span></div><p class="def">Aligning a model to human preferences by having people rank its answers and training a reward signal from those rankings — how raw LLMs become polite assistants.</p></div>
+        <div class="term ai" data-term="dpo direct preference optimization"><div class="t-top"><h4>DPO</h4><span class="abbr">Direct Preference Optimization</span></div><p class="def">A simpler, cheaper alternative to RLHF that tunes on preference pairs directly, skipping the separate reward model.</p></div>
+        <div class="term ai" data-term="rl reinforcement learning reward"><div class="t-top"><h4>Reinforcement Learning</h4><span class="abbr">RL</span></div><p class="def">Training by trial-and-error toward a reward signal rather than from labelled examples — the machinery underneath RLHF.</p></div>
+        <div class="term ai" data-term="bleu rouge evaluation metric"><div class="t-top"><h4>BLEU / ROUGE</h4></div><p class="def">Standard scores for grading generated text against reference answers — BLEU leans to translation, ROUGE to summarisation. Your "test pass rate" for model quality.</p></div>
+        <div class="term ai" data-term="llm model selection"><div class="t-top"><h4>Model Selection</h4></div><p class="def">Choosing which base model to start from, trading off quality, size, license, and serving cost against your use case — an infra-flavoured decision.</p></div>
+        <div class="term ai" data-term="domain specific optimization"><div class="t-top"><h4>Domain-Specific Optimization</h4></div><p class="def">The umbrella goal of Chapter 4: bending a general model toward <b>your</b> narrow domain (e-commerce, legal, medical) using the techniques above.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 06 GENAI TOOLCHAIN ===== -->
+    <section class="cat" id="s6">
+      <div class="cat-head">
+        <span class="num">06</span>
+        <h3>The GenAI Toolchain — Frameworks &amp; Libraries</h3>
+        <span class="world-tag wt-ai">AI world</span>
+        <span class="ch-ref">Chapters 4–5</span>
+      </div>
+      <p class="cat-intro">The concrete software you'll containerize and run. Think of these as the "npm/pip ecosystem" of GenAI — you don't need to be a data scientist, but you must know what each one <em>is</em> so you can package, deploy, and debug it.</p>
+      <div class="terms">
+        <div class="term ai" data-term="langchain framework"><div class="t-top"><h4>LangChain</h4></div><p class="def">A framework that wires LLMs together with data sources, tools, and vector DBs — the "glue" most RAG apps and chatbots are built with.</p></div>
+        <div class="term ai" data-term="hugging face transformers"><div class="t-top"><h4>Hugging Face</h4><span class="abbr">+ Transformers lib</span></div><p class="def">The GitHub-of-models: where you download open models (like Llama 3) and the Python library to load and run them. You'll need an account for the book.</p></div>
+        <div class="term ai" data-term="pytorch"><div class="t-top"><h4>PyTorch</h4></div><p class="def">The dominant deep-learning framework models are built and trained in. You won't write it much, but your containers will ship it and it'll want the GPU.</p></div>
+        <div class="term ai" data-term="tensorflow"><div class="t-top"><h4>TensorFlow</h4></div><p class="def">Google's older deep-learning framework — same role as PyTorch, still common in production estates.</p></div>
+        <div class="term ai" data-term="jax"><div class="t-top"><h4>JAX</h4></div><p class="def">A newer high-performance ML framework favoured for large-scale training; good to recognise, rarely your concern operationally.</p></div>
+        <div class="term ai" data-term="llama 3 meta"><div class="t-top"><h4>Llama 3</h4></div><p class="def">Meta's popular open-weight LLM — the concrete model the book fine-tunes and deploys, because you can self-host it on your own EKS GPUs.</p></div>
+        <div class="term ai" data-term="jupyterhub jupyter notebook"><div class="t-top"><h4>JupyterHub / Notebook</h4></div><p class="def">Browser-based interactive coding environments where data scientists experiment. In the book you deploy JupyterHub <b>on K8s</b> so a team shares GPU-backed notebooks.</p><p class="bridge-note">A very common first "GenAI platform" ask you'll get: multi-user JupyterHub on the cluster with GPU scheduling — pure platform engineering.</p></div>
+        <div class="term ai" data-term="shap explainability"><div class="t-top"><h4>SHAP</h4></div><p class="def">A technique for explaining <b>why</b> a model made a prediction by attributing it to input features — used in the bias/fairness discussion.</p></div>
+        <div class="term ai" data-term="pca principal component analysis"><div class="t-top"><h4>PCA</h4><span class="abbr">Principal Component Analysis</span></div><p class="def">A classic method to squeeze high-dimensional data down to its most informative directions — handy for visualising or compressing embeddings.</p></div>
+        <div class="term ai" data-term="eda exploratory data analysis"><div class="t-top"><h4>EDA</h4><span class="abbr">Exploratory Data Analysis</span></div><p class="def">The first-look phase of any ML project: profiling and visualising data before modelling.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 07 SCALING ===== -->
+    <section class="cat" id="s7">
+      <div class="cat-head">
+        <span class="num">07</span>
+        <h3>Scaling &amp; Autoscaling</h3>
+        <span class="world-tag wt-infra">Infra world</span>
+        <span class="ch-ref">Chapter 6</span>
+      </div>
+      <p class="cat-intro">You know these autoscalers. The GenAI twist is that the thing you're scaling sits on scarce GPUs, so the choice of <em>which</em> autoscaler — and what metric triggers it — has real money attached.</p>
+
+      <figure class="diagram">
+        <div class="d-label">Who scales what</div>
+        <figcaption>The Kubernetes autoscaling landscape</figcaption>
+        <svg viewBox="0 0 820 300" role="img" aria-label="Autoscalers grouped by layer: HPA and VPA and KEDA act on pods, Cluster Autoscaler and Karpenter act on nodes">
+          <!-- pod layer -->
+          <rect x="20" y="30" width="780" height="120" rx="12" fill="rgba(90,155,255,.05)" stroke="#40507080"/>
+          <text x="36" y="52" class="svg-lbl" fill="#8aa9dd">POD layer — reshape the workload</text>
+          <g>
+            <rect x="40" y="64" width="230" height="74" rx="9" fill="#141d2c" stroke="#5a9bff" stroke-width="1.2"/>
+            <text x="155" y="86" text-anchor="middle" class="svg-lbl">HPA</text>
+            <text x="155" y="106" text-anchor="middle" class="svg-sub">more replicas when busy</text>
+            <text x="155" y="124" text-anchor="middle" class="svg-cap" fill="#6c7a90">scale OUT ↔</text>
+          </g>
+          <g>
+            <rect x="290" y="64" width="230" height="74" rx="9" fill="#141d2c" stroke="#5a9bff" stroke-width="1.2"/>
+            <text x="405" y="86" text-anchor="middle" class="svg-lbl">VPA</text>
+            <text x="405" y="106" text-anchor="middle" class="svg-sub">bigger CPU/RAM per pod</text>
+            <text x="405" y="124" text-anchor="middle" class="svg-cap" fill="#6c7a90">scale UP ↕</text>
+          </g>
+          <g>
+            <rect x="540" y="64" width="240" height="74" rx="9" fill="#141d2c" stroke="#34c6c6" stroke-width="1.4"/>
+            <text x="660" y="86" text-anchor="middle" class="svg-lbl" fill="#5fbebe">KEDA</text>
+            <text x="660" y="106" text-anchor="middle" class="svg-sub">scale on ANY event</text>
+            <text x="660" y="124" text-anchor="middle" class="svg-cap" fill="#6c7a90">queue depth, Kafka, cron…</text>
+          </g>
+          <!-- node layer -->
+          <rect x="20" y="168" width="780" height="112" rx="12" fill="rgba(52,198,198,.05)" stroke="#2a5a6a80"/>
+          <text x="36" y="190" class="svg-lbl" fill="#5fbebe">NODE layer — add/remove machines (incl. GPUs)</text>
+          <g>
+            <rect x="40" y="202" width="360" height="66" rx="9" fill="#141d2c" stroke="#7a8f50" stroke-width="1.2"/>
+            <text x="220" y="224" text-anchor="middle" class="svg-lbl">Cluster Autoscaler</text>
+            <text x="220" y="244" text-anchor="middle" class="svg-sub">adds nodes from pre-defined node groups</text>
+            <text x="220" y="260" text-anchor="middle" class="svg-cap" fill="#6c7a90">classic, ASG-based</text>
+          </g>
+          <g>
+            <rect x="420" y="202" width="360" height="66" rx="9" fill="#12303a" stroke="#8fcb52" stroke-width="1.4"/>
+            <text x="600" y="224" text-anchor="middle" class="svg-lbl" fill="#a8d76b">Karpenter</text>
+            <text x="600" y="244" text-anchor="middle" class="svg-sub">picks the right-sized instance just-in-time</text>
+            <text x="600" y="260" text-anchor="middle" class="svg-cap" fill="#6c7a90">faster, cheaper, GPU-smart</text>
+          </g>
+          <text x="400" y="296" text-anchor="middle" class="svg-cap" fill="#6c7a90">when pods can't fit → node layer wakes up → provisions capacity → pods schedule</text>
+        </svg>
+        <div class="d-foot"><b>The GenAI angle:</b> pods trigger on GPU-utilization or queue-depth (KEDA), and Karpenter can grab exactly the GPU instance type a pending pod needs — you already run this on your Software Factory; here it's just pointed at GPU pools.</div>
+      </figure>
+
+      <div class="terms">
+        <div class="term infra" data-term="hpa horizontal pod autoscaler"><div class="t-top"><h4>HPA</h4><span class="abbr">Horizontal Pod Autoscaler</span></div><p class="def">Adds or removes pod <b>replicas</b> based on load (CPU, or a custom metric like GPU use / requests-per-second). Scaling out your inference service.</p></div>
+        <div class="term infra" data-term="vpa vertical pod autoscaler"><div class="t-top"><h4>VPA</h4><span class="abbr">Vertical Pod Autoscaler</span></div><p class="def">Right-sizes the CPU/memory <b>requests of each pod</b> instead of adding more — useful for getting a model's resource asks correct.</p></div>
+        <div class="term infra" data-term="keda kubernetes event driven autoscaling sqs"><div class="t-top"><h4>KEDA</h4><span class="abbr">Event-Driven Autoscaling</span></div><p class="def">Scales pods on <b>any external signal</b> — SQS queue length, Kafka lag, a schedule — not just CPU. Perfect for batch inference: spin up when the queue fills, down to zero when empty.</p></div>
+        <div class="term infra" data-term="cluster autoscaler ca asg"><div class="t-top"><h4>Cluster Autoscaler</h4><span class="abbr">CA</span></div><p class="def">Adds/removes <b>nodes</b> (via Auto Scaling Groups) when pods can't fit or sit idle. The classic node-level scaler.</p></div>
+        <div class="term infra" data-term="karpenter"><div class="t-top"><h4>Karpenter</h4></div><p class="def">A smarter node autoscaler that provisions <b>exactly the right instance type</b> on demand — including the specific GPU a pending pod requested — often faster and cheaper than CA.</p><p class="bridge-note">You've already evaluated Cast.AI vs Karpenter at Harman — same muscle, now the workloads it schedules are GPU model servers.</p></div>
+        <div class="term infra" data-term="custom metrics conventional metrics"><div class="t-top"><h4>Custom vs Conventional Metrics</h4></div><p class="def">Conventional = CPU/memory. Custom = anything you export (tokens/sec, GPU utilization, queue depth) — GenAI almost always needs custom metrics to scale sensibly.</p></div>
+        <div class="term infra" data-term="asg auto scaling group"><div class="t-top"><h4>ASG</h4><span class="abbr">Auto Scaling Group</span></div><p class="def">The AWS primitive that grows/shrinks a pool of identical EC2 instances — what Cluster Autoscaler drives under the hood.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 08 COST ===== -->
+    <section class="cat" id="s8">
+      <div class="cat-head">
+        <span class="num">08</span>
+        <h3>Cost Optimization</h3>
+        <span class="world-tag wt-infra">Infra world</span>
+        <span class="ch-ref">Chapter 7</span>
+      </div>
+      <p class="cat-intro">GPUs make cost <em>the</em> conversation. Your FinOps and right-sizing instincts transfer directly — this is one of the fastest ways to prove value as an AI-infra engineer, because a single idle GPU node burns real money.</p>
+      <div class="terms">
+        <div class="term infra" data-term="kubecost"><div class="t-top"><h4>Kubecost</h4></div><p class="def">A tool that breaks down Kubernetes spend by namespace/team/workload and flags savings — your chargeback and cost-visibility engine for GPU usage.</p></div>
+        <div class="term infra" data-term="goldilocks"><div class="t-top"><h4>Goldilocks</h4></div><p class="def">Recommends "just right" CPU/memory requests for your pods (by watching VPA), so you stop over-provisioning.</p></div>
+        <div class="term infra" data-term="right-sizing"><div class="t-top"><h4>Right-sizing</h4></div><p class="def">Matching requested resources to what's actually used — the single biggest cost lever, and doubly so when the resource is a GPU.</p></div>
+        <div class="term infra" data-term="spot instances"><div class="t-top"><h4>Spot Instances</h4></div><p class="def">Deeply discounted spare EC2 capacity that AWS can reclaim anytime — great for interruptible training/batch jobs, risky for always-on serving.</p></div>
+        <div class="term infra" data-term="reserved instances savings plans"><div class="t-top"><h4>Savings Plans / Reserved</h4></div><p class="def">Commit to steady usage for a big discount — the play for baseline, always-on GPU inference capacity.</p></div>
+        <div class="term infra" data-term="compute storage networking cost components"><div class="t-top"><h4>Cost Components</h4></div><p class="def">The three buckets the chapter optimises: <b>compute</b> (GPU-dominated), <b>storage</b> (model weights, datasets), and <b>networking</b> (data transfer). Compute usually dwarfs the rest.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 09 NETWORKING ===== -->
+    <section class="cat" id="s9">
+      <div class="cat-head">
+        <span class="num">09</span>
+        <h3>Networking</h3>
+        <span class="world-tag wt-infra">Infra world</span>
+        <span class="ch-ref">Chapter 8</span>
+      </div>
+      <p class="cat-intro">Your VPC-endpoint-and-CNI debugging past pays off here. The extra GenAI concern is <em>bandwidth and latency</em>: multi-GPU training shuffles huge tensors between nodes, so the network can become the bottleneck (hence EFA/RDMA in the GPU section).</p>
+      <div class="terms">
+        <div class="term infra" data-term="cni container network interface"><div class="t-top"><h4>CNI</h4><span class="abbr">Container Network Interface</span></div><p class="def">The plugin standard that gives every pod its IP and connectivity (AWS VPC CNI on EKS). You know this cold.</p></div>
+        <div class="term infra" data-term="kube-proxy iptables ipvs"><div class="t-top"><h4>kube-proxy · IPTables vs IPVS</h4></div><p class="def">The component routing Service traffic to pods; IPVS scales to far more services with lower overhead than the older IPTables mode.</p></div>
+        <div class="term infra" data-term="service mesh istio"><div class="t-top"><h4>Service Mesh</h4></div><p class="def">A sidecar layer (Istio/Linkerd) adding traffic control, mTLS, and telemetry between services without app changes — useful once you have several model + RAG microservices talking.</p></div>
+        <div class="term infra" data-term="network policy"><div class="t-top"><h4>Network Policy</h4></div><p class="def">Firewall rules for pod-to-pod traffic — the book uses them to lock down which components of the chatbot can reach the model and the vector DB.</p></div>
+        <div class="term infra" data-term="ebpf"><div class="t-top"><h4>eBPF</h4></div><p class="def">A way to run sandboxed programs inside the Linux kernel — powers modern high-performance networking, security, and observability (e.g. Cilium) with minimal overhead.</p></div>
+        <div class="term infra" data-term="sr-iov single root io virtualization"><div class="t-top"><h4>SR-IOV</h4><span class="abbr">Single-Root I/O Virtualization</span></div><p class="def">Lets a physical network card present itself as many virtual ones straight to pods — near-bare-metal network speed for demanding GPU workloads.</p></div>
+        <div class="term infra" data-term="coredns dns"><div class="t-top"><h4>CoreDNS</h4></div><p class="def">The cluster's internal DNS — how pods find services by name. Familiar territory.</p></div>
+        <div class="term infra" data-term="nlb alb load balancer ingress"><div class="t-top"><h4>NLB / ALB / Ingress</h4></div><p class="def">The load balancers (Network/Application) and routing layer exposing your model endpoints to the outside world — the AWS Load Balancer Controller you already know.</p></div>
+        <div class="term infra" data-term="overlay native networking cidr"><div class="t-top"><h4>Overlay vs Native · CIDR</h4></div><p class="def">Two ways to give pods addresses (a virtual overlay network vs real VPC IPs), and the IP-range notation you carve subnets with.</p></div>
+        <div class="term infra" data-term="tls https mtls"><div class="t-top"><h4>TLS / HTTPS / mTLS</h4></div><p class="def">Encryption in transit; mTLS additionally verifies <b>both</b> ends — important when model endpoints handle sensitive prompts.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 10 SECURITY ===== -->
+    <section class="cat" id="s10">
+      <div class="cat-head">
+        <span class="num">10</span>
+        <h3>Security</h3>
+        <span class="world-tag wt-infra">Infra world</span>
+        <span class="ch-ref">Chapter 9</span>
+      </div>
+      <p class="cat-intro">Defense-in-depth, exactly as you practise it. GenAI adds two fresh worries the chapter calls out: <em>data privacy</em> (prompts and training data may contain PII) and <em>securing the model endpoint</em> itself against abuse.</p>
+      <div class="terms">
+        <div class="term infra" data-term="defense in depth"><div class="t-top"><h4>Defense in Depth</h4></div><p class="def">Layering many independent controls so no single failure is fatal — the organising principle of the whole chapter.</p></div>
+        <div class="term infra" data-term="supply chain security sbom"><div class="t-top"><h4>Supply Chain Security</h4></div><p class="def">Trusting what goes into your images — scanning base images, models, and dependencies. Bigger surface for GenAI because you're pulling third-party model weights.</p></div>
+        <div class="term infra" data-term="rbac role based access control"><div class="t-top"><h4>RBAC</h4><span class="abbr">Role-Based Access Control</span></div><p class="def">Who can do what inside the cluster — least-privilege for humans and workloads. Standard for you.</p></div>
+        <div class="term infra" data-term="secrets management kms"><div class="t-top"><h4>Secrets Management · KMS</h4></div><p class="def">Safely storing API keys, model-registry tokens, and DB creds — backed by AWS <b>KMS</b> for encryption. GenAI apps hold a lot of these.</p></div>
+        <div class="term infra" data-term="opa gatekeeper open policy agent"><div class="t-top"><h4>OPA / Gatekeeper</h4><span class="abbr">Open Policy Agent</span></div><p class="def">A policy engine that enforces guardrails at admission time ("no pod without resource limits", "only signed images"). You've deployed this pattern.</p></div>
+        <div class="term infra" data-term="kyverno"><div class="t-top"><h4>Kyverno</h4></div><p class="def">A Kubernetes-native policy engine (YAML, no new language) doing the same job as OPA — validate, mutate, and generate resources by policy.</p></div>
+        <div class="term infra" data-term="pss pod security standards"><div class="t-top"><h4>PSS</h4><span class="abbr">Pod Security Standards</span></div><p class="def">Built-in baseline/restricted profiles that stop pods running as root, escalating privileges, etc.</p></div>
+        <div class="term infra" data-term="pii data privacy compliance hipaa pci gdpr soc"><div class="t-top"><h4>Data Privacy &amp; Compliance</h4><span class="abbr">PII · HIPAA · PCI · SOC</span></div><p class="def">Handling personal data lawfully — a first-class GenAI concern because prompts, logs, and training sets can leak <b>PII</b>. Governs what you may log and store.</p><p class="bridge-note">This is where your platform-governance experience becomes a differentiator: someone has to make model endpoints audit-ready.</p></div>
+        <div class="term infra" data-term="secure model endpoints"><div class="t-top"><h4>Secure Model Endpoints</h4></div><p class="def">Protecting the inference API itself — authN/Z, rate limits, input validation — against abuse, prompt injection, and cost-draining attacks.</p></div>
+        <div class="term infra" data-term="waf web application firewall"><div class="t-top"><h4>WAF</h4><span class="abbr">Web Application Firewall</span></div><p class="def">Filters malicious HTTP traffic before it reaches your endpoints — a front-line guard for public model APIs.</p></div>
+        <div class="term infra" data-term="siem"><div class="t-top"><h4>SIEM</h4></div><p class="def">Centralised security-event monitoring/alerting — where cluster and app security signals get correlated.</p></div>
+        <div class="term infra" data-term="imds instance metadata service"><div class="t-top"><h4>IMDS</h4><span class="abbr">Instance Metadata Service</span></div><p class="def">The EC2 endpoint pods can reach for instance credentials — a known attack path you lock down (IMDSv2, hop limits).</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 11 GPUs & ACCELERATORS ===== -->
+    <section class="cat" id="s11">
+      <div class="cat-head">
+        <span class="num">11</span>
+        <h3>GPUs &amp; Accelerators</h3>
+        <span class="world-tag wt-bridge">Bridge</span>
+        <span class="ch-ref">Chapter 10</span>
+      </div>
+      <p class="cat-intro">This chapter is arguably your highest-leverage specialism — very few DevOps engineers understand GPU scheduling deeply. Master how Kubernetes exposes, partitions, and shares GPUs and you become genuinely hard to replace.</p>
+
+      <figure class="diagram">
+        <div class="d-label">Three ways to not waste a GPU</div>
+        <figcaption>Sharing one physical GPU across workloads</figcaption>
+        <svg viewBox="0 0 820 280" role="img" aria-label="Three GPU sharing strategies compared: MIG hard partitions, MPS shared compute with separate memory, and time-slicing where workloads take turns">
+          <!-- MIG -->
+          <g>
+            <text x="140" y="26" text-anchor="middle" class="svg-lbl" fill="#8fcb52">MIG</text>
+            <text x="140" y="44" text-anchor="middle" class="svg-cap" fill="#6c7a90">HARD PARTITIONS</text>
+            <rect x="30" y="56" width="220" height="120" rx="10" fill="#141d2c" stroke="#8fcb52" stroke-width="1.3"/>
+            <line x1="140" y1="56" x2="140" y2="176" stroke="#8fcb52" stroke-width="1.2"/>
+            <line x1="30" y1="116" x2="250" y2="116" stroke="#8fcb52" stroke-width="1.2"/>
+            <text x="85" y="90" text-anchor="middle" class="svg-cap">job A</text><text x="195" y="90" text-anchor="middle" class="svg-cap">job B</text>
+            <text x="85" y="150" text-anchor="middle" class="svg-cap">job C</text><text x="195" y="150" text-anchor="middle" class="svg-cap">job D</text>
+            <text x="140" y="200" text-anchor="middle" class="svg-sub">own memory + cores each</text>
+            <text x="140" y="218" text-anchor="middle" class="svg-cap" fill="#8fcb52">✓ full isolation</text>
+            <text x="140" y="236" text-anchor="middle" class="svg-cap" fill="#6c7a90">A100/H100 only</text>
+          </g>
+          <!-- MPS -->
+          <g>
+            <text x="410" y="26" text-anchor="middle" class="svg-lbl" fill="#34c6c6">MPS</text>
+            <text x="410" y="44" text-anchor="middle" class="svg-cap" fill="#6c7a90">SHARED COMPUTE</text>
+            <rect x="300" y="56" width="220" height="120" rx="10" fill="#12303a" stroke="#34c6c6" stroke-width="1.3"/>
+            <rect x="314" y="70" width="192" height="40" rx="6" fill="#0f1826" stroke="#2a5a6a"/>
+            <text x="410" y="94" text-anchor="middle" class="svg-cap">compute cores — used concurrently</text>
+            <rect x="314" y="120" width="60" height="44" rx="5" fill="#141d2c" stroke="#2a5a6a"/><text x="344" y="146" text-anchor="middle" class="svg-cap">mem A</text>
+            <rect x="380" y="120" width="60" height="44" rx="5" fill="#141d2c" stroke="#2a5a6a"/><text x="410" y="146" text-anchor="middle" class="svg-cap">mem B</text>
+            <rect x="446" y="120" width="60" height="44" rx="5" fill="#141d2c" stroke="#2a5a6a"/><text x="476" y="146" text-anchor="middle" class="svg-cap">mem C</text>
+            <text x="410" y="200" text-anchor="middle" class="svg-sub">parallel, separate memory</text>
+            <text x="410" y="218" text-anchor="middle" class="svg-cap" fill="#34c6c6">✓ low latency</text>
+            <text x="410" y="236" text-anchor="middle" class="svg-cap" fill="#6c7a90">weak fault isolation</text>
+          </g>
+          <!-- time-slicing -->
+          <g>
+            <text x="680" y="26" text-anchor="middle" class="svg-lbl" fill="#e0a458">Time-slicing</text>
+            <text x="680" y="44" text-anchor="middle" class="svg-cap" fill="#6c7a90">TAKE TURNS</text>
+            <rect x="570" y="56" width="220" height="120" rx="10" fill="#141d2c" stroke="#e0a458" stroke-width="1.3"/>
+            <rect x="584" y="72" width="192" height="26" rx="5" fill="#e0a45822" stroke="#7a5e2e"/><text x="680" y="90" text-anchor="middle" class="svg-cap">job A — now</text>
+            <rect x="584" y="104" width="192" height="26" rx="5" fill="#0f1826" stroke="#3a465c"/><text x="680" y="122" text-anchor="middle" class="svg-cap">job B — waiting</text>
+            <rect x="584" y="136" width="192" height="26" rx="5" fill="#0f1826" stroke="#3a465c"/><text x="680" y="154" text-anchor="middle" class="svg-cap">job C — waiting</text>
+            <text x="680" y="200" text-anchor="middle" class="svg-sub">one at a time, rotated</text>
+            <text x="680" y="218" text-anchor="middle" class="svg-cap" fill="#e0a458">✓ works on any GPU</text>
+            <text x="680" y="236" text-anchor="middle" class="svg-cap" fill="#6c7a90">no real isolation</text>
+          </g>
+        </svg>
+        <div class="d-foot"><b>How to choose:</b> need guaranteed isolation for multiple tenants → <b>MIG</b>. Bursty jobs that under-use a GPU and tolerate sharing → <b>MPS</b>. Cheap oversubscription of dev/notebook GPUs → <b>time-slicing</b>. This decision is the kind of thing an AI-infra engineer owns.</div>
+      </figure>
+
+      <div class="terms">
+        <div class="term bridge" data-term="gpu graphics processing unit"><div class="t-top"><h4>GPU</h4><span class="abbr">Graphics Processing Unit</span></div><p class="def">A chip with thousands of small cores that crunch the massively parallel math LLMs need. The scarce, expensive resource that everything in this book optimises around.</p></div>
+        <div class="term bridge" data-term="cpu"><div class="t-top"><h4>CPU</h4></div><p class="def">The general-purpose processor — fine for app logic and small models, too slow for large-model math. GenAI clusters mix a few GPUs with many CPUs.</p></div>
+        <div class="term bridge" data-term="accelerator custom"><div class="t-top"><h4>Accelerator</h4></div><p class="def">Any specialised AI chip (GPU, TPU, Trainium, Inferentia). "Accelerator-aware scheduling" is the skill of placing work on the right one.</p></div>
+        <div class="term bridge" data-term="cuda"><div class="t-top"><h4>CUDA</h4></div><p class="def">NVIDIA's programming layer that lets software use the GPU. You won't write CUDA, but version mismatches between it, the driver, and PyTorch are a classic thing you'll debug.</p><p class="bridge-note">The "dependency hell" of GenAI ops: CUDA ↔ driver ↔ framework versions must line up. Owning that compatibility matrix is real, valued work.</p></div>
+        <div class="term bridge" data-term="tensor core"><div class="t-top"><h4>Tensor Core</h4></div><p class="def">Specialised units inside modern NVIDIA GPUs that do the matrix math of deep learning especially fast — the reason newer GPUs crush older ones.</p></div>
+        <div class="term bridge" data-term="mig multi-instance gpu"><div class="t-top"><h4>MIG</h4><span class="abbr">Multi-Instance GPU</span></div><p class="def">Slice one physical A100/H100 into up to 7 <b>fully isolated</b> mini-GPUs, each with its own memory and cores — so several workloads share hardware without interfering.</p></div>
+        <div class="term bridge" data-term="mps multi-process service"><div class="t-top"><h4>MPS</h4><span class="abbr">Multi-Process Service</span></div><p class="def">Lets multiple processes run on one GPU <b>at the same time</b>, sharing compute while keeping separate memory — fills idle capacity, but with weaker isolation than MIG.</p></div>
+        <div class="term bridge" data-term="gpu time-slicing"><div class="t-top"><h4>GPU Time-Slicing</h4></div><p class="def">Workloads <b>take turns</b> on the whole GPU in rapid rotation — the simplest sharing, works on any GPU, but no isolation. Good for dev/notebook oversubscription.</p></div>
+        <div class="term bridge" data-term="dcgm data center gpu manager"><div class="t-top"><h4>DCGM</h4><span class="abbr">Data Center GPU Manager</span></div><p class="def">NVIDIA's tool that exports GPU health and utilization metrics — your Prometheus target for "are we actually using these expensive GPUs?"</p></div>
+        <div class="term bridge" data-term="nvidia gpu operator device plugin"><div class="t-top"><h4>GPU Operator · Device Plugin</h4></div><p class="def">The Operator auto-installs drivers, the <b>device plugin</b> advertises GPUs to the scheduler (as <code>nvidia.com/gpu</code>), and manages MIG. This is how K8s even "sees" GPUs.</p></div>
+        <div class="term bridge" data-term="nim nvidia inference microservice"><div class="t-top"><h4>NVIDIA NIM</h4><span class="abbr">Inference Microservice</span></div><p class="def">Pre-packaged, optimised model-serving containers from NVIDIA — deploy a performant inference endpoint without hand-tuning the serving stack.</p></div>
+        <div class="term bridge" data-term="efa elastic fabric adapter"><div class="t-top"><h4>EFA</h4><span class="abbr">Elastic Fabric Adapter</span></div><p class="def">AWS's high-speed, low-latency network interface for tightly-coupled GPU nodes — what multi-GPU <b>distributed training</b> needs so the network isn't the bottleneck.</p></div>
+        <div class="term bridge" data-term="rdma remote direct memory access"><div class="t-top"><h4>RDMA</h4><span class="abbr">Remote Direct Memory Access</span></div><p class="def">Lets one node read another node's memory directly, bypassing the CPU — the tech (under EFA) that makes cross-node GPU training fast.</p></div>
+        <div class="term bridge" data-term="nccl"><div class="t-top"><h4>NCCL</h4></div><p class="def">NVIDIA's library for shuffling data between many GPUs efficiently during distributed training — the collective-communication layer on top of RDMA.</p></div>
+        <div class="term bridge" data-term="gpu utilization"><div class="t-top"><h4>GPU Utilization</h4></div><p class="def">How busy a GPU actually is. Low utilization = money burning; the whole chapter exists to push this number up via sharing and right-sizing.</p></div>
+      </div>
+    </section>
+
+    <!-- ================= PART 3 ================= -->
+    <section class="grp-head">
+      <div class="kicker">Part 3</div>
+      <h2>Operating GenAI Workloads on K8s</h2>
+      <div class="rule"></div>
+    </section>
+
+    <!-- ===== 12 GENAIOPS ===== -->
+    <section class="cat" id="s12">
+      <div class="cat-head">
+        <span class="num">12</span>
+        <h3>GenAIOps &amp; the Automation Pipeline</h3>
+        <span class="world-tag wt-bridge">Bridge</span>
+        <span class="ch-ref">Chapter 11</span>
+      </div>
+      <p class="cat-intro">MLOps for GenAI: the CI/CD-style plumbing that moves a model from experiment to production and keeps it healthy. This is literally your DevOps discipline applied to models — the most natural extension of your current role.</p>
+      <div class="terms">
+        <div class="term bridge" data-term="genaiops mlops"><div class="t-top"><h4>GenAIOps / MLOps</h4></div><p class="def">The practices and tooling to build, deploy, monitor, and continuously improve models reliably — DevOps principles, model-shaped. Your core transferable skill.</p></div>
+        <div class="term bridge" data-term="kubeflow"><div class="t-top"><h4>Kubeflow</h4></div><p class="def">A Kubernetes-native platform for end-to-end ML workflows — pipelines, training, serving — all as K8s resources you can operate.</p></div>
+        <div class="term bridge" data-term="mlflow"><div class="t-top"><h4>MLflow</h4></div><p class="def">Tracks experiments, model versions, and a model registry — the "source control + artifact store" for models. Answers "which model version is in prod and how was it trained?"</p></div>
+        <div class="term bridge" data-term="ray kuberay"><div class="t-top"><h4>Ray / KubeRay</h4></div><p class="def">A framework for distributing Python/ML work across a cluster; <b>KubeRay</b> runs Ray clusters on Kubernetes — how you scale training and batch inference across many nodes.</p></div>
+        <div class="term bridge" data-term="argo workflows"><div class="t-top"><h4>Argo Workflows</h4></div><p class="def">A Kubernetes-native engine for running multi-step pipelines as DAGs — data prep → fine-tune → evaluate → deploy, orchestrated on the cluster. You know Argo CD; this is its batch-pipeline sibling.</p></div>
+        <div class="term bridge" data-term="pipeline genai"><div class="t-top"><h4>GenAI Pipeline</h4></div><p class="def">The automated chain from raw data to a deployed, monitored model — the thing GenAIOps tooling builds and runs.</p></div>
+        <div class="term bridge" data-term="model drift"><div class="t-top"><h4>Model Drift</h4></div><p class="def">When a model's quality quietly degrades because the real world changed but the model didn't — you monitor for it and trigger retraining. Like alerting on SLO erosion.</p></div>
+        <div class="term bridge" data-term="model bias fairness"><div class="t-top"><h4>Model Bias</h4></div><p class="def">Systematic unfairness in outputs (skewed by training data). Detecting and mitigating it is part of responsible deployment.</p></div>
+        <div class="term bridge" data-term="bias variance"><div class="t-top"><h4>Bias &amp; Variance</h4></div><p class="def">The classic trade-off: too simple a model underfits (bias), too complex overfits (variance). Tested to make sure a model generalises.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 13 OBSERVABILITY ===== -->
+    <section class="cat" id="s13">
+      <div class="cat-head">
+        <span class="num">13</span>
+        <h3>Observability</h3>
+        <span class="world-tag wt-bridge">Bridge</span>
+        <span class="ch-ref">Chapter 12</span>
+      </div>
+      <p class="cat-intro">You already run Prometheus, Grafana, and the ELK/Loki stack — this chapter is home. The only additions are two GPU/LLM-specific layers: DCGM for GPU metrics, and LangFuse/LangChain tracing for what happens <em>inside</em> a model call.</p>
+
+      <figure class="diagram">
+        <div class="d-label">The three pillars (+ two GenAI extras)</div>
+        <figcaption>What to collect, and the tool for each</figcaption>
+        <svg viewBox="0 0 820 250" role="img" aria-label="Three observability pillars — logs via Loki and Fluent Bit, metrics via Prometheus and DCGM, traces via OpenTelemetry and LangFuse — all visualized in Grafana">
+          <!-- three pillars -->
+          <g>
+            <rect x="24" y="40" width="240" height="120" rx="11" fill="#141d2c" stroke="#5a9bff" stroke-width="1.2"/>
+            <text x="144" y="66" text-anchor="middle" class="svg-lbl" fill="#8aa9dd">LOGS</text>
+            <text x="144" y="86" text-anchor="middle" class="svg-sub">what happened, in text</text>
+            <text x="144" y="116" text-anchor="middle" class="svg-cap" fill="#9aa7bd">Loki · Fluentd / Fluent Bit</text>
+            <text x="144" y="140" text-anchor="middle" class="svg-cap" fill="#6c7a90">app + model logs</text>
+          </g>
+          <g>
+            <rect x="288" y="40" width="240" height="120" rx="11" fill="#141d2c" stroke="#34c6c6" stroke-width="1.3"/>
+            <text x="408" y="66" text-anchor="middle" class="svg-lbl" fill="#5fbebe">METRICS</text>
+            <text x="408" y="86" text-anchor="middle" class="svg-sub">numbers over time</text>
+            <text x="408" y="116" text-anchor="middle" class="svg-cap" fill="#9aa7bd">Prometheus</text>
+            <text x="408" y="136" text-anchor="middle" class="svg-cap" fill="#8fcb52">+ DCGM (GPU!)</text>
+          </g>
+          <g>
+            <rect x="552" y="40" width="244" height="120" rx="11" fill="#141d2c" stroke="#8fcb52" stroke-width="1.2"/>
+            <text x="674" y="66" text-anchor="middle" class="svg-lbl" fill="#a8d76b">TRACES</text>
+            <text x="674" y="86" text-anchor="middle" class="svg-sub">the path of one request</text>
+            <text x="674" y="116" text-anchor="middle" class="svg-cap" fill="#9aa7bd">OpenTelemetry</text>
+            <text x="674" y="136" text-anchor="middle" class="svg-cap" fill="#8fcb52">+ LangFuse (LLM calls)</text>
+          </g>
+          <!-- arrows down to grafana -->
+          <defs><marker id="ao" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6" fill="none" stroke="#6c7a90" stroke-width="1.3"/></marker></defs>
+          <line x1="144" y1="160" x2="360" y2="196" stroke="#6c7a90" stroke-width="1.2" marker-end="url(#ao)"/>
+          <line x1="408" y1="160" x2="410" y2="196" stroke="#6c7a90" stroke-width="1.2" marker-end="url(#ao)"/>
+          <line x1="674" y1="160" x2="460" y2="196" stroke="#6c7a90" stroke-width="1.2" marker-end="url(#ao)"/>
+          <rect x="300" y="200" width="220" height="40" rx="9" fill="#12303a" stroke="#34c6c6" stroke-width="1.3"/>
+          <text x="410" y="218" text-anchor="middle" class="svg-lbl" fill="#5fbebe">Grafana</text>
+          <text x="410" y="233" text-anchor="middle" class="svg-cap" fill="#6c7a90">dashboards · alerts · one pane of glass</text>
+        </svg>
+        <div class="d-foot"><b>Your edge:</b> you've built PromQL alerts and custom Grafana templates already. Add DCGM GPU metrics + LangFuse token/latency tracing and you cover the full GenAI observability story most teams are missing.</div>
+      </figure>
+
+      <div class="terms">
+        <div class="term bridge" data-term="observability"><div class="t-top"><h4>Observability</h4></div><p class="def">Being able to understand what a system is doing from its outputs — the umbrella over logs, metrics, and traces. Your existing craft.</p></div>
+        <div class="term bridge" data-term="logs metrics traces three pillars"><div class="t-top"><h4>Logs · Metrics · Traces</h4></div><p class="def">The three signal types: text events, numeric time-series, and end-to-end request paths. Together they answer what / how much / where.</p></div>
+        <div class="term bridge" data-term="prometheus"><div class="t-top"><h4>Prometheus</h4></div><p class="def">The de-facto metrics collector and time-series DB in Kubernetes, queried with PromQL. You run this daily.</p></div>
+        <div class="term bridge" data-term="grafana"><div class="t-top"><h4>Grafana</h4></div><p class="def">The dashboards-and-alerts front-end over your metrics and logs — the "single pane of glass". Firmly in your comfort zone.</p></div>
+        <div class="term bridge" data-term="loki"><div class="t-top"><h4>Loki</h4></div><p class="def">Grafana's log store — "Prometheus, but for logs" — cheap and label-indexed. A lighter alternative to the ELK stack you know.</p></div>
+        <div class="term bridge" data-term="fluentd fluent bit"><div class="t-top"><h4>Fluentd / Fluent Bit</h4></div><p class="def">Log shippers that collect container logs and forward them to a backend (Loki, Elasticsearch). Fluent Bit is the lightweight edition.</p></div>
+        <div class="term bridge" data-term="opentelemetry otel adot"><div class="t-top"><h4>OpenTelemetry</h4><span class="abbr">OTel · ADOT</span></div><p class="def">The vendor-neutral standard for emitting traces/metrics/logs; <b>ADOT</b> is AWS's distribution of it. Instrument once, send anywhere.</p></div>
+        <div class="term bridge" data-term="langfuse"><div class="t-top"><h4>LangFuse</h4></div><p class="def">Observability built specifically for LLM apps — traces each prompt, response, token count, latency, and cost. The piece your generic stack <b>doesn't</b> give you.</p></div>
+        <div class="term bridge" data-term="langchain observability"><div class="t-top"><h4>LangChain Observability</h4></div><p class="def">Tracing the multi-step chains inside a LangChain app (retrieve → prompt → call → parse) so you can debug where a bad answer came from.</p></div>
+        <div class="term bridge" data-term="promql"><div class="t-top"><h4>PromQL</h4></div><p class="def">Prometheus's query language for slicing metrics and writing alert rules — you've already authored these for disk/CPU/memory.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 14 HA & DR ===== -->
+    <section class="cat" id="s14">
+      <div class="cat-head">
+        <span class="num">14</span>
+        <h3>High Availability &amp; Disaster Recovery</h3>
+        <span class="world-tag wt-infra">Infra world</span>
+        <span class="ch-ref">Chapter 13</span>
+      </div>
+      <p class="cat-intro">Pure SRE — RPO, RTO, redundancy, multi-region. All directly transferable. The one wrinkle: GPU capacity is regionally scarce, so a GPU-workload DR plan has to account for whether you can even <em>get</em> GPUs in the failover region.</p>
+      <div class="terms">
+        <div class="term infra" data-term="ha high availability"><div class="t-top"><h4>HA</h4><span class="abbr">High Availability</span></div><p class="def">Designing so the service survives component failures with minimal downtime — redundancy, health checks, spreading across AZs. Your bread and butter.</p></div>
+        <div class="term infra" data-term="dr disaster recovery"><div class="t-top"><h4>DR</h4><span class="abbr">Disaster Recovery</span></div><p class="def">The plan to restore service after a major outage — from backup-restore up to hot multi-region. Same discipline you practise now.</p></div>
+        <div class="term infra" data-term="rpo recovery point objective"><div class="t-top"><h4>RPO</h4><span class="abbr">Recovery Point Objective</span></div><p class="def">How much <b>data</b> you can afford to lose, in time ("up to 5 min"). Drives backup frequency for vector DBs, model registries, and datasets.</p></div>
+        <div class="term infra" data-term="rto recovery time objective"><div class="t-top"><h4>RTO</h4><span class="abbr">Recovery Time Objective</span></div><p class="def">How <b>fast</b> you must be back up after failure. Tighter RTO = more standby (GPU) capacity = more cost.</p></div>
+        <div class="term infra" data-term="mtd maximum tolerable downtime"><div class="t-top"><h4>MTD</h4><span class="abbr">Maximum Tolerable Downtime</span></div><p class="def">The absolute ceiling of outage the business can survive — the outer bound your RTO must sit inside.</p></div>
+        <div class="term infra" data-term="redundancy"><div class="t-top"><h4>Redundancy</h4></div><p class="def">Running spare copies (pods, nodes, AZs, regions) so one failure isn't fatal — the foundation of both HA and DR.</p></div>
+        <div class="term infra" data-term="multi-region"><div class="t-top"><h4>Multi-Region</h4></div><p class="def">Running across geographically separate regions for the strongest resilience — with the GenAI caveat that GPU availability and data-residency vary by region.</p></div>
+        <div class="term infra" data-term="backup restore"><div class="t-top"><h4>Backup &amp; Restore</h4></div><p class="def">The simplest DR tier: periodically snapshot state, restore on failure. Cheapest, but slowest RTO.</p></div>
+        <div class="term infra" data-term="resiliency"><div class="t-top"><h4>Resiliency</h4></div><p class="def">The system's overall ability to absorb failures and keep serving — the goal the whole chapter builds toward.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== 15 CODING ASSISTANTS ===== -->
+    <section class="cat" id="s15">
+      <div class="cat-head">
+        <span class="num">15</span>
+        <h3>GenAI Coding Assistants</h3>
+        <span class="world-tag wt-ai">AI world</span>
+        <span class="ch-ref">Chapter 14</span>
+      </div>
+      <p class="cat-intro">The book closes by turning GenAI back on your own job — AI assistants that write Terraform, generate manifests, and help manage clusters. Meta, and immediately useful in your day-to-day.</p>
+      <div class="terms">
+        <div class="term ai" data-term="amazon q developer"><div class="t-top"><h4>Amazon Q Developer</h4></div><p class="def">AWS's AI coding assistant that plugs into your workflow to generate IaC, troubleshoot EKS, and suggest optimizations — demoed against a real cluster in the book.</p></div>
+        <div class="term ai" data-term="github copilot"><div class="t-top"><h4>GitHub Copilot</h4></div><p class="def">The widely-used AI pair-programmer that autocompletes code and config as you type.</p></div>
+        <div class="term ai" data-term="google gemini code assist"><div class="t-top"><h4>Gemini Code Assist</h4></div><p class="def">Google's equivalent coding assistant — same category, different vendor.</p></div>
+        <div class="term ai" data-term="ci cd continuous integration deployment"><div class="t-top"><h4>CI / CD</h4></div><p class="def">Continuous Integration / Delivery — the automated build-test-deploy pipelines you already run, now increasingly AI-augmented and extended to ship models.</p></div>
+      </div>
+    </section>
+
+    <!-- ===== CAPSTONE DIAGRAM ===== -->
+    <section class="cat" id="capstone">
+      <div class="cat-head">
+        <span class="num">◆</span>
+        <h3>The Whole Picture</h3>
+        <span class="world-tag wt-bridge">Bridge</span>
+        <span class="ch-ref">All chapters</span>
+      </div>
+      <p class="cat-intro">Once the terms click, here's how they stack up into one system. Read it bottom-to-top: hardware at the base, your GenAI app at the top, and three cross-cutting concerns wrapping everything.</p>
+
+      <figure class="diagram">
+        <div class="d-label">Reference stack</div>
+        <figcaption>GenAI on Kubernetes, end to end</figcaption>
+        <svg viewBox="0 0 820 400" role="img" aria-label="Layered stack from GPU hardware at the bottom up through Kubernetes, model serving, and the GenAI application, with security, observability, and cost wrapping the whole thing">
+          <!-- wrapping concerns -->
+          <rect x="10" y="12" width="800" height="376" rx="16" fill="none" stroke="#34c6c6" stroke-width="1.3" stroke-dasharray="6 4"/>
+          <text x="30" y="34" class="svg-cap" fill="#34c6c6">WRAPS EVERYTHING →  SECURITY (ch 9)   ·   OBSERVABILITY (ch 12)   ·   COST (ch 7)   ·   HA/DR (ch 13)</text>
+
+          <!-- layer 5 app -->
+          <rect x="40" y="52" width="740" height="56" rx="10" fill="rgba(143,203,82,.10)" stroke="#8fcb52" stroke-width="1.4"/>
+          <text x="60" y="76" class="svg-lbl" fill="#a8d76b">5 · GenAI Application</text>
+          <text x="60" y="96" class="svg-sub">Chatbot / RAG app · LangChain · vector DB · prompt logic  <tspan class="svg-cap" fill="#6c7a90">(ch 4–5)</tspan></text>
+          <!-- layer 4 serving -->
+          <rect x="40" y="118" width="740" height="56" rx="10" fill="rgba(52,198,198,.08)" stroke="#34c6c6" stroke-width="1.3"/>
+          <text x="60" y="142" class="svg-lbl" fill="#5fbebe">4 · Model Serving &amp; Optimization</text>
+          <text x="60" y="162" class="svg-sub">Fine-tuned Llama 3 · quantization · NIM · autoscaling (HPA/KEDA)  <tspan class="svg-cap" fill="#6c7a90">(ch 6, 10)</tspan></text>
+          <!-- layer 3 mlops -->
+          <rect x="40" y="184" width="740" height="52" rx="10" fill="#141d2c" stroke="#40507080" stroke-width="1.2"/>
+          <text x="60" y="206" class="svg-lbl">3 · GenAIOps Pipeline</text>
+          <text x="60" y="225" class="svg-sub">Kubeflow · MLflow · Ray · Argo Workflows  <tspan class="svg-cap" fill="#6c7a90">(ch 11)</tspan></text>
+          <!-- layer 2 k8s -->
+          <rect x="40" y="246" width="740" height="52" rx="10" fill="rgba(90,155,255,.08)" stroke="#5a9bff" stroke-width="1.3"/>
+          <text x="60" y="268" class="svg-lbl" fill="#8aa9dd">2 · Kubernetes (Amazon EKS)</text>
+          <text x="60" y="287" class="svg-sub">Pods · scheduling · CNI networking · GPU device plugin  <tspan class="svg-cap" fill="#6c7a90">(ch 2–3, 8)</tspan></text>
+          <!-- layer 1 hardware -->
+          <rect x="40" y="308" width="740" height="56" rx="10" fill="#12303a" stroke="#34c6c6" stroke-width="1.3"/>
+          <text x="60" y="332" class="svg-lbl" fill="#5fbebe">1 · Accelerated Hardware</text>
+          <text x="60" y="352" class="svg-sub">NVIDIA GPUs (MIG/MPS) · Trainium / Inferentia · EFA/RDMA networking  <tspan class="svg-cap" fill="#6c7a90">(ch 10)</tspan></text>
+        </svg>
+        <div class="d-foot"><b>Your entry point:</b> you already own layers 1–2 and the wrapping concerns. Learning layers 3–5 — and specifically GPU scheduling + RAG plumbing — is the whole pivot. That's a matter of months, not years, on your background.</div>
+      </figure>
+    </section>
+
+    <div class="no-results" id="noResultsBottom"></div>
+
+  </main>
+</div>
+
+<footer>
+  <b>GenAI × K8s Field Guide</b> — a plain-English companion glossary to <i>Kubernetes for Generative AI Solutions</i> (Packt, 2025), built for the DevOps/SRE → AI Infrastructure pivot.
+  <div class="fnote">
+    174 terms · 14 chapters · 9 diagrams &nbsp;•&nbsp; colour key: <span style="color:var(--infra)">■ infra you own</span> &nbsp; <span style="color:var(--ai)">■ AI you're learning</span> &nbsp; <span style="color:var(--bridge)">■ the bridge</span><br>
+    Definitions are simplified for first-pass understanding — the book itself is the source of truth for depth and code. Use the filter box (top-right) to jump to any term.
+  </div>
+</footer>
+
+<script>
+(function(){
+  const search = document.getElementById('search');
+  const count = document.getElementById('count');
+  const terms = Array.from(document.querySelectorAll('.term'));
+  const sections = Array.from(document.querySelectorAll('section.cat'));
+  const grpHeads = Array.from(document.querySelectorAll('section.grp-head'));
+  const figures = Array.from(document.querySelectorAll('figure.diagram'));
+  const noResults = document.getElementById('noResults');
+  const nrQuery = document.getElementById('nrQuery');
+  const hero = document.querySelector('.hero');
+
+  function normalize(s){return (s||'').toLowerCase().trim();}
+
+  function apply(q){
+    q = normalize(q);
+    if(!q){
+      terms.forEach(t=>t.style.display='');
+      sections.forEach(s=>s.style.display='');
+      grpHeads.forEach(g=>g.style.display='');
+      figures.forEach(f=>f.style.display='');
+      if(hero) hero.style.display='';
+      noResults.classList.remove('show');
+      count.textContent='';
+      return;
+    }
+    if(hero) hero.style.display='none';
+    grpHeads.forEach(g=>g.style.display='none');
+    figures.forEach(f=>f.style.display='none');
+    let total=0;
+    sections.forEach(sec=>{
+      const secTerms = Array.from(sec.querySelectorAll('.term'));
+      let visible=0;
+      secTerms.forEach(t=>{
+        const hay = normalize(t.getAttribute('data-term')+' '+t.textContent);
+        const show = hay.indexOf(q)!==-1;
+        t.style.display = show ? '' : 'none';
+        if(show){visible++;total++;}
+      });
+      sec.style.display = visible ? '' : 'none';
+    });
+    count.textContent = total ? total+' match'+(total===1?'':'es') : '';
+    if(total===0){ nrQuery.textContent='"'+q+'"'; noResults.classList.add('show'); }
+    else noResults.classList.remove('show');
+  }
+
+  let deb;
+  search.addEventListener('input',e=>{ clearTimeout(deb); deb=setTimeout(()=>apply(e.target.value),90); });
+  search.addEventListener('keydown',e=>{ if(e.key==='Escape'){ search.value=''; apply(''); search.blur(); }});
+
+  // keyboard: "/" focuses search
+  document.addEventListener('keydown',e=>{
+    if(e.key==='/' && document.activeElement!==search){ e.preventDefault(); search.focus(); }
+  });
+
+  // mobile toc
+  const toggle = document.getElementById('tocToggle');
+  const toc = document.getElementById('toc');
+  if(toggle){
+    toggle.addEventListener('click',()=>toc.classList.toggle('open'));
+    toc.querySelectorAll('a').forEach(a=>a.addEventListener('click',()=>toc.classList.remove('open')));
+  }
+})();
+</script>
+</body>
+</html>
