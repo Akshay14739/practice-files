@@ -10,7 +10,7 @@
 
 GPU fleets fail differently from web fleets: a GPU can be "Ready" in Kubernetes while thermally throttled, ECC-erroring, or NVLink-degraded; "GPU utilization 95 %" can hide an MFU of 25 %; and a single misrouted tenant can burn $10k/week invisibly. This project turns you into the person who *runs* the platforms from P07–P11 — and it is nearly a line-for-line answer to the **Cisco AIOps JD** ("ingest signals from metrics, logs, events… anomaly detection, predictive analysis… SLA/SLO… eBPF telemetry") and the staff-platform JD's SRE/FinOps asks.
 
-**"AIOps" here means three concrete capabilities, not buzzwords:**
+**"AIOps" here means three concrete capabilities, not buzzwords** — you build all three, grounded in signals only this domain has:
 
 1. **Detect** what static thresholds miss — a GPU at 40 % util that is *anomalous for this job at this hour* (seasonality), a p99 drifting up 3 %/day.
 2. **Predict** failures before they page — XID error acceleration, ECC creep, thermal-throttle trend → drain the node *before* the training job dies.
@@ -30,10 +30,8 @@ And nobody senior runs *one* cluster. The staff and remote JDs ask — verbatim 
            predictive GPU-failure scorer (XID/ECC/thermal trends) → cordon+drain
            Alertmanager webhook → RCA agent (tools: PromQL, Loki, events, deploys)
            → Slack, human approves actions
- Fleet:    MANAGEMENT CLUSTER: CAPI (provisions clusters) · ArgoCD ApplicationSets
-           (deploys to all) · Kueue manager + MultiKueue (dispatches GPU jobs)
-           · Thanos/Mimir global query (one metrics view)
-      └──▶ N workload clusters (kind for $0 · EKS/GKE for real demos) ── Cluster Mesh
+ Fleet:    a management cluster wraps all of the above and drives N workload
+           clusters — CAPI · ApplicationSets · MultiKueue · Cluster Mesh (Phase 7)
 ```
 
 ## 3. Phase 1 — see the GPUs properly (and everything else: the LGTM stack)

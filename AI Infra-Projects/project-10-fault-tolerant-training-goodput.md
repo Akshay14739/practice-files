@@ -1,12 +1,13 @@
 # Project 10 — Multi-Node Training: NCCL/EFA Fabric, Fault Tolerance & Goodput Engineering
 
-**Difficulty:** ★★★★★ | **Time:** 6–7 weekends | **Cost:** ~$45–100 (fabric sessions: 2× g6.8xlarge spot ≈ $2.2/hr for the pair, ~3 sessions; platform: 4× g5 spot; one 2-hr multi-node A100/EFA window shared with P15 — prices as of July 2026)
+**Difficulty:** ★★★★★ | **Time:** 6–7 weekends | **Cost:** ~$45–100 (fabric sessions: 2× `g6.8xlarge` spot ≈ $2.2/hr for the pair, ~3 sessions; platform: 4× g5 spot; one 2-hr multi-node A100/EFA window shared with [P15](project-15-nvidia-networking-nccl-cluster-validation.md) — prices as of July 2026)
+**Prereqs:** P1 (GPU platform), P5 (torchrun basics), [P07](project-07-topology-aware-gang-scheduler.md) (gang admission). **Skills proven:** NCCL collectives, EFA/libfabric + aws-ofi-nccl on EKS, torchrun/c10d rendezvous & elasticity, Kubeflow PyTorchJob, FSDP vs DeepSpeed ZeRO-3, async distributed checkpointing, XID/NPD/DCGM node health, goodput & MFU analytics. **JD keywords:** *"distributed systems architecture"* · *"RDMA/InfiniBand"* (EFA is the AWS analogue) · *"AllReduce, mixed precision, FSDP/DeepSpeed"* · *"training reliability / goodput"*.
 
-*Cross the line that separates "ran a fine-tune" from "operates distributed training" — then make it survive. Phases 1–4 bring up a real 2-node EFA (AWS's RDMA-class) fabric, measure NCCL collectives with `nccl-tests`, and run multi-node FSDP and DeepSpeed ZeRO-3 via the Kubeflow Training Operator. Phases 5–8 build the reliability layer frontier labs hire for on its own: elastic torchrun, async sharded checkpointing, XID-driven remediation, and goodput/MFU/straggler analytics.*
+*Cross the line that separates "ran a fine-tune" from "operates distributed training" — then make it survive. Phases 1–4 bring up a real 2-node EFA (AWS's RDMA-class) fabric, measure NCCL collectives with `nccl-tests`, and run multi-node FSDP and DeepSpeed ZeRO-3 via the Kubeflow Training Operator. Phases 5–8 build the reliability layer frontier labs hire for on its own: elastic torchrun, async sharded checkpointing, XID-driven remediation, and goodput/MFU/straggler analytics. Reliability is not a stretch goal here — it is half the project.*
 
 ## 1. The production problem
 
-Meta's Llama-3 paper reports **466 job interruptions in 54 days** on a 16k-H100 run — ~78 % from hardware (GPU/HBM failures dominating). At that scale a *daily* failure is guaranteed; the difference between labs is not avoiding failures but **goodput**: the fraction of wall-clock GPU time producing useful training progress. Google, Meta, and cloud providers all publish goodput methodologies. P07 (project-07-topology-aware-gang-scheduler.md) got distributed jobs *admitted* as gangs; this project builds the fabric they run on and then makes the training *survive* — which is precisely the SRE-flavored AI-infra work your background maps to.
+Meta's Llama-3 paper reports **466 job interruptions in 54 days** on a 16k-H100 run — ~78 % from hardware (GPU/HBM failures dominating). At that scale a *daily* failure is guaranteed; the difference between labs is not avoiding failures but **goodput**: the fraction of wall-clock GPU time producing useful training progress. [P07](project-07-topology-aware-gang-scheduler.md) got distributed jobs *admitted* as gangs; this project builds the fabric they run on and then makes the training *survive* — precisely the SRE-flavored AI-infra work your background maps to.
 
 Failure taxonomy you'll handle: GPU **XID errors** (48/63/64 = memory/ECC, 79 = fell off the bus), NCCL timeouts/hangs, stragglers (one slow rank stalls all ranks — allreduce is synchronous), spot reclaims, silent fabric degradation (EFA→TCP fallback), and plain OOMs.
 
@@ -41,7 +42,7 @@ Failure taxonomy you'll handle: GPU **XID errors** (48/63/64 = memory/ECC, 79 = 
 
 ## 4. Phase 1 — EFA-enabled node group
 
-EFA needs: a supported instance type, a security group allowing **all traffic within itself**, same subnet/AZ (EFA traffic cannot cross AZs — ideally a cluster placement group), the EFA device plugin, and huge pages. Instance choice (us-east-1 prices as of July 2026):
+EFA needs: a supported instance type, a security group allowing **all traffic within itself**, same subnet/AZ (EFA traffic cannot cross AZs — ideally a cluster placement group), the EFA device plugin, and huge pages. Instance choice (us-east-1, as of July 2026):
 
 | Pair | GPU | EFA capability | On-demand / spot (each) |
 |---|---|---|---|
@@ -155,7 +156,7 @@ Then run **all_gather_perf** and **reduce_scatter_perf** too — FSDP's actual c
 kubectl apply --server-side -k "github.com/kubeflow/training-operator.git/manifests/overlays/standalone?ref=v1.8.1"   # pin to your tested release
 ```
 
-`train/fsdp_train.py` (core; full file in repo) — Qwen2.5-0.5B full-finetune (small enough that 2 single-GPU nodes make FSDP *sharding for real*, not toy LoRA):
+`train/fsdp_train.py` (core; full file in repo) — Qwen2.5-0.5B full-finetune (small enough that 2 single-GPU nodes make FSDP *shard for real*, not toy LoRA):
 
 ```python
 import os, torch, torch.distributed as dist
@@ -239,9 +240,9 @@ Same model/data, `deepspeed --hostfile` inside the same PyTorchJob shape, `ds_co
 
 (On T4, swap `bf16` for `"fp16": { "enabled": true }`.) One-page write-up: FSDP (PyTorch-native, wrap-policy control) vs ZeRO-3 (config-driven, CPU/NVMe offload options, `wall_clock_breakdown` timing) — when a team picks each. Add ZeRO **stage-2 vs stage-3** memory/step-time deltas from your runs.
 
-## 8. Phase 5 — elastic, resumable training
+## 8. Phase 5 — Elastic, resumable training
 
-`train.py` (core ~100 lines; FSDP-wrapped small model like TinyLlama/1.1B so it runs on A10Gs):
+`train.py` (core ~100 lines; FSDP-wrapped small model like TinyLlama/1.1B):
 
 ```python
 import os, signal, time, threading
@@ -295,9 +296,9 @@ def main():
 if __name__ == "__main__": main()
 ```
 
-Key ideas to internalize (and say out loud in interviews): **async, sharded** checkpointing (`dcp.async_save`) keeps GPUs busy during I/O — checkpoint *stall* drops from minutes to seconds; **hierarchical storage** (NVMe first, S3 async) is how big runs checkpoint every few minutes affordably; `--max-restarts` + resumable dataloader (store `step` in the checkpoint, seed/skip deterministically) makes restarts cheap. Reality check (July 2026): `dcp.async_save` needs PyTorch ≥ 2.4 and is still flagged *experimental* in the 2.13 docs — pin your release (2.9 added `DefaultStager` for pinned-memory staging overlap). Keep one checkpoint in flight (the code does) and budget CPU RAM ≈ checkpoint-size-per-rank.
+Key ideas to internalize: **async, sharded** checkpointing (`dcp.async_save`) keeps GPUs busy during I/O — checkpoint *stall* drops from minutes to seconds; **hierarchical storage** (NVMe first, S3 async) is how big runs checkpoint every few minutes affordably; `--max-restarts` + a resumable dataloader (store `step` in the checkpoint, seed/skip deterministically) makes restarts cheap. Reality check (July 2026): `dcp.async_save` needs PyTorch ≥ 2.4 and is still flagged *experimental and subject to change* in the 2.13 docs — pin your release (2.9 added `DefaultStager` for pinned-memory staging overlap; those buffers persist between steps, so peak CPU RAM stays high). Keep one checkpoint in flight (the code does) and budget CPU RAM ≈ checkpoint-size-per-rank × ranks.
 
-JobSet + Kueue (topology annotations from P15's labels):
+JobSet + Kueue (topology annotations from [P15](project-15-nvidia-networking-nccl-cluster-validation.md)'s node labels):
 
 ```yaml
 apiVersion: jobset.x-k8s.io/v1alpha2
@@ -337,9 +338,9 @@ spec:
             volumes: [{name: nvme, emptyDir: {}}]     # real runs: local NVMe hostPath/RAID
 ```
 
-`--nnodes=2:4` = **elastic**: lose a node and training re-rendezvouses at world size 3 instead of dying. Demonstrate it live — and be precise (interviewers probe this): torchrun elastic does **group restarts**: on any failure or membership change *all* workers stop and restart (up to `--max-restarts`) with new `RANK`/`WORLD_SIZE`; it never hot-swaps one worker, so cheap restarts depend entirely on your checkpoint path. c10d is the recommended rendezvous backend. JobSet is still `v1alpha2` at release v0.12.0 as of July 2026 (v0.12 added pod-level elastic scaling) — pin the CRD release you install.
+`--nnodes=2:4` = **elastic**: lose a node and training re-rendezvouses at world size 3 instead of dying. Demonstrate it live — and be precise, because interviewers probe this: torchrun elastic does **group restarts**. On any worker failure *or* membership change, **all** workers stop and restart (up to `--max-restarts`) with new `RANK`/`WORLD_SIZE`; it never hot-swaps a single worker, so cheap restarts depend entirely on your checkpoint path. c10d is the recommended rendezvous backend. JobSet is still `jobset.x-k8s.io/v1alpha2` at release v0.12.0 as of July 2026 (v0.12 added pod-level elastic scaling and finer-grained restart actions) — no graduation yet; pin the CRD release you install.
 
-## 9. Phase 6 — detect: turning kernel noise into NodeConditions
+## 9. Phase 6 — Detect: turning kernel noise into NodeConditions
 
 node-problem-detector custom plugin (DaemonSet) — `xid-check.sh`:
 
@@ -351,9 +352,9 @@ if [ -n "$recent" ]; then echo "GPU XID detected: $(echo "$recent" | tail -1)"; 
 exit 0
 ```
 
-NPD config maps that to `NodeCondition: GpuXidError=True` + an Event. Also enable **DCGM background health checks** (GPU Operator ships DCGM; `dcgmi health -s a`) and scrape `DCGM_FI_DEV_XID_ERRORS`. Inject a fake failure for testing by writing a matching line via `/dev/kmsg` on a lab node. Remember: **NPD detects and reports only** — it never remediates; that requires a second actor, which you build next.
+NPD config maps that to `NodeCondition: GpuXidError=True` + an Event. Also enable **DCGM background health checks** (GPU Operator ships DCGM; `dcgmi health -s a`) and scrape `DCGM_FI_DEV_XID_ERRORS`. Inject a fake failure for testing by writing a matching line via `/dev/kmsg` on a lab node. Remember the precise boundary: **NPD detects and reports only** — it never remediates. That requires a second actor, which you build next.
 
-## 10. Phase 7 — remediate: close the loop automatically
+## 10. Phase 7 — Remediate: close the loop automatically
 
 Tiny remediator (Python, ~50 lines, runs as a Deployment; this is your "AIOps automation" story):
 
@@ -376,13 +377,13 @@ for ev in watch.Watch().stream(v1.list_node):
             v1.delete_node(name)
 ```
 
-End-to-end drill: inject XID → NPD flags → remediator drains → trainer catches SIGTERM, checkpoints, exits → Karpenter replaces node → elastic rendezvous resumes from `step-N`. **Time it.** MTTR is your headline metric (target: < 5 min with warm capacity).
+End-to-end drill: inject XID → NPD flags → remediator drains → trainer catches SIGTERM, checkpoints, exits → Karpenter replaces the node → elastic rendezvous resumes from `step-N`. **Time it.** MTTR is your headline metric (target: < 5 min with warm capacity).
 
-Know the managed equivalents your DIY controller competes with (as of July 2026): the **EKS node monitoring agent + auto repair** (XID 64 → reboot after 10 min by default, configurable to replace), NVIDIA **NVSentinel** (detect/classify → cordon+drain+break-fix), and **Karpenter Node Auto Repair** — still **alpha** (`NodeRepair=true` feature gate, since v1.1.0; Karpenter's NodePool/NodeClaim API itself is stable v1), which force-terminates a node once a condition persists past its toleration and *requires* a condition-setting agent. Being able to compare your controller against these is the interview.
+Know the managed equivalents your DIY controller competes with (as of July 2026): the **EKS node monitoring agent + auto repair** (XID 64 → reboot after 10 min by default, configurable to replace after 5), NVIDIA **NVSentinel** (detect/classify → cordon + drain + break-fix), NPD **+ draino**, and **Karpenter Node Auto Repair** — still **alpha** (`NodeRepair=true` feature gate, since Karpenter v1.1.0; the NodePool/NodeClaim API itself is stable `karpenter.sh/v1`), which force-terminates a node once a condition persists past its toleration, bypassing normal drain, and *requires* a condition-setting agent underneath. Being able to compare your controller against these is the interview.
 
-## 11. Phase 8 — goodput & straggler analytics
+## 11. Phase 8 — Goodput & straggler analytics
 
-Definitions (Google-style): **goodput = productive time / total wallclock**, where productive excludes: init/rendezvous, checkpoint-blocked time, re-computation after restore (steps since last checkpoint), and hang time. Compute from your metrics:
+Definitions (Google-style): **goodput = productive time / total wallclock**, where productive excludes init/rendezvous, checkpoint-blocked time, re-computation after restore (steps since last checkpoint), and hang time. Compute from your metrics:
 
 ```promql
 # scheduled step throughput vs ideal
@@ -393,67 +394,69 @@ Definitions (Google-style): **goodput = productive time / total wallclock**, whe
 )
 ```
 
-**MFU** (model FLOPs utilization): `MFU = tokens/s × 6 × params / (Ngpu × peak_flops)` — 6·P FLOPs/token for dense transformers (add the 12·L·H·Q·T attention term for the PaLM-exact numerator). The denominator is always the **dense** tensor peak: the PaLM paper, which set the MFU convention, uses A100 = 312 TFLOPS dense matmul — never the 2× "with sparsity" figures, which require 2:4 structured-sparse weights no standard training run has. Dense BF16/FP16 peaks for this project's GPUs (datasheet values, verified July 2026):
+**MFU** (model FLOPs utilization): `MFU = tokens/s × 6 × params / (Ngpu × peak_flops)` — 6·N FLOPs/token for dense transformers (add the `12·L·H·Q·T` attention term for the PaLM-exact numerator). **The denominator is always the dense tensor peak.** The PaLM paper set this convention and uses A100 = **312 TFLOPS** dense matmul in its worked Megatron-Turing example — never the 2× "with sparsity" figures, which require 2:4 structured-sparse weights that essentially no training run uses. Dense BF16/FP16 peaks for this project's GPUs (datasheet values, verified July 2026):
 
 | GPU (instance) | Dense BF16/FP16 tensor peak | Trap to avoid |
 |---|---|---|
 | A100 SXM/PCIe, 40 & 80 GB (p4d/p4de) | **312 TFLOPS** | 624 is the sparse figure |
-| A10G (g5) | **70 TFLOPS** | the widely quoted ~125 TFLOPS is the *A10's* dense number — a different SKU; A10G sparse is 140. Third-party spec pages (even AWS's G5 page) copy A10-class numbers onto the A10G |
-| L4 (g6) | **121 TFLOPS** | NVIDIA's L4 datasheet prints sparse-first (242, with a "one-half without sparsity" footnote) |
+| A10G (g5) | **70 TFLOPS** | the widely quoted ~125 TFLOPS is the *A10's* dense number — a different SKU; the A10G's own sparse figure is 140. Third-party spec pages (and even AWS's G5 page, which advertises "up to 250 TOPS") copy A10 numbers onto the A10G |
+| L4 (g6) | **121 TFLOPS** | NVIDIA's L4 datasheet prints sparse-first (242, with a "one-half lower without sparsity" footnote) |
 | T4 (g4dn) | **65 TFLOPS, FP16 only** | Turing has no BF16 tensor path and no sparsity mode at all |
 
-Quote a sparse peak (or an A10 number on an A10G) and your MFU is skewed ~2× — the most common MFU bug in the wild. Export MFU from rank 0. If you also report **HFU** (hardware FLOPs utilization): model FLOPs exclude activation recomputation — recompute counts only toward HFU (PaLM 540B: 46.2 % MFU vs 57.8 % HFU).
+Quote a sparse peak (or an A10 number on an A10G) and your MFU is skewed ~2× — the most common MFU bug in the wild, and a great "spot the error" question to ask *back* in an interview. Export MFU from rank 0. If you also report **HFU** (hardware FLOPs utilization): model FLOPs exclude activation recomputation, which counts only toward HFU (PaLM 540B: 46.2 % MFU vs 57.8 % HFU).
 
-**Stragglers**: per-rank `train_step_seconds` histogram; a rank consistently >1.5× median is your suspect — correlate with `DCGM_FI_DEV_GPU_TEMP` (thermal throttling) and `DCGM_FI_DEV_SM_CLOCK`. **Hangs**: NCCL flight recorder dumps (`TORCH_NCCL_DUMP_ON_TIMEOUT`) tell you *which collective on which rank* stalled — practice reading one.
+**Stragglers:** per-rank `train_step_seconds` histogram; a rank consistently >1.5× median is your suspect — correlate with `DCGM_FI_DEV_GPU_TEMP` (thermal throttling) and `DCGM_FI_DEV_SM_CLOCK`. **Hangs:** NCCL flight-recorder dumps (`TORCH_NCCL_DUMP_ON_TIMEOUT`) tell you *which collective on which rank* stalled — practice reading one.
 
 Deliverable: a Grafana "Training Reliability" dashboard (goodput %, MFU, restarts/day, MTTR, checkpoint overhead %, per-rank step-time heatmap) + a one-page weekly-review template. This *is* the job at scale.
 
 ## 12. Acceptance suite & NCCL troubleshooting matrix
 
-Break it on purpose; every row is reproduced, documented, and fixed in `docs/nccl-debug-playbook.md`. These are the **training-job-level** checks — cluster-level validation (node burn-in, `dcgmi diag` levels, cluster-wide nccl-tests sweeps, topology labeling) lives in P15 (project-15-nvidia-networking-nccl-cluster-validation.md); cross-reference, don't duplicate.
+Break it on purpose; every row is reproduced, documented, and fixed in `docs/nccl-debug-playbook.md`. These are the **training-job-level** checks — cluster-level validation (node burn-in, `dcgmi diag` levels, cluster-wide nccl-tests sweeps, topology labeling) lives in [P15](project-15-nvidia-networking-nccl-cluster-validation.md); cross-reference it, don't duplicate its tables.
 
 | # | Failure (induce it) | Symptom | Detection | Fix / policy |
 |---|---|---|---|---|
 | 1 | **NCCL hang/timeout** — kill one worker mid-step | `Watchdog caught collective timeout`; surviving ranks block | flight-recorder dump (`TORCH_NCCL_DUMP_ON_TIMEOUT` + `TORCH_NCCL_TRACE_BUFFER_SIZE`), `NCCL_DEBUG=INFO` | restart-from-checkpoint policy; elastic re-rendezvous (Phase 5) |
-| 2 | **Silent TCP fallback** — remove the `vpc.amazonaws.com/efa` resource limit | job "works" but slow | busbw baseline delta + absence of `Selected provider is efa` log line | restore the EFA limit; verify SG self-referencing all-traffic rule |
+| 2 | **Silent TCP fallback** — remove the `vpc.amazonaws.com/efa` resource limit | job "works" but slow | busbw baseline delta + absence of `Selected provider is efa` log line | restore the EFA limit; verify the SG self-referencing all-traffic rule |
 | 3 | **/dev/shm too small** — drop the shm mount | NCCL bus error | error string in worker logs | memory-backed `emptyDir` ≥ 8Gi — the fix everyone learns once |
 | 4 | **Straggler** — `stress-ng` one node's CPUs | step time = slowest worker | per-rank `train_step_seconds` >1.5× median; DCGM temp/SM-clock correlation | topology/health-aware placement (P07 TAS, P15 health gates) |
-| 5 | **Version skew** — mismatch NCCL between images | cryptic init/collective errors | error taxonomy in playbook | pin training images monorepo-style |
+| 5 | **Version skew** — mismatch NCCL between images | cryptic init/collective errors | error taxonomy in the playbook | pin training images monorepo-style |
 | 6 | **GPU XID** — inject via `/dev/kmsg` | `NodeCondition GpuXidError=True` | NPD custom plugin + `DCGM_FI_DEV_XID_ERRORS` | remediator cordon→drain→replace; elastic resume (Phases 6–7) |
+| 7 | **Spot reclaim** — simulate the 2-min interruption notice | SIGTERM to trainer | `terminationGracePeriodSeconds` window observed | checkpoint-on-SIGTERM path; measure steps lost |
 
-**Pre-flight acceptance gate** (labs really do this): run a 60-s NCCL allreduce + `dcgmi diag -r 1` as an initContainer; refuse to start training on a sick node. Wire it into the JobSet template and show a sick node getting rejected.
+**Pre-flight acceptance gate** (labs really do this): run a 60-s NCCL allreduce + `dcgmi diag -r 1` as an initContainer and refuse to start training on a sick node. Wire it into the JobSet template and show a sick node getting rejected.
 
 ## 13. Done criteria & interview ammo
 
 - [ ] `Selected provider is efa` captured; busbw table TCP vs EFA published (all_reduce + all_gather + reduce_scatter)
-- [ ] 2-node FSDP converging; scaling-efficiency + memory table published
+- [ ] 2-node FSDP converging; scaling-efficiency + peak-memory table published
 - [ ] ZeRO-3 comparison page written (stage-2 vs stage-3 deltas included)
 - [ ] Kueue gates the whole PyTorchJob as one gang (no partial 1-node starts)
-- [ ] All six matrix failures reproduced with fixes
+- [ ] All seven matrix failures reproduced with fixes
 - [ ] Kill-a-node drill: training resumes automatically, ≤100 steps lost, MTTR recorded
 - [ ] Spot-reclaim drill (SIGTERM path) with graceful checkpoint
 - [ ] Goodput measured before/after async checkpointing (show the improvement)
-- [ ] One NCCL hang diagnosed from a flight-recorder dump (induce via `iptables` drop between ranks)
+- [ ] One NCCL hang diagnosed from a flight-recorder dump (induce via an `iptables` drop between ranks)
 - [ ] MFU on the dashboard computed against **dense** peaks (70 TFLOPS on g5, 121 on g6, 312 on A100)
 
 **Resume bullet:** *"Built and operated a multi-node training platform on EKS: EFA/RDMA fabric benchmarked with nccl-tests (X Gb/s busbw, Y× over TCP), 2-node FSDP + DeepSpeed ZeRO-3 via Kubeflow with measured scaling efficiency, elastic torchrun + JobSet/Kueue with topology-aware placement, async sharded checkpointing (NVMe→S3) cutting checkpoint stall >90 %, XID-based node health detection (NPD/DCGM) with an automated cordon-drain-replace remediation controller (Karpenter), and goodput/MFU/straggler dashboards — sub-5-minute MTTR for injected GPU failures."*
 
-Whiteboard-ready: ring-AllReduce byte math (2(N−1)/N × size); why FSDP trades memory for comms and where that stops paying; EFA/SRD vs InfiniBand vs RoCE in 90 seconds; how you *detect* that a fabric silently degraded; why gang scheduling is a prerequisite for any of this; why the MFU denominator is the dense peak and what happens when someone quotes the sparse number.
+Whiteboard-ready: ring-AllReduce byte math (2(N−1)/N × size); why FSDP trades memory for comms and where that stops paying; EFA/SRD vs InfiniBand vs RoCE in 90 seconds; how you *detect* that a fabric silently degraded; why gang scheduling is a prerequisite for all of it; why the MFU denominator is the dense peak and what happens when someone quotes the sparse number.
 
 ## 14. Teardown & budget
 
-Fabric nodes are the expensive kind: `make down` deletes MPIJob/PyTorchJob, scales the `gpu-efa` NodePool limits to 0, verifies `kubectl get nodeclaims` empty — set a phone timer when you start a session, seriously. Platform logic runs on 4× g5.xlarge spot. Only the P15 EFA window needs A100s (p4d ≈ $22/hr on-demand as of July 2026 — down from the old $32 list price; P15 is the only project that pays for it). `kubectl delete jobset -A --all && eksctl delete nodegroup training-*`; empty the S3 ckpt bucket (lifecycle rule: expire after 7 days).
+Fabric nodes are the expensive kind: `make down` deletes MPIJob/PyTorchJob/JobSet, scales the `gpu-efa` NodePool limits to 0, and verifies `kubectl get nodeclaims` is empty — set a phone timer when you start a session, seriously. Platform logic runs on 4× g5.xlarge spot. Only the [P15](project-15-nvidia-networking-nccl-cluster-validation.md) EFA window needs A100s (p4d ≈ $22/hr on-demand, ~$14/hr spot as of July 2026 — down from the old $32.77 list price after AWS's June 2025 cut; P15 is the only project that pays for it). Then: `kubectl delete jobset -A --all && eksctl delete nodegroup training-*`; empty the S3 checkpoint bucket (lifecycle rule: expire after 7 days).
 
 ## 15. Extensions
 
-- **TorchFT** (per-step fault-tolerant HSDP without full group restarts) — deploy its Lighthouse and compare restart cost vs. elastic torchrun. Label it honestly: experimental, nightly-wheels-only with no versioned release as of July 2026, but demonstrated at scale (PyTorch blog: Llama training through ~2,000 synthetic failures at ~15-s intervals with no checkpoint recovery).
-- **Ray Train** version of the same pipeline — compare operator ergonomics with Kubeflow (favorite panel question).
+- **TorchFT** (per-step fault-tolerant HSDP without full group restarts) — deploy its Lighthouse + Manager and compare restart cost against elastic torchrun. Label it honestly: experimental, nightly-wheels-only with no versioned release as of July 2026, but demonstrated at scale (PyTorch blog: Llama training through ~2,000 synthetic failures at ~15-s intervals with no checkpoint recovery); its LocalSGD/DiLoCo paths are explicitly experimental.
+- **Ray Train** version of the same pipeline — compare operator ergonomics with Kubeflow (a favorite panel question).
 - **Gradient compression** (PowerSGD hook) on the TCP path — measure whether it closes the EFA gap at this model size.
-- Export **per-rank step time + collective time** to Prometheus; alert on straggler ratio >1.3× — feeds P12's AIOps (project-12-ai-fleet-sre-finops-aiops.md).
-- Swap your DIY remediator for **Karpenter Node Auto Repair** (alpha, `NodeRepair=true`) + the EKS node monitoring agent and compare MTTR against your controller.
+- Export **per-rank step time + collective time** to Prometheus and alert on straggler ratio >1.3× — this feeds the AIOps layer in [P12](project-12-ai-fleet-sre-finops-aiops.md).
+- Swap your DIY remediator for **Karpenter Node Auto Repair** (alpha, `NodeRepair=true`) + the EKS node monitoring agent, and compare MTTR against your controller.
+- Profile one slow step with Nsight Systems to see whether you're comm-bound or kernel-bound — the toolchain lives in [P16](project-16-cuda-gpu-performance-engineering.md).
 
 ## 📣 Build in public
 
-- **LinkedIn post:** publish your TCP-vs-EFA busbw table (8 MB → 1 GB sweep across all_reduce/all_gather/reduce_scatter) next to the 2-node FSDP scaling-efficiency number, and explain why the network — not the GPUs — set the ceiling at 0.5B scale.
-- **X/Twitter thread:** live-tweet the kill-a-node drill with timestamps — XID injected via `/dev/kmsg` → NPD condition → cordon/drain → Karpenter replacement → elastic re-rendezvous — closing with the measured MTTR and steps lost (≤100).
+- **LinkedIn post:** publish your TCP-vs-EFA busbw table (8 MB → 1 GB sweep across all_reduce/all_gather/reduce_scatter) next to the 2-node FSDP scaling-efficiency number, and explain why the *network* — not the GPUs — set the ceiling at 0.5B scale.
+- **X/Twitter thread:** live-tweet the kill-a-node drill with timestamps — XID injected via `/dev/kmsg` → NPD condition → cordon/drain → Karpenter replacement → elastic re-rendezvous — closing with the measured MTTR and steps lost (≤100). Add a bonus post on the MFU trap: the same run "scores" 2× the MFU if you use the A10G's sparse (or the A10's) 125–140 TFLOPS instead of the correct 70 dense.
 - **YouTube demo:** screen-record goodput before vs after enabling `dcp.async_save` (checkpoint-stall seconds on the dashboard dropping >90 %), then walk through a real NCCL flight-recorder dump and name the exact collective and rank that hung.

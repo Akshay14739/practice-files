@@ -1,17 +1,17 @@
 # Project 08 — Slice: A Fractional-GPU Multi-Tenant Platform (MIG + HAMi + DRA + KAI + Kueue)
 
-**Difficulty:** ★★★★☆ | **Time:** 3–4 weekends | **Cost:** ~$15–35 (g4dn/g5/g6 spot for time-slicing, MPS, HAMi and KAI; one 2–3 hr single-A100 rental ≈ $4–8 for MIG — no p4d anywhere in this project)
-**GPU-scheduling project 2 of 2.**
+**Difficulty:** ★★★★☆ | **Time:** 3–4 weekends | **Cost:** ~$15–35 (g4dn/g5/g6 spot for time-slicing, MPS, HAMi and KAI; one 2–3 hr single-A100 rental ≈ $4–8 for MIG — **no p4d anywhere in this project**)
+**GPU-scheduling project 2 of 2** (see [P07](project-07-topology-aware-gang-scheduler.md) for gang scheduling). **Prereqs:** P1 (GPU Operator, DCGM dashboards), P2 (vLLM serving).
 
 *[P07](project-07-topology-aware-gang-scheduler.md) decided **which job** gets a GPU. This one decides **how much of a GPU** each workload gets — the fractional-GPU problem that determines whether a fleet runs at 15% utilization or 70%. You'll operate real MIG on a real A100, deploy MPS and HAMi (memory-isolated fractional GPUs on the cheap cards MIG can't touch), run NVIDIA's open-sourced KAI Scheduler for fraction-aware placement, impose org-level quotas with Kueue, and publish a cost-per-tenant economics report comparing every sharing mode.*
 
 ## 1. The production problem
 
-A whole H100 for a notebook or a 7B-model dev endpoint wastes >90 % of a very expensive chip. Every internal GPU cloud (and every "neocloud" — see your uploaded JD: *"GPU Operator setup… validated vCluster environment"*) therefore runs **GPU sharing** with **hard multi-tenant quotas**:
+A whole H100 for a notebook or a 7B-model dev endpoint wastes >90 % of a very expensive chip. Every internal GPU cloud (and every "neocloud" — see your uploaded JD: *"GPU Operator setup… validated vCluster environment"*) therefore runs **GPU sharing** with **hard multi-tenant quotas**. The NVIDIA-cert syllabus line *"MIG configuration, GPU sharing and isolation, vGPU"* is this project, end to end.
 
-- **MIG** (A100/A30, Hopper H100/H200/H20, Blackwell B200/GB200 and RTX PRO Blackwell server cards — *not* T4/A10G/L4/L40S): hardware partitions — isolated memory + SMs + L2, with fault isolation between instances. Safe for untrusted tenants.
-- **Time-slicing** (any GPU, e.g. A10G/L4): kubelet advertises N replicas of one GPU; per NVIDIA's own docs, *"there is no memory or fault-isolation between replicas"* — fine for bursty dev, dangerous for tenants.
-- **MPS**: concurrent kernels from multiple processes; per-client GPU address spaces on Volta+ and an opt-in memory cap (`CUDA_MPS_PINNED_DEVICE_MEM_LIMIT`, CUDA 11.5+), but *limited* error containment — one fatal client fault can take down every co-client on the device.
+- **MIG** (A100/A30, Hopper, Blackwell — *not* T4/A10G/L4/L40S): hardware partitions — isolated memory + SMs + L2, with fault isolation between instances. Safe for untrusted tenants.
+- **Time-slicing** (any GPU, e.g. A10G/L4): kubelet advertises N replicas of one GPU; NVIDIA's own docs are blunt — *"there is no memory or fault-isolation between replicas."* Fine for bursty dev, dangerous for tenants.
+- **MPS**: concurrent kernels from multiple processes; per-client address spaces on Volta+ and an opt-in memory cap (`CUDA_MPS_PINNED_DEVICE_MEM_LIMIT`, CUDA 11.5+), but *limited* error containment.
 - **HAMi** (CNCF **Incubating** project — promoted July 2, 2026 — v2.9.0 as of July 2026): software-enforced fractional GPUs. Its `libvgpu.so` intercepts CUDA calls to enforce per-pod memory and SM caps on **any** NVIDIA GPU — exactly the T4/A10G/L4 fleet that MIG cannot cover.
 - **DRA (Dynamic Resource Allocation)**: devices become first-class API objects (`DeviceClass`, `ResourceClaim`) selected with CEL, replacing the opaque `nvidia.com/gpu: 1` counter. **GA in Kubernetes v1.34** (`resource.k8s.io/v1`, August 2025); NVIDIA ships a DRA driver, and HAMi v2.9.0 added its own (HAMi-DRA).
 - **KAI Scheduler**: NVIDIA's open-sourced (Apache-2.0, April 2025) scheduler from the Run:ai acquisition — hierarchical queues, fair-share, gang scheduling, and *fractional* GPU requests (`0.5` GPU). CNCF Sandbox since December 2025; now at `github.com/kai-scheduler/KAI-Scheduler`, v0.16.3 as of July 2026. Crucially, its fractions are **scheduling-level only** — KAI's own docs recommend pairing it with HAMi for memory isolation.
@@ -26,7 +26,7 @@ The decision matrix you're building evidence for:
 | **HAMi vGPU** | Software (CUDA-call interception) — no hardware fault isolation | **Enforced cap** (`nvidia.com/gpumem` MiB) — offender gets CUDA OOM alone | Arbitrary MiB / % SM | any NVIDIA (T4/A10G/L4/L40S included) | Fractional prod on non-MIG GPUs |
 | **MIG** | **Hardware** (SM+mem+L2+DMA sliced, fault-isolated) | **Full** | Fixed profiles (7 slices max) | A100/A30, Hopper (H100/H200/H20), Blackwell (B200/GB200, RTX PRO) | Multi-tenant prod, guaranteed QoS |
 
-You'll run every mode in that table plus both schedulers, then impose org-level quota/borrowing with **Kueue**, and close the loop with per-team **chargeback** — the exact shape of an internal ML platform. Almost nobody interviews with per-mode latency/throughput/isolation data; you will.
+After this project you'll have **run all five**, plus both schedulers, plus **Kueue** quota/borrowing and per-team **chargeback** — the exact shape of an internal ML platform. Almost nobody interviews with per-mode latency/throughput/isolation data; you will.
 
 ## 2. Architecture
 
@@ -93,7 +93,7 @@ sharing:
 kubectl label node <t4-node> nvidia.com/device-plugin.config=mps --overwrite
 ```
 
-Benchmark the difference that matters: 4 concurrent small-batch inference pods under **time-slicing** (serialized context switches) vs **MPS** (true concurrency, per-client memory caps via `CUDA_MPS_PINNED_DEVICE_MEM_LIMIT`). Expect MPS to win aggregate throughput 1.5–3× at small batch — publish your measured number, and note MPS's operational caveats (shared fault domain: an MPS daemon crash takes all clients; weaker isolation than MIG). Then contrast fault-isolation behavior vs. time-slicing by crashing one client.
+Benchmark the difference that matters: 4 concurrent small-batch inference pods under **time-slicing** (serialized context switches) vs **MPS** (true concurrency, per-client memory caps via `CUDA_MPS_PINNED_DEVICE_MEM_LIMIT`). Expect MPS to win aggregate throughput 1.5–3× at small batch — publish your measured number. Then crash one client and record the blast radius: MPS's fault domain is shared (a fatal client fault, or an MPS daemon crash, takes down its co-clients), which is exactly why it is not the answer for untrusted tenants.
 
 ## 4. Phase 2 — HAMi: fractional GPUs with *enforced* memory limits on any GPU
 
@@ -123,14 +123,14 @@ resources:
 
 ## 5. Phase 3 — MIG for real, on a rented single A100 (the centerpiece)
 
-MIG needs A100/A30-, Hopper- or Blackwell-class silicon — none of your cheap EKS cards (T4/A10G/L4) qualify. The trick: you do **not** need a p4d. A single-A100 box gives the identical mig-manager workflow — same `mig.config` label, same single/mixed strategies, same DCGM per-slice metrics — because MIG behavior is per-GPU, and these boxes carry the same A100-SXM4-40GB silicon as p4d.
+MIG needs A100/A30-, Hopper- or Blackwell-class silicon — none of your cheap EKS cards (T4/A10G/L4/L40S) qualify. The trick: you do **not** need a p4d. MIG behavior is **per-GPU**, and a single-A100 rental carries the same A100-SXM4-40GB silicon as a p4d — so the workflow is identical: same `mig.config` label, same single/mixed strategies, same DCGM per-slice metrics.
 
 **Where to rent (prices as of July 2026):**
 
-- **GCP `a2-highgpu-1g`** (1× A100-40GB, GPU included): ~$3.67/hr on-demand, **~$1.93/hr spot** (us-central1/us-east1/us-west1). ⚠️ Third-party trackers often show $0.39–0.83/hr for this machine type — those figures *exclude the bundled GPU*; always confirm the A100 is included.
+- **GCP `a2-highgpu-1g`** (1× A100-40GB, GPU included): ~$3.67/hr on-demand, **~$1.93/hr spot** (us-central1/us-east1/us-west1; spot moves daily). ⚠️ Third-party trackers often show $0.39–0.83/hr for this machine type — those figures *exclude the bundled GPU*; always confirm the A100 is included.
 - **Lambda** 1× A100 40GB (SXM or PCIe): **$1.99/hr** on-demand (the widely-cited $1.29 figure is obsolete).
-- **RunPod** A100 80GB: $1.39–1.49/hr Secure Cloud, Community Cloud from ~$0.89/hr (interruptible). RunPod lists no 40GB card — note the 80GB profile names differ (`1g.10gb`…`7g.40gb` becomes `1g.10gb`…`7g.80gb`).
-- **What you're not paying for:** p4d.24xlarge (8× A100) is ~$21.96/hr on-demand / ~$13.93/hr spot in us-east-1 after AWS's June 2025 price cut. The single-A100 spot box is roughly **1/11th of p4d on-demand per hour — an order of magnitude cheaper — for an identical MIG lab**. A full scripted MIG session costs $4–8. p4d stays reserved for [P15](project-15-nvidia-networking-nccl-cluster-validation.md).
+- **RunPod** A100 80GB: $1.39–1.49/hr Secure Cloud, Community Cloud from ~$0.89/hr (interruptible). RunPod lists no 40GB card — on an 80GB card the profile names differ (`1g.5gb`…`7g.40gb` becomes `1g.10gb`…`7g.80gb`).
+- **What you're not paying for:** p4d.24xlarge (8× A100-40GB) is ~$21.96/hr on-demand / ~$13.93/hr spot in us-east-1 after AWS's June 2025 price cut (Capacity Blocks support P4d, but only in us-east-2/us-west-2). The single-A100 spot box is roughly **1/11th of p4d on-demand per hour — an order of magnitude cheaper — for an identical MIG lab**. A full scripted MIG session costs $4–8. p4d stays reserved for [P15](project-15-nvidia-networking-nccl-cluster-validation.md).
 
 **Two paths:**
 
@@ -146,7 +146,7 @@ helm upgrade -i gpu-operator nvidia/gpu-operator -n gpu-operator --create-namesp
   --set dcgmExporter.enabled=true
 ```
 
-**Step 1 — enable MIG mode & pick a geometry.** A100-40GB profiles: `1g.5gb`×7, `2g.10gb`×3, `3g.20gb`×2, `7g.40gb`×1, plus mixed layouts like `1×3g.20gb + 2×2g.10gb` (slices come from a fixed set of valid memory-slice × compute-slice combinations). The GPU Operator's **mig-manager** drives it declaratively via node label — it drains GPU pods, reconfigures, and uncordons:
+**Step 1 — enable MIG mode & pick a geometry.** A100-40GB profiles: `1g.5gb`×7, `2g.10gb`×3, `3g.20gb`×2, `4g.20gb`×1, `7g.40gb`×1, plus mixed layouts like `1×3g.20gb + 2×2g.10gb` (slices come from a fixed set of valid memory-slice × compute-slice combinations). The GPU Operator's **mig-manager** drives it declaratively via node label — it stops all GPU pods on the node, reconfigures, and uncordons:
 
 ```bash
 # built-in profiles from the default mig-parted config
@@ -193,7 +193,7 @@ Run `Qwen2.5-1.5B` on a `2g.10gb` and `Qwen2.5-3B` on the `3g.20gb`. **The proof
 
 ## 6. Phase 4 — DRA: the new way to ask for devices
 
-Requirements: Kubernetes ≥1.32 (beta, feature gates + `resource.k8s.io/v1beta1`) or ≥1.34 (**GA**, `resource.k8s.io/v1`, stable since August 2025). Start on **kind** with the NVIDIA `k8s-dra-driver-gpu`, then on EKS once your platform version supports it.
+Requirements: Kubernetes ≥1.32 (beta, feature gates + `resource.k8s.io/v1beta1`/`v1beta2`) or ≥1.34 (**GA**, `resource.k8s.io/v1`, stable since August 2025). Start on **kind** with the NVIDIA `k8s-dra-driver-gpu`, then on EKS once your platform version supports it.
 
 ```yaml
 # A class of devices, selected by CEL over vendor-published attributes
@@ -239,7 +239,7 @@ Why DRA matters (say this in interviews): claims are **structured and shareable*
 ```bash
 # Repo moved: github.com/NVIDIA/KAI-Scheduler → github.com/kai-scheduler/KAI-Scheduler
 # (old URL redirects). Apache-2.0, CNCF Sandbox since 2025-12-21, v0.16.3 as of July 2026.
-# Releases are frequent — pin one and check the README for the current chart location.
+# Releases are frequent (147 to date) — pin one and check the README for the current chart location.
 helm upgrade -i kai-scheduler oci://ghcr.io/nvidia/kai-scheduler/kai-scheduler \
   -n kai-scheduler --create-namespace
 ```
@@ -271,7 +271,7 @@ kind: Pod
 metadata:
   name: dev-notebook
   labels: {kai.scheduler/queue: team-nlp}
-  annotations: {gpu-fraction: "0.5"}
+  annotations: {gpu-fraction: "0.5"}     # or gpu-memory: "6000" (MiB)
 spec:
   schedulerName: kai-scheduler
   containers:
@@ -281,7 +281,7 @@ spec:
 
 **The caveat that wins interviews:** KAI's fractions are scheduling-level arithmetic only. Its own gpu-sharing docs state it *"does not enforce memory allocation limits or perform memory isolation between processes"* — and point users at HAMi for enforcement. Position them as complementary: **KAI for queues/gang/placement, HAMi (Phase 2) for in-GPU enforcement** — the emerging open Run:ai stack (commercial Run:ai layers enforcement/UI on this same scheduling core).
 
-Experiments to run and record: (1) two 0.5-fraction pods pack onto one A10G — verify with `nvidia-smi`; (2) team-nlp bursts to 8 GPUs when idle, gets **reclaimed** back to quota=4 when dept siblings submit (fair-share + preemption); (3) a 4-pod gang via KAI's built-in podgrouper is all-or-nothing (compare with your [P07](project-07-topology-aware-gang-scheduler.md) implementation); (4) rerun the HAMi memory-bomb *under KAI placement* to show scheduler and enforcer composing.
+Experiments to run and record: (1) two 0.5-fraction pods bin-pack onto one A10G — verify with `nvidia-smi`; (2) team-nlp bursts to 8 GPUs when idle, gets **reclaimed** back to quota=4 when dept siblings submit (fair-share + preemption); (3) a 4-pod gang via KAI's built-in podgrouper is all-or-nothing (compare with your [P07](project-07-topology-aware-gang-scheduler.md) implementation); (4) rerun the HAMi memory-bomb *under KAI placement* to show scheduler and enforcer composing.
 
 ## 8. Phase 6 — Kueue quotas, cohorts, borrowing, preemption
 
@@ -317,7 +317,7 @@ metadata: {name: research, namespace: team-research}
 spec: {clusterQueue: cq-research}
 ```
 
-Drill: fill `cq-research` beyond nominal via borrowing, then submit to a sibling queue → watch Kueue **preempt the borrowed workloads** (`kubectl get workloads -A -o wide`). This admission-vs-placement distinction (Kueue vs KAI/Volcano) is a classic interview question — you'll have run both.
+Drill: fill `cq-research` beyond nominal via borrowing, then submit to a sibling queue → watch Kueue **preempt the borrowed workloads** (`kubectl get workloads -A -o wide`). Write the paragraph comparing Kueue's borrow/reclaim semantics with KAI's over-quota weights — this admission-vs-placement distinction (Kueue vs KAI/Volcano) is a classic interview question, and you'll have run both.
 
 ## 9. Phase 7 — chargeback + the economics report (FinOps)
 
@@ -358,12 +358,13 @@ Add the fleet-level punchline: at your measured numbers, what does serving 20 sm
 - [ ] MIG: geometry reconfigured declaratively via node label; 3 workloads on 3 slices; isolation demo (gpu-burn + OOM) recorded; per-MIG-slice Grafana dashboard screenshot.
 - [ ] MPS vs time-slicing throughput numbers published.
 - [ ] HAMi memory-wall demo recorded (offender gets CUDA OOM alone; neighbor's p95 holds) — with the honest caveats written down.
-- [ ] Quota + borrowing + preemption demonstrated in both Kueue and KAI.
+- [ ] KAI: two 0.5-GPU pods packed on one physical GPU; queue over-quota borrow → reclaim demonstrated.
+- [ ] Quota + borrowing + preemption demonstrated in both Kueue and KAI, with the semantics compared in writing.
 - [ ] Chargeback dashboard with a real utilization-gap finding; economics table filled with **your** measurements.
 
 **Resume bullet:** *"Designed a multi-tenant fractional-GPU platform on EKS: MIG (mixed profiles via GPU Operator/mig-manager on A100), time-slicing and MPS pools, HAMi fractional vGPU with CUDA-intercept-enforced memory caps on non-MIG GPUs, Kubernetes DRA (DeviceClass/ResourceClaim with CEL selection), NVIDIA KAI fractional scheduling, and Kueue cohort quotas with borrowing/preemption; published a cost-per-tenant analysis across all sharing modes that exposed a 60 % request-vs-utilization gap."*
 
-Whiteboard-ready: MIG slice anatomy (SM/memory/L2 partitioning, valid geometry combinations); why time-slicing can't protect memory and what HAMi's CUDA interception does about it (and where userspace interception ends — Xid faults, statistical compute caps); MPS's failure domain; KAI-schedules-HAMi-enforces vs commercial Run:ai; when a fleet should be MIG-static vs fraction-dynamic; how DRA will eventually make MIG slices claimable on demand.
+Whiteboard-ready: MIG slice anatomy (SM/memory/L2 partitioning, valid geometries); why time-slicing can't protect memory and what HAMi's CUDA interception does about it — and where userspace interception ends (Xid faults, statistical compute caps); MPS's failure domain; KAI-schedules/HAMi-enforces vs commercial Run:ai; MIG-static vs fraction-dynamic fleets; how DRA makes MIG slices claimable on demand.
 
 ## 11. Teardown
 
@@ -375,11 +376,11 @@ Whiteboard-ready: MIG slice anatomy (SM/memory/L2 partitioning, valid geometry c
 
 - **vCluster per tenant** (straight from the neocloud JD): give each team a virtual cluster whose nodes are backed by your shared GPU pools.
 - **Dynamic MIG reconfiguration pipeline**: a CronJob that flips geometry between "inference day-mix" and "training night-mix" based on queue depth — with the drain/cordon choreography documented.
-- Extend your **P6 operator** with `gpu.sharing: {mig-2g.10gb | hami-fraction | whole}` so tenants choose an isolation class per ModelDeployment.
+- Extend your **[P6 operator](project-6-ai-platform-control-plane.md)** with `gpu.sharing: {mig-2g.10gb | hami-fraction | whole}` so tenants choose an isolation class per ModelDeployment.
 - DRA **ComputeDomains** for multi-node NVLink (GB200-class) — read the NVIDIA DRA driver docs and write a design note even without the hardware.
 - Admission policy (Kyverno/ValidatingAdmissionPolicy): reject pods requesting whole GPUs in dev namespaces.
 - Add **vGPU (NVIDIA AI Enterprise)** as a paper-comparison column — licensing vs HAMi's open approach.
-- Test **MIG + MPS combined** (MPS inside a `3g.20gb` slice) and report whether the extra layer pays.
+- Test **MIG + MPS combined** (MPS inside a `3g.20gb` slice) and report whether the extra layer pays — profile it with the Nsight muscle from [P16](project-16-cuda-gpu-performance-engineering.md).
 
 ## 📣 Build in public
 

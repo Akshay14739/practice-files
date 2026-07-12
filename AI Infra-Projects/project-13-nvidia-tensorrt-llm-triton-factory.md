@@ -6,13 +6,13 @@
 
 ## 1. The production problem
 
-Serving raw HuggingFace weights with a generic runtime leaves 2–4× throughput on the table. Inference performance teams run a **model optimization factory**: weights go in; quantized, compiled, benchmarked, *versioned* serving artifacts come out; and a canary system promotes them only if latency/quality SLOs hold. NVIDIA's production stack for this is **TensorRT-LLM** (fused kernels, paged KV cache, in-flight batching, FP8/INT4 quantization) served either directly via its OpenAI-compatible **`trtllm-serve`** frontend or through **Triton Inference Server** (the `tensorrtllm` backend). This is also where the CUDA/GPU-architecture layer becomes practical: you'll finally *use* the difference between Ampere, Ada and Hopper.
+Serving raw HuggingFace weights with a generic runtime leaves 2–4× throughput on the table. Inference performance teams run a **model optimization factory**: weights go in; quantized, compiled, benchmarked, *versioned* serving artifacts come out; and a canary system promotes them only if latency/quality SLOs hold. NVIDIA's production stack for this is **TensorRT-LLM** (fused kernels, paged KV cache, in-flight batching, FP8/INT4 quantization), served either via its OpenAI-compatible **`trtllm-serve`** frontend or through **Triton Inference Server** (the `tensorrtllm` backend). This is where GPU-architecture knowledge becomes practical: you'll finally *use* the difference between Ampere, Ada and Hopper.
 
 Hard-won facts to internalize up front:
-- **The ground moved in 2025 — know both lanes.** Since TensorRT-LLM 1.0 (GA, Sept 2025) the **PyTorch runtime is the default backend**, and the recommended path is `trtllm-serve <HF model>` (online, OpenAI-compatible: completions/chat/responses) or the Python **LLM API** (offline) — *no engine compilation required*. Manual engine building (`trtllm-build`) is now the documented **legacy** path, and the v1.3.0 release candidates state it's the *last* line supporting the TensorRT engine backend — it is removed in the next version. As of July 2026: TRT-LLM v1.2.1 stable, v1.3.0 in RC — pin to your release and re-check upstream, this moves monthly. You'll run both lanes here: real fleets still serve engine-based stacks, and the migration story is interview gold.
-- **Engines are GPU-architecture-specific** (legacy lane). An engine built on A10G (SM86, Ampere) won't run on L4 (SM89, Ada) or H100 (SM90, Hopper). Production = a build **matrix** per architecture. The PyTorch backend removes the ahead-of-time engine, but the per-arch concern doesn't vanish — NIM (Phase 4) still selects per-GPU optimized *profiles*.
+- **The ground moved in 2025 — know both lanes.** Since TensorRT-LLM 1.0 (GA, Sept 2025) the **PyTorch runtime is the default backend**, and the recommended path is `trtllm-serve <HF model>` (online, OpenAI-compatible: completions/chat/responses) or the Python **LLM API** (offline) — *no engine compilation required*. Manual engine building (`trtllm-build`) is now the documented **legacy** path; the v1.3.0 release candidates state it's the *last* line supporting the TensorRT engine backend, removed in the next version. As of July 2026: TRT-LLM v1.2.1 stable, v1.3.0 in RC — pin your release and re-check upstream, this moves monthly. Run both lanes anyway: real fleets still serve engine-based stacks, and the migration story is interview gold.
+- **Engines are GPU-architecture-specific** (legacy lane). An engine built on A10G (SM86, Ampere) won't run on L4 (SM89, Ada) or H100 (SM90, Hopper) — production means a build **matrix** per architecture. The PyTorch backend removes the ahead-of-time engine, but the per-arch concern doesn't vanish: NIM (Phase 4) still selects per-GPU optimized *profiles*.
 - **Quantization is architecture-gated.** FP8 needs Ada/Hopper tensor cores (L4/L40S/H100). On A10G you use INT8 SmoothQuant or **INT4-AWQ**. Knowing this instantly separates you from tutorial-followers.
-- **Version pinning matters.** The Triton `tensorrtllm` backend source was consolidated *into* the TensorRT-LLM repo (`triton_backend/`); the old `tensorrtllm_backend` repo remains the integration/docs entry point (container tags around 25.12 as of mid-2026). It is *not* deprecated and it is *not* independently developed — it's consolidated. Match TRT-LLM release ↔ Triton container like an ABI, and note the engine-based Triton flow is effectively end-of-life once TRT-LLM 1.3 drops the TensorRT engine backend.
+- **Version pinning matters.** The Triton `tensorrtllm` backend source was consolidated *into* the TensorRT-LLM repo (`triton_backend/`); the old `tensorrtllm_backend` repo remains the integration/docs entry point (container tags around 25.12 as of mid-2026). It is neither deprecated nor independently developed — it's consolidated. Match TRT-LLM release ↔ Triton container like an ABI, and note the engine-based Triton flow is effectively end-of-life once 1.3 drops the TensorRT engine backend.
 
 Where each rung sits (and where this project's siblings pick up):
 
@@ -78,11 +78,11 @@ llm = LLM(model="meta-llama/Llama-3.1-8B-Instruct")
 print(llm.generate(["The capital of France is"], SamplingParams(max_tokens=32)))
 ```
 
-Quantization on this lane: produce a quantized checkpoint with **NVIDIA Model Optimizer** (`nvidia-modelopt` — its PTQ workflow exports a quantized HF-format checkpoint `trtllm-serve` loads directly), or pull one of NVIDIA's pre-quantized checkpoints from HF (e.g., the `nvidia/*-FP8` series — FP8 only on your g6/L4 or Hopper; on A10G stick to INT4-AWQ/INT8). Exact ModelOpt flags shift between releases — pin and check the examples in your installed version.
+Quantization on this lane: produce a quantized checkpoint with **NVIDIA Model Optimizer** (`nvidia-modelopt` — its PTQ workflow exports a quantized HF-format checkpoint `trtllm-serve` loads directly), or pull a pre-quantized checkpoint from HF (e.g. the `nvidia/*-FP8` series — FP8 only on g6/L4 or Hopper; on A10G stick to INT4-AWQ/INT8). ModelOpt flags shift between releases — pin, and check the examples in your installed version.
 
 ### Lane B — the legacy engine flow (pin TRT-LLM ≤1.2.x; removed in 1.3)
 
-Still worth two builds — an FP16 engine (so your benchmark has an apples-to-apples "engine, no quant" row) and a quantized one. Engine-based stacks are widely deployed, and this is where the per-arch matrix lesson lives. Use the matching NGC container so CUDA/TRT versions are coherent:
+Worth two builds: an FP16 engine (so the benchmark has an apples-to-apples "engine, no quant" row) and a quantized one. Engine-based stacks are widely deployed, and this is where the per-arch matrix lesson lives. Use the matching NGC container so CUDA/TRT versions are coherent:
 
 ```bash
 docker run --gpus all -it -v $PWD:/ws nvcr.io/nvidia/tritonserver:<yy.mm>-trtllm-python-py3
@@ -167,7 +167,7 @@ parameters { key: "kv_cache_free_gpu_mem_fraction" value: { string_value: "0.90"
 parameters { key: "enable_chunked_context" value: { string_value: "true" } }
 ```
 
-Two flags to be able to *explain*: `inflight_fused_batching` = continuous batching at the Triton layer (requests join/leave a running batch per step — the single biggest LLM-throughput idea of the last few years); `enable_chunked_context` = long prefills are sliced so they don't stall decoding (the intra-engine cousin of [P09](project-09-disaggregated-inference-llm-d.md)'s disaggregation). Note the backend's README now leads with the PyTorch-backend path ("serve any HF model — no engine compilation required"); the engine-based config above is the classic flow, valid on ≤1.2.x containers.
+Two flags to be able to *explain*: `inflight_fused_batching` = continuous batching at the Triton layer (requests join/leave a running batch per step — the single biggest LLM-throughput idea of the last few years); `enable_chunked_context` = long prefills sliced so they don't stall decoding (the intra-engine cousin of [P09](project-09-disaggregated-inference-llm-d.md)'s disaggregation). The backend's README now leads with the PyTorch-backend path ("serve any HF model — no engine compilation required"); the config above is the classic flow, valid on ≤1.2.x containers.
 
 K8s Deployment: `tritonserver --model-repository=s3://engines/llama31-8b/... --model-control-mode=explicit`, readiness on `/v2/health/ready`, `nvidia.com/gpu: 1`, and Triton's Prometheus metrics scraped (`nv_inference_queue_duration_us`, `nv_trt_llm_kv_cache_block_metrics` feed your [P12](project-12-ai-fleet-sre-finops-aiops.md) dashboards). Prefer the OpenAI-compatible frontend (recent Triton releases ship one) so [P09](project-09-disaggregated-inference-llm-d.md)'s gateway can route to it unchanged.
 
@@ -245,7 +245,7 @@ spec:
   expose: { service: { type: ClusterIP, port: 8000 } }
 ```
 
-At startup NIM detects the GPU and selects a **per-GPU optimized profile** (this is the per-arch build matrix from Phase 1, done for you and hidden). For a reproducible benchmark, pin the profile explicitly rather than letting auto-selection drift between runs — the container ships a profile-listing utility; check your NIM's docs for the exact command and the `NIM_MODEL_PROFILE` environment variable.
+At startup NIM detects the GPU and selects a **per-GPU optimized profile** — the per-arch build matrix from Phase 1, done for you and hidden. Pin the profile explicitly (`NIM_MODEL_PROFILE`; the container ships a profile-listing utility — check your NIM's docs for the exact command) so auto-selection can't drift between benchmark runs.
 
 Deploy the same Llama-3.1-8B on NIM, point the **same aiperf run** at it, and fill the NIM row of the Phase 3 table. Then the judgment write-up (`docs/nim-vs-vllm.md`):
 
