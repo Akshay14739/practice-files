@@ -173,7 +173,7 @@ K8s Deployment: `tritonserver --model-repository=s3://engines/llama31-8b/... --m
 
 ## 6. Phase 3 — benchmark honestly (AIPerf + Model Analyzer), then attribute
 
-First, get the tooling story straight — it's a fresh interview differentiator (as of July 2026): **genai-perf is deprecated** (the `perf_analyzer` repo carries the notice and the migration path) in favor of **AIPerf** (`ai-dynamo/aiperf`), the NVIDIA-recommended generative-AI benchmarking client and the one Dynamo's own guides use. **Model Analyzer is NOT deprecated** — v1.55.0 shipped June 2026 in lockstep with Triton v2.70.0 — and it does a *different* job: server-side Triton config search, not client-side LLM load generation. Anyone who tells you "model-analyzer was replaced by genai-perf" has both halves wrong; the truth is the reverse of the popular claim.
+First, get the tooling story straight — a fresh interview differentiator (as of July 2026): **genai-perf is deprecated** (the `perf_analyzer` repo carries the notice and migration path) in favor of **AIPerf** (`ai-dynamo/aiperf`), the NVIDIA-recommended generative-AI benchmarking client and the one Dynamo's guides use. **Model Analyzer is NOT deprecated** — v1.55.0 shipped June 2026 in lockstep with Triton v2.70.0 — and it does a *different* job: server-side Triton config search, not client-side LLM load generation. Anyone who says "model-analyzer was replaced by genai-perf" has both halves wrong; the truth is the reverse.
 
 ### Methodology (the part that makes the numbers admissible)
 

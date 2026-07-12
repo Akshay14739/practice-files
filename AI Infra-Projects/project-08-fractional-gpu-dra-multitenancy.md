@@ -189,7 +189,7 @@ Run `Qwen2.5-1.5B` on a `2g.10gb` and `Qwen2.5-3B` on the `3g.20gb`. **The proof
 
 **Step 3 — per-slice telemetry.** DCGM-exporter emits `GPU_I_ID`/`GPU_I_PROFILE` labels; build the Grafana panel *utilization per MIG instance* — this is exactly how multi-tenant fleets bill. Gotcha: `DCGM_FI_DEV_GPU_UTIL` is **not supported on MIG devices** — use `DCGM_FI_PROF_GR_ENGINE_ACTIVE` (and the other `DCGM_FI_PROF_*` fields, some disabled by default) for per-slice utilization.
 
-**What one GPU can't rehearse** (say so — it shows judgment): per-GPU heterogeneous mig-parted configs (device filters giving different GPUs different profiles) and mixed MIG-on/MIG-off nodes need multiple GPUs; and A100-80GB targets (p4de) use different profile names/sizes. Everything else — the label-driven reconfigure loop, mixed geometries, per-slice billing — is identical.
+**What one GPU can't rehearse** (say so — it shows judgment): per-GPU heterogeneous mig-parted configs (device filters giving different GPUs different profiles) and mixed MIG-on/MIG-off nodes need multiple GPUs; and A100-80GB targets (p4de) use different profile names/sizes. Everything else is identical.
 
 ## 6. Phase 4 — DRA: the new way to ask for devices
 
@@ -354,7 +354,7 @@ Add the fleet-level punchline: at your measured numbers, what does serving 20 sm
 
 ## 10. Done criteria & interview ammo
 
-- [ ] One cluster simultaneously serving: ×4 time-sliced A10Gs, an MPS pool, HAMi-fractioned T4s with enforced memory caps, DRA-claimed GPUs, and KAI 0.5-fractions — plus MIG slices on the A100 side-box — with a written **isolation comparison** (memory protection? fault isolation? perf interference measured with concurrent `gpu-burn` + inference latency).
+- [ ] One cluster simultaneously serving ×4 time-sliced A10Gs, an MPS pool, HAMi-fractioned T4s with enforced memory caps, DRA-claimed GPUs and KAI 0.5-fractions — plus MIG slices on the A100 side-box — with a written **isolation comparison** (memory protection? fault isolation? interference measured via concurrent `gpu-burn` + inference latency).
 - [ ] MIG: geometry reconfigured declaratively via node label; 3 workloads on 3 slices; isolation demo (gpu-burn + OOM) recorded; per-MIG-slice Grafana dashboard screenshot.
 - [ ] MPS vs time-slicing throughput numbers published.
 - [ ] HAMi memory-wall demo recorded (offender gets CUDA OOM alone; neighbor's p95 holds) — with the honest caveats written down.
