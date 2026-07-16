@@ -1,0 +1,4849 @@
+In the first section, we start with the core concepts.
+
+We look at the cluster architecture at a high level
+
+and then look at some of the API primitives,
+
+such as the basic concepts
+
+like Pods, ReplicaSets, Deployments,
+
+followed by services.
+
+If you have attended the beginner's course
+
+or other certification course for application developers,
+
+then you might want to skip some of these topics
+
+or maybe just go through the practice tests alone.
+
+We will now start with the cluster architecture.
+
+We start with a basic overview of the Kubernetes cluster architecture.
+
+We first look at the architecture at a high level, and then we drill down into each of these components.
+
+We see what their roles and responsibilities are and how they are configured.
+
+And finally, you go through a practice test where you look at an existing cluster and are asked to
+
+identify various details with respect to these components in the cluster.
+
+We're going to use an analogy of ships to understand the architecture of Kubernetes.
+
+The purpose of Kubernetes is to host your applications in the form of containers in an automated fashion,
+
+so that you can easily deploy as many instances of your application as required, and easily enable
+
+communication between different services within your application.
+
+So there are many things involved that work together to make this possible.
+
+So let's take a 10,000 foot look at Kubernetes architecture.
+
+Sector.
+
+We have two kinds of shapes in this example cargo ships that does the actual work of carrying containers
+
+across the sea, and control ships that are responsible for monitoring and managing the cargo ships.
+
+The Kubernetes cluster consists of a set of nodes, which may be physical or virtual, on premise or
+
+on cloud, that host applications in the form of containers.
+
+These relate to the cargo ships.
+
+In this analogy, the worker nodes in the cluster are ships that can load containers, but somebody
+
+needs to load the containers on the ships and not just load.
+
+Plan how to load.
+
+Identify the right ships.
+
+Store information about the ships.
+
+Monitor and track the location of containers on the ships.
+
+Manage the whole loading process, etc..
+
+This is done by the control ships that host different offices and departments.
+
+Monitoring equipment's, communication equipments, cranes for moving containers between ships, etc..
+
+the control shifts relate to the master node in the Kubernetes cluster.
+
+The master node is responsible for managing the Kubernetes cluster, storing information regarding the
+
+different nodes, planning which containers goes where, monitoring the nodes and containers on them,
+
+etc..
+
+The master node does all of these using a set of components together known as the control plane components.
+
+We will look at each of these components now.
+
+Now there are many containers being loaded and unloaded from the ships on a daily basis.
+
+And so you need to maintain information about the different ships, what container is on which ship
+
+and what time it was loaded, etc. all of these are stored in a highly available key value store known
+
+as etcd.
+
+Etcd is a database that stores information in a key value format.
+
+We will look more into what etcd cluster actually is, what data is stored in it, and how it stores
+
+the data in one of the upcoming lectures.
+
+When ships arrive, you load containers on them using cranes.
+
+The cranes identify the containers that need to be placed on ships.
+
+It identifies the right ship based on its size, its capacity, the number of containers already on
+
+the ship, and any other conditions such as the destination of the ship, the type of containers it
+
+is allowed to carry, etc. so those are schedulers.
+
+In a Kubernetes cluster, a scheduler identifies the right node to place a container on based on the
+
+containers resource requirements, the worker nodes capacity, or any other policies or constraints
+
+such as taints and tolerations or node affinity rules that are on them.
+
+We will look at these in much more detail with examples and practice tests later in this course.
+
+We have a whole section on scheduling alone.
+
+There are different offices in the dock that are assigned to special tasks or departments.
+
+For example, the operations team takes care of ship handling, traffic control, etc. they deal with
+
+issues related to damages, the routes the different ships take, etc. the cargo team takes care of
+
+containers when containers are damaged or destroyed.
+
+They make sure new containers are made available.
+
+We have these services office that takes care of the IT and communications between different ships.
+
+Similarly, in Kubernetes we have controllers available that take care of different areas.
+
+The node controller takes care of nodes.
+
+They're responsible for onboarding new nodes to the cluster, handling situations where nodes become
+
+unavailable or get get destroyed, and the replication controller ensures that the desired number of
+
+containers are running at all times in a replication group.
+
+So we have seen different components like the different offices, the different ships, the data store,
+
+the cranes.
+
+But how do these communicate with each other?
+
+How does one office reach the other office, and who manages them all at a high level?
+
+The cube API server is the primary management component of Kubernetes.
+
+The cube API server is responsible for orchestrating all operations within the cluster.
+
+It exposes the Kubernetes API, which is used by external users to perform management operations on
+
+the cluster, as well as the various controllers to monitor the state of the cluster and make necessary
+
+changes as required by the worker nodes to communicate with the server.
+
+Now we are working with containers here.
+
+Containers are everywhere, so we need everything to be container compatible.
+
+Our applications are in the form of containers.
+
+The different components that form the entire management system on the master node could be hosted in
+
+the form of containers.
+
+The DNS service networking solution can all be deployed in the form of containers.
+
+So we need this software that can run containers and that's the container runtime engine.
+
+A popular one being Docker.
+
+So we need Docker or its supported equivalent installed on all the nodes in the cluster, including
+
+the master nodes.
+
+If you wish to host the control plane components as containers.
+
+Now it doesn't always have to be Docker.
+
+Kubernetes supports other runtime engines as well, like container D or rocket.
+
+Let us now turn our focus onto the cargo ships.
+
+Now every ship has a captain.
+
+The captain is responsible for managing all activities on these ships.
+
+The captain is responsible for liaising with the master ships, starting with letting the mastership
+
+know that they are interested in joining the group.
+
+Receiving information about the containers to be loaded on the ship and loading the appropriate containers
+
+as required.
+
+Sending reports back to the master about the status of this ship and the status of the containers on
+
+the ship, etc..
+
+Now the captain of the ship is the kubelet in Kubernetes.
+
+A kubelet is an agent that runs on each node in a cluster.
+
+It listens for instructions from the kube API server and deploys or destroys containers on the nodes
+
+as required.
+
+The kube API server periodically fetches status reports from the Kubelet to monitor the status of nodes
+
+and containers on them.
+
+The Kubelet was more of a captain on the ship that manages containers on the ship.
+
+But the applications running on the worker nodes need to be able to communicate with each other.
+
+For example, you might have a web server running in one container on one of the nodes and a database
+
+server running on another container on another node.
+
+How would the web server reach the database server on the other node?
+
+Communication between worker nodes are enabled by another component that runs on the worker node, known
+
+as the kube proxy.
+
+Service.
+
+The kube proxy service ensures that the necessary rules are in place on the worker nodes to allow the
+
+containers running on them to reach each other.
+
+So to summarize, we have master and worker nodes on the master.
+
+We have the etcd cluster which stores information about the cluster.
+
+We have the kube scheduler that is responsible for scheduling applications or containers on nodes.
+
+We have different controllers that take care of different functions like the node controller, replication
+
+controller, etc. we have the kube API server that is responsible for orchestrating all operations within
+
+the cluster.
+
+On the worker node, we have the Kubelet that listens for instructions from the kube API server and
+
+manages containers and the kube proxy that helps in enabling communication between services within the
+
+cluster.
+
+So that's a high level overview of the various components.
+
+We will drill down into each of these in the upcoming lectures.
+
+That's it for now and I will see you in the next lecture.
+
+So you're going to come across Docker and community many times going forward.
+
+So when you read older blogs or documentation pages, you'll see Docker mentioned along with Kubernetes.
+
+And when you read newer blogs you will see container D, and you'll wonder what the difference is between
+
+the two.
+
+And there are a few CLI tools like Ktor, CRI control or Node Control.
+
+And you'll wonder what are these CLI tools and and which one should you be using.
+
+So that's what I'm going to explain in this video.
+
+So let's go back in time to the beginning of the container era.
+
+And in the beginning there was just Docker and there were other tools like rocket.
+
+But Docker's user experience made working with containers super simple, and hence Docker became the
+
+most dominant container tool.
+
+And then came Kubernetes to orchestrate Docker.
+
+So Kubernetes was built to orchestrate Docker specifically in the beginning.
+
+So Docker and Kubernetes were tightly coupled.
+
+And back then Kubernetes only worked with Docker and didn't support any other container solutions.
+
+And then Kubernetes grew in popularity as a container orchestrator.
+
+And now other container runtimes like rocket wanted in Kubernetes.
+
+Users needed it to work with container runtimes that are other than just Docker.
+
+And so Kubernetes introduced an interface called Container Runtime Interface or Cry.
+
+So cry allowed any vendor to work as a container runtime for Kubernetes, as long as they adhere to
+
+the OCI standards.
+
+So OCI stands for Open Container Initiative, and it consists of an image spec and a runtime spec.
+
+Image spec means the specifications on how, uh, an image should be built.
+
+So that's what I defined.
+
+An image spec, defined the specifications on how an image should be built, and the runtime spec defined
+
+the standards on how any container runtime should be developed.
+
+So keeping these standards in mind, anyone can build a container runtime, and that can be used by
+
+anybody to to work with Kubernetes.
+
+So that was the idea.
+
+So rocket and other container runtimes that adhere to the OCI standards were now supported as container
+
+runtimes for Kubernetes via the CRI.
+
+However, uh, Docker wasn't built to support the CRI standards because remember, Docker was built
+
+way before CRI was introduced and Docker still was the dominant container tool used by most.
+
+Kubernetes had to continue to support Docker as well.
+
+And so Kubernetes introduced what is known as uh, Docker shim, which was a hacky, uh, but temporary
+
+way to continue to support Docker outside of the container runtime interface.
+
+So while most other container runtimes worked through the CRI, Docker continued to work without it.
+
+So, um, now you see Docker isn't just a container runtime alone.
+
+Docker consists of multiple tools that are put together for example, the Docker CLI, the Docker API,
+
+the build tools that help in building images.
+
+There was support for volumes of security.
+
+And finally also the container runtime called Runcie and the daemon that managed Runcie.
+
+And that's that was called as container.
+
+So container D is CRI compatible and can work directly with Kubernetes as all other runtimes.
+
+So container D can be used as a runtime on its own separate from Docker.
+
+So now you have container D as a separate runtime and Docker separately.
+
+So Kubernetes continued to maintain support for Docker Engine directly.
+
+However having to maintain the Docker shim was an unnecessary effort and added complications, so it
+
+was decided in version 1.24 release of Kubernetes to remove Dockershim completely, and so support for
+
+Docker was removed.
+
+But you see all the images that were built, uh, before Docker was removed.
+
+So all the Docker images, uh, continue to work because Docker followed the image spec from the OCI
+
+standard.
+
+So all the images built by Docker follow the standard.
+
+So they continue to work with Containerd.
+
+But Docker itself was removed as a supported runtime from Kubernetes.
+
+So that's kind of the whole story.
+
+And now let's look into container D more specifically.
+
+So container D although is part of Docker, is a separate project on its own now and is a member of
+
+CNCF, uh, with the graduated uh status.
+
+So you can now install container D on its own without having to install Docker itself.
+
+So if you don't really need Docker other features, you could ideally just install container uh d alone.
+
+So typically we ran containers uh using the docker run command.
+
+Uh when we, when we had Docker.
+
+And if Docker isn't installed then how do you run containers with just uh, container D.
+
+Now once you install Containerd, it comes with a command line tool called Ktor.
+
+And this tool is solely made for debugging Containerd and is not very user friendly as it only supports
+
+a limited set of features.
+
+And this is what you can see in the documentation pages for for this particular tool.
+
+So for the other than the limited set of features that it provides, any any other way that you want
+
+to interact with Containerd, you'll have to rely on making API calls directly, which is not the the
+
+most user friendly way for us to operate.
+
+So just to give you an idea, this can be the CTR command can be used to perform basic container related
+
+activities such as pull images.
+
+For example, to pull uh, redis image, you would run the CTR images, pull command followed by the
+
+address of the image.
+
+And to run a container, um, we use the CTL run command and specify the image address.
+
+But as I mentioned, this tool is solely made for debugging containerd and is not very user friendly
+
+and not to be used for running or managing containers on on a production environment.
+
+So a better alternative recommended is the nerd control tool or nerd CTL tool.
+
+So the nerd control tool is a command line tool that's very similar to Docker.
+
+So it's like Docker like CLI for container D.
+
+It kind of supports all or most of the options that Docker supports.
+
+And apart from that it has the added benefit that it can give us access to the newest, uh, features
+
+implemented into container D.
+
+So for example, we can work with the encrypted container images or other new feature that will eventually
+
+be implemented into the Docker commands in the future.
+
+It also supports lazy pulling of images, P2P image distribution, image signing and verifying and namespaces
+
+in Kubernetes, which is not available, uh, in Docker.
+
+So the nerd control tool works very similar to docker CLI.
+
+So instead of Docker you would ideally simply have to replace it with node control.
+
+So you can run almost all Docker commands that interact with containers like this.
+
+So some examples are instead of running the docker run command to create a container to run a container,
+
+you could just uh, use the net control run command.
+
+And similarly, uh, let's say you want to use some options for port mappings or exposing ports, uh,
+
+with the dash p option, uh, for the docker run command, you could do the same with node control.
+
+Simply replace Docker with node control.
+
+So so that's pretty easy and straightforward.
+
+So now that we have talked about CTR and the node control tool, uh it's important to talk about another
+
+command line utility known as CRI, CTL or CRI control.
+
+So earlier we talked about the container runtime interface or CRI which is a single interface used to
+
+connect CRI compatible container runtimes the container, the rocket and others.
+
+So, uh, the CRI control is a command line utility that is used to interact with the CRI compatible
+
+container runtime.
+
+So this is kind of an interaction from the Kubernetes perspective.
+
+So this this tool is kind of maintained by uh developed and maintained by the Kubernetes community.
+
+And this is uh, this tool works across all the different container runtimes.
+
+Um, as opposed to earlier You had the CTR and the node control tool that were built by the Containerd
+
+community specifically for Containerd.
+
+This particular tool is from the Kubernetes perspective that works across different container runtimes.
+
+So it must be installed separately and it is used to inspect and debug container runtime.
+
+So this again is not ideally used to create containers unlike Docker or the node control um utility.
+
+This is again a debugging tool.
+
+You can technically create containers with the CRI control utility, but it's not easy.
+
+It's only to be used for some special debugging purposes.
+
+And the remember that it kind of works along with the Kubelet.
+
+So we know that the Kubelet is responsible for ensuring that the specific number of containers or pods
+
+are available on, uh, on node at a time.
+
+So if you kind of go through the CRI control, uh, utility and try and create containers with it,
+
+then eventually Kubelet is going to delete them because the Kubelet is unaware of, uh, some of those
+
+containers or pods that are created outside of its knowledge.
+
+So anything that it sees is going to go and delete it.
+
+So because of those things, remember that the cry control utility is only used for debugging purposes
+
+and getting into containers and all of that.
+
+So let's look at some of the command line examples.
+
+So you simply run the right control crea CTL command for this.
+
+And this can be used to perform basic container related activities such as pull images or list existing
+
+images.
+
+List containers very similar to the docker command where you use the PS command.
+
+So uh, in Docker you will run the PS command.
+
+Here you would run the CRI control PS command and to to run a command inside a container in Docker.
+
+Remember we use the exact command and it's the same here.
+
+Um, along with the same options such as the dash I and dash T.
+
+Uh, and then you specify the container, uh, and then the command that needs to be run to view the
+
+logs.
+
+Again use the CRI control logs command very similar to Docker command.
+
+And uh, one major difference is that the CRI cry control command is also aware of ports, so you can
+
+list ports by running the Control Ports command.
+
+So this wasn't something that Docker um, was aware of.
+
+So while working with Kubernetes in the past, uh, we used Docker commands a lot to troubleshoot containers
+
+and view logs, especially on the worker nodes.
+
+Uh, now you're going to use the cry control command to do so.
+
+So the syntax is a lot similar.
+
+Uh, so it shouldn't be uh, shouldn't be really hard.
+
+So here's a chart that lists the comparison between Docker and uh, the cry control uh, command line
+
+tool.
+
+So as you can see, a lot of commands such as attach exec, uh, images, info, inspect logs, PS stats,
+
+version, etc. work exactly the same way, and some of the commands to create, remove and start and
+
+stop images work similarly too.
+
+So a full list of differences can be found in the the link given below.
+
+So um, since as I mentioned, cry control can be used to connect to any cry compatible runtime, remember
+
+to set the right endpoint if you have multiple container runtimes configured or if you want.
+
+Cry control to interact with the specific runtime.
+
+So for example, if you haven't configured anything by default is going to connect to these sockets
+
+in this particular order.
+
+So it's going to try and connect to Dockershim first and then Containerd and then Cri-o.
+
+And then you have the cri docker d that's, that's kind of the order that it follows.
+
+But if you want to override that and set a specific endpoint, you use the runtime endpoint option with
+
+the CRI control command line.
+
+Or you could use the container runtime endpoint environment variable.
+
+Set the environment variable to the to the right endpoint.
+
+So to summarize, we have the Ktor command line utility that comes with Containerd and works with Containerd,
+
+which is used for debugging purposes only and has a very limited limited set of features.
+
+So ideally you wouldn't be using this at all.
+
+So you can kind of ignore this.
+
+Then we have the nerd control CLI, which is again from the Containerd community.
+
+But this is a docker like CLI for container D, used for general purpose to create containers and supports
+
+the same or more features than docker CLI.
+
+So this is something that I think we'll be using a lot more going forward.
+
+And then we have the um CRI control utility, which is uh, from the Kubernetes community, uh, mainly
+
+used to interact with CRI compatible runtimes.
+
+So it's not just for container D, this can be used for all CRI supported runtimes.
+
+Again this is mainly for to be used for debugging purposes.
+
+So if you look at the comparisons here you can see that CTR and CRI control are used mainly for debugging
+
+purposes, whereas the nerve control is used for general purpose.
+
+The CTR and node control uh are from the container the community and works with container D, whereas
+
+CRI control is from the Kubernetes community and works across all CRI compatible runtimes.
+
+So our labs originally had Docker installed on all the nodes.
+
+So we used the Docker commands to troubleshoot.
+
+But now it's all container d.
+
+So remember to use the um the CRI control command instead to troubleshoot.
+
+Well that's all for now.
+
+Thank you for listening.
+
+Every time we mention about Docker in this course, one of the common questions we get is why are we
+
+still talking about Docker if it's deprecated?
+
+And I realized that there's some confusion about the Docker deprecation among students, and I just
+
+wanted to take a minute to try and help clear that confusion.
+
+So as we discussed before, Docker was the original and only supported container runtime for Kubernetes,
+
+and to make Kubernetes open to other runtimes, we had the container runtime interface introduced.
+
+So Docker consisted of multiple tools put together like Docker CLI, the API, the build tools that
+
+help build images.
+
+There was support for volumes, auth, security and finally also the container runtime called Runc and
+
+the daemon that managed the runtime called the container.
+
+So container D is the CRI compatible and can.
+
+And that's the component that can work directly with Kubernetes.
+
+And as all of the other runtimes.
+
+So container D can be used as runtime on its own separate from Docker.
+
+So once this change was made, Kubernetes no longer needed.
+
+The other tools that Docker supported like Docker CLI or the API, or build volumes or etc. as they
+
+were all taken care of of by Kubernetes itself.
+
+And so Kubernetes was able to deprecate the support for Docker.
+
+Now that doesn't mean that Docker is entirely gone.
+
+So Docker is still the most popular container solution out there and used by many in their day to day
+
+development and build processes.
+
+It's just that Kubernetes no longer require Docker as the runtime now.
+
+So going forward in this course, every time we talk about containers, we use Docker as an example.
+
+And that's absolutely fine because sometimes we learn how things work in containers first before looking
+
+at how it is done in container orchestration world of Kubernetes.
+
+So and in those cases it is okay to use Docker as an example.
+
+And if you don't happen to have Docker on your machine or are only using container, then you can still
+
+work with the same examples by replacing the docker command with the node control command, or most
+
+of the time.
+
+So I just wanted to throw that out there before we proceed.
+
+This is a quick introduction to etcd for beginners.
+
+If you already know etcd.
+
+Feel free to skip and head over to the next video where we discuss etcd in Kubernetes.
+
+In this video, we discuss what etcd is, what a key value store is, and how is it different from traditional
+
+databases, and how to quickly get started with etcd and how to use the client tool to operate etcd?
+
+Later in this course, we will cover high availability, where we discuss what it means to be a distributed
+
+system, how etcd works in a cluster mode, what raft protocol is, and what are the best practices
+
+around the number of nodes in a cluster.
+
+So what is etcd?
+
+It is a distributed, reliable key value store that is simple, secure and fast.
+
+So let's break it up.
+
+So what is a key value store?
+
+Let's start with traditional databases.
+
+Traditionally databases have been in a tabular format.
+
+You must have heard about SQL or relational databases.
+
+They store data in the form of rows and columns.
+
+For example, here is a table that stores information regarding few individuals.
+
+The row represents each person and the column represents the type of information being stored.
+
+Now say we want to add additional details about these individuals.
+
+Say for example salary.
+
+So we add an additional column.
+
+Doing so impacts the entire table and all of the individuals in them.
+
+We then add salary details to this column.
+
+However not all of them are working, so these cells remain empty.
+
+We are then required to store grade information.
+
+So we add a new column and update the students with their respective grades.
+
+Again, only students have grades, so the corresponding fields for adults are empty.
+
+Every time a new information needs to be added, the entire table is affected and leads to a lot of
+
+empty cells.
+
+So relational databases that we just discussed have a strict schema, can perform complex queries using
+
+SQL delivers good performance however, is very rigid in terms of flexibility and is best for structured
+
+data.
+
+A document store.
+
+Stores information in the form of documents, so each individual gets a document, and all information
+
+about that individual is stored within that file.
+
+These files can be in any format or structure, and changes to one file does not affect the others.
+
+The working individuals can have their files with salary fields, and the students can have their pages
+
+with grades only.
+
+You can add additional details to any of these documents without having to update other similar documents.
+
+Document stores typically store data in a JSON format, so comparing relational databases to document
+
+store document stores typically don't need a schema defined can be limiting in terms of performing complex
+
+queries by joining different tables.
+
+Delivers good performance, is very flexible thanks to the document structure, and is best suited for
+
+semi-structured data, as we call it now.
+
+A third type of storage option is what we call a key value store.
+
+It's super simple.
+
+Stores a value against a key.
+
+So the key is name.
+
+The value is John.
+
+Another key is location.
+
+Value is New York, key is age.
+
+Value is 45.
+
+Key is salary.
+
+Value is 5000.
+
+And we can also store a bit more complex data.
+
+So the key could be user John Doe semicolon John Doe.
+
+So the key could be user semicolon John Doe.
+
+And the value could be a set of properties or an entire JSON document itself.
+
+So how does a key value store compare to other storage models?
+
+Key value store does not necessarily have a schema, does not support complex queries.
+
+But performance is super fast and is very flexible that you can store just about anything without breaking
+
+anything else or worrying about data structures, and so it's best suited for simple fast lookup.
+
+Etcd is one such key value store that's distributed and reliable.
+
+We'll talk more about what distributed and reliable means later in this course.
+
+So how do you install and get started with etcd?
+
+We download the binary, extract it and run it.
+
+Well, you download the relevant binary for your operating system from GitHub releases page.
+
+We extract it and run the etcd executable.
+
+As simple as that.
+
+Now when you run etcd, it starts a service that listens on port 2379 by default.
+
+So that's your server.
+
+Note that this is the simplest form of running etcd server.
+
+You would ideally run it as a system service or as a pod on a Kubernetes cluster.
+
+You can then attach any clients to the etcd service to store and retrieve information.
+
+A default client that comes with etcd is etcd control client or etcd.
+
+The etcd cuddle is a command line client for etcd.
+
+You can use it to store and retrieve key value pairs to store a key and value pair.
+
+Run the etcd cuddle.
+
+Put key one command followed by the value value one.
+
+This creates an entry in the database with the information to retrieve the stored data.
+
+Run the get key command to view more options.
+
+Run the etcd cuddle command without any arguments.
+
+Now you might come across different versions of commands while exploring etcd and related articles online.
+
+So it's important to understand the history of etcd releases.
+
+So you know what changed when the first version of etcd version 0.1 was released in August 2013.
+
+The official stable version, version 2.0, was released in February 2015.
+
+This is when the raft consensus algorithm was redesigned and supported more than 1000 writes per second.
+
+We'll talk more about that later.
+
+In January 2017, etcd released version three with a lot more optimizations and performance improvements.
+
+Now, what's important to note is the change between version two and three.
+
+The API versions change so the etcd command changed as well.
+
+The older API, which used etcd cuddle set and etcd cuddle get commands instead of etcd cuddle put and
+
+get commands.
+
+In V2, we used uh to delete values.
+
+In v3 we use delete and there was no support for transactions in v2, but v3 does support transactions
+
+later on.
+
+In November 2018, etcd became a CNCF incubator project, meaning the Cloud Native Computing Foundation
+
+took ownership of governing and supporting the project, and more versions were released through to
+
+November 2020, when etcd became a CNCF graduated project.
+
+In June 2021, version 3.5 was released.
+
+So the point I'm trying to make is that you might see blogs documentation online regarding the older
+
+API, which used etcd cuddle set and get commands instead of the etcd cuddle put and get commands,
+
+so don't be alarmed.
+
+That's because they are on older version.
+
+You can see the version by running the etcd cuddle version command, and if you look at the API version,
+
+you'll see whether you're on version 2 or 3.
+
+The newer version uses put and get and delete commands instead of the set, get and rm commands.
+
+
+In the previous lecture, we discussed the basics of etcd.
+
+In this lecture we will talk about etcd role in Kubernetes.
+
+The etcd data store stores information regarding the cluster such as the nodes, pods, configs, secrets,
+
+accounts, roles, role bindings and others.
+
+Every information you see when you run the kubectl get command is from etcd server.
+
+Every change you make to your cluster, such as adding additional nodes, deploying pods, or replica
+
+sets are updated in etcd server only once it is updated in etcd server.
+
+Is the change considered to be complete?
+
+Depending on how you set up your cluster, etcd is deployed differently.
+
+Throughout this section, we discuss about two types of Kubernetes deployments one deployed from scratch
+
+and other using the Kube ADM tool.
+
+The practice test environments are deployed using the cube ADM tool.
+
+And later in this course, when we set up a cluster, we set it up from scratch.
+
+So it's good to know the difference between the two methods.
+
+If you set up your cluster from scratch, then you deploy etcd by downloading the etcd binaries yourself,
+
+installing the binaries, and configuring etcd as a service in your master node yourself.
+
+There are many options passed into the service.
+
+A number of them relate to certificates.
+
+We will learn more about these certificates, how to create them and how to configure them later in
+
+this course.
+
+We have a whole section on TLS certificates.
+
+The others are about configuring etcd as a cluster.
+
+We will look at those options when we set up high availability in Kubernetes.
+
+The only option to note for now is the advertised client URL.
+
+This is the address on which etcd listens.
+
+It happens to be on the IP of the server and on port 2379, which is the default port on which etcd
+
+listens.
+
+This is the URL that should be configured on the kube API server when it tries to reach the etcd server.
+
+If you set up your cluster using kube adm, then kube adm deploys the etcd server for you as a pod in
+
+the kube system namespace.
+
+You can explore the etcd database using the etcd control utility within this pod.
+
+To list all keys stored by Kubernetes, run the etcd control.
+
+Get command like this.
+
+Kubernetes stores data in a specific directory structure.
+
+The root directory is a registry, and under that you have the various Kubernetes constructs such as
+
+minions or nodes, pods, replica sets, deployments, etc. in a high availability environment, you
+
+will have multiple master nodes in your cluster.
+
+Then you will have multiple etcd instances spread across the master nodes.
+
+In that case, make sure that the etcd instances know about each other by setting the right parameter
+
+in etcd service configuration.
+
+The initial cluster option is where you must specify the different instances of etcd service.
+
+We talk about high availability in much more detail later in this course, but I thought it's worthwhile
+
+to point it out here.
+
+Well, that's it for this lecture and I will see you in the next.
+
+
+In this lecture we will talk about the cube API server in Kubernetes.
+
+Earlier we discussed that the cube API server is the primary management component in Kubernetes.
+
+When you run a cube control command, the cube control utility is in fact reaching to the cube API server.
+
+The cube API server first authenticates the request and validates it.
+
+It then retrieves the data from the etcd cluster and responds back with the requested information.
+
+You don't really need to use the cube control command line instead.
+
+You could also invoke the APIs directly by sending a Post request like this.
+
+Let's look at an example of creating a pod.
+
+When you do that, as before, the request is authenticated first and then validated.
+
+In this case, the API server creates a Pod object without assigning it to a node.
+
+Updates the information in the etcd server.
+
+Updates the user that the pod has been created.
+
+The scheduler continuously monitors the API server and realizes that there is a new pod with no node
+
+assigned.
+
+The scheduler identifies the right node to place the new pod part on and communicates that back to the
+
+cube API server.
+
+The API server then updates the information in the etcd cluster.
+
+The API server then passes that information to the Kubelet in the appropriate worker node.
+
+The Kubelet then creates the pod on the node and instructs the container runtime engine to deploy the
+
+application image.
+
+Once done, the Kubelet updates the status back to the API server, and the API server then updates
+
+the data back in the etcd cluster.
+
+A similar pattern is followed every time a change is requested.
+
+The kube API server is at the center of all the different tasks that needs to be performed to make a
+
+change in the cluster.
+
+To summarize, the kube API server is responsible for authenticating and validating requests, retrieving
+
+and updating data in the etcd data store.
+
+In fact, kube API server is the only component that interacts directly with the etcd data store.
+
+The other components, such as the scheduler, kube, controller, manager, and Kubelet uses the API
+
+server to perform updates in the cluster in their respective areas.
+
+If you bootstrapped your cluster using kube admin tool, Then you don't need to know this, but if you
+
+are setting up the hard way, then the cube API server is available as a binary in the Kubernetes release
+
+page.
+
+Download it and configure it to run as a service on your Kubernetes master node.
+
+The cube API server is run with a lot of parameters, as you can see here.
+
+Throughout this section, we're going to take a peek at how to install and configure these individual
+
+components of the Kubernetes architecture.
+
+You don't have to understand all of the options right now, but I think having a high level understanding
+
+on some of these now will make it easier later when we configure the whole cluster and all of its components
+
+from scratch.
+
+The Kubernetes architecture consists of a lot of different components working with each other, talking
+
+to each other in many different ways.
+
+So they all need to know where the other components are.
+
+There are different modes of authentication, authorization, encryption, and security, and that's
+
+why you have so many options.
+
+When we go through the relevant section in the course, we will pull up this file and look at the relevant
+
+options.
+
+For now, we will look at a few important ones.
+
+A lot of them are certificates that are used to secure the connectivity between different components.
+
+We look at these certificates in more detail when we go through the SSL TLS certificates lecture later
+
+in this course.
+
+There is a whole section just for it, so we will get rid of them for now.
+
+But just remember all of the various components we are going to look at in this section will have certificates
+
+associated with them.
+
+The option etcd servers is where you specify the location of the etcd servers.
+
+This is how the kube API server connects to the etcd servers.
+
+So how do you view the kube API server options in an existing cluster?
+
+It depends on how you set up your cluster.
+
+If you set it up with a kube admin tool, the kube admin deploys the kube API server as a pod in the
+
+kube system namespace on the master node.
+
+You can see the options within the pod definition file located at Etsy Kubernetes manifest folder in
+
+a non kube admin setup.
+
+You can inspect the options by viewing the kube API server service located at Etsy systemd system Kube
+
+apiserver dot service.
+
+You can also see the running process and the effective options by listing the process on the master
+
+node and searching for kube API server.
+
+Well, that's it for this lecture.
+
+
+In this lecture we will talk about Kube Controller Manager.
+
+As we discussed earlier, the Kube controller manager manages various controllers in Kubernetes.
+
+A controller is like an office or department within the master ship that have their own set of responsibilities,
+
+such as an office for the ships would be responsible for monitoring and taking necessary actions about
+
+the ships.
+
+Whenever a new ship arrives, or when a ship leaves or gets destroyed, another office could be one
+
+that manages the containers on the ships.
+
+They take care of containers that are damaged or fall off ships.
+
+So these offices are, number one, continuously on the lookout for the status of the ships, and two,
+
+takes necessary actions to remediate the situation.
+
+In the Kubernetes terms, a controller is a process that continuously monitors the state of various
+
+components within the system, and works towards bringing the whole system to the desired functioning
+
+state.
+
+For example, the node controller is responsible for monitoring the status of the notes and taking necessary
+
+actions to keep the applications running.
+
+It does that through the cube API server.
+
+The node controller checks the status of the nodes every five seconds.
+
+That way the node controller can monitor the health of the nodes.
+
+If it stops receiving heartbeat from a node, the node is marked as unreachable, but it waits for 40s
+
+before marking it unreachable.
+
+After a node is marked unreachable, it gives it five minutes to come back up.
+
+If it doesn't, it removes the pods assigned to that node and provisions them on the healthy ones.
+
+If the pods are part of a replica set, the next controller is the replication controller.
+
+It is responsible for monitoring the status of replica sets, and ensuring that the desired number of
+
+pods are available at all times within the set.
+
+If a pod dies, it creates another one.
+
+Now those were just two examples of controllers.
+
+There are many more such controllers available within Kubernetes.
+
+Whatever concepts we have seen so far in Kubernetes, such as deployments, services, namespaces,
+
+or persistent volumes and whatever intelligence is built into these constructs, it is implemented through
+
+these various controllers.
+
+As you can imagine, this is kind of the brain behind a lot of things in Kubernetes.
+
+Now, how do you see these controllers and where are they located in your cluster?
+
+They are all packaged into a single process known as the Kubernetes Controller manager.
+
+When you install the Kubernetes controller manager, the different controllers get installed as well.
+
+So how do you install and view the Kubernetes Controller manager?
+
+Download the Kube controller manager from Kubernetes release page.
+
+Extract it and run it as a service.
+
+When you run it, as you can see, there are a list of options provided.
+
+This is where you provide additional options to customize your controller.
+
+Remember some of the default settings for node controller we discussed earlier, such as the node monitor
+
+period, the grace period, and the eviction timeout.
+
+These go in here as options.
+
+There is an additional option called controllers that you can use to specify which controllers to enable.
+
+By default, all of them are enabled, but you can choose to enable a select few.
+
+So in case any of your controllers don't seem to work or exist, this would be a good starting point
+
+to look at.
+
+So how do you view the Kube Controller Manager server options?
+
+Again, it depends on how you set up your cluster.
+
+If you set it up with the kube admin tool, kube admin deploys the kube controller manager as a pod
+
+in the kube system namespace on the master node.
+
+You can see the options within the pod definition file located at Etsy Kubernetes manifest folder in
+
+a non kube admin setup.
+
+You can inspect the options by viewing the Kube Controller Manager service located at the services directory.
+
+You can also see the running process and the effective options by listing the process on the master
+
+node and searching for Kube Controller manager.
+
+Well, that's it for this lecture and I will see you in the next.
+
+
+In this lecture we will talk about kube scheduler.
+
+Earlier we discussed that the Kubernetes Scheduler is responsible for scheduling pods and nodes.
+
+Now don't let the graphic mislead you.
+
+Remember the scheduler is only responsible for deciding which pod goes on which node.
+
+It doesn't actually place the pod on the nodes.
+
+That's the job of the kubelet.
+
+The Kubelet or the captain on the ship is who creates the pod on the ships.
+
+The scheduler only decides which pod goes where.
+
+Let's look at how the scheduler does that in a bit more detail.
+
+First of all, why do you need scheduler when there are many ships and many containers?
+
+You want to make sure that the right container ends up on the right ship.
+
+For example, there could be different sizes of ships and containers.
+
+You want to make sure the ship has sufficient capacity to accommodate those containers.
+
+Different ships may be going to different destinations.
+
+You want to make sure your containers are placed on the right ships, so they end up in the right destination.
+
+In Kubernetes, the scheduler decides which nodes the pods are placed on.
+
+Depending on certain criteria, you may have pods with different resource requirements.
+
+You can have nodes in the cluster dedicated to certain applications.
+
+So how does the scheduler assign these pods?
+
+The scheduler looks at each pod and tries to find the best node for it.
+
+For example, let's take one of these pods, the big blue one.
+
+It has a set of CPU and memory requirements.
+
+The scheduler goes through two phases to identify the best node for the pod.
+
+In the first phase, the scheduler tries to filter out the nodes that do not fit the profile for this
+
+pod.
+
+For example, the nodes that do not have sufficient CPU and memory resources requested by the pod.
+
+So the first two nodes are filtered out.
+
+So we are now left with the two nodes on which the pod can be placed.
+
+Now how does the scheduler pick one from the two?
+
+The scheduler ranks the nodes to identify the best fit for the pod.
+
+It uses a priority function to assign a score to the nodes on a scale of 0 to 10.
+
+For example, the scheduler calculates the amount of resources that would be free on the nodes after
+
+placing the pod on them.
+
+In this case, the one on the right would have six CPUs free if the pod was placed on it, which is
+
+four more than the other one.
+
+So it gets a better rank.
+
+And so it wins.
+
+So that's how a scheduler works at a high level.
+
+And of course these can be customized and you can write your own scheduler as well.
+
+There are many more topics to look at such as resource requirements, limits taints and tolerations.
+
+Node selectors, affinity rules, etc. which is why we have an entire section dedicated to scheduling
+
+coming up in this course, where we will discuss each of these in much more detail.
+
+For now, we will continue to focus on the scheduler as a process at a high level.
+
+So how do you install the scheduler?
+
+Download the kube scheduler binary from the Kubernetes release page, extract it and run it as a service.
+
+When you run it as a service, you specify the scheduler configuration file.
+
+So how do you view the kube scheduler server options?
+
+Again, if you set it up with the kube adm tool, the kube adm tool deploys the kube scheduler as a
+
+pod in the kube system namespace on the master node.
+
+You can see the options within the pod definition file located at Kubernetes manifest folder.
+
+You can also see the running process and the effective options by listing the process on the master
+
+node and searching for kube scheduler.
+
+Well, that's it for this lecture.
+
+I will see you in the next.
+
+
+In this lecture we will look at cubelet.
+
+Earlier we discussed that the Cubelet is like the captain of the ship.
+
+They lead all activities on a ship.
+
+They are the ones responsible for doing all the paperwork necessary to become part of the cluster.
+
+They are the sole point of contact from the master ship.
+
+They load or unload containers on the ship as instructed by the scheduler on the master.
+
+They also send back reports at regular intervals on the status of the ship and the containers on them.
+
+The cubelet in the Kubernetes worker node registers the node with the Kubernetes cluster.
+
+When it receives instructions to load a container or a pod on the node, it requests the container runtime
+
+engine, which may be Docker, to pull the required image and run an instance.
+
+The Cubelet then continues to monitor the state of the pod and containers in it, and reports to the
+
+kube API server on a timely basis.
+
+So how do you install the cubelet?
+
+If you use the kube admin tool to deploy your cluster, it does not automatically deploy the Cubelet.
+
+Now that's the difference from the other components.
+
+You must always manually install the Kubelet on your worker nodes.
+
+Download the installer, extract it and run it as a service.
+
+You can view the running cubelet process and the effective options by listing the process on the worker
+
+node and searching for Cubelet.
+
+We will look more into Cubelets, how to configure Cubelets, generate certificates, and finally how
+
+to TLS bootstrap Cubelets later in this course.
+
+That's it for now.
+
+I will see you in the next lecture.
+
+
+In this lecture we will talk about kube proxy within a Kubernetes cluster.
+
+Every pod can reach every other pod.
+
+This is accomplished by deploying a pod networking solution to the cluster.
+
+A pod network is an internal virtual network that spans across all the nodes in the cluster, to which
+
+all the pods connect to.
+
+Through this network, they're able to communicate with each other.
+
+There are many solutions available for deploying such a network.
+
+In this case, I have a web application deployed on the first node and a database application deployed
+
+on the second.
+
+The web app can reach the database simply by using the IP of the pod, but there is no guarantee that
+
+the IP of the database pod will always remain the same.
+
+If you've gone through the lecture on services as discussed in the beginner's course, you must know
+
+that a better way for the web application to access the database is using a service.
+
+So we create a service to expose the database application across the cluster.
+
+The web application can now access the database using the name of the service DB.
+
+The service also gets an IP address assigned to it whenever a pod tries to reach the surface using its
+
+IP or name, it forwards the traffic to the backend pod.
+
+In this case, the database.
+
+But what is this service and how does it get an IP?
+
+Does the service join the same pod network?
+
+The service cannot join the pod network because the service is not an actual thing.
+
+It is not a container like pods, so it doesn't have any interfaces or an actively listening process.
+
+It is a virtual component that only lives in the Kubernetes memory.
+
+But then we also said that the service should be accessible across the cluster from any nodes.
+
+So how is that achieved?
+
+That's where kube proxy comes in.
+
+Kube proxy is a process that runs on each node in the Kubernetes cluster.
+
+Its job is to look for new services.
+
+And every time a new service is created, it creates the appropriate rules on each node to forward traffic
+
+to those services to the backend pods.
+
+One way it does this is using iptables rules.
+
+In this case, it creates an iptables rule on each node in the cluster to forward traffic heading to
+
+the IP of the service, which is 10.96.0.1.
+
+To the IP of the actual port, which is 10.32.0.15.
+
+So that's how kube proxy configures a service.
+
+We discussed a lot more about networking and services and kube proxy and pod networking later in this
+
+course.
+
+Again we have a large section just for networking.
+
+This is a high level overview for now.
+
+We will now see how to install kube proxy.
+
+Download the kube proxy binary from the Kubernetes release page.
+
+Extract it and run it as a service.
+
+The kube adm tool deploys kube proxy as pods on each node.
+
+In fact, it is deployed as a daemonset, so a single pod is always deployed on each node in the cluster.
+
+Well, if you don't know about Daemonset yet, don't worry.
+
+We have a lecture on that coming up in this course.
+
+We have now covered a high level overview of the Kubernetes components, including control plane and
+
+node level components like kube proxy.
+
+As mentioned, we will look at some of these in much more detail at various sections in this course.
+
+Well that's it for this lecture.
+
+I will see you in the next section.
+
+
+Before we head into understanding pods, we would like to assume that the following have been set up
+
+already.
+
+At this point, we assume that the application is already developed and built into Docker images, and
+
+it is available on Docker repository like Docker Hub, so Kubernetes can pull it down.
+
+We also assume that the Kubernetes cluster has already been set up and is working.
+
+This could be a single node setup or a multi node setup.
+
+Doesn't matter.
+
+All the services need to be in a running state, as we discussed before with Kubernetes.
+
+Our ultimate aim is to deploy our application in the form of containers on a set of machines that are
+
+configured as worker nodes in a cluster.
+
+However, Kubernetes does not deploy containers directly on the worker nodes.
+
+The containers are encapsulated into a Kubernetes object known as pods.
+
+A pod is a single instance of an application.
+
+A pod is the smallest object that you can create in Kubernetes.
+
+Here we see the simplest of simplest cases, where you have a single node Kubernetes cluster with a
+
+single instance of your application running in a single Docker container encapsulated in a pod.
+
+What if the number of users accessing your application increase and you need to scale your application?
+
+You need to add additional instances of your web application to share the load.
+
+Now where would you spin up additional instances?
+
+Do we bring up new container instances within the same pod?
+
+No.
+
+We create new pod altogether with a new instance of the same application.
+
+As you can see, we now have two instances of our web application running on two separate paths on the
+
+same Kubernetes system or node.
+
+What if the user base further increases and your current node has no sufficient capacity?
+
+Well, then you can always deploy additional pods on a new node in the cluster.
+
+You will have a new node added to the cluster to expand the cluster's physical capacity.
+
+So what I'm trying to illustrate in this slide is that pods usually have a 1 to 1 relationship, with
+
+containers running your application.
+
+To scale up, you create new pods, and to scale down you delete existing pods.
+
+You do not add additional containers to an existing pod to scale your application.
+
+Also, if you're wondering how we implement all of this and how we achieve load balancing between containers,
+
+etc., we will get into all of that in a later lecture.
+
+For now, we are only trying to understand the basic concepts.
+
+We just said that pods usually have a 1 to 1 relationship with the containers.
+
+But are we restricted to having a single container in a single pod?
+
+No.
+
+A single pod can have multiple containers, except for the fact that they're usually not multiple containers
+
+of the same kind.
+
+As we discussed in the previous slide, if our intention was to scale our application, then we would
+
+need to create additional pods.
+
+But sometimes you might have a scenario where you have a helper container that might be doing some kind
+
+of supporting task for our web application, such as processing a user entered data, processing a file
+
+uploaded by the user, etc. and you want these helper containers to live alongside your application
+
+container.
+
+In that case, you can have both of these containers part of the same pod, so that when a new application
+
+container is created.
+
+The helper is also created and when it dies, the helper also dies since they are part of the same pod.
+
+The two containers can also communicate with each other directly by referring to each other as localhost,
+
+since they share the same network space.
+
+Plus, they can easily share the same storage space as well.
+
+If you still have doubts in this topic, I would understand if you did, because I did.
+
+The first time I learned these concepts, we could take another shot at understanding pods from a different
+
+angle.
+
+Let's for a moment keep Kubernetes out of our discussion and talk about simple Docker containers.
+
+Let's assume we were developing a process or a script to deploy our application on a Docker host.
+
+Then we would first simply deploy our application using a simple Docker run Python app command.
+
+And the application runs fine and our users are able to access it.
+
+When the load increases, we deploy more instances of our application by running the Docker run commands
+
+many more times.
+
+This works fine and we're all happy.
+
+Now, sometime in the future, our application is further developed, undergoes architectural changes,
+
+and grows and gets complex.
+
+We now have a new helper container that helps our web application by processing or fetching data from
+
+elsewhere.
+
+These helper containers maintain a 1 to 1 relationship with our application container, and thus needs
+
+to communicate with the application containers directly and access data from those containers.
+
+For this, we need to maintain a map of what app and helper containers are connected to each other.
+
+We would need to establish network connectivity between these containers ourselves using links and custom
+
+networks.
+
+We would need to create sharable volumes and share it among the containers.
+
+We would need to maintain a map of that as well.
+
+And most importantly, we would need to monitor the state of the application container and when it dies,
+
+manually kill the helper container as well, as it's no longer required.
+
+When a new container is deployed, we would need to deploy the new helper container as well with pods.
+
+Kubernetes does all of this for us automatically.
+
+We just need to define what containers a pod consists of, and the containers in a pod by default will
+
+have access to the same storage, the same network namespace, and same fate as in they will be created
+
+together and destroyed together.
+
+Even if our application didn't happen to be so complex and we could live with a single container, Kubernetes
+
+still requires you to create pods, but this is good in the long run as your application is now equipped
+
+for architectural changes and scale in the future.
+
+However, also note that Multi-container pod are a rare use case, and we're going to stick to single
+
+containers per pod in this course.
+
+Let us now look at how to deploy pods.
+
+Earlier we learned about the Kube control run command.
+
+What this command really does is it deploys a Docker container by creating a pod.
+
+So it first creates a pod automatically and deploys an instance of the nginx docker image.
+
+But where does it get the application image from?
+
+For that you need to specify the image name using the image parameter.
+
+The application image.
+
+In this case the nginx image is downloaded from the Docker Hub repository.
+
+Docker hub, as we discussed, is a public repository where Docker images of various applications are
+
+stored.
+
+You could configure Kubernetes to pull the image from the public Docker hub or a private repository
+
+within the The organization.
+
+Now that we have a pod created, how do we see the list of pods available?
+
+The Kube control get pods command helps us see the list of pods in our cluster.
+
+In this case, we see the pod is in a container creating state and soon changes to a running state when
+
+it is actually running.
+
+Also, remember that we haven't really talked about the concepts on how a user can access the nginx
+
+web server, and so in the current state, we haven't made the web server accessible to external users.
+
+You can access it internally from the node.
+
+But for now we will just see how to deploy a pod.
+
+And later in a later lecture, once we learn about networking and services, we will get to know how
+
+to make this service accessible to end users.
+
+Well, that's it for this lecture.
+
+Head over to a demo and I will see you in the next one.
+
+
+In this lecture we will talk about creating a pod using a YAML based configuration file.
+
+In the previous lecture we learned about YAML files in general.
+
+Now we will learn how to develop YAML files specifically for Kubernetes.
+
+Kubernetes uses YAML files as inputs for the creation of objects such as pods, replicas, deployments,
+
+services, etc. all of these follow a similar structure.
+
+A Kubernetes definition file always contains four top level fields the API version, kind, metadata,
+
+and spec.
+
+These are the top level or root level properties.
+
+These are also required fields, so you must have them in your configuration file.
+
+Let us look at each one of them.
+
+The first one is the API version.
+
+This is the version of the Kubernetes API we are using to create the object, depending on what we are
+
+trying to create.
+
+We must use the right API version for now since we are working on pods.
+
+We will set the API version as v1.
+
+Few other possible values for this field are apps v1, beta, extensions v1, beta, etc. we will see
+
+what these are for later in this course.
+
+Next is the kind.
+
+The kind refers to the type of object we are trying to create, which in this case happens to be a pod.
+
+So we will set it as pod.
+
+Some other possible values here could be replica set or deployment or service, which is what you see
+
+in the kind field in the table on the right.
+
+The next is metadata.
+
+The metadata is data about the object like its name, labels, etc. as you can see, unlike the first
+
+two where you have specified a string value, this is in the form of a dictionary.
+
+So everything under metadata is intended to the right a little bit.
+
+And so names and labels are children of metadata.
+
+The number of spaces before the two properties, name and labels doesn't matter, but they should be
+
+the same as they are siblings.
+
+In this case, labels has more spaces on the left than name, and so it is now a child of the name property
+
+instead of a sibling, which is incorrect.
+
+Also, the two properties must have more spaces than its parent, which is metadata, so that it's intended
+
+to the right a little bit.
+
+In this case, all three of them have the same number of spaces before them, and so they are all siblings,
+
+which is not correct under metadata.
+
+The name is a string value.
+
+So you can name your pod my app pod and the labels is a dictionary.
+
+So labels is a dictionary within the metadata dictionary.
+
+And it can have any key and value pairs as you wish.
+
+For now I have added a label app with the value My app.
+
+Similarly, you could add other labels as you see fit, which will help you identify these objects at
+
+a later point in time.
+
+Say, for example, there are hundreds of pods running a front end application and hundreds of pods
+
+running a back end application or a database.
+
+It will be difficult for you to group these pods once they are deployed.
+
+If you label them now as front end, back end, or database, you will be able to filter the pods based
+
+on this label at a later point in time.
+
+It's important to note that under metadata, you can only specify name or labels or anything else that
+
+Kubernetes expects to be under metadata.
+
+You cannot add any other property as you wish under this.
+
+However, under labels you can have any kind of key or value pairs as you see fit.
+
+So it's important to understand what each of these parameters expect.
+
+So far, we have only mentioned the type and name of the object we need to create, which happens to
+
+be a pod with a name Myapp pod, but we haven't really specified the Divide the container or image we
+
+need in the pod.
+
+The last section in the configuration file is the specification section, which is written as spec.
+
+Depending on the object we are going to create.
+
+This is where we would provide additional information to Kubernetes pertaining to that object.
+
+This is going to be different for different objects.
+
+So it's important to understand or refer to the documentation section to get the right format for each.
+
+Since we are only creating a pod with a single container in it, it is easy.
+
+Spec is a dictionary, so add a property under it called containers.
+
+Containers is a list or an array.
+
+The reason this property is a list is because the pods can have multiple containers within them, as
+
+we learned in the lecture earlier.
+
+In this case though, we will only add a single item in the list since we plan to have only a single
+
+container in the pod.
+
+The dash right before the name indicates that this is the first item in the list.
+
+The item in the list is a dictionary, so add a name and image property.
+
+The value for image is nginx, which is the name of the Docker image in the Docker repository.
+
+Once the file is created, run the command kubectl create dash f followed by the file name, which is
+
+pod definition YAML and Kubernetes creates the pod.
+
+So to summarize, remember the four top level properties API version kind, metadata and spec.
+
+Then start by adding values to those depending on the object you are going to create.
+
+Once we create the pod, how do you see it?
+
+Use the kubectl get pods command to see a list of pods available.
+
+In this case it's just one.
+
+To see detailed information about the pod, run the kubectl describe pod command.
+
+This will tell you information about the pod when it was created, what labels are assigned to it,
+
+what Docker containers are part of it, and the events associated with that pod.
+
+
+In this demo, we're going to create a pod again.
+
+But this time, instead of making use of the cube cuddle run command, we are going to create it using
+
+a YAML definition file.
+
+So our goal is to create a YAML file with the pod specifications in it.
+
+Now there are many ways to do it.
+
+You could just create one in any text editor.
+
+So if you're on windows you could just use notepad.
+
+Or if you're on Linux as I am, just use a native editor like VI or vim, an editor with support for
+
+YAML language would be very helpful, um, in getting the syntax right.
+
+So instead of notepad, it's a tool like Notepad Plus plus in Windows or vim in Linux would be better.
+
+Now I'll talk more about tips and tricks and other tools and ideas that can help with this.
+
+Um, more in the upcoming lectures.
+
+For now, let's take, uh, with the very basic, uh, form of creating a YAML file using VI editor
+
+on my Linux system.
+
+So here I am on my Linux terminal, and I'm going to make use of vim text based editor to create this
+
+Pod definition file.
+
+So the name of the file I'm going to call as pod YAML.
+
+And as seen in the lecture we will start off with the four, uh root level elements or the root level
+
+properties that we, that we saw which are API version kind metadata and spec.
+
+So we know that the value of for API version for a pod is V1.
+
+Uh, the kind is uh, pod with a capital P, so it is case sensitive.
+
+So, uh, that's important.
+
+And metadata is a dictionary and it can have values where we define the name of the pod.
+
+So I'm going to use name as nginx.
+
+And we can have uh additional uh labels that we can specify under it.
+
+So labels again is also a dictionary.
+
+And it can have as many labels as you want under it.
+
+So we can specify a label which is a key value pair, such as a app and nginx.
+
+And we can also add more labels like tier uh and set it to front end.
+
+Anything that can help us group this particular pod.
+
+Next um, we have to define the spec.
+
+So spec is also a dictionary and it has an object called containers.
+
+So before we move on to that, uh, we have to make sure that we get the indentation right.
+
+For example, the app and tier are children of the labels property.
+
+So it has to be in the same, uh, kind of vertical line here.
+
+And similarly under metadata you have name and labels which are the children of metadata.
+
+So they both have to be, uh, within the same vertical line.
+
+Uh, so you have to make sure that the spacing is correct.
+
+Typically it would be two spaces or a tab, but it is recommended not to use tabs.
+
+So always stick to two spaces and and stick to that throughout.
+
+So the next thing that we're going to configure is the container.
+
+So a container is a list of objects.
+
+Now we first give it a name.
+
+Note that this is the name of the container within the pod.
+
+And there could be multiple containers.
+
+And each can have a different name.
+
+So one container could be named app and another container could be named uh helper.
+
+Any name that makes sense to you, we're going to use the same name as that of the container image.
+
+So we will just name it nginx.
+
+And the second object that we're going to add here is the image name, which is the Docker Hub image
+
+name of the container that we're going to create.
+
+So the image name is um again nginx.
+
+Um if you're using other registries than Docker Hub then make sure to specify the full path, um to
+
+that image repository here.
+
+Now remember that we can add Additional containers, the pod as well.
+
+So if you have to do that and we have to declare the secondary element, uh, to the list, which would
+
+be the second object in the list.
+
+So here I can, for example, add a BusyBox container using the BusyBox image.
+
+And that would be the second element of the array.
+
+So in this case we're going to stick to one single container.
+
+So I'm going to just delete that.
+
+And I'm now going to hit escape colon wq to save this file.
+
+And we will just use the Cat command to make sure that the file was created with the expected contents.
+
+So make sure the format is correct.
+
+So the name and labels are children of metadata.
+
+And you can see that they are on the same, uh, kind of vertical line.
+
+And similarly labels have two children which are the two labels app and tier and spec has a list.
+
+Um, and we are defining it as a list with a hyphen followed by the objects.
+
+So we can make use of the kubectl create command or the kubectl apply command.
+
+So the create and apply command kind of works the same.
+
+Um if you're creating a new object right.
+
+You can either use create or you can use apply.
+
+Um it doesn't matter.
+
+Um, and we pass in the uh, file name using the dash f option.
+
+And here we can see that the pod has been created.
+
+So let's check the status real quick.
+
+And you can see that it's in container creating state.
+
+And then when we check again we see that it's in a running state.
+
+And as before if you want to get more details about the pod, you can always run the kubectl describe
+
+command and specify the the name of the pod.
+
+And you should get a much more in-depth information about the pod.
+
+Okay, so that's it for this demo.
+
+In the next section we will learn some tips and tricks of developing YAML files.
+
+Um, easily using IDE's.
+
+
+Controllers are the brain behind Kubernetes.
+
+They are the processes that monitor Kubernetes objects and respond accordingly.
+
+In this lecture, we will discuss about one controller in particular and that is the replication controller.
+
+So what is a replica and why do we need a replication controller?
+
+Let's go back to our first scenario where we had a single pod running our application.
+
+What if for some reason our application crashes and the pod fails, users will no longer be able to
+
+access our application?
+
+To prevent users from losing access to our application, we would like to have more than one instance
+
+or pod running at the same time.
+
+That way, if one fails, we still have our application running on the other one.
+
+The replication controller helps us run multiple instances of a single pod in the Kubernetes cluster,
+
+Thus providing high availability.
+
+So does that mean you can't use a replication controller if you plan to have a single pod?
+
+No.
+
+Even if you have a single pod, replication controller can help by automatically bringing up a new pod
+
+when the existing one fails.
+
+Thus, the replication controller ensures that the specified number of pods are running at all times,
+
+even if it's just 1 or 100.
+
+Another reason we need replication controller is to create multiple pods to share the load across them.
+
+For example, in this simple scenario, we have a single pod serving a set of users.
+
+When the number of users increased, we deploy additional pod to balance the load across the two pods.
+
+If the demand further increases, and if we were to run out of resources on the first node, we could
+
+deploy additional pods across the other nodes in the cluster.
+
+As you can see, the replication controller spans across multiple nodes in the cluster.
+
+It helps us balance the load across multiple pods on different nodes, as well as scale our application
+
+when the demand increases.
+
+It's important to note that there are two similar terms replication controller and replica set.
+
+Both have the same purpose, but they are not the same.
+
+Replication controller is the older technology that is being replaced by replica set.
+
+Replica set is the new recommended way to set up replication.
+
+However, whatever we discussed in the previous few slides remain applicable to both these technologies.
+
+There are minor differences in the way each works, and we will look at that in a bit.
+
+As such, we will try to stick to replica sets in all of our demos and implementations going forward.
+
+So let us now look at how we create a replication controller.
+
+As with the previous lecture, we start by creating a replication controller definition file.
+
+We will name it rc definition dot YAML.
+
+As with any Kubernetes definition file, we have four sections the API, version, kind, metadata,
+
+and spec.
+
+The API version is specific to what we are creating.
+
+In this case, replication controller is supported in Kubernetes API version v1.
+
+So we will set it as v1.
+
+The kind as we know is replication controller.
+
+Under metadata we will add a name and we will call it Myapp dash RC.
+
+And we will also add a few labels app and type and assign values to them.
+
+So far, it has been very similar to how we created a pod in the previous section.
+
+The next is the most crucial part of the definition file, and that is the specification written as
+
+spec for any Kubernetes definition file.
+
+The spec section defines what's inside the object we are creating.
+
+In this case, we know that the replication controller creates multiple instances of a pod.
+
+But what pod?
+
+We create a template section under spec to provide a pod template to be used by the replication controller
+
+to create replicas.
+
+Now how do we define the pod template?
+
+It's not that hard because we have already done that in the previous exercise.
+
+Remember we created a Pod definition file in the previous exercise, we could reuse the contents of
+
+the file.
+
+To populate the templates section, move all the contents of the Pod definition file into the template
+
+section of the replication controller, except for the first few lines which are API, version and kind.
+
+Remember, whatever we move must be under the templates section, meaning they should be intended to
+
+the right and have more spaces before them than the template line itself.
+
+They should be children of the template section.
+
+Looking at our file now, we now have two metadata sections.
+
+One is for the replication controller and another for the pod.
+
+And we have two spec sections, one for each.
+
+We have nested two definition files together, the replication controller being the parent and the pod
+
+definition being the child.
+
+Now there is something still missing.
+
+We haven't mentioned how many replicas we need in the replication controller.
+
+For that, add another property to the spec called replicas and input the number of replicas you need
+
+under it.
+
+Remember that the template and replicas are direct children of spec sections, so they are siblings
+
+and must be on the same vertical line, which means having equal number of spaces before them.
+
+Once the file is ready, run the kubectl create command and input the file using the f parameter.
+
+The replication controller is created when the replication controller is created.
+
+It first creates the pods using the pod definition template as many as required, which is three in
+
+this case.
+
+To view the list of created replication controllers, run the kubectl get replication controller command
+
+and you will see the replication controller listed.
+
+We can also see the desired number of replicas or pods, the current number of replicas, and how many
+
+of them are ready in the output.
+
+If you would like to see the pods that were created by the replication controller, run the kubectl
+
+get pods command and you will see three pods running.
+
+Note that all of them are starting with the name of the replication controller, which is my app RC,
+
+indicating that they are all created automatically by the replication controller.
+
+What we just saw was the replication controller.
+
+Let us now look at replica set.
+
+It is very similar to replication controller as usual.
+
+First we have API version kind metadata and spec.
+
+The API version though is a bit different.
+
+It is apps slash v1, which is different from what we had before.
+
+For replication controller which was just v1.
+
+If you get this wrong, you are likely to get an error that looks like this.
+
+It would say no match for kind replica set, because the specified Kubernetes API version has no support
+
+for replica set.
+
+The kind would be replica set and we add name and labels in the metadata.
+
+The specification section looks very similar to Replication controller.
+
+It has a template section where we provide pod definition as before.
+
+So I'm going to copy contents over from pod definition file.
+
+And we have number of replicas which is set to three.
+
+However there is one major difference between replication controller and replica set.
+
+Replica set requires a selector definition.
+
+The selector section helps the replica set identify what pods fall under it, but why would you have
+
+to specify what pods fall under it if you have provided the contents of the pod definition file itself
+
+in the template.
+
+It's because replica set can also manage pods that were not created as part of the replica set creation.
+
+Say for example, there were pods created before the creation of the replica set that matched labels
+
+specified in the selector.
+
+The replica set will also take those pods into consideration when creating the replicas.
+
+I will elaborate this in the next slide, but before we get into that, I would like to mention that
+
+the selector is one of the major differences between replication controller and replica set.
+
+The selector is not a required field in case of a replication controller, but it is still available
+
+when you skip it, as we did in the previous slide.
+
+It assumes it to be the same as the labels provided in the Pod definition file.
+
+In case of replica set, a user input is required for this property, and it has to be written in the
+
+form of match labels as shown here.
+
+The match labels selector simply matches the labels specified under it to the labels on the pods.
+
+The replica set selector also provides many other options for matching labels that were not available
+
+in a replication controller.
+
+And as always, to create a replica set, run the kubectl create command, providing the definition
+
+file as input.
+
+And to see the created replicas run the kubectl get replica set command to get list of pods.
+
+Simply run the kube control get pods command.
+
+So what is the deal with labels and selectors?
+
+Why do we label our pods and objects in Kubernetes?
+
+Let us look at a simple scenario.
+
+Say we deployed three instances of our front end web application has three parts.
+
+We would like to create a replication controller or replica set to ensure that we have three active
+
+pods at any time.
+
+And yes, that is one of the use case of replica sets.
+
+You can use it to monitor existing pods if you have them already created as it is in this example.
+
+In case they were not created, the replica set will create them for you.
+
+The role of the replica set is to monitor the pods and if any of them were to fail, deploy new ones.
+
+The replica set is in fact a process that monitors the pods.
+
+Now, how does the replica set know what pods to monitor?
+
+There could be hundreds of other pods in the cluster running different applications.
+
+This is where labeling our pods during creation comes in handy.
+
+We could now provide these labels as a filter for replica set under the selector section, we use the
+
+Match Labels filter and provide the same label that we used while creating the pods.
+
+This way, the replica set knows which pods to monitor.
+
+The same concept of labels and selectors is used in many other places throughout Kubernetes.
+
+Now let me ask you a question along the same lines.
+
+In the replica set specification section, we learned that there are three sections template, replicas,
+
+and selector.
+
+We need three replicas and we have updated our selector based on our discussion in the previous slide.
+
+Say for instance, we have the same scenario as in the previous slide where we have three existing parts
+
+that were created already.
+
+And we need to create a replica set to monitor the pods to ensure there are a minimum of three running
+
+at all times.
+
+When the replication controller is created, it is not going to deploy a new instance of Pod.
+
+As three of them with matching labels are already created.
+
+In that case, do we really need to provide a template session in the replica set specification?
+
+Since we are not expecting the replica set to create a new pod on deployment?
+
+Yes we do.
+
+Because in case one of the pods were to fail in the future, the replica set needs to create a new one
+
+to maintain the desired number of pods.
+
+And for the replica set to create a new pod, the template definition section is required.
+
+Let's now look at how we scale the replica set.
+
+Say we started with three replicas and the future.
+
+We decided to scale to six.
+
+How do we update our replica set to scale to six replicas?
+
+Well, there are multiple ways to do it.
+
+The first is to update the number of replicas in the definition file to six.
+
+Then run the kubectl replace command to specify the same file using the f parameter, and that will
+
+update the replica set to have six replicas.
+
+The second way to do it is to run the kube control scale command.
+
+Use the replicas parameter to provide the new number of replicas and specify the same file as input.
+
+You may either input the definition file or provide the replica set name in the type name format.
+
+However, remember that using the file name as input will not result in the number of replicas being
+
+updated automatically in the file.
+
+In other words, the number of replicas in the replica set definition file will still be three, even
+
+though you scaled your replica set to have six replicas using the Kube control scale command and the
+
+file as input.
+
+There are also options available for automatically scaling the replica set based on load, but that
+
+is an advanced topic and we will discuss it at a later time.
+
+Let us now review the commands real quick.
+
+The cube control create command as we know, is used to create a replica, set or basically any object
+
+in Kubernetes depending on the file we are providing as input.
+
+You must provide the input file using the dash f parameter.
+
+Use the kube control.
+
+Get command to see the list of replica sets created.
+
+Use the cube control delete replica set command followed by the name of the replica set to delete the
+
+replica set, and then we have the control replace command to replace or update the replica set, and
+
+also the Kube control scale command to scale replica set simply from the command line without having
+
+to modify the file.
+
+That's it for this lecture.
+
+
+In this lecture we will discuss about Kubernetes deployments.
+
+For a minute.
+
+Let us forget about pods and replica sets and other Kubernetes concepts, and talk about how you might
+
+want to deploy your application in a production environment.
+
+Say, for example, you have a web server that needs to be deployed in a production environment.
+
+You need not one, but many such instances of the web server running for obvious reasons.
+
+Secondly, whenever newer versions of application builds become available on the Docker registry, you
+
+would like to upgrade your Docker instances seamlessly.
+
+However, when you upgrade your instances, you do not want to upgrade all of them at once, as we just
+
+did.
+
+This may impact users accessing our applications, so you might want to upgrade them one after the other.
+
+And that kind of upgrade is known as rolling updates.
+
+Suppose one of the upgrades you performed resulted in an unexpected error, and you're asked to undo
+
+the recent change You would like to be able to roll back the changes that were recently carried out.
+
+Finally, say, for example, you would like to make multiple changes to your environment, such as
+
+upgrading the underlying web server versions, as well as scaling your environment and also modifying
+
+the resource allocations, etc. you do not want to apply each change immediately after the command is
+
+run.
+
+Instead, you would like to apply a path to your environment, make the changes and then resume so that
+
+all the changes are rolled out together.
+
+All of these capabilities are available with the Kubernetes deployments.
+
+So far in this course, we discussed about pods, which deploy single instances of our application,
+
+such as the web application.
+
+In this case, each container is encapsulated in pods.
+
+Multiple such pods are deployed using replication controllers or replica sets.
+
+And then comes deployment, which is a Kubernetes object that comes higher in the hierarchy.
+
+The deployment provides us with the capability to upgrade the underlying instances seamlessly using
+
+rolling updates, undo changes, and pause and resume changes as required.
+
+So how do we create a deployment?
+
+As with the previous components, we first create a deployment definition file.
+
+The contents of the deployment definition file are exactly similar to the replica set definition file,
+
+except for the kind which is now going to be deployment.
+
+If we walk through the contents of the file, it has an API version which is apps forward slash v1 metadata,
+
+which has name and labels, and a spec that has template replicas and selector.
+
+The template has a pod definition inside it.
+
+Once the file is ready, run the kube control create command and specify the deployment definition file.
+
+Then run the kube control.
+
+Get deployments command to see the newly created deployment.
+
+The deployment automatically creates a replica set.
+
+So if you run the kube control get replica set command, you will be able to see a new replica set in
+
+the name of the deployment.
+
+The replica sets ultimately create paths, so if you run the cube Control get Pods command, you will
+
+be able to see the pods with the name of the deployment and the replica set.
+
+So far, there hasn't been much of a difference between replica set and deployments, except for the
+
+fact that deployments created a new Kubernetes object called deployments.
+
+We will see how to take advantage of the deployment using the use cases we discussed in the previous
+
+slide in the upcoming lectures.
+
+And one more note before we end this lecture to see all the created objects at once, run the cube control
+
+get all command.
+
+And in this case we can see that the deployment was created.
+
+And then we have the replica set followed by three pods that we created as part of the deployment.
+
+That's it for this lecture.
+
+We will now head over to a demo and I will see you in the next lecture.
+
+
+In this lecture we will discuss about Kubernetes services.
+
+Kubernetes services enable communication between various components within and outside of the application.
+
+Kubernetes services helps us connect applications together with other applications or users.
+
+For example, our application has groups of pods running various sections, such as a group for serving
+
+a front end load to users, another group for running back end processes, and a third group connecting
+
+to an external data source.
+
+It is services that enable connectivity between these groups of pods.
+
+Services enable the front end application to be made available to end users.
+
+It helps communication between backend and frontend pods and helps in establishing connectivity to an
+
+external data source.
+
+Thus, services enable loose coupling between microservices in our application.
+
+Let's take a look at one use case of services.
+
+So far we talked about how pods communicate with each other through internal networking.
+
+Let's look at some other aspects of networking in this lecture.
+
+Let's start with external communication.
+
+So we deployed our pod having a web application running on it.
+
+How do we as an external user access the web page?
+
+First of all let's look at the existing setup.
+
+The Kubernetes node has an IP address and that is 192.168.1.2.
+
+My laptop is on the same network as well, so it has an IP address 192.168.1.1.
+
+The internal Pod network is in the range 10.244.0.0, and the pod has an IP 10.244.0.2.
+
+Clearly I cannot ping or access the pod at address 244.0.2 as it's in a separate network.
+
+So what are the options to see the web page?
+
+First, if we were to SSH into the Kubernetes node at 192.168.1.2, from the node, we would be able
+
+to access the pods web page by doing a curl, or if the node has a GUI, we would fire up a browser
+
+and see the web page in a browser following the HTTP 10.244.0.2.
+
+But this is from inside the Kubernetes node, and that's not what I really want.
+
+I want to be able to access the web server from my own laptop, without having to SSH into the node,
+
+and simply by accessing the IP of the Kubernetes node.
+
+So we need something in the middle to help us map requests to the node from our laptop, through the
+
+node to the pod running the web container.
+
+This is where the Kubernetes service comes into play.
+
+The Kubernetes service is an object just like pods, replica sets, or deployments that we worked with
+
+before.
+
+One of its use cases is to listen to a port on the node, and forward requests on that port to a port
+
+on the pod running the web application.
+
+This type of service is known as a node port service, because the service listens to a port on the
+
+node and forward requests to the pods.
+
+There are other kinds of services available which we will now discuss.
+
+The first one is what we discussed already.
+
+Node port where the service makes an internal pod accessible on a port on the node.
+
+The second is cluster IP and in this case the service creates a virtual IP inside the cluster to enable
+
+communication between different services, such as a set of front end servers to a set of back end backend
+
+servers.
+
+The third type is a load balancer, where it provisions a load balancer for our application in supported
+
+cloud providers.
+
+A good example of that would be to distribute load across the different web servers in your front end
+
+tier.
+
+We will now look at each of these in a bit more detail along with some demos.
+
+In this lecture we will discuss about the Nodeport Kubernetes service.
+
+Getting back to Nodeport a few slides back, we discussed about external access to the application.
+
+We said that a service can help us by mapping a port on the node to a port on the pod.
+
+Let's take a closer look at the service.
+
+If you look at it, there are three ports involved.
+
+The port on the pod where the actual web server is running is 80, and it is referred to as the target
+
+port because that is where the service forwards the request to the second port is the port on the service
+
+itself.
+
+It is simply referred to as the port.
+
+Remember these terms are from the viewpoint of the service.
+
+The service is in fact like a virtual server inside the node.
+
+Inside the cluster.
+
+It has its own IP address, and that IP address is called the cluster IP of the service.
+
+And finally we have the port on the node itself which we use to access the web server externally.
+
+And that is known as the node port.
+
+As you can see it is set to 30,008.
+
+That is because node ports can only be in a valid range, which by default is from 30,000 to 32,767.
+
+Let's now look at how to create the service.
+
+Just like how we created a deployment replica set or pod in the past.
+
+We will use a definition file to create a service.
+
+The high level structure of the file remains the same as before.
+
+We have the API version kind, metadata and spec sections.
+
+The API version is going to be v1.
+
+The kind is of course service.
+
+The metadata will have a name and that will be the name of the service.
+
+It can have labels, but we don't need that for now.
+
+Next we have spec and as always, this is the most crucial part of the file as this is where we will
+
+be defining the actual services.
+
+And this is the part of a definition file that differs between different objects in the spec section
+
+of a service.
+
+We have type and ports.
+
+The type refers to the type of service we are creating.
+
+As discussed before, it could be cluster, IP node, port or load balancer.
+
+In this case, since we are creating a node port, we will set it as node port.
+
+The next part of a spec is ports.
+
+This is where we input information regarding what we discussed on the left side of the screen.
+
+The first type of port is the target port, which we will set to 80.
+
+The next one is simply port, which is the port on the service object.
+
+And we will set that to 80 as well.
+
+The third is node port, which we will set to 30,008 or any number in the valid range.
+
+Remember that out of these the only mandatory field is port.
+
+If you don't provide a target port, it is assumed to be the same as port.
+
+And if you don't provide a node port, a free port in the valid range between 30,000 and 32,767 is automatically
+
+allocated.
+
+Also note that ports is an array, so note the dash under the ports section that indicate the first
+
+element in the array.
+
+You can have multiple such port mappings within a single service.
+
+So we have all the information in.
+
+But something is really missing.
+
+There is nothing here in the definition file that connects the service to the pod.
+
+We have simply specified the target port, but we didn't mention the target port on which pod.
+
+There could be hundreds of other pods with web services running on port 80.
+
+So how do we do that?
+
+As we did with the replica sets previously, and a technique that you will see very often in Kubernetes.
+
+We will use labels and selectors to link these together.
+
+We know that the pod was created with a label.
+
+We need to bring that label into the service definition file.
+
+So we have a new property in the specs section and that is called selector.
+
+Just like in a replica set and deployment definition, files under the selector provide a list of labels
+
+to identify the pod.
+
+For this, refer to the pod definition file used to create the pod.
+
+Pull the labels from the pod definition file and place it under the selector section.
+
+This links the service to the pod.
+
+Once done, create the service using the kube control.
+
+Create command and input the service definition file and there you have the service created.
+
+To see the created service, run the kube control.
+
+Get service's command that lists the service, the cluster IP and the mapped ports.
+
+The type is node port as we created and the port on the node is set to 30,008, because that's the port
+
+that we specified in the definition file.
+
+We can now use this port to access the web service using Curl or a web browser.
+
+So curl to 1921681.2, which is the IP of the node.
+
+And then I use the port 30,008 to access the web server.
+
+So far we talked about a service mapped to a single pod, but that's not the case all the time.
+
+What do you do when you have multiple pods in a production environment?
+
+You have multiple instances of your web application running for high availability and load balancing
+
+purposes.
+
+In this case, we have multiple similar pods running our web application.
+
+They all have the same labels with a key app and set to a value of my app.
+
+The same label is used as a selector during the creation of the service.
+
+So when the service is created, it looks for a matching pod with the label and finds three of them.
+
+The service then automatically selects all the three pods as endpoints to forward the external requests
+
+coming from the user.
+
+You don't have to do any additional configuration to make this happen.
+
+And if you're wondering what algorithm it uses to balance the load across the three different pods,
+
+it uses a random algorithm.
+
+Thus, the service acts as a built in load balancer to distribute load across different pods.
+
+And finally, let's look at what happens when the pods are distributed across multiple nodes.
+
+In this case, we have the web application on pods on separate nodes in the cluster.
+
+When we create a service without us having to do any additional configuration, Kubernetes automatically
+
+creates a service that spans across all the nodes in the cluster and maps the target port to the same
+
+node port on all the nodes in the cluster.
+
+This way, you can access your application using the IP of any node in the cluster and using the same
+
+port number, which in this case is 30,008.
+
+As you can see, using the IP of any of these nodes, and I'm trying to curl to the same port and the
+
+same port is made available on all the nodes part of the cluster.
+
+To summarize, in any case, whether it be a single pod on a single node, multiple pods on a single
+
+node, or multiple pods on multiple nodes, the service is created exactly the same without you having
+
+to do any additional steps during the service creation.
+
+When pods are removed or added, the service is automatically updated, making it highly flexible and
+
+adaptive.
+
+Once created, you won't typically have to make any additional configuration changes.
+
+That's it for this lecture.
+
+Head over to the demo and I will see you in the next lecture.
+
+
+In this lecture we will discuss about the Kubernetes Service cluster IP.
+
+A full stack web application typically has different kinds of pods hosting different parts of an application.
+
+You may have a number of pods running a front end web server, another set of pods running a back end
+
+server, a set of pods running a key value store like Redis, and another set of pods.
+
+Maybe running a persistent database like MySQL.
+
+The web front end server needs to communicate to the backend servers, and the backend servers need
+
+to communicate to the database as well as the Redis services, etc..
+
+So what is the right way to establish connectivity between these services or tiers of my application?
+
+The pods all have an IP address assigned to them, as we can see on the screen, but these IPS as we
+
+know, are not static.
+
+These pods can go down any time, and new pods are created all the time.
+
+And so you cannot rely on these IP addresses for internal communication between the application.
+
+Also, what if the first front end pod at ten 244 .0.3 need to connect to a back end backend service.
+
+Which of the three will it go to?
+
+And who makes that decision?
+
+A Kubernetes service can help us group the pods together, and provide a single interface to access
+
+the pods in a group.
+
+For example, a service created for the backend pods will help group all the backend pods together and
+
+provide a single interface for other pods to access this service.
+
+The requests are forwarded to one of the pods under the service randomly.
+
+Similarly, create additional services for Redis and allow the backend pods to access the Redis systems
+
+through the service.
+
+This enables us to easily and effectively deploy a microservices based application on Kubernetes cluster.
+
+Each layer can now scale or move as required without impacting communication between the various services.
+
+Each service gets an IP and name assigned to it inside the cluster, and that is the name that should
+
+be used by other paths to access the service.
+
+This type of service is known as cluster IP.
+
+To create such a service, as always, use a definition file in the service definition file.
+
+First use the default template which has API version kind metadata and spec.
+
+The API version is v1, kind is service and we will give a name to our service.
+
+We will call it backend.
+
+Under specification we have type and ports.
+
+The type is cluster IP.
+
+In fact cluster IP is the default type.
+
+So even if you didn't specify it, it will automatically assume the type to be cluster IP.
+
+Under ports we have a target port and port.
+
+The target port is the port where the backend is exposed, which in this case is 80, and the port is
+
+where the service is exposed, which is 80 as well.
+
+To link the service to a set of ports, we use selector.
+
+We will refer to the pod definition file and copy the labels from it and move it under selector, and
+
+that should be it.
+
+We can now create the service using the kube control create command and then check its status using
+
+the Kube control Get Services command.
+
+The service can be accessed by other pods using the cluster IP or the service name.
+
+
+Let us now look at another type of service known as the load balancer type.
+
+So we have seen the node port service that helps us make an external facing application available on
+
+a port on the worker nodes.
+
+So let's turn our focus to the front end applications which are the voting app and the result app.
+
+Now we know that these pods are hosted on the worker nodes in a cluster.
+
+So let's say we have a four node cluster.
+
+And to make the applications accessible to external users we create the services of type node port.
+
+Now the services with type node port help in receiving traffic on the ports on the nodes and routing
+
+the traffic to the respective pods.
+
+But what URL would you give your end users to access the applications?
+
+You could access any of these two applications using IP of any of the nodes and the port the service
+
+is exposed on.
+
+So that would be for IP and port combinations for the voting app and for IP and port combination for
+
+the result app.
+
+So note that even if your pods are only hosted on two of the nodes, they will still be accessible on
+
+the IPS of all the nodes in the cluster.
+
+Say the pods for the voting app are only deployed on the nodes with IP 70 and 71.
+
+There would still be accessible on the ports of all the nodes in the cluster.
+
+So that's how a service is configured.
+
+So you would share these URLs to your users to access the application.
+
+But that's not what the end users want.
+
+They need a single URL like example voting app.com or the example app to access the application.
+
+So how do you achieve that?
+
+Now one way to achieve this is to create a new VM for load balancer purpose and install and configure
+
+a suitable load balancer on it like HAProxy.
+
+Or nginx etc. then configure the load balancer to route traffic to the underlying nodes.
+
+Now setting all of that external load balancing and then maintaining and managing that can be a tedious
+
+task.
+
+However, if we were on a supported cloud platform like Google Cloud or AWS or Azure, I could leverage
+
+the native load balancer of that cloud platform.
+
+Kubernetes has support for integrating with the native load balancers of certain cloud providers, and
+
+configuring and configuring that for us.
+
+So all you need to do is set the service type for the front end services to load balancer instead of
+
+Nodeport.
+
+Now remember that this only works with supported cloud platforms.
+
+And so GCP, AWS and Azure are definitely supported.
+
+So if you set the type of service to load balancer in an unsupported environment like VirtualBox or
+
+you know any other environments, then it would have the same effect as setting it to Nodeport where
+
+you know the services are exposed on a high end port on the nodes.
+
+Uh, there.
+
+It just won't do any kind of, uh, external load balancer configuration.
+
+Right?
+
+So later on, um, when we walk through, uh, the demos of deploying our application on cloud platforms,
+
+um, we will see this in action.
+
+Right?
+
+So that's it for now.
+
+I will see you in the next lecture.
+
+
+-: Hey, in this video we're going to walk
+
+over the solution for the lab on services.
+
+So the first question is
+
+how many services exist on the system?
+
+So we're gonna run the kubectl get service command
+
+or you could also run the kubectl get SVC command.
+
+It's a short for service
+
+and we can see that there's just one service.
+
+So select that.
+
+This is a default service created by Kubernetes.
+
+Okay.
+
+So what is the type of the default Kubernetes service?
+
+If you look at the type, here, we see that it's cluster IP.
+
+So let's select cluster IP.
+
+We'll look at what this service is
+
+in particular later when we talk about
+
+the Kubernetes architecture,
+
+the API server in more detail.
+
+And for now, let's just consider it as any other service.
+
+So what is the target port configured
+
+on the Kubernetes service?
+
+So for this, you've got to look
+
+at the service in more detail.
+
+So we're gonna do a kubectl describe node
+
+and we're gonna describe the service named Kubernetes.
+
+So here we see the port details,
+
+So the port is 443, the target port is 6443.
+
+So the question is, what is a target port?
+
+So we'll select 6 4 43.
+
+Okay, how many labels are configured
+
+on the Kubernetes service?
+
+So if you look at this right here, so there are two labels.
+
+Component is API server and the provider's Kubernetes.
+
+So this
+
+this service is basically the Kubernetes API server.
+
+Uh, we'll discuss more about the API server
+
+and this service specifically when we learn
+
+about the API server in detail.
+
+And then the CK of course,
+
+when we get to that.
+
+So for now, the answer is two.
+
+Okay? The next question is how many endpoints are attached
+
+on the Kubernetes service?
+
+So for now, we have no idea,
+
+uh, what the service is
+
+since this service was already created.
+
+We don't really know what it is.
+
+So we are kind of exploring and finding out more about it.
+
+But one thing if we want to look
+
+at right here and understand is how many pods
+
+this, is the service directing traffic to?
+
+So that's what you can see here
+
+in the endpoints section here.
+
+So endpoints, it says there's, there's this one IPN port.
+
+So that's, that's one endpoint.
+
+If there are multiple pods
+
+that the service is directing traffic to
+
+then there would be multiple ports here.
+
+Let me quickly explain what endpoints are
+
+because we have not really discussed about endpoints.
+
+Okay? So here we have a service
+
+and uh, three pods.
+
+And what we do usually is when we create a pod
+
+we know that it has a label to it.
+
+So let's say for example, it's set
+
+to app
+
+and FE for front end or something.
+
+And the way that we create a service in order to
+
+direct traffic to these pods is we,
+
+uh, provide the same labels
+
+as selectors to the service.
+
+And then what the service does is it identifies
+
+all the pods with the same label
+
+and then directs traffic to those pods.
+
+So once it identifies the pod with the labels
+
+that's when the service has these endpoints.
+
+So from a, from the perspective
+
+of a service endpoints are basically these, the, the pods.
+
+The pods that the service has identified that is
+
+going to direct traffic to based on the selector
+
+specified on the service and the labels on the pods.
+
+Now, when we create a service
+
+for a set of pods that we might think
+
+that depending on the label and the selector, we specified
+
+the service is going to direct traffic to those pods
+
+but it might be possible
+
+that we have another pod which we accidentally created
+
+with the same kind of label.
+
+So the service is then going to direct traffic
+
+to that pod as well.
+
+So, and that's when, when we look at the
+
+the output of the kubectl describe command
+
+that we can identify the additional endpoints apart
+
+from what we, what we thought we had configured, right?
+
+So we're gonna see, when you look
+
+at kubectl describe command for the service
+
+we're gonna see that there are four endpoints.
+
+But in fact, the, our application was,
+
+had a replica set perhaps that just had three endpoints
+
+or three pods.
+
+So that's where this, the endpoint can help.
+
+And just to, just to give you a bit context.
+
+So let's say we create,
+
+we have a single pod and we create a service,
+
+we set a label to FE,
+
+but we accidentally set
+
+the selector to say FR something that's different.
+
+And then when we try to access the service
+
+we're not able to get through to the application.
+
+And that's when we, you look at the, the description
+
+of the service and you realize that the endpoints are zero.
+
+So that means the service has not identified any pods
+
+right? So, and then, then that's when we can look
+
+at the labels and selectors in, in
+
+in more detail to identify the root cause.
+
+So,
+
+that's what endpoints are.
+
+It's, it's nothing, but it's a specification of all the pods
+
+that that particular service has identified based
+
+on the selectors and the labels set on those pods.
+
+-: Okay? So in this case,
+
+this particular service has just one endpoint.
+
+So we're gonna select one here.
+
+Okay? The next question is, how many deployments exist
+
+on the system now in the current default name space?
+
+So let's
+
+identify.
+
+Boy, there's just one deployment so we're gonna select one.
+
+Okay? So the next question is
+
+what is the image used to create the pods in the deployment?
+
+So we're gonna look
+
+at the deployment in a bit more detail
+
+and see the images code cloud slash simple web app red.
+
+So that's this one.
+
+Okay. Are you able to access the web app UI?
+
+Try accessing the web application UI using the tab
+
+at the top.
+
+So, there's the link here and clicking on it
+
+we see that it gives us a bad gateway error.
+
+So the answer is no
+
+we are not able to access the web app UI.
+
+So, and that's really because there's no service, right?
+
+So we, we have to create a new service to access the web
+
+web application using the service definition dot yamo file.
+
+So there is a service definition dot yamo file here
+
+and we look at it.
+
+So this is basically a kind
+
+of a file with the basic framework to create a service.
+
+So we'll,
+
+we'll use that
+
+and update the details that are given here, right?
+
+So we're gonna set it, give it a name
+
+so the node port and all the different ports,
+
+also specify the selector.
+
+Now if you're not sure about, you know
+
+getting this framework, you could go
+
+to the Kubernetes documentation pages,
+
+search for service and select service,
+
+and here you kind of get a sample that you can then copy
+
+and use.
+
+So we will talk about imperative ways
+
+for commands to create service in, in the upcoming lectures.
+
+For now, let's just go with this.
+
+So the name is web app service.
+
+Type is Node port.
+
+Target port is 8080.
+
+Port is 8080.
+
+North port is 30080,
+
+and the selector name is Simple Web App.
+
+(typing)
+
+Okay, let's create
+
+(typing)
+
+that service.
+
+Okay, that's done.
+
+Let's check.
+
+Yeah, let's try to access this now.
+
+Okay, so that's working.
+
+So, as I said,
+
+in the upcoming lectures,
+
+there is a section where we talk about imperative commands
+
+and we'll discuss how we can create a service.
+
+So there are different ways of creating a service
+
+and we'll discuss about that when we get there.
+
+For now, that's the end of this lab.
+
+
+Hello and welcome to this lecture.
+
+In this lecture we will discuss about namespaces in Kubernetes.
+
+Let us begin with an analogy.
+
+There are two boys named Mark to differentiate them from each other.
+
+We call them by their last names, Smith and Williams.
+
+They come from different houses, of course, the Smiths and the Williams.
+
+There are other members in the house.
+
+The individuals within the house address each other simply by their first names.
+
+For example, the father addresses Mark simply as Mark.
+
+However, if the father wishes to address the mark in the other house, he would use the full name.
+
+Someone outside of these houses would also use the full name to refer to the boys or anyone within these
+
+houses.
+
+Each of these houses have their own set of rules that defines who does what.
+
+Each of these houses have their own set of resources that they can consume.
+
+Now let's get back to Kubernetes.
+
+These houses correspond to namespaces in Kubernetes.
+
+So far in this course, we've created objects such as pods, deployments, and services in our cluster.
+
+Whatever we have been doing, we have been doing within a namespace.
+
+We were inside a house all this while.
+
+This namespace is known as the default namespace, and it is created automatically by Kubernetes.
+
+When the cluster is first set up, Kubernetes creates a set of pods and services for its internal purpose,
+
+such as those required by the networking solution, the DNS service, etc. to isolate these from the
+
+user and to prevent you from accidentally deleting or modifying these services, Kubernetes creates
+
+them under another namespace created at cluster startup Dub named kube system.
+
+A third namespace created by Kubernetes automatically is called kube public.
+
+This is where resources that should be made available to all users are created.
+
+If your environment is small or you're learning and playing around with a small cluster, you shouldn't
+
+really have to worry about namespaces.
+
+You could continue to work in the default namespace.
+
+However, as of when you grow and use a Kubernetes cluster for enterprise or production purposes, you
+
+may want to consider the use of namespaces.
+
+You can create your own namespaces as well.
+
+For example, if you wanted to use the same cluster for both dev and production environment, but at
+
+the same time isolate the resources between them, you can create a different namespace for each of
+
+them.
+
+That way, while working in the dev environment, you don't accidentally modify resources in production.
+
+Each of these namespaces can have its own set of policies that define who can do what.
+
+You can also assign quota of resources to each of these namespaces.
+
+That way, each namespace is guaranteed a certain amount and does not use more than its allowed limit.
+
+Going back to the default namespace that we have been working on, just like how the members within
+
+a house refer to each other by their first names, the resources within a namespace can refer to each
+
+other simply by their names.
+
+In this case, the webapp pod can reach the DB service simply using the hostname db service.
+
+If required, the webapp pod can reach a service in another namespace as well.
+
+For this, you must append the name of the namespace to the name of the service.
+
+For example, for the web pod in the default namespace to connect to the database in the dev environment
+
+or namespace, use the service name dot namespace svc cluster dot local format that would be DB service,
+
+dot dev, dot svc cluster local.
+
+You're able to do this because when the service is created, a DNS entry is added automatically in this
+
+format.
+
+Looking closely at the DNS name of the service, the last part, cluster dot local, is the default
+
+domain name of the Kubernetes cluster.
+
+SVC is the subdomain for service, followed by the namespace and then the name of the service itself.
+
+Let us now look at some of the operational aspects of namespaces.
+
+Let us start with a kube control commands.
+
+For example, this command is used to list all the pods, but it only lists the pods in the default
+
+namespace.
+
+To list pods in another namespace, use the namespace option in the command along with the name of the
+
+namespace, in this case Kube system.
+
+Here I have a Pod definition file.
+
+When you create a pod using this file, the pod is created in the default namespace.
+
+To create the pod in another namespace, use the namespace option.
+
+If you want to make sure that this pod gets created in the dev environment all the time, even if you
+
+don't specify the namespace in the command line, you can move the namespace definition into the pod
+
+definition file like this.
+
+Under the metadata section, this is a good way to ensure your resources are always created in the same
+
+namespace.
+
+So how do you create a new namespace?
+
+Like any other object, use a namespace definition file.
+
+The API version is v1, kind is namespace, and under metadata specify the name.
+
+In this case, dev.
+
+Run the cube control create command to create the namespace.
+
+Another way to create a namespace is by simply running the command cube control create namespace followed
+
+by the name of the namespace.
+
+Now say we are working in three namespaces, as we discussed before.
+
+By default we are in the default namespace, which is why we can see the resources inside the default
+
+namespace using the kube control get pods command.
+
+And to view those in the dev namespace, we have to use the namespace option.
+
+But what if we want to switch to the dev namespace permanently, so that we don't have to specify the
+
+namespace option anymore?
+
+Well, in that case, use the kube control config command to set the namespace in the current context
+
+to dev.
+
+You can then simply run the kube control get pods command without the namespace option to list pods
+
+in the dev environment, but you will need to specify the option for other environments such as default
+
+or prod.
+
+Similarly, you can switch to the prod namespace the same way.
+
+Finally, to view pods in all namespaces, use the all namespaces option in the command.
+
+This will list all the pods in all of the namespaces, taking a closer look at the command.
+
+This command first identifies the current context and then sets the namespace to the desired one for
+
+that current context.
+
+Well, contexts are used to manage multiple clusters and multiple environments from the same management
+
+system.
+
+It is a totally separate topic to discuss and requires its own lecture, so we will discuss context
+
+in another lecture.
+
+To limit resources in a namespace, create a resource quota to create one.
+
+Start with a definition file for resource quota.
+
+Specify the namespace for which you want to create the quota and then under spec provide your limits
+
+such as ten pods, ten CPU units, ten GB bytes of memory, etc..
+
+Well, that's it for this lecture.
+
+Head over to the Coding exercises section and practice working with namespaces and I will see you in
+
+the next lecture.
+
+
+-: Okay, in this video we will go
+
+over the solution for the lab on name spaces.
+
+Okay, so the first question is
+
+how many name spaces exist on the system?
+
+For this, we run the kubectl get name spaces command.
+
+You could also run the kubectl get NS command.
+
+That's the short form for name spaces.
+
+Okay, so the question is
+
+to identify the number of name spaces.
+
+So you have 1, 2, 3, 4, 5, 6, 7, 8, 9, 10.
+
+So there are 10 name spaces.
+
+Okay, the next question is how many pods exist
+
+in the research name space?
+
+So to look at the pods we know that we run
+
+the kubectl get pods command.
+
+But to look into a particular name space
+
+we specify the name space option.
+
+And the name space we got to look to is research.
+
+So that's the research name space.
+
+So there are two pods.
+
+Another way to do this
+
+if you don't wanna type the full option
+
+is to just use the dash N and,
+
+that's two.
+
+Okay, so the next question is create a pod
+
+in the finance name space using the spec Q and below.
+
+So we know that to create a pod,
+
+we run the kubectl run command.
+
+Then we put the name, which happens to be Redis
+
+and the image is Redis as well.
+
+But we don't want to create it in the default name space.
+
+So if I run this command, it's going to create the pod
+
+in the default name space, but we wanna create it
+
+in the finance name space.
+
+So you've got to use the name space option
+
+and then specify finance.
+
+Okay and then we run the, yeah, the pod command,
+
+again in the finance name space to make sure
+
+that the pod is created.
+
+Yep.
+
+Okay, so the next question is,
+
+which name space has the blue pod in it?
+
+So we know that running the get NS command lists
+
+all the name spaces.
+
+And one thing we could do is just go through each name space
+
+as we did here and identify and look for that pod.
+
+Or another option is we do have a command called
+
+kubectl get pods dash, dash all name spaces.
+
+And this lists the pods in all name space.
+
+So you have the name space here and you have the pods here.
+
+And from here we can identify
+
+the blue pod and it's in the marketing name space.
+
+Another option is, instead of typing in all name spaces
+
+we just do a dash capital A.
+
+And that also gives you the same output.
+
+So blue is in the marketing name space.
+
+Okay, so the blue application is available for us to access
+
+and it can be accessed using the link and by your terminal.
+
+So let's click on that.
+
+So this is the blue application and
+
+it's a simple like web application that can be used
+
+for connectivity tests, really nothing.
+
+So let's click on, okay, and the question is
+
+what DNS name should the blue application use to
+
+access the database DB service in its own name space?
+
+So if we run the kubectl get pods command
+
+in the marketing name space
+
+we see that it has the blue application,
+
+there's a Redis DB
+
+but I believe there's also
+
+there's a service called DB service
+
+within the same name space.
+
+So how does the blue application access the DB service?
+
+So we've learned that if it's within the same name space
+
+an application can access another service,
+
+just by using its name.
+
+So we can test it in this interface.
+
+So it's DB service and the port number is 6379.
+
+So that's where it is.
+
+Let's click on test, and that's success.
+
+So you could, we could just refer
+
+to it as DB service if it's within your own name space.
+
+Now the next question is
+
+what DNS name should the blue application use to
+
+access the database DB service in the DEV name space?
+
+So there's another name space called DEV
+
+and there's a service there too.
+
+So there are two services by the name DB service.
+
+One is in the marketing and the other is
+
+in the other is in the DEV name space.
+
+So an application blue
+
+in the marketing name space can access the application
+
+or service in the DEV namespace.
+
+But for that you've got to use the full address
+
+of that service.
+
+That includes the namespace service.
+
+So that's DB service dot DEV that's the name space.
+
+And then you have SVC dot cluster dot local
+
+and we can try that here.
+
+So DEV is a name space.
+
+SVC dot cluster dot local click on test.
+
+That's correct.
+
+So let's select that.
+
+Yep, and that's the correct answer, right?
+
+That's the end of the lab.
+
+
+In this lecture, we will discuss
+
+about imperative and declarative approaches in Kubernetes.
+
+Towards the end of this lecture,
+
+we will talk about some tips
+
+that you can use in the exam.
+
+So far, we have seen different ways of creating
+
+and managing objects in Kubernetes.
+
+We created objects directly by running commands
+
+as well as using object configuration files.
+
+Now, in the Infrastructure as Code world,
+
+there are different approaches in managing
+
+the infrastructure, and they're classified into imperative
+
+and declarative approaches.
+
+Let's understand these with an analogy.
+
+Let's say you wanna visit a friend's house
+
+located at Street B.
+
+Now, in the past, you would hire a taxi
+
+and give step-by-step instructions to the driver
+
+on how to reach the destination,
+
+like take right to street B,
+
+then take left to go to street C,
+
+and then take another left, and then right to go to Street D
+
+and stop at the house.
+
+Specifying what to do
+
+and how to do more importantly, is the imperative approach.
+
+On the other hand, today when you book a cab, say
+
+through Uber, you just specify the final destination,
+
+like drive to Tom's house,
+
+and this is the declarative approach.
+
+In this case, we're not giving step-by-step instructions.
+
+Instead, we're just specifying the final destination.
+
+We're declaring the final destination,
+
+and the system figures out the right path
+
+to reach the destination.
+
+Specifying what to do,
+
+not how to do is the declarative approach.
+
+So what's that got to do with what we are learning?
+
+In the Infrastructure as Code world,
+
+an example of an imperative approach
+
+of provisioning infrastructure would be a set
+
+of instructions written step by step,
+
+such as provisioning a VM named a web server,
+
+installing the Nginx software on it,
+
+editing configuration file to use port 8080
+
+and setting the path to web files, downloading source code
+
+of repositories from Git,
+
+and finally starting the Nginx server.
+
+So here we're saying what is required
+
+and also how to get things done.
+
+In the declarative approach, we declare our requirements.
+
+For instance, all we say is that we need a VM
+
+by the name Web Server with the internet software on it,
+
+with a port set to 8080
+
+and the path to the web files defined
+
+and where the source code of the application is stored,
+
+and everything that's needed to be done
+
+to get this infrastructure in in place is done
+
+by the system or the software.
+
+You don't have to provide step-by-step instructions.
+
+Orchestration tools like Ansible, Puppet or Chef
+
+or Terraform fall into this category.
+
+In the imperative approach,
+
+what happens if the first time only half
+
+of the steps were executed?
+
+What happens if you provide the same set
+
+of instructions again to complete the remaining steps?
+
+To handle such situations,
+
+there will be many additional steps involved, such as checks
+
+to see if something already exists
+
+and taking an action based on the results of that check.
+
+For instance, while provisioning a VM,
+
+what would happen if a VM
+
+by the name Web Server already exists?
+
+The same goes with creating a database or importing data.
+
+Should it fail or should it continue
+
+since the VM is already there?
+
+What if we decide to upgrade the version of software
+
+to say Nginx 1.18 in the future?
+
+It should be as simple
+
+as updating the version of Nginx in the configuration file,
+
+and the system should take care of the rest.
+
+Ideally, the system should be intelligent enough to know
+
+what has already been done
+
+and apply the necessary changes only.
+
+That's the declarative way of doing things.
+
+In the Kubernetes world, the imperative way
+
+of managing infrastructure is using commands
+
+like the kubectl run command to create a pod,
+
+the kubectl create deployment command
+
+to create a deployment, the kubectl expose command
+
+to create a service to expose a deployment,
+
+and the kubectl edit command may be used
+
+to edit an existing object.
+
+For scaling a deployment or replica set,
+
+use the kubectl scale command,
+
+and updating the image on a deployment,
+
+we use the kubectl set image command.
+
+Now, we have also used object configuration files
+
+to manage objects
+
+such as creating an object
+
+using the kubectl create -f command with the F option
+
+to specify the object configuration file,
+
+and editing an object using the kubectl, replace command
+
+and deleting an object using the kubectl delete command.
+
+All of these are imperative approaches
+
+to managing objects in Kubernetes.
+
+We're saying exactly how to bring the infrastructure
+
+to our needs by creating, updating or deleting objects.
+
+The declarative approach would be to create a set of files
+
+that defines the expected state of the applications
+
+and services on a Kubernetes cluster,
+
+and with a single kubectl apply command,
+
+Kubernetes should be able to read the configuration files
+
+and decide by itself what needs to be done
+
+to bring the infrastructure to the expected state.
+
+So in the declarative approach,
+
+you will run the kubectl apply command for creating,
+
+updating or deleting an object.
+
+The apply command will look at the existing configuration
+
+and figure out what changes need to be made to the system.
+
+So let's look at these in a bit more detail.
+
+Now, within the imperative approach, there are two ways.
+
+The first is using imperative commands such as the run,
+
+create or expose commands to create new objects
+
+and the edit, scale and set commands
+
+to update existing objects.
+
+Now, these commands help in quickly creating
+
+or modifying objects as we don't have to deal
+
+with YAML files.
+
+And these are helpful during the certification exams.
+
+However, there are limited in functionality
+
+and will require forming long
+
+and complex commands for advanced use cases
+
+such as creating a multi-container pod or deployment.
+
+Secondly, these commands are run once and forgotten.
+
+They're only available in the session history of the user
+
+who ran these commands,
+
+so it's hard for another person to figure out
+
+how these objects were created.
+
+So it is hard to keep track of.
+
+And so it's difficult to work with these commands in large
+
+or complex environments.
+
+And that's where managing objects
+
+with object configuration files can help.
+
+Creating object definition files or configuration files
+
+or manifest files, as it's also called,
+
+can help us write down exactly what we need the object
+
+to look like in a YAML format
+
+and use the kubectl create command to create the object.
+
+We now have the YAML file with us always,
+
+and it can be saved in a code repository like Git.
+
+We can put together a change review
+
+and approval process around these files
+
+so that a change made is reviewed and approved
+
+before it is applied to a production environment.
+
+In the future, if a change is to be made, for instance,
+
+editing the image name to another version,
+
+there are different ways to go about it.
+
+One way is to use the kubectl edit command
+
+and specify the object name.
+
+So when this command is run,
+
+it opens a YAML definition file similar to the one you used
+
+to create the object,
+
+but with some additional fields such as the status fields
+
+that you see here, which are used
+
+to store the status of the pod.
+
+This is not the file you used to create the object.
+
+This is a similar pod definition file
+
+within the Kubernetes memory.
+
+You can make changes to this file and save and quit,
+
+and those changes will be applied to the live object.
+
+However, note that there is a difference
+
+between the live object
+
+and the definition file that you have locally.
+
+The change you made using the kubectl edit command
+
+is not really recorded anywhere.
+
+After the change is applied, you're only left
+
+with your local definition file,
+
+which in fact has the old image name in it.
+
+In the future, say you
+
+or a teammate decide to make a change to this object
+
+unaware that a change was made
+
+using the kubectl edit command,
+
+when the new change is applied, the previous change
+
+to the image is lost.
+
+So you can use the kubectl edit command
+
+if you are making a change
+
+and you're sure that you're not going
+
+to rely on the object configuration file in the future.
+
+A better approach to that is to first edit the local version
+
+of the object configuration file with the required changes.
+
+That is by updating image name here,
+
+and then running the kubectl replace command
+
+to update the object.
+
+This way, going forward, the changes made are recorded
+
+and can be tracked as part of the change review process.
+
+So at times you may want to completely delete
+
+and recreate objects.
+
+In such cases, you may run the same command,
+
+but with the force option like this.
+
+Now, this is still the imperative approach
+
+because you're still instructed Kubernetes how to create
+
+or update these objects.
+
+First, you run the kubectl create command
+
+to create the object, and then you run the replace command
+
+to replace the object or delete command
+
+to delete the object.
+
+And what if you run the create command
+
+if the object already exists?
+
+Well, then it would fail
+
+with an error that says the pod already exists.
+
+When you update an object, you should always make sure
+
+that the object exists first
+
+before running the replace command.
+
+If an object does not exist, the replace command fails
+
+with an error message.
+
+So the imperative approach is very taxing for you
+
+as an administrator as you must always be aware
+
+of the current configurations
+
+and perform checks to make sure that things are in place
+
+before making a change.
+
+The declarative approach is where you use
+
+the same object configuration files
+
+that we've been working on, but instead of the create
+
+or replace commands, we use the kubectl apply command
+
+to manage objects.
+
+The kubectl apply command is intelligent enough
+
+to create an object if it doesn't already exist.
+
+If there are multiple object configuration files
+
+as you would usually, then you may specify a directory
+
+as the path instead of a single file.
+
+That way, all the objects are created at once.
+
+Now, when changes are to be made,
+
+we simply update the object configuration file
+
+and run the kubectl apply command again,
+
+and this time it knows that the object exists,
+
+and so it only updates the object with the new changes.
+
+So it never really throws an error
+
+that says the object already exists
+
+or the updates cannot be applied.
+
+It'll always figure out the right approach
+
+to updating the object.
+
+So going forward, any changes made on the application,
+
+whether they're updating images
+
+or fields of existing configuration files
+
+or adding new configuration files altogether
+
+for new objects, all we do is simply update
+
+our local directory with the changes,
+
+and then the kubectl apply command take care of the rest.
+
+So we will discuss more
+
+about how the kubectl apply command works exactly
+
+in the backend in the next lecture.
+
+For now, let me give you some tips as part of the exam.
+
+So from an exam perspective,
+
+you could use the imperative approach to save time
+
+as much as possible.
+
+For example, if a question is to just create a pod
+
+or a deployment with a given image, then one
+
+of these imperative commands
+
+can help you achieve that quickly.
+
+So it's important to practice the imperative commands.
+
+If you need to edit a property of an existing object,
+
+then using the kubectl edit command
+
+may be the quickest way, right?
+
+If you have a complex requirement for, say, for example,
+
+that requires multiple containers, environment variables,
+
+commands, init containers, et cetera,
+
+then using an object configuration file
+
+to create the object would be preferred.
+
+This way, if you see that you made a mistake,
+
+you can easily update the file and apply it again,
+
+and using the kubectl apply command in that case
+
+would be a better option.
+
+So for more details on the different approaches
+
+to managing a Kubernetes cluster, get yourself familiarized
+
+with the Kubernetes documentation pages,
+
+and in the upcoming lab exercises, try
+
+to use imperative approach in solving questions.
+
+Well, I'll see you in the next lecture.
+
+
+Let us now look at kubectl explain command.
+
+So there is a lot you can learn about resources and fields without ever leaving the terminal.
+
+To list all resources you can simply run kubectl api resources command.
+
+This is especially useful when you can't find a resource on the documentation pages.
+
+So if you ever forget a resource name or its short name, or you're not sure of the underlying version
+
+of the API such as V1 or is it v1?
+
+Or if you are not sure the exact case of the resource name to be used while creating a definition file,
+
+you can use the kubectl API resource command.
+
+Once you identify the resource name from the list and you need more information about the resource fields
+
+and types under it, you can then run the kubectl explain command.
+
+Provide the resource name that you'd like to be explained in this case, using pods.
+
+Lists all top level fields in pods being the API version kind, metadata, spec and status, and you
+
+can see the type of each field.
+
+So the API version is string and also the description of what it does.
+
+But as you can see, this is not a comprehensive list of all fields and subfields.
+
+It only lists the top level items.
+
+To go deeper, run the same command but with a field to the command.
+
+And like this.
+
+So you would add dot spec to the end of the command and this would list the subfields within it.
+
+But this again lists the subproperties of parent property that you've mentioned.
+
+It's still not comprehensive.
+
+So to list all fields in the way that you would put them in a YAML file, use the recursive flag like
+
+this.
+
+It now outputs the entire comprehensive list of fields that's available on that resource.
+
+And it's very easy now to create YAML files out of this.
+
+
+-: Okay, in this video we will go
+
+over the practice test for imperative commands.
+
+So in this lab we'll get hands
+
+on practice with creating Kubernetes objects imperatively.
+
+And this is more for, more to help with your exams.
+
+So you must be very familiar with imperative commands
+
+while you're preparing for the exam.
+
+Okay, so let's, let's proceed.
+
+So the first task is to deploy a pod named NGINX pod
+
+using the NGINX Alpine image.
+
+So that we've done before, it's easy.
+
+So it is KUBECTL RUN to create a pod
+
+and the name is NGINX Pod,
+
+and the image is NGINX Alpine.
+
+So check it.
+
+Okay, That's correct.
+
+The next one, deploy a Redis pod
+
+using the Redis alpine image,
+
+with the labels set to tier db.
+
+So that's the similar task but with an additional field.
+
+So if you look at KUBECTL RUN command
+
+let's see if there's an option to specify the labels.
+
+So if you look at this, there are some examples here.
+
+This is what we just did.
+
+And here you have an option to specify the labels.
+
+So dash dash labels equals
+
+and then here's the key value pairs.
+
+And you can have multiple labels.
+
+You can specify multiple labels separated by a comma.
+
+So we're gonna use that approach.
+
+So let's run the KUBECTL RUN command.
+
+The name, the pod is Redis
+
+image is Redis Alpine
+
+and we're gonna pass on labels.
+
+And then the label is tier equals db.
+
+Okay, so that's good.
+
+So the next one is to create a service called Redis service
+
+to expose the Redis application within the cluster
+
+on board 6379.
+
+So the service name has to be Redis service.
+
+The type is cluster IP, and the port is 6379.
+
+So for this, we could run the KUBECTL CREATE
+
+service command.
+
+Let's look at the help.
+
+So if it is, what's in the cluster then it's cluster IP.
+
+So we could run the cluster IP
+
+KUBECTL CREATE SERVICE
+
+cluster IP.
+
+Let's look at the help.
+
+And then you specify the name
+
+of the service and the port here,
+
+which happens to be 6379.
+
+So one of the thing here is
+
+that we want to expose the Redis application, right?
+
+So with this command, there's no way to specify a selector.
+
+This is something that we, we discussed
+
+in this lecture, right?
+
+So if you look at this
+
+there are three ways to create a service.
+
+So this is to create a service named Redis service
+
+of cluster IP.
+
+And we could do a KUBECTL CREATE SERVICE command
+
+but then you cannot really specify the selectors, right?
+
+Or you could do a KUBECTL EXPOSE command.
+
+So ideally for most, for most use cases
+
+you could use the KUBECTL EXPOSE command and
+
+because it will automatically detect the labels
+
+and then use that as selectors for the service, right?
+
+So that's, that's the most ideal.
+
+The only time you could
+
+you should use KUBECTL CREATE SERVICE is when
+
+you need to specify a particular node port, right?
+
+So here you have an example of creating a node port service.
+
+There are two ways to do it
+
+with the EXPOSE command and the CREATE SERVICE command.
+
+But as of this recording
+
+there is no way to specify a node port in the command.
+
+So you have to export that
+
+to a YAML file and edit it for creating it.
+
+Or if you go the other approach, then there's
+
+you cannot specify the selector.
+
+So that's, that's a challenge here.
+
+So here what we are going to do is we're going
+
+to use the EXPOSE command.
+
+If you look at the help, these are some examples.
+
+So we're gonna specify, EXPOSE
+
+and the application is Redis.
+
+So we don't know if it's a pod or deployment.
+
+So let's find that out first.
+
+So it's, it's a pod.
+
+So it's a Redis pod.
+
+So we're gonna do KUBECTL EXPOSE instead of RC
+
+we're gonna do a pod or a PO.
+
+And then the name, this, I remember that this is the name
+
+of the pod and not the service that we wanna create.
+
+So the pod has to be Redis.
+
+And this should be a way to specify the name
+
+of the service, which is using name.
+
+So we're gonna use name and specify it as ready service.
+
+And then of course we also have to specify the port.
+
+And the port is this one, which is 6379.
+
+Okay?
+
+So that's, that's what we are going to do.
+
+KUBECTL EXPOSE Redis,
+
+and then we gonna'
+
+specify the port, which is 6379.
+
+You also need to specify a name that will
+
+be Redis service.
+
+Okay?
+
+I missed specifying pod.
+
+So that in, let's,
+
+let's check it out.
+
+Service Redis, so it is Redis service.
+
+So that's the Redis service.
+
+Let's see if it's got the right labels and selectors,
+
+and also the endpoint.
+
+The labels is tier equals db.
+
+So it's automatically picked that up and the endpoints
+
+indicates that it's automatically discovered the pod.
+
+So let's check.
+
+Okay, that's good.
+
+Okay, the next one is to create a deployment
+
+named web app using the image with three replicas.
+
+So we're going to do KUBECTL
+
+READ DEPLOYMENT command
+
+and the name of the deployment is web app
+
+image is, it's gonna copy and paste.
+
+And then replicas is,
+
+is three.
+
+Oops, I forgot to specify the dashes.
+
+Yep,
+
+we're going to check.
+
+Okay, so there are,
+
+there's zero of three ready?
+
+Okay, three of three ready.
+
+Okay.
+
+So the next one is to create a new pod
+
+called Custom NGINX using the NGINX image
+
+and expose it on container port 8080.
+
+So we know that to create a pod,
+
+we have to KUBECTL RUN command
+
+and the name of the pod is Custom NGINX.
+
+And then the image is NGINX and
+
+we have to expose it on container port 8080.
+
+So we're talking about specifying the port on the container.
+
+So we just use port and specify the port number.
+
+We're not really talking
+
+about exposing the port by creating a service.
+
+This is just specifying what port the container
+
+runs the service on.
+
+And you can do that with the port option.
+
+Okay, let's check our work.
+
+That's correct.
+
+Okay the next one is to create a new namespace
+
+called Dev NS.
+
+So that's pretty easy and straightforward.
+
+KUBECTL CREATE
+
+namespace Dev NS.
+
+Okay, the next one is to create a new deployment
+
+called Redis deploy in the Dev NS namespace.
+
+So we're gonna do KUBECTL CREATE DEPLOYMENT and it's
+
+the name is Redis deploy.
+
+The image is Redis,
+
+replicas has two.
+
+So you could do equals two or space two
+
+either of that work.
+
+And then the name space is Dev NS.
+
+So let's make sure that worked as expected.
+
+So we have the Redis deploy within the Dev NS namespace
+
+and it has two replicas.
+
+Let's check our work.
+
+Okay?
+
+That's correct.
+
+Okay, so the final question is to create a pod
+
+called ACTPD using the image ACTPD Alpine
+
+in the default namespace and then create a service
+
+of type cluster IP by the same name.
+
+The target port for the service should be 80.
+
+So try to do this with as few steps as possible.
+
+So there are two ways of doing this.
+
+One is you could for first do a KUBECTL RUN command
+
+and create the, the pod.
+
+And then we know
+
+that we could use the KUBECTL EXPOSE command to
+
+create a service, but we can actually combine them both
+
+in the RUN command itself.
+
+So that's done using, so let's first create a pod.
+
+So we do a KUBECTL RUN httpd,
+
+that's the name of the pod.
+
+And the image is supposed to be ACTPD Alpine.
+
+And then we have, it's the default name space
+
+so we don't have to specify the name space.
+
+And the target port is 80.
+
+And what we're asked to do is also create a service.
+
+One of the options for the wrong command,
+
+you look to help is the exposed option.
+
+So if you look at, if you look right here
+
+it has the exposed option and it's by defaults at default.
+
+So if it's such to true
+
+create a cluster IP service associated with the pod
+
+and it requires the port field.
+
+So it's automatically going to create a service
+
+with the cluster IP type
+
+and it's going to expose the pod internally.
+
+So yeah,
+
+so that's, so that's what we have to do.
+
+So we're going to, there's the same command
+
+but we're going to add the
+
+expose equals true option to the end of it.
+
+So it's, it is created a pod and a service.
+
+Let's just verify that.
+
+So we have the ACTPD pod,
+
+we have the ACTPD service
+
+and if we look at this service
+
+in more detail
+
+we see that it is got, the selector is run equal ACTPD
+
+and then it also has the end point discovered.
+
+Okay.
+
+So that's, that's correct.
+
+Right?
+
+So that's the, the end of this lab.
+
+

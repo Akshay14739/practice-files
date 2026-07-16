@@ -1,0 +1,462 @@
+In this section, we discuss about the various logging and monitoring options available.
+
+We first see how to monitor the Kubernetes cluster components as well as the applications hosted on
+
+them.
+
+We then see how to view and manage the logs for the cluster components as well as the applications.
+
+We practice what we learn through a set of fun and challenging exercises.
+
+Well, I hope you like the upcoming lectures and practice tests.
+
+So let's get started.
+
+In this lecture we talk about monitoring a Kubernetes cluster.
+
+So how do you monitor resource consumption on Kubernetes?
+
+Or more importantly, what would you like to monitor?
+
+I'd like to know node level metrics, such as the number of nodes in the cluster, how many of them
+
+are healthy, as well as performance metrics such as CPU, memory, network, and disk utilization,
+
+as well as pod level metrics such as the number of pods and the performance metrics of each pod, such
+
+as the CPU and memory consumption on them.
+
+So we need a solution that will monitor these metrics, store them, and provide analytics around this
+
+data.
+
+As of this recording, Kubernetes does not come with a full featured built in monitoring solution.
+
+However, there are a number of open source solutions available today, such as Metrics Server, Prometheus,
+
+Elastic Stack, and proprietary solutions like Datadog and Dynatrace.
+
+Hipster was one of the original projects that enabled monitoring and analysis features for Kubernetes.
+
+You will see a lot of reference online when you look for reference architectures on monitoring Kubernetes.
+
+However, hipster is now deprecated and a slimmed down version was formed, known as the Metrics Server.
+
+You can have one metric server per Kubernetes cluster.
+
+The metrics server retrieves metrics from each of the Kubernetes nodes and pods, aggregates them,
+
+and stores them in memory.
+
+Note that the metrics server is only an in-memory monitoring solution and does not store the metrics
+
+on the disk, and as a result, you cannot see historical performance data.
+
+For that, you must rely on one of the advanced monitoring solutions we talked about earlier in this
+
+lecture.
+
+So how are the metrics generated for the pods on these nodes?
+
+Kubernetes runs an agent on each node known as the Kubelet, which is responsible for receiving instructions
+
+from the Kubernetes API, master server, and running pods on the nodes.
+
+The Kubelet also contains a subcomponent known as the C advisor or Container Advisor.
+
+C advisor is responsible for retrieving performance metrics from Pods and exposing them through the
+
+Kubelet API to make the metrics available for the metrics server.
+
+If you're using minikube for your local cluster, run the command minikube add ons.
+
+Enable metrics dash server for all other environments.
+
+Deploy the metrics server by cloning the metric server deployment files from the GitHub repository,
+
+and then deploying the required components using the kube control create command.
+
+This command deploys a set of pods, services and roles to enable metrics.
+
+Server to poll for performance metrics from the nodes in the cluster.
+
+Once deployed, give the metrics server some time to collect and process data.
+
+Once processed, cluster performance can be viewed by running the command kube control top node.
+
+This provides the CPU and memory consumption of each of the nodes.
+
+As you can see, 8% of the CPU on my master node is consumed, which is about 166 milli cores.
+
+Use the kube control top pod command to view performance metrics of pods in Kubernetes.
+
+Well, that's it for this lecture.
+
+Head over to the Coding Exercises section and practice viewing performance metrics on Kubernetes cluster.
+
+Thank you.
+
+-: Okay, In this lab we get familiar
+
+with monitoring cluster components.
+
+So the first question is
+
+we have deployed a few pods running workloads
+
+so inspect them.
+
+Let's do kubectl get pods command.
+
+And we see that there are indeed three pods,
+
+elephant, lion, and rabbit,
+
+and they're all in a running state.
+
+So let's go ahead
+
+and what we need to do is monitor the resources consumed
+
+by each of these pods.
+
+And for that we need to deploy the metric server.
+
+And for this, we have a get repo with the settings
+
+for the metric server that will work for our labs.
+
+So we're just going to use that.
+
+But if you're trying this in your own environment
+
+or for a production environment,
+
+so remember do not use this for production use-cases
+
+because there are changes that are in here
+
+that are done just to make this work
+
+with this particular lab exercise
+
+and just to make it easy for us to deploy it.
+
+So do not use this for a production use-case.
+
+Always remember to refer to the official recommendation
+
+on the metric server to deploy
+
+one in your environment.
+
+So let's wait for, okay, so this is cloned.
+
+And if you look at this,
+
+you have
+
+the files here that are required
+
+to deploy the metric server.
+
+Let's go ahead. Okay.
+
+So the next step is to deploy the metric server
+
+by creating these components.
+
+So we're just going to do a kubectl create-f.,
+
+that creates all of the objects required
+
+to deploy the metric server.
+
+Okay, let's go next.
+
+And at times it might take a few minutes
+
+for the metric servers to start gathering
+
+and reporting data.
+
+And so if you do a kubectl top node, yeah,
+
+it seems to be working already.
+
+So yes, that's working now so we can proceed.
+
+Okay, the next question is to identify the node
+
+that consumes the most CPU.
+
+So here you can see two nodes
+
+and the CPU consumption of the two.
+
+So node 01 has 57 milli cores
+
+and the control plane consumes about 470 milli cores.
+
+And if you look at it
+
+the percentage is just 1%, but still
+
+you can see there's a difference between the two.
+
+And of course that's because the control plane
+
+has all the control plane components running on it.
+
+So to answer this question
+
+the most CPU consumption is by the control plane.
+
+So let's select that.
+
+The next one is to identify the node
+
+that consumes the most memory.
+
+If you look at the memory consumption here, again,
+
+we know we can see that
+
+the control plane consumes most memory.
+
+So answer to this is control plane again.
+
+The next question is to identify the pod
+
+that consumes the most memory.
+
+So the pod this time.
+
+So you can get that
+
+by running the kubectl top pod command.
+
+And here you can see the memory consumption
+
+and the CPU consumption.
+
+If you look at the memory consumption
+
+you can see that it's rabbit.
+
+Rabbit consumes the most memory.
+
+So that's the answer to this is rabbit.
+
+And the next question is to identify the pod
+
+that consumes the least CPU.
+
+So here you can see it's lion.
+
+This consumes one milli core of CPU
+
+so select lion and that should be it.
+
+So basically that's a quick introduction
+
+to deploying the metric server
+
+and also just using the commands to
+
+look at its reporting and identify basic information.
+
+All right, thank you.
+
+In this lecture we will talk about various logging mechanisms in Kubernetes.
+
+Let us start with logging in Docker.
+
+I run a Docker container called Event Simulator, and all that it does is generate random events simulating
+
+a web server.
+
+These are events streamed to the standard output by the application.
+
+Now, if I were to run the Docker container in the background in a detached mode using the dash D option,
+
+I wouldn't see the logs.
+
+If I wanted to view the logs, I could use the docker logs command followed by the container id.
+
+The dash f option helps us see the live log trail.
+
+Now back to Kubernetes.
+
+We create a pod with the same Docker image using the Pod definition file.
+
+Once the pod is running, we can view the logs using the kube control logs command.
+
+With the pod name, use the dash f option to stream the logs live, just like the docker command.
+
+Now these logs are specific to the container running inside the pod.
+
+As we learned before, Kubernetes pods can have multiple Docker containers in them.
+
+In this case, I modify my Pod definition file to include an additional container called image processor.
+
+If you run the cube control logs command now with the pod name, which containers logs would it show?
+
+If there are multiple containers within a pod, you must specify the name of the container explicitly
+
+in the command.
+
+Otherwise it would fail asking you to specify a name.
+
+In this case, I will specify the name of the first container event simulator and that prints the relevant
+
+log messages.
+
+Now that is the simple logging functionality implemented within Kubernetes.
+
+And that is all that an application developer really needs to know to get started with Kubernetes.
+
+And that is all you really need to know as part of the certification program.
+
+However, in the next lecture, we will see more about some advanced logging configuration and third
+
+party support for logging in Kubernetes.
+
+We also have a nice demo that shows how a popular logging framework is integrated with Kubernetes.
+
+Well, that's it for this lecture.
+
+Head over to the Coding Exercises section and practice working with logs.
+
+Thank you.
+
+-: Let's just now go
+
+through the lab for managing application logs.
+
+So we'll go through and review a few applications.
+
+And then how to review the logs
+
+of these applications and get useful in information.
+
+Right?
+
+So we've deployed a pod hosting an application inspected
+
+and, wait for it to start, suspect you can get pods
+
+and we see that it's running.
+
+And let's click on, okay.
+
+Now at user, user five
+
+has expressed concerns accessing the application.
+
+Identify the cause
+
+and inspect the logs.
+
+So let's take a look at the logs,
+
+of this application.
+
+And we see that there are
+
+logs here and it says
+
+user five.
+
+So user five.
+
+That's user five.
+
+And we see that the, the cause is
+
+the, the user failed to log in as the account is locked
+
+due to too many failed attempts.
+
+So it's account locked due to many failed attempts.
+
+That's the correct answer.
+
+Okay, the next one is,
+
+now have
+
+a new application deployed
+
+as web app two.
+
+And if you see a user is reporting issues
+
+while trying to purchase an item.
+
+Identify the user and the cause of the issue.
+
+Inspect the logs of the web app.
+
+So let's look at the logs.
+
+Logs again.
+
+Now it says a container name must be specified
+
+for the Paul Web app, too.
+
+So this is because if you look at this,
+
+this web application has two containers and they're ready.
+
+So if, if there are two containers
+
+you must specify which containers' logs
+
+is it that we wanna see.
+
+So there's a simple web app and there's a db.
+
+So we're looking at the
+
+web application.
+
+So, we'll just specify
+
+web app
+
+and we can see the logs.
+
+And the question is,
+
+a user is reporting issues while trying to purchase an item.
+
+So we've gotta identify the user and the cause of the issue.
+
+So if you look at this,
+
+these are all normal events, but these are warnings.
+
+So let's look at the warnings.
+
+So user five, failed to log in.
+
+That's not the issue here.
+
+This one says user thirty order order failed as the
+
+item is out of stock.
+
+So that seems to be, and that's
+
+those are the only two issues.
+
+So this, this seems to be the correct one.
+
+It's user thirty and item out of stock.
+
+Okay, So that's a quick lab
+
+for viewing logs of an application. 
+

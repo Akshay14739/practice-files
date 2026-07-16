@@ -1,0 +1,4791 @@
+-: Hello, my name is Mumshad Mannambeth and we are going
+
+through the certified Kubernetes Administrator's Course.
+
+In this section, we discuss about
+
+application life cycle management.
+
+We start at rolling updates and rollbacks,
+
+the different ways to configure
+
+applications, scale applications,
+
+before finally looking
+
+at the primitives office health healing application.
+
+We discuss a lot of these
+
+in the certified Kubernetes Application Developers Course.
+
+So if you have attended that already,
+
+some of these may be repetitive for you.
+
+If these topics seem familiar to you,
+
+skip them or simply go through the practice desk.
+
+We will start with rolling updates and rollbacks.
+
+In this lecture we will talk about updates and rollbacks in a deployment.
+
+Before we look at how we upgrade our application, let's try to understand rollouts and versioning in
+
+a deployment.
+
+When you first create a deployment it triggers a rollout.
+
+A new rollout creates a new replica set, which is recorded as a new deployment revision in the future
+
+when the application is upgraded, meaning when the container version is updated to a new one, a new
+
+rollout is triggered and a new deployment revision is created, named revision two.
+
+This helps us keep track of the changes made to our deployment, and enables us to roll back to a previous
+
+version of deployment if necessary.
+
+You can see the status of your rollout by running the command kube control rollout status, followed
+
+by the name of the deployment.
+
+To see the revisions and history of rollout, run the Kube control rollout history command followed
+
+by the deployment name, and this will show you the revisions and history of our deployment.
+
+There are two types of deployment strategies.
+
+Say for example you have five replicas of your web application instance deployed.
+
+One way to upgrade these to a newer version is to destroy all of these, and then create newer versions
+
+of application instances.
+
+Meaning first destroy the five running instances and then deploy five new instances of the new application
+
+version.
+
+The problem with this, as you can imagine, is that during the period after the older versions are
+
+down and before any newer version is up, the application is down and inaccessible to users.
+
+This strategy is known as the recreate strategy, and thankfully this is not the default deployment
+
+strategy.
+
+The second strategy is where we do not destroy all of them at once.
+
+Instead, we take down the older version and bring up a newer version one by one.
+
+This way the application never goes down and the upgrade is seamless.
+
+Remember, if you do not specify a strategy while creating the deployment, it will assume it to be
+
+rolling.
+
+Update.
+
+In other words, rolling update is the default deployment strategy.
+
+So we talked about upgrades.
+
+How exactly do you update your deployment?
+
+When I say update it could be different things, such as updating your application version by updating
+
+the version of Docker containers used, updating their labels, or updating the number of replicas,
+
+etc. since we already have a deployment definition file, it is easy for us to modify this file once
+
+we make the necessary changes.
+
+We run the kube control apply command to apply the changes.
+
+A new rollout is triggered and a new revision of the deployment is created.
+
+But there is another way to do the same thing.
+
+You could use the kube control set image command to update the image of your application.
+
+But remember, doing it this way will result in the deployment definition file having a different configuration.
+
+So you must be careful when using the same definition file to make changes in the future.
+
+The difference between the recreate and rolling update strategies can also be seen when you view the
+
+deployments in detail.
+
+From the cube control.
+
+Describe deployment command to see the detailed information regarding the deployments.
+
+You will notice when the recreate strategy was used.
+
+The events indicate that the old replica set was scaled down to zero first, and then the new replica
+
+sets scaled up to five.
+
+However, when the rolling update strategy was used, the old replica set was scaled down one at a time,
+
+simultaneously scaling up the new replica set one at a time.
+
+Let's look at how a deployment performs an upgrade under the hood when a new deployment is created,
+
+say, to deploy five replicas, it first creates a replica set automatically, which in turn creates
+
+the number of pods required to meet the number of replicas.
+
+When you upgrade your application, as we saw in the previous slide, the Kubernetes deployment object
+
+creates a new replica set under the hood and starts deploying the containers there.
+
+At the same time taking down the pods in the old replica set following a rolling update strategy.
+
+This can be seen when you try to list the replica sets using the Kube control get replica sets command.
+
+Here we see the old replica set with zero pods and the new replica set with five parts.
+
+Say for instance, once you upgrade your application, you realize something isn't very right.
+
+Something's wrong with the new version of build you used to upgrade.
+
+So you would like to roll back your update.
+
+Kubernetes deployments allow you to roll back to a previous revision To undo a change.
+
+Run the kube control rollout undo command followed by the name of the deployment.
+
+The deployment will then destroy the pods in the new replica set and bring the older ones up in the
+
+old replica set, and your application is back to its older format.
+
+When you compare the output of the cube control, get replica sets command before and after the rollback.
+
+You will be able to notice this difference before the rollback.
+
+The first replica set had zero pods and new replica set had five pods, and this is reversed after the
+
+rollback is finished.
+
+To summarize the commands real quick, use the cube control create command to create the deployment.
+
+Get deployments command to list the deployments.
+
+Apply and set image commands to update the deployments and rollout status command to see the status
+
+of rollouts and rollout.
+
+Undo command to roll back a deployment operation.
+
+-: Okay. So in this lab
+
+we're going to look at rolling updates and rollbacks.
+
+So, rolling updates mainly.
+
+So, I'm going forward and I'm going to try and use
+
+the alias K for Kubectl.
+
+So I've already set an alias
+
+K for Kubectl so I'm gonna try and use that
+
+going forward.
+
+So, we have deployed a simple web application
+
+inspected the pods and services.
+
+So, let's do,
+
+get pod.
+
+So, there seems to be a set of front end pods.
+
+Most likely there is a deployment.
+
+So, there's a front end deployment which deploys four pods.
+
+Then wait for the application to fully deploy and
+
+view the application using the link called "Back Portal".
+
+So, there is a link here you can click
+
+to view the application
+
+and it opens it up in a new window.
+
+It's called,
+
+it just says
+
+"Hello, front end"
+
+One moment.
+
+Okay, so
+
+let's look at the first or second question.
+
+So, what is the current color of the web application?
+
+So, if you look here, it is blue in color.
+
+So, it's blue.
+
+Now run the script named "cold test"
+
+to send multiple requests to the web application.
+
+So, we have world test here, so I'm gonna run that.
+
+As you can see, all it does is it pings the application
+
+and returns the color.
+
+So, the color is blue.
+
+And it just keeps running that for a few seconds.
+
+So, that's done.
+
+So, we're gonna use this script to run tests,
+
+to kind of simulate accessing the web application by
+
+either like multiple users or sending multiple requests
+
+to the web application.
+
+So, we'll use that to basically just do a small round
+
+of tests on the application.
+
+Now, inspect the deployment
+
+and identify the number of pods deployed by it.
+
+So, we just looked at that
+
+and we saw that creates four pods.
+
+So, it's four as the answer here.
+
+Now, what container image is used to deploy the application?
+
+So, let's look at the deployment
+
+in more detail
+
+and content.
+
+And here we have the pod template.
+
+We have containers image.
+
+The image is code cloud/web app color V1.
+
+So, it's this one right here.
+
+That's the image we've used to deploy the application.
+
+Now, inspect the deployment
+
+and identify the current strategy.
+
+If you look at this, we have the
+
+strategy type given here and that is rolling update.
+
+So, the ruling update is the current strategy.
+
+Now, if you were to upgrade the application now,
+
+what would happen?
+
+So, we know that the rolling update
+
+takes down one pod at a time and brings up the new pod.
+
+It does not wait, it does not take all of it down and
+
+and bring the new ones up.
+
+So, the answer here,
+
+"all ports are taken down before upgrading."
+
+No, that's not the correct one.
+
+"Pods are upgraded a few at a time."
+
+So, that's the correct one.
+
+Now, let us try that, upgrade the application
+
+by setting the image on deployment to code cloud,
+
+web app color v2.
+
+So, we're going to update the image.
+
+Now, one way to do that is you could do a Kubectle edit,
+
+and deployment,
+
+and front end,
+
+and then go here and change the image.
+
+Another way to do that
+
+is just using the Kubectle set command.
+
+So, you could do a set image,
+
+run the help to find that out.
+
+So, that's Kubectle set image.
+
+You can, set deployment, deployment name
+
+and then the container name and the image, right?
+
+So, let's try that.
+
+So, that's Kubectle set image
+
+for the deployment.
+
+The deployment name is front end and the container name,
+
+we need to find out the container name. So let's do that.
+
+Deploy, front end, the container name is
+
+simple web app.
+
+Okay, so let's do that again.
+
+Kubectle, set image, deploy,
+
+front end.
+
+Container name is simple web app
+
+=
+
+test the image.
+
+And that's updated. Let's make sure it's updated.
+
+So on the described command again
+
+and we see that the image is set to v2.
+
+Okay, success.
+
+So, let's run the curl test again and see what we're seeing.
+
+So. we are still seeing blue, but we see green occasionally.
+
+There's a lot of blue and there's some green.
+
+So, green is the new version that we have deployed.
+
+And blue is the older version.
+
+And now we have a lot of green, right?
+
+So, if you look at this, there was a lot of blue at first
+
+and then there's some green,
+
+and then there's green and blue at one point of time,
+
+then we just have green.
+
+So, that's how it's up updated the application deployment.
+
+So, that's the rolling update.
+
+Now after how many pods can be down for upgrade at a time,
+
+consider the current strategy settings.
+
+So, if you look at this, the strategy type is rolling update
+
+which we've already seen.
+
+There's rolling updates, strategy,
+
+the additional details here. So, 25% max unavailable.
+
+So, that means it's going to take down only 25%
+
+of the pods at a time
+
+before bringing the new ones up.
+
+So, you have four replicas and 25% of that is just one.
+
+So let's select one.
+
+Change the deployment strategy to recreate
+
+and delete and recreate the deployment if necessary.
+
+So let's go ahead
+
+and try and change the deployment strategy.
+
+This is a Kubectle edit,
+
+deployment,
+
+front end.
+
+And we'll just go here and
+
+we'll just change this strategy type
+
+to recreate.
+
+And the recreate does not require the rolling update
+
+parameters so we are just going to get rid of this.
+
+Okay, and let's verify.
+
+And you see the strategy type is changed to recreate.
+
+Okay. So the next one is to upgrade the application
+
+by setting the image on the deployment to v3.
+
+So, currently we have v2,
+
+and we've got to change it to v3.
+
+And let's use the same command,
+
+the Kubectle set image deploy command.
+
+And we must change this to 3.
+
+Okay, so that's updated.
+
+And next, let's run the code test again.
+
+And when we run this time, unlike the previous time,
+
+we see a lot of failures, so some of the requests
+
+are failing.
+
+And this is because
+
+it took down some of the pods
+
+as part of the upgrade because we are doing a recreate.
+
+So let's just give it some time.
+
+If you look at the application here,
+
+it says bad gateway.
+
+Okay, and now you can see it's started to respond.
+
+We have the red colors coming up and when we refresh this
+
+you see we have application v3
+
+and the red colors are coming up.
+
+Okay, so that's the end of this lab.
+
+Configure Applications
+Configuring applications comprises of understanding the following concepts:
+
+Configuring Command and Arguments on applications
+
+Configuring Environment Variables
+
+Configuring Secrets
+
+We will see these next
+
+In this section we will talk about commands and arguments in a Pod definition file.
+
+This is not listed as a required topic in the certification curriculum, but I think it's important
+
+to explain as it is a topic that is usually overlooked.
+
+Let's first refresh our memory on commands in containers and Docker.
+
+We will then translate this into pods in the next lecture.
+
+In this lecture we will look at commands, arguments and entry points in Docker.
+
+Let's start with a simple scenario.
+
+Say you were to run a Docker container from an ubuntu image.
+
+When you run the docker run ubuntu command, it runs an instance of ubuntu image and exits immediately.
+
+If you were to list the running containers, you wouldn't see the container running.
+
+If you list all containers, including those that are stopped, you will see that the new container
+
+you ran is in an excited state.
+
+Now why is that?
+
+Unlike virtual machines, containers are not meant to host an operating system.
+
+Containers are meant to run a specific task or process, such as to host an instance of a web server
+
+or application server, or a database, or simply to carry out some kind of computation or analysis.
+
+Once the task is complete, the container exits.
+
+A container only lives as long as the process inside it is alive.
+
+If the web service inside the container is stopped or crashes, the container exits.
+
+So who defines what process is run within the container?
+
+If you look at the Docker file for popular Docker images like nginx, you will see an instruction called
+
+cmd, which stands for command that defines the program that will be run within the container when it
+
+starts.
+
+For the nginx image, it is the nginx command.
+
+For the MySQL image it is the MySQL command.
+
+What we tried to do earlier was to run a container with a plain ubuntu operating system.
+
+Let us look at the docker file for this image.
+
+You will see that it uses bash as the default command.
+
+Now bash is not really a process like a web server or database server.
+
+It is a shell that listens for inputs from a terminal.
+
+If it cannot find a terminal, it exits.
+
+When we run the ubuntu container earlier, Docker created a container from the ubuntu image and launched
+
+the bash program.
+
+By default, Docker does not attach a terminal to a container when it is run.
+
+And so the bash program does not find the terminal and so it exits.
+
+Since the process that was started when the container was created finished the container exits as well.
+
+So how do you specify a different command to start the container?
+
+One option is to append a command to the docker run command.
+
+And that way it overrides the default command specified within the image.
+
+In this case, I run the docker run ubuntu command with the sleep five command as the added option.
+
+This way when the container starts, it runs the sleep program, waits for five seconds and then exits.
+
+But how do you make that change permanent?
+
+Say you want the image to always run the sleep command when it starts.
+
+You would then create your own image from the base ubuntu image and specify a new command.
+
+There are different ways of specifying the command, either the command simply as is in a shell form,
+
+or in a JSON array format like this.
+
+But remember, when you specify in a JSON array format, the first element in the array should be the
+
+executable.
+
+In this case, the sleep program do not specify the command and parameters together like this.
+
+The command and its parameters should be separate elements in the list.
+
+So I now build my new image using the docker build command and name it as Ubuntu Sleeper.
+
+I could now simply run the Docker ubuntu sleeper command and get the same results.
+
+It always sleeps for five seconds and exits.
+
+But what if I wish to change the number of seconds it sleeps?
+
+Currently it is hard coded to five seconds.
+
+As we learned before, one option is to run the docker run command with the new command appended to
+
+it.
+
+In this case, sleep ten.
+
+And so the command that will be run at startup will be sleep ten.
+
+But it doesn't look very good.
+
+The name of the image, ubuntu Sleeper in itself implies that the container will sleep.
+
+So we shouldn't have to specify the sleep command again.
+
+Instead, we would like it to be something like this.
+
+Docker run ubuntu sleeper ten.
+
+We only want to pass in the number of seconds the container should sleep, and sleep command should
+
+be invoked automatically.
+
+And that is where the entry point instruction comes into play.
+
+Entry point defines the executable command.
+
+CMD provides default args as in.
+
+You can specify the program that will be run when the container starts, and whatever you specify on
+
+the command line.
+
+In this case, ten will get appended to the entry point.
+
+So the command that will be run when the container starts is sleep ten.
+
+So that's the difference between the two.
+
+In case of the CMD instruction the command line parameters passed will get replaced entirely, whereas
+
+in case of entrypoint the command line parameters will get appended.
+
+Now in the second case, what if I run the ubuntu sleeper image command without appending the number
+
+of seconds?
+
+Then the command at startup will be just sleep and you get the error that the operand is missing.
+
+So how do you configure a default value for the command if one was not specified in the command line.
+
+That's where you would use both entrypoint as well as the command instruction.
+
+In this case, the command instruction will be appended to the Entrypoint instruction.
+
+So at startup the command would be sleep five if you didn't specify any parameters in the command line.
+
+If you did then that will override the command instruction.
+
+And remember for this to happen, you should always specify the entry point and command instructions
+
+in a JSON format.
+
+Finally, what if you really, really want to modify the entry point during runtime, say from sleep
+
+to an imaginary sleep 2.0 command?
+
+Well, in that case, you can override it by using the Entrypoint option in the docker run command.
+
+The final command at startup would then be sleep 2.0 ten.
+
+Well, that's it for this lecture and I will see you in the next.
+
+In this lecture we will look at commands and arguments in a Kubernetes pod.
+
+In the previous lecture, we created a simple Docker image that sleeps for a given number of seconds.
+
+We named it Ubuntu Sleeper and we ran it using the docker command Docker run ubuntu sleeper.
+
+By default it sleeps for five seconds, but you can override it by passing a command line argument.
+
+We will now create a pod using this image.
+
+We start with a blank pod definition template, input the name of the pod and specify the image name.
+
+When this pod is created, it creates a container from the specified image and the container sleeps
+
+for five seconds before exiting.
+
+Now, if you need the container to sleep for 10s as in the second command, how do you specify the additional
+
+argument in the pod definition file?
+
+Anything that is appended to the docker run command will go into the args property of the pod definition
+
+file in the form of an array like this.
+
+Let us try to relate that to the docker file we created earlier.
+
+The docker file has an entry point as well as a cmd instructions Specified, the entry point is the
+
+command that is run at startup, and the cmd is the default parameter passed to the command with the
+
+args option in the Pod definition file.
+
+We override the cmd instruction in the docker file.
+
+But what if you need to override the entry point, say from sleep to an imaginary sleep 2.0 command?
+
+In the Docker world, we would run the docker run command with the entry point option set to the new
+
+command.
+
+The corresponding entry in the pod definition file would be using a command field.
+
+The command field corresponds to entry point instruction in the docker file.
+
+So to summarize, there are two fields that correspond to two instructions in the docker file.
+
+The command field overrides the entry point instruction, and the args field overrides the command instruction
+
+in the docker file.
+
+Remember, it is not the command field that overrides the cmd instruction in the docker file.
+
+Well, that's it about commands and arguments in Kubernetes.
+
+Head over to the Coding exercises section and practice viewing, configuring and troubleshooting commands
+
+and arguments in Kubernetes.
+
+-: Okay, in this video we're gonna go over
+
+the lab on commands and arguments.
+
+So let's start.
+
+So the first question is, how many pods exist on the system?
+
+So let's check the number of pods,
+
+and there's just one pod.
+
+The second question is
+
+what is the command used to run the pod?
+
+Now ubuntu-sleeper,
+
+though we're going to look at the pod
+
+in detail, and we'll see under the containers
+
+we have the ubuntu container,
+
+and here we have the command,
+
+which is sleep 4800.
+
+And I do not see any arguments
+
+so that's the command.
+
+So it's sleep 4800,
+
+that's the command that's run by this pod.
+
+So there's one right here.
+
+Okay, so the next one is to create a pod
+
+with the ubuntu image, to run a container to sleep
+
+for 5000 seconds,
+
+modify the file ubuntu-sleeper-2.
+
+So there's already a file given
+
+called ubuntu-sleeper 2.
+
+It says simple part definition file,
+
+you have containers, the name and image,
+
+and we want to
+
+set it to run sleep for 5000 seconds.
+
+So let's modify this file,
+
+and set a command,
+
+and it has to be to sleep for 5000 seconds, right?
+
+Sleep 5000.
+
+Now remember that when you specify command,
+
+the command is always an array, right.
+
+So it has to be in an array format like this.
+
+So that's the first thing.
+
+So this is, that's one way of specifying an array.
+
+And the other way is
+
+to just have it like this,
+
+this form of an array.
+
+So sleep,
+
+and then 5000.
+
+So something like this, right?
+
+So these are two forms.
+
+You may follow any of them.
+
+And this one right here,
+
+this is still not in the correct form
+
+because if you look at this,
+
+this is an array of a single item.
+
+So this array only has one item,
+
+and that's called sleep 5000.
+
+It's a single kind of item in the area.
+
+Whereas here, it's two separate.
+
+Now, one of the things to remember is
+
+when you're specifying a command,
+
+a command always have to have the command as the first item.
+
+And that's basically, if you look at this, right,
+
+sleep is the command, and 5000 is the argument.
+
+So this has to be,
+
+sleep has to be
+
+a separate string,
+
+a separate item in the array like this.
+
+And the argument, you could specify the argument
+
+either in the same command as another item,
+
+or you could provide it as as an argument.
+
+So that's, those are two other options.
+
+So let's get rid of this.
+
+Let's go with this.
+
+So this is one approach.
+
+The other is to specify arguments as args,
+
+and provide the argument here and get rid of it here.
+
+So this is,
+
+this is more,
+
+readable and straightforward.
+
+So this way we know that
+
+the command is sleep and the argument is 5000.
+
+But even if you give the argument as a second array
+
+it's ultimately going to combine them both
+
+for running so that works too.
+
+So that's...
+
+That's that.
+
+So let's go ahead and create
+
+that file.
+
+Let's make sure
+
+pod enter sleep 2.
+
+Okay, and here we see
+
+that is in a running state
+
+and you have the command and argument as 5000.
+
+So let's give it a shot.
+
+Okay, so that works.
+
+As I said, it could also be just the command
+
+as two elements in the area with sleep 5000 like this.
+
+Okay, let's proceed.
+
+The next task is to create a pod using the file
+
+named ubuntu-sleeper-3.yaml.
+
+There's another file.
+
+Okay, and there's something wrong with it,
+
+so try and fix it.
+
+So taking a quick look, I don't see anything wrong with it.
+
+So you have the image, you have the name,
+
+you have the command and the argument
+
+which is, also given as a command,
+
+which is,
+
+which is actually okay.
+
+So let's try and create this
+
+this pod.
+
+And we see that it's a come back as a bad request.
+
+And it says, "Cannot unmarshal number into
+
+Go struct field containers,
+
+spec containers command of type string."
+
+So all the elements in the command must be a string,
+
+you cannot have a number.
+
+So this exercise was just to
+
+kind of
+
+make sure you know that
+
+you don't accidentally put in a number instead of a string.
+
+So let's create that.
+
+Okay, that should be good.
+
+Okay, So the next question is to update
+
+the pod ubuntu-sleeper-3 to sleep for 2000 seconds.
+
+So we have, let's try, you could pedal edit pod,
+
+and it's ubuntu-sleeper-3.
+
+And let's see what happens if we just try to edit it, right?
+
+So we're going to just change the command
+
+to 2000 seconds.
+
+Let's try and save that.
+
+If you see this, it did not go through,
+
+and it says that this is forbidden
+
+so pod updates may not change the fields other than these,
+
+so the image and active deadline.
+
+Again, so there are some,
+
+some properties that you can change,
+
+and there are some that you can't change.
+
+So this here, right here
+
+is a property that you cannot just directly edit.
+
+So what we'll have to do is go out of it,
+
+it's already created a file here with our edits,
+
+so we can look at that.
+
+It has a lot of other information
+
+which can be ignored, but you can see that it has the edit.
+
+So we could just do a kubectl replace,
+
+place, and force,
+
+and provide that file name.
+
+So this is one approach that you can use.
+
+And what it's gonna do is it's going to delete the pod
+
+then recreate the new pod based on the edited one.
+
+So this is one of the approach
+
+you can use in the exam, if you have to edit something
+
+that's not actually editable directly,
+
+or you could edit the pod itself,
+
+the pod definition that you have locally and update that.
+
+And that's also, that's the best practice.
+
+It's taking a while for the port to be terminated.
+
+And as is mentioned before
+
+and that's completely okay, that's unexpected behavior.
+
+So when we try to delete a pod,
+
+a kill signal is sent to the process that's running
+
+in the container inside the pod.
+
+And it depends on the process
+
+and how much time it takes to handle the kill signal
+
+and fully terminate the process.
+
+So that's, that delay's expected.
+
+Okay, so it's now updated.
+
+Let's check the work.
+
+Okay, so the next question is
+
+to inspect a Dockerfile
+
+under root
+
+by the color
+
+Dockerfile
+
+and what command is run at the container startup.
+
+So if you were to create an image
+
+from this Dockerfile and run it,
+
+what would be the command that's run at startup?
+
+So we know that entry point is
+
+is where is the command that's gonna be run,
+
+so it's gonna be python app.py,
+
+that's the command that would be run as startup.
+
+So that's pretty straightforward.
+
+Now let's look at Dockerfile 2.
+
+And now you have entry point and the command argument.
+
+Now we know that this in Docker, you have both of these.
+
+And in this case what command is run
+
+at the continuous startup.
+
+So you have python app.py,
+
+we know that that's the entry point,
+
+and these are gonna be going
+
+in as arguments for the entry point.
+
+So it's gonna be python app.py followed by color red.
+
+So python app.py and followed by color red.
+
+Okay, the next one is to inspect the two files
+
+under directory webapp-color-2.
+
+So there's a directory called webapp-color-2
+
+and there are two files.
+
+First one is the Dockerfile,
+
+and this is a
+
+a similar file which has an entry point and,
+
+and the CMD parameter.
+
+And then we also have...
+
+a web.
+
+We also have a Kubernetes manifest file for pod.
+
+And which uses this Dockerfile,
+
+the image created from this Dockerfile,
+
+so that's what it says here.
+
+Assume the image was created from the Dockerfile.
+
+So first we create an image from this
+
+and then we use that image here.
+
+And when we do that
+
+here we are overriding the command with color green.
+
+So what would be the end result?
+
+So as we learned from the lecture
+
+the command always overrides the entry point.
+
+And if we had arguments
+
+then that would override this command here.
+
+So in this case, the command overrides the entry point,
+
+so that's gonna be color green.
+
+That's, the command I would start with.
+
+So it's not going to be any of this,
+
+it's actually going to be this.
+
+It's not even going to run the app.py.
+
+Okay, and the next question is
+
+to explore the files under another directory.
+
+So let's go to
+
+webapp-color-3.
+
+There are two files there.
+
+So we have webapp-color-3
+
+followed by
+
+Dockerfile-2 so that's a similar Dockerfile.
+
+And then there's,
+
+there's a bug definition file as well.
+
+So again, it's the same kind of question.
+
+You have an entry point and the command here.
+
+Then you have command and arguments here.
+
+So as we know, this is,
+
+both of these are gonna override both of these,
+
+so is the ultimate command that's gonna be run
+
+is python app.py followed by the color pink.
+
+So python app.py followed by the color pink.
+
+Okay, so the final question is to create a part
+
+with the given specifications.
+
+These, by default, it displays a blue background
+
+and set the given command line arguments
+
+to change it to green.
+
+Okay, so when we run this command,
+
+so let's first start with the command to create a pod.
+
+So we're gonna do a kubectl run
+
+and then followed by the pod name, which is webapp-green
+
+and then followed by the image,
+
+which is the code cloud webapp color image.
+
+And then you have the command line arguments
+
+that we need to pass, which are color green.
+
+Now, what it says is by default, it runs,
+
+it actually runs, it displays a blue background,
+
+but we want,
+
+that's the behavior of this particular image.
+
+We want it to,
+
+to run in the green color,
+
+and that's,
+
+that can be done by passing in this additional argument.
+
+So all we need to do is kind of create this
+
+and then pass in an additional argument.
+
+And one way to do that is we can create a manifest file.
+
+So we could do a dry-run=client
+
+and then output
+
+this to AMO format.
+
+Sorry, clicked that wrong.
+
+Okay, and then we can go in
+
+and add the args section here.
+
+So that's one way to do it, but something like this,
+
+we should be able to do it
+
+in a much easier, more straightforward way.
+
+So let me explain how that is.
+
+So for example, in general
+
+if I had this application locally I would run python app.py
+
+or if there's an executable cob:web app
+
+I would actually run web app, something like this.
+
+And then if changing the color is an option
+
+then it would be as easy
+
+as just specifying the color to be green, right?
+
+So the same way
+
+running this application
+
+on Kubernetes has to be as easy as that.
+
+So basically all you should be able to do
+
+is keep kubectl run and then whatever is the name
+
+of whatever that it is, the name of that application,
+
+so web app followed by, you know, the image name and stuff.
+
+And also it should be as easy to customize it
+
+by just passing in the color and color like this.
+
+So once this, once this application is containerized
+
+and a Docker image is built out of it
+
+it should be as easy as something like this, right?
+
+So there's, there is an option for that.
+
+If you look at the help of the kubectl run command
+
+you'll see that
+
+out of all of these options
+
+there's a section here where you can pass
+
+in additional arguments, right?
+
+So here it says
+
+I run the Nginx port, but use custom arguments.
+
+So here you have the name, the image
+
+but then you have this double dash
+
+and then you have all the arguments, right?
+
+So there are arguments, if you look at this command
+
+there are arguments that are specific for,
+
+for the kubectl utility.
+
+So you have image which is specifically
+
+for the kubectl utility
+
+and there may be many other arguments
+
+such as all of these dry run labels.
+
+All of these are for the kubectl utility,
+
+but then the application that runs inside Nginx
+
+or the simple web app that we are running
+
+that also has options that are very similar to this.
+
+So in order to differentiate between the options
+
+for kubectl and the options
+
+for the application that's running within the container
+
+and to specify those, all of those on the same command line
+
+you have this double dash option.
+
+So this basically separates the options
+
+for the kubectl utility
+
+and the options that are going to go through
+
+to the Nginx application running inside, right?
+
+So anything that's before this are specifically options
+
+for the kubectl utility.
+
+And anything that goes in after this
+
+which may also look very much like these,
+
+they are going to be passed through
+
+to the Nginx application that's running inside, right?
+
+So that's, that's the reason why you have this double dash.
+
+So if you just use the double dash
+
+and then pass in anything, all of these are gonna be options
+
+for the application running inside.
+
+And then if you want to override the command itself,
+
+not just the arguments, but the command itself
+
+then you could use the dash dash command option.
+
+And again, remember that's before, but if you do that
+
+then you can also provide a command
+
+and a set of arguments after it, right?
+
+So that's why you have this double dash.
+
+So let's, let's try and use that approach for this, right?
+
+So let's do a kubectl run
+
+followed by webapp-green
+
+and the image is,
+
+this, okay?
+
+And now we want to pass in the arguments
+
+and the arguments are just color green.
+
+So we're going to put the double dash in.
+
+And now anything I specify now is gonna be
+
+an option that won't be considered by kubectl
+
+but it'll be considered by this,
+
+this process running inside.
+
+So I'm gonna say color and I'm gonna say green, right.
+
+So these are gonna be passed through.
+
+And if I want to, let's say,
+
+so this is gonna be basically
+
+generate the command called python then app.py
+
+followed by color and green.
+
+But if I want to update python 5000 itself,
+
+then I could pass in this command option
+
+and then pass in the command here,
+
+like python, let's say app 2.py or something like that.
+
+In this case we don't, we're not going to do that.
+
+So I'm going to remove that
+
+and just pass this through.
+
+Okay, so let's create it, let's check it out.
+
+If you look at this, you have args color green
+
+and the command is already built
+
+into the web app as, as the entry point, right?
+
+So we're not going to touch that.
+
+Here we, we have just passed through the,
+
+the green color.
+
+Okay, let's check our work.
+
+Alright, so that's, that's about it.
+
+I hope that was informational
+
+and I'll see you in the next one.
+
+In this lecture we will see how to set an environment variable in Kubernetes.
+
+Given a Pod definition file which uses the same image as the docker command, we ran in the last lecture
+
+to set an environment variable, use the env property.
+
+Env is an array, so every item under the env property starts with a dash indicating an item in the
+
+array.
+
+Each item has a name and a value property.
+
+The name is the name of the environment variable made available with the container, and the value is
+
+its value.
+
+What we just saw was a direct way of specifying the environment variables using a plain key value pair
+
+format.
+
+However, there are other ways of setting the environment variables, such as using configmaps and secrets.
+
+The difference in this case is that instead of specifying value, we say value from and then a specification
+
+of configmap or secret.
+
+We will discuss about Configmaps and secret keys in the upcoming lectures.
+
+That's it for this lecture and I will see you in the next.
+
+In this lecture we will discuss how to work with configuration data in Kubernetes.
+
+In the previous lecture we saw how to define environment variables in a Pod definition file.
+
+When you have a lot of Pod definition files, it will become difficult to manage the environment data
+
+stored within the various files.
+
+We can take this information out of the Pod definition file and manage it centrally using configuration
+
+maps.
+
+Config maps are used to pass configuration data in the form of key value pairs in Kubernetes.
+
+When a pod is created, inject the configmap into the pod so the key value pairs are available as environment
+
+variables for the application hosted inside the container in the pod.
+
+There are two phases involved in configuring Configmaps.
+
+First, create the Configmap and second, inject them into the pod just like any other Kubernetes object.
+
+There are two ways of creating a Configmap.
+
+The imperative way without using a config map definition file and the declarative way by using a config
+
+map definition file.
+
+If you do not wish to create a config map definition file, you could simply use the cube control create
+
+config map command and specify the required arguments.
+
+Let's take a look at that first.
+
+With this method, you can directly specify the key value pairs in the command line to create a config
+
+map of the given values.
+
+Run the cube control.
+
+Create config map command.
+
+The command is followed by the config name and the option from literal.
+
+The firm literal option is used to specify the key value pairs in the command itself.
+
+In this example, we are creating a config map by the name appconfig with a key value pair of app color
+
+equals blue.
+
+If you wish to add additional key value pairs, simply specify the from literal options multiple times.
+
+However, this will get complicated when you have too many configuration items.
+
+Another way to input configuration data is through a file.
+
+Use the from file option to specify a path to the file that contains the required data.
+
+The data from this file is read and stored under the name of the file.
+
+Let us now look at the declarative approach for this.
+
+We create a definition file just like how we did for the pod.
+
+The file has an API version kind metadata instead of spec.
+
+Here we have data.
+
+The API version is v1.
+
+The kind is configmap.
+
+Under metadata we specify a name for the Configmap.
+
+We will call it App.config under data and the configuration data in a key value format.
+
+Run the cube control, create command and specify the configuration file name.
+
+So that creates the App.config Configmap map with the values we specify.
+
+You can create as many config maps as you need in the same way for various different purposes.
+
+Here I have one of my application, other for MySQL and another one for redes.
+
+So it is important to name the config maps appropriately as you will be using these names later while
+
+associating it with pods.
+
+To view config maps, run the kube control.
+
+Get Configmaps command.
+
+This lists the newly created config map named Appconfig.
+
+The describe configmaps command lists the configuration data as well under the data section.
+
+Now that we have the config map created, let us proceed with step two.
+
+Configuring it with a pod.
+
+Here I have a simple pod definition file that runs my simple web application.
+
+To inject an environment variable, add a new property to the container called env from the env from
+
+property is a list so we can pass as many environment variables as required.
+
+Each item in the list corresponds to a config map item.
+
+Specify the name of the config map we created earlier.
+
+This is how we inject a specific config map from the ones we created before creating the pod definition
+
+file.
+
+Now creates a web application with a blue background.
+
+What we just saw was using config maps to inject environment variables.
+
+There are other ways to inject configuration data into pods.
+
+You can inject it as a single environment variable, or you can inject the whole data as files in a
+
+volume.
+
+We will look at some of these options in the coding exercises that accompany this lecture.
+
+So head over to the coding exercises section and practice viewing, configuring and troubleshooting
+
+environment variables on a live Kubernetes environment.
+
+ Okay, let's go over the lab for environment variables.
+
+So the first question is how many pods exist on the system?
+
+You see that there's just one pod.
+
+Now, what is the environment variable name set
+
+on the container in the pod?
+
+So let's take a closer look at the pod.
+
+Okay? And here we see the environment variable
+
+is defined here, and it's app color is set to pink.
+
+So it's app underscore color.
+
+Now what is the value set
+
+on the environment variable app color.
+
+It is pink.
+
+Now view the web application UI
+
+by clicking on the web app color pink here.
+
+So clicking on this opens
+
+up the web application and it is indeed pink in color.
+
+Now, update the environment variable
+
+on the pod to display a green background
+
+and delete and recreate the pod required.
+
+So we are going to
+
+do a kubectl edit
+
+pod
+
+and web app color
+
+pod.
+
+Now we know that it may not allow us
+
+of course it's not gonna allow us to edit this on the pod
+
+but we don't really care
+
+because we just need the edited or updated manifest file
+
+that we can then use to replace the pod.
+
+So I'm just going to set it to green here and try and save
+
+but it's going to come back saying it's forbidden
+
+which is fine.
+
+Just going to exit out of that.
+
+But here we have the file
+
+which has our edits.
+
+If you look at it, you have the value green here.
+
+So let's use that to replace
+
+with force
+
+to kill the existing pod
+
+and let's run that and wait
+
+for that pod to be deleted
+
+and the new pod to be created.
+
+Okay.
+
+Let's check the work.
+
+That's done.
+
+Let's click on the link here and we see that it is green.
+
+Let's proceed.
+
+Okay, so the next question is about config maps.
+
+So how many config maps exist in the default name space?
+
+So
+
+I'm gonna do a kubectl get config map
+
+and we see that there are two.
+
+Okay, the next question is to identify the database host
+
+from the config map TB config.
+
+So we're gonna do a kubectl describe
+
+and use the short form for config map, which is cm.
+
+And then DB config is the name of the config map.
+
+So here you can see information that's in the config map.
+
+So you have the DB host, the DB name, DB port
+
+and what we are asked here is to identify the DB host
+
+which happens to be SQL zero one dot example dot com.
+
+So let's select that.
+
+Now, create a new config map
+
+for the web app color pod and using the spec below.
+
+So we now have to create a new config map.
+
+So we're gonna do a kubectl create config map.
+
+Let's take a look at the help.
+
+And here is the syntax.
+
+I'm just showing these help commands.
+
+So you could use, you could follow the same approach
+
+in your exams
+
+to get the commands easily.
+
+So here we're given the data
+
+which is app color equals dark blue.
+
+This is what needs to go within the config map.
+
+And so we don't want the the from file option.
+
+What we want is the from literal option.
+
+So something like this, we can use that command
+
+and it is going to replace the name
+
+with web app config map.
+
+And this is going to be
+
+color equals dark blue.
+
+Let's verify.
+
+Okay, so the config map is created
+
+and you have the data app app color
+
+and it's set to dark blue.
+
+Let's proceed.
+
+Now, update the environment variable
+
+on the pod to use the newly created config map.
+
+So now we've got to go and update the pod.
+
+So we have to do kubectl edit pod
+
+web app color
+
+and here we have the environment variable.
+
+So currently the environment variable is set directly
+
+as name and value here.
+
+But what we want to do is we want to get rid
+
+of this and we want to
+
+we want to get the environment variables from config map.
+
+So we have to use the ENV from syntax.
+
+So if you're not sure how that works
+
+We go to Kubernetes documentation
+
+and look at config map
+
+and look at examples.
+
+So here you have configure a pod to use a config map.
+
+So this is basically what we want.
+
+So here you have a config map creation steps.
+
+What we want to do is find out
+
+how to use config maps as environment variables
+
+using config map data
+
+something like this.
+
+So you have, so you could either do this format
+
+where you have specify environment variable, each one
+
+and then you use a value from
+
+and then specify the config map.
+
+Or we could fit
+
+in an entire config map itself using the ENV from.
+
+So that's what we're going to choose here.
+
+So something like this.
+
+So we need ENV from, and then
+
+config map ref.
+
+So we're gonna copy that.
+
+And here we're going to get rid of this.
+
+Place that here.
+
+And this should be
+
+web app config app.
+
+Okay, let's go ahead and try and save that.
+
+It's not gonna work.
+
+So we're just going to exit
+
+from that and we'll use this file
+
+to recreate.
+
+We're gonna force replace and then pass in the file.
+
+Let's wait for the part to be deleted and recreated.
+
+Okay, so that's done.
+
+Let's verify that it's done correctly.
+
+Okay, so here we see the containers, the web app color
+
+and we have the environment variables
+
+from the config map configured here.
+
+So let's go ahead and check our work.
+
+That's correct.
+
+And let's verify that it is dark blue.
+
+Yep. So the web app has now changed its color to dark blue.
+
+Okay, So that's the end of this lab.
+
+Welcome to this lecture on secrets in Kubernetes.
+
+Here we have a simple Python web application that connects to a MySQL database.
+
+On success, the application displays a successful message.
+
+If you look closely into the code, you will see the host name, username and password hardcoded.
+
+This is of course not a good idea.
+
+As we learned in the previous lecture, one option would be to move these values into a config map.
+
+The config map stores the configuration data in plain text format.
+
+So while it would be okay to move the host name and username into a config map, it is definitely not
+
+the right place to store a password.
+
+This is where secrets come in.
+
+Secrets are used to store sensitive information like passwords or keys.
+
+They are similar to config maps, except that they are stored in an encoded or hashed format.
+
+As with config maps.
+
+There are two steps involved in working with secrets.
+
+First, create the secret and second, inject it into pod.
+
+There are two ways of creating a secret.
+
+The imperative way without using a secret definition file and the declarative way.
+
+By using a secret definition file with the imperative method, you can directly specify the key value
+
+pairs in the command line itself to create a secret of the given values.
+
+Run the cube control.
+
+Create secret generic command.
+
+The command is followed by the secret name and the option from literal.
+
+The from literal option is used to specify the key value pairs in the command itself.
+
+In this example, we are creating a secret by the name app secret with a key value pair db underscore
+
+host equals MySQL.
+
+If you wish to add additional key value pairs, simply specify the from literal options multiple times.
+
+However, this could get complicated when you have too many secrets to pass in.
+
+Another way to input the secret data is through a file.
+
+Use the from file option to specify a path to the file that contains the required data.
+
+The data from this file is read and stored under the name of the file.
+
+Let us now look at the declarative approach.
+
+For this we create a definition file just like how we did for the config map.
+
+The file has API version kind metadata and data.
+
+The API version is v1.
+
+Kind is secret.
+
+Under metadata specify the name of the secret.
+
+We will call it app secret under data.
+
+Add the secret data in a key value format.
+
+However, one thing we discussed about secrets was that they are used to store sensitive data and are
+
+stored in an encoded format.
+
+Here we have specified the data in plain text, which is not very safe.
+
+So while creating a secret with a declarative approach, you must specify the secret values in a hashed
+
+format.
+
+So you must specify the data in an encoded form like this.
+
+But how do you convert the data from plain text to an encoded format on a Linux host?
+
+Run the command echo n followed by the text you're trying to convert, which is MySQL in this case,
+
+and pipe that to the base64 utility.
+
+To view secrets.
+
+Run the kube control.
+
+Get secrets command.
+
+This lists the newly created secret along with another secret previously created by Kubernetes for its
+
+internal purposes.
+
+To view more information on the newly created secret, run the Kube control describe secret command.
+
+This shows the attributes in the secret, but hides the value themselves.
+
+To view the values as well.
+
+Run the Kube control.
+
+Get secret command with the output displayed in YAML format using the O option.
+
+You can now see the hashed values as well.
+
+Now how do you decode these hashed values?
+
+Use the same base64 command used earlier to encode it, but this time add a decode option to it.
+
+Now that we have secret created, let us proceed with step two.
+
+Configuring it with a pod.
+
+Here I have a simple pod definition file that runs my application to inject an environment variable.
+
+Add a new property to the container called env from the env from property is a list so we can pass as
+
+many environment variables as required.
+
+Each item in the list corresponds to a secret item.
+
+Specify the name of the secret we created earlier.
+
+Creating the pod definition file now makes the data in the secret available as environment variables
+
+for the application.
+
+What we just saw was injecting secrets as environment variables into the pods.
+
+There are other ways to inject secrets into pods.
+
+You can inject as single environment variables or inject the whole secret as files in a volume.
+
+If you were to mount the secret as a volume in the pod, each attribute in the secret is created as
+
+a file with the value of the secret as its content.
+
+In this case, since we have three attributes in our secret, three files are created, and if we look
+
+at the contents of the dbpassword file, we see the password in it.
+
+That's it for this lecture.
+
+Head over to the coding exercises and practice working with secrets
+
+hey everyone it's Sanji from code cloud and today we are going to take a look at a tool that was created to address some of the challenges that we face when it comes to working with secrets in our kubernetes cluster now there's a variety of different tools that have been created around this one problem which is managing Secrets there's tools like external Secrets operator sealed secrets and today we're going to take a look at a tool called Secret store CSI driver and so what we're going to do is we're going to go over you know why was this tool ultimately created we're going to go over how this tool differentiates itself from some of the other tools like external Secrets operator and sealed secrets and then we're going to do a demo going over how to actually use this within our kubernetes cluster and you're going to see that this is a fantastic tool that we can utilize to manage Secrets within kubernetes so let's go ahead and Dive Right In and take a look at how to work with the Secret store CSI driver now before we get started going over what is the secret store CSI driver and how to use it I want to go over why exactly The Secret store CSI driver was created what problems does it help us address now Within kubernetes anytime we have any kind of sensitive information that our application may need to use whether that's you know credentials to authenticate with like a cloud provider or talk to a database we're going to store them in a kubernetes secret now the problem with this is if we take a look at DB password it looks like that value is secure but it's important to understand that this is actually not secure this is base 64 encoded which means that it can easily be decoded so don't mistake encryption is secure if you encrypt data it's going to be secure but if you just encode data it can be easily so this data at this point the DB password anybody that has access to the secret will be able to know the value of the DB password because they can easily decode it and so if we ever upload our yaml manifest or kubernetes manifest to gith which most likely we do or we want to do then anybody that has access to that GitHub repo will automatically know our database password because they're able to decode that value so that's one of the issues that we need to address because right now there's no way for us to Define secrets and safely stored in GitHub because all of our secrets can be easily decoded in addition to that a lot of organizations have started making use of external Secrets stores so things like hashy cour Vault aw Secrets manager Google Secrets manager and Azure key Vault and so what these different Services allow organizations to do is it allows them to manage all of their secrets in one central location so all their secrets will be stored inside one of those platforms and then any applications that they need to have access to those Secrets they will just pull those Secrets using an API so that way they don't have to manage Secrets across multiple different locations they'll all store it in one central location and so with all of these secrets being stored within one of these external secret stores we need a way for kubernetes to be able to pull those secrets and store them and sync them within native kubernetes secrets so that any application running within a kubernetes cluster can actually make use of those secrets and so natively there isn't way to do that but that's why ultimately tools like The Secret store CSI driver the external Secret store operator have been created so that we can actually syn secrets from a Secret store into our kubernetes cluster all right so we went over why we would need a tool like The Secret store CSI driver let's talk about what exactly is it well the Secret store CSI driver synchronizes secrets from external apis and mounts them into containers as volumes so if you're using something like aw Secrets manager it's going to pull those secrets from the aw Secrets manager or any other Secret store that you're using and it's going to mount them as volumes into your pod so that your application has access to those secrets and so once again you know one of the main benefits of this is that we get to use one of those Secret store so we get to manage all of our secrets in a central place like Hashi cor Vault or AWS Secrets manager so that we don't have secrets kind of scattered all over the place we have one place to manage all of our secrets and then our kubernetes clusters or any other platform or tool that we use can just pull those Secrets dynamically and most importantly because it pulls these secrets at runtime essentially the great part is that we don't need to worry about checking secrets into git because the secrets aren't going to be stored in git because it's all pulled from the aw Secrets manager or whatever entral Secret store that you're using now for those of you that know there's several other tools that help us manage Secrets within kubernetes things like external Secrets operator and sealed secrets and so I want to go over you know what is the difference between the Secret store CSI driver and the external Secrets operator and sealed secrets and what makes this solution a little bit different it's not a major difference but I do want to make sure that you guys understand you know what it can bring to the table versus some of the other Solutions and there's really one main thing the main advantage of using the Secret store CSI driver over or some of these other Solutions is that you no longer store credentials in kubernetes secrets and so usually if you use like external Secrets operator or sealed Secrets what's going to happen is you're going to grab your secret from a central Secret store and you're going to sync it with a kubernetes secret well with the Secret store CSI driver you don't actually create a kubernetes secret so there's no secret within kubernetes it's just going to pull it dynamically from your central Secret store like aw Secrets manager so what is the benefit of this like what do we gain by not actually creating a native kubernetes secret to manage our secret well it minimizes the attack surface as much as possible because that's one less place we're storing our secret in we're no longer storing our secret within kubernetes it's only in our secrets manager and so because of that this is great from a compliance and Regulatory perspective because that's one less platform that has to adhere to various you know regulator bodies and that's one less platform that we have to audit because now our secrets are only within Secrets manager we don't have to worry about storing them within kubernetes so how does The Secret store CSI driver work well we're going to have our kubernetes cluster and we have to install The Secret store CSI driver and normally what we do is we're going to use something like Helm a package manager to deploy our secret store CSI driver so we can just do a Helm install and that's going to install everything that we need now what it's going to install well first of all there's going to be a couple of custom resource definitions and we'll go over what those are in a second but let's say that we have our secrets stored in a central Secret store and in this example let's say that we're using the aw Secrets manager and let's say that we have our database credential stored in there so we created a secret within Secrets manager called the db- creds and we've got dbor password as one key value pair and dbor username as the other one so what we need to do now is we have to basically tell the Secret store CSI driver What secrets do we want synced and how do we actually access those Secrets where are they stored and so this is where we make use of one of the custom resource definitions that was created when we deployed that Helm chart and that's going to be called secret provider class so this is an example configuration of a secret provider class you can see we're using the AWS provider and then we have to specify you know like where where is our secret stored with an AWS so it's going to be stored in Secrets manager and here we're just giving it the name of the secret which is going to be the name of the secret that we specified within aw Secrets manager the next thing that we have to do is we have to create our podspec and basically tell the Pod that hey we want this specific secret mounted within the container within that podspec so here we'll create our podspec and we're going to create a volume like we normally do the only difference is we have to provide some properties for CSI and you're going to see that we referenced the name of the secret Prov class DB secrets so those are going to match up and that's basically just saying like okay whatever secrets that we pull from AWS I want it mounted into this specific container and you can see here we mounted them in sltm within that specific container so after we create our pod spec and then we actually deploy it to kubernetes what's going to happen is the cuet is going to you know ultimately be responsible for creating that pod and it's going to see that we want a volume created and so it's going to talk to that the Secret store CSI driver because it sees the configuration for that the CSI driver will then see the configuration of that and see that it points to the secret provider so if you remember this is going to be the configuration for the secret provider and so this is just basically telling you know the CSI Secret store you know what credentials do I want and how do I access them and so the secret provider is going to talk to AWS it's going to get the value of the secrets that we specified it's going to return it to the CSI driver and at that point we can then go ahead and create our pod and the CSI driver is going to then Mount the volume onto that pod and that volume is going to contain the secrets that we pulled from AWS and it's going to mount it specifically in the location that we specified so in this case we said we want to mount it in the sltm directory and so it's going to mount all those credentials as a file into that sltm directory so let's go ahead and get started with a demo now for this demo we're going to be utilizing aws's Secrets manager and that's going to act as our secret store so we're going to be focusing more specifically on that keep in mind that the steps are going to be a little bit different if you're using one of the other services like on Azure or gcp but we're going to cover AWS so the first thing that we're going to do is we're going to create our secret so let's go ahead and search for the secrets manager service and what I'm going to do is I'm going to create a new secret and this is ultimately what we're going to mount into our pod and here I'm going to just select other type of secrets so we can provide key value Pairs and I'll just say maybe we're going to have a username property and this is going to represent I mean this could ultimately represent anything but I'm going to you know in this example use it as a you know like database credentials so I'll say username equals user 1 2 3 and then password I'll say this is password 1 2 3 and I'll give this a name of MySQL D creds so this going to have all the credentials for connecting to a mySQL database I'll hit next and then we'll leave all the others as defaults and then hit next and finally we will store that and if I hit refresh we should see MySQL creds and if we go here we should be able to see all the key value pairs we've got username user one password password 1 23 so now that we have our secret configured in secrets manager let's go ahead and set up the Secret store CSI driver for our kubernetes cluster and so if we take a look at the documentation page and you can use this URL right here and I'll make sure to include that URL in the description for this YouTube video but we can go ahead and select installation and this is going to walk us through the steps for setting this up and it's going to be utilizing Helm to actually just deploy a Helm chart so that it can configure everything for us with just a simple command and so there's two things that we have to do and so first we have to install The Secret store CSI driver repo and then from there we can in install the CSI Secrets Secret store CSI driver chart that's listed right here so I'm going to copy this first line and I'm going to go to my terminal now and we can just copy and paste that and then we can go to the second line and once again if we just take a look at the command we're going to create this chart right here and what we're going to do is we're going to deploy it in a namespace of cube system you don't have to use the cube system namespace just make make sure you don't use the default namespace make sure you have a separate namespace for the CSI driver we'll just go ahead and deploy it into the cube system namespace like the example does all right so now that our charts installed if you want to take a look at some of the things that it's deployed we can go ahead and just do a cube CTL get crd and we'll do the namespace of cube system because that's where we deployed it and you'll see the custom resource definitions that were created by that Helm chart and so you can see here we've got two of them that look interesting to us which is the secret provider class from the secret store. CSI and then we got secret provider class pod status so it's just two crds but that's what comes with the helm charts that were installed now if we go back to the documentation you'll see that there's two kind of notable optional values we've got sync as kubernetes secret um that's one of them and what that does is that it'll actually create a kubernetes secret and keep it synced up with the secret that's in AWS by default that's set to to be turned off and then we have secret auto rotation if you enable this feature what it's going to do is anytime you make changes in The Secret store it's going to continuously pull the Secret store to see if there's any changes and then update the secret within your pod accordingly so by default both of them are turned off and we'll see later on in this video what it looks like when we turn on the secret auto rotation we're not going to really worry too much about syn as kubernetes secret one of the benefits of utilizing the CSI Secret store driver is that we don't need to have kubernetes secrets but if you did want to for some reason or another you can always turn that on now now the next thing that we have to do is set up the AWS integration with the Secret store CSI driver so there's Specific Instructions for AWS and keep in mind that this is just because I'm using AWS if you're using Azure or gcp or vault you're going to have your own specific steps for setting this up this is just for AWS just keep that in mind so let's take a look and if you go to this GitHub page once again I'll have this link in the description as well this is going to have all of the instructions for us and so there's a couple things that we got to do so this is just the requirements which is we have to have in this case since we're using AWS we have to have an eks cluster and then we have to have the Secret store CSI driver installed which we already do and then we have to the first step would be to install the AWS provider so I can just copy this command it's going to give us a manifest for deploying that so I'll copy that now the way that the AWS provider Works in The Secret store CSI driver is that what it allows us to do is actually bind in a uh policy to a kubernetes service account and that's specifically with eks clusters and so this is once again how the AWS provider works the other providers for Azure and gcp they're going to be completely different they handle the whole authentication with their platform completely differently so keep in mind some of the steps that I'm going over right now are just specific to AWS because that's what I'm going to do in this example so so we're going to first create our policy so I'm going to go back to AWS and I'm going to search for I am so here we'll then go and select policies and we're going to create a policy so I'll create a policy here and I'm going to we can use either Json or the visual editor so first we'll choose services so remember this policy has to give kubernetes permission to retrieve the secrets within the secrets manager so I'm going to search for Secrets manager and then we have to specify the different policies or the things that it can do within Secrets manager so let's open this up and we don't really need either of these but if I go to read this is going to be where we need it so we need to be able to describe secret and we need to be able to get secret value so those are the only two permissions and then here we have to specify the specific resources so I'm can I can say add RN and then you could specify the exact resource if I want to I could say us east-1 that's where I created that secret and then the secret name which I think it was like MySQL D creds maybe and so you would just hone in on the specific Arn of the secret that you created or if you want to you could just do any region any secret once once again that's not the safe way to do things you always want to make sure you give only the permissions it needs so if you only wanted to give it access to those Secrets then you would want to specify that or if you wanted to give access to all of the secrets then you can just do what I'm doing here and so I'm just going to keep keep this example simple so I'm just going to give it full access to all the secrets but like I said you want to make sure that you drill down and only give it permissions to access the secrets that it needs to know about and then we can go ahead and select next we'll give this policy name I'll we'll call it how about CSI eks access Secrets manager and then I'll create that policy and we shall have successfully created our policy now now if we go back to the AWS instructions you'll see that there's a couple things that we have to do which is now we have to create the I am service account so this is going to basically bind that am policy and to a service account that exists on our kubernetes cluster so it'll create the service account and then assign the necessary permissions that way our pods can then retrieve the secrets from AWS so there's this command that we can use using the eksctl utility so if you aren't familiar with AWS or eks it's just a CLI utility that makes it easy to work with eks clusters once again this is only specifically for anyone that's using the AWS provider in The Secret store CSI driver if you're using Azure or gcp it's going to be a little bit different so I'm going to open up the terminal again and we're going to enter in a pretty long command so the command is going to look like this we'll say eksctl create I am service account then we have to give the service account a name so what this is going to do is it's going to create a service account in our kubernetes cluster and we have to give it the name that we want so I'll call this since in this demo I'm going to you know assign these to secrets to a API container I'll call this API dsay for service account then we have to specify the region that my eks cluster is in so I'll say us- east-1 and then we have to provide the eks cluster name which happens to be eks demo 1 and then we say D- attach D policy D Arn and then we have to get the Arn of the I am policy that we created in the previous step so I'll go back to AWS and I'll search for I forget what I called it I believe it was this one right here cesi Secrets volume Secrets manager I'll click on that we can get the irn right here and then I can just paste that in then just a couple of other flags which is D- approve and a flag of-- override Das existing service accounts and that should be all that we need so I'll hit enter and we'll let that run and so this is going to actually create a couple things uh you know it's going to create a few things within AWS as well as the service account in our kubernetes cluster all right so now that's complete if I do a cube CTL get surface account we should see that it created a service account based off of the name that I gave it which is if we take a look at the D- name flag API DSA and if you want to just poke around and we can take a look at what that's going to look like if I do this we can do a describe and you could see several details like image pull Secrets mountable Secrets annotations and a few other things now the next step is to tell the Secret store the CSI Secret store driver how to actually you know talk to AWS and the way that we do that is if I type in cctl get crd there's going to be a custom resource definition for this and so that's going to be the secret provider class so let's go ahead and create that so I'm going to create a new file and I'm just going to call this secret provider. yo and I'm going to provide some base configuration which is here we use the API version this which is just in the documentation and then the kind is going to be that custom resource definition then we'll give it metadata so what is the name this is going to be any name that you want I'm going to call this database D AWS secets and then we'll go under spec here we'll say that this is a provider for AWS and then we have to pass in some parameters we'll say objects and then here we have to provide two values which is going to be object name which is going to be the name of the secret that we stored within AWS and so that's just going to be MySQL D creds and then we have to provide object type which is just going to be Secrets manager and so this MySQL creds that's going to come from AWS so if I go back to here we can see MySQL D creds and so now we can do a cctl apply and we can apply that secret provider and I realized I forgot to save that file so let's run that again now if I do Cube CTL get secret provider class we should see it show up here all right so I think we've got everything set up now the last thing that we have to do is let's just deploy a pod and make sure it gets access to the secrets so I'm going to create a new file and I'll just say this represents my API deployment and I'm going to paste in just some basic configuration for deploying a pod so if we take a look at this I've got a deployment here we just called it my app and it's going to deploy an engine X container I understand that's not technically an API but this is just meant to be a simple demo and so we want to give this container this pod access to the secrets within AWS how do we do that well there's going to be a couple things that we have to configure the first thing is we have to configure a volume so this is going to be just like any other volume that we configure within a pod so we'll go under spec we'll say volumes and and here I'll give it a name we'll call this how about db- creds and then we'll say CSI then we'll say the driver that we're going to use which is going to be following right here and once again this is just going to come from the documentation we're going to set read only to be true and then a few other things which is volume attributes and then we'll say secret provider class and this is going to reference the provider class that we created here so we can just copy this name and pass it here all right so we've got our volume and obviously once we Define our volume we have to then Mount our volume in our container so we'll go under Eng X container I'll say volume Mount what's the name of the volume that's the db- creds and then we'll say Mount path and then specify wherever you want to mount it I'm just going to mount it in sltm because it's just a demo all right and so that's going to be pretty much it but there's one last thing that we have to do if you recall let me see if I can find the output of that remember when we created the service account so this surface account is what it's going to be used to authenticate with AWS to actually retrieve those secrets so we're going to actually have to specify the service account we want to make sure our pod uses that service account so that service account is called API DSA and so here we'll just go and just like we would any other time whenever we want to use a specific service account we'll say service account name and this is going to be what we just copied API dsay so now that we got that let's go ahead and apply this all right so it's created now let's go ahead and do a qctl get pods and let's see if it was successfully deployed all right we can see it's in a container creating State all right so if I do a cctl get pod let's take a look at the status of the Pod we can see it's still in container creating something's probably wrong it's been up for 78 seconds so if I do a cctl describe pod it's going to usually give us some pretty good detailed error messages and here we you can see amount volume failed for DB creds and then it says you know failed to mount and then here it says must use object type when a full Arn is not specified so there's something with the object type configuration in our secret provider so if we go here you I will I know because based off the documentation I made a typo so this should not be a separate entry this should just fall under there so that's probably what's causing that issue let's go ahead and apply that and then I'm going to do a cctl get pod we'll go ahead and just delete that just in case start from scratch now if I do a CCT I'll get pod all right now we can see we redeployed the Pod and after that correction we can now see it's in a running state but even though it's running let's make sure that it actually was able to achieve our secrets so I'll do Cube C exac we're going to exec into it and uh we'll just drop into bash and I'm going going to cat Etsy and under Etsy oops not Etsy we want to go into sltm and I'll just CD into there for you guys we take a look there should be a file called MySQL creds which is the name of the secret and if I C that we should see we've got a Json object with a username and password stored in there so this shows that we were successfully able to retrieve our secrets from AWS and mounted at a volume into our pod that's running in our kubernetes cluster all right so now let's say that we had to change our database password so we go to our secrets stored in our secrets manager and under my SQL creds let's say that I want to edit one of these properties so let's say the password is now going to be new secret password I'll save that and what we'll do is we'll go and I'm going to run that same command what do you guys think is going to happen if I run this command we can see our password is still password 23 so it doesn't automatically update for us obviously we can delete the container if we wanted to or delete the Pod and then once a new pod gets deployed it's going to retrieve the new value but instead of that if you wanted to dynamically update on your behalf if you recall at the beginning of this uh demo I went over the documentation and it pointed out some optional values which is the secret auto rotation what this is going to do is basically continuously paying AWS and if it sees that there's a change in your one of your secrets it's going to update that and make sure that the updated values are mounted in your kubernetes cluster or in the pods running in your kubernetes cluster so let's go ahead and do that what I'm going to do is I'm going to run a few commands so that we can actually get the values file for that Helm chart so I'll say Helm search believe repo and I'll just search for CSI I forget the name of the chart okay so this is the name of the chart that we used and what I'm going to do is I'm going to do Helm show values we'll paste that in and this is going to print out all of the different values that we could set and what I'm going to do is I'm going to save that to a file we'll call it values. yl and here you could see all of the different values that we can set now we don't care about most of these we just care about that one specific property and so let me see if I can find that and this is the one that we want enable secret rotation so I'll set this to be true and then you can also set a rotation pole interval so this is basically just how how often should it pull AWS to see if there was a change in your credentials the default I believe is 120 seconds so every 2 minutes we're going to leave it as default but if you did want to customize it just go ahead and set that property to be how many seconds you want that interval to be so let's go ahead and upgrade our Helm release with the new configuration changes that we made to that uh values. yo file so if I do Helm list- nc- system the name we called it CSI Secret store so I'll say Helm upgrade then we grab the name of that release then we grab the name of the chart which is going to be that long name that I copied previously and then here we can pass in the dh- values flag so that way we can pass in our values. AML and then remember this is going to be in the namespace cube system all right so we've successfully deployed those changes and so now if I go back to that container and I just hit the up command and we cat that file we can see that it now has the new secret password so every 2 minutes or whatever the default value is it's going to pull and ask AWS you know has the secrets changed if it has it's going to update those values kind of dynamically on the Fly to Your container and you know obviously with that in mind if you're going to do it like this then you're going to have to make sure your application has the logic built in to actually you know make sure and check that the values in this file haven't changed because if it has changed then it has to actually you know go ahead and pull those new values in and update the application accordingly video on kubernetes Secret store CSI driver so we got a chance to take a look at how we can actually utilize the tool to manage Secrets within kubernetes and manage Secrets within our application we got a chance to dive into how it kind of differentiates itself from some of the other tools that are a ailable within the kubernetes ecosystem you know I'm curious to find out what is your favorite Secrets management tool especially when it comes to kubernetes whether it's external Secrets operator sealed Secrets or CSI driver please let me know post a comment in the video and let me know which one is your favorite and I'll see you guys in the next one
+
+Okay, so let's go through the lab for secrets.
+
+So the first question is, how many secrets
+
+exist on the system in the default name space?
+
+So we're going to do a kubectl,
+
+get secrets.
+
+And there's just one.
+
+So the answer is one.
+
+How many secrets are defined in the default token secret?
+
+So, I'm going to do a kubectl describe
+
+secret.
+
+And we see additional details.
+
+And under the data section we have multiple details.
+
+So we have the CS search, that's one.
+
+And then you have the name space
+
+and then you have the token.
+
+And this, this entire text here
+
+is the encoded
+
+token.
+
+So we have three.
+
+That's the answer for that.
+
+Now, what is the type of the default token secret?
+
+So the type, as you can see,
+
+it is a Kubernetes service account token.
+
+So that's the type.
+
+Now which of the following is not a secret data
+
+defined in the default token?
+
+So we know that the data is ca.cert, namespace, and token.
+
+So that's namespace, CAcert and token, type is not a data.
+
+So that's the answer to that.
+
+Okay so, we're going to deploy an application
+
+with the below architecture,
+
+and we have already deployed the required pods and services.
+
+Check out the pods and services created
+
+and check out the web application,
+
+using the web app, MySQL link, about.
+
+So, let's first
+
+check out
+
+the deployment.
+
+There are no deployments.
+
+Let's check pods.
+
+So there are two pods.
+
+So you have a web app pod and a, and a MySQL pod.
+
+So you have the MySQL pod,
+
+and this is the web app pod.
+
+And then there are two services.
+
+So,
+
+let's check services.
+
+And there are, this we know is a default Kubernetes service
+
+but you also have the web app service,
+
+which happens to be this and the SQL zero one,
+
+and SQL zero one
+
+service,
+
+which happens to be this.
+
+So those are the services.
+
+And then, secret.
+
+So there's a default token secret,
+
+but that's not the secret that's used here.
+
+So the secret is required for the web application
+
+to connect to the MySQL database.
+
+So let's check the application status.
+
+And here we can see that it's in a failed state.
+
+It says," Failed connecting to the MySQL database."
+
+The database host is not set.
+
+The DB is not set.
+
+And the password it is not set.
+
+So, that's the error.
+
+Let's proceed.
+
+So the reason the application has failed
+
+is because we have not created the secret object yet.
+
+So let's create a new secret named, TB Secret,
+
+with the data given below, so...
+
+Let's create a secret.
+
+So kubectl, create
+
+secret,
+
+and let's quickly check the help.
+
+So when you create a secret,
+
+you have to specify the type of secret.
+
+So we're not gonna create a Docker registry or TLS.
+
+We're just going to create a generic secret.
+
+So let's check the help for that.
+
+And
+
+here we see
+
+the syntax is to create, to create a secret,
+
+is to specify secret generic,
+
+and then the name of the secret,
+
+followed by the data from a file.
+
+Or,
+
+it could be from multiple files.
+
+Or it could just be from litter,
+
+from literally on the,
+
+just from the command line.
+
+So we're gonna use this approach,
+
+'cause we have the information right here.
+
+So let's
+
+do that.
+
+Secret generics, don't forget generic.
+
+The name of the secret is, DB Secret.
+
+The, then we have from
+
+literal,
+
+DB post
+
+equals SQL
+
+zero one.
+
+And then from
+
+literal, again,
+
+DB
+
+user equals root.
+
+And remember to, remember that these are case sensitive.
+
+And then from literal again,
+
+end DB
+
+password equals
+
+password one, two, three.
+
+Let's verify
+
+if it's created.
+
+Describe DB
+
+secret.
+
+Describe secret.
+
+End DB secret.
+
+We see that it's created with the data DB host,
+
+DB user and DB password.
+
+Okay?
+
+Okay, so that's a success.
+
+Next is to configure a web app pod
+
+to load environment variables from the newly created secret.
+
+So,
+
+let's check
+
+pod out first.
+
+So we have
+
+the web app
+
+pod,
+
+and
+
+currently
+
+there are no secrets.
+
+So,
+
+let's edit the pod,
+
+to add the secret.
+
+But, if we don't know
+
+how to do that,
+
+let's first review the Kubernetes documentation pages
+
+and look at secrets.
+
+And let's go to the first one.
+
+Okay, so we are at the page for secrets.
+
+And here as you can read,
+
+you must not create secret, as we created just now,
+
+to store database credentials or, or passwords.
+
+That's because data, the secret data is stored
+
+in at CD as is, without any encryption.
+
+So anyone who has access to the APS server can,
+
+or, or that CD database
+
+can read or even modify the secret, right?
+
+So, we must enable the encryption at rest
+
+or, or looking to enabling roll back,
+
+role-based taxes controlled.
+
+And so let's, let's go ahead and configure the secret,
+
+find information on configuring the secret for the pod.
+
+So you can see that here.
+
+So here you have using a secret
+
+and then you also have using secrets
+
+as environment variables.
+
+So there are multiple options here.
+
+And
+
+here's what, here's one that we could use
+
+which is the envFrom what we did for the ConfigMap.
+
+So we could use the envFrom and then specify
+
+a secret key reference.
+
+That way all the data stored in the secret
+
+is gonna be passed through as environment variable.
+
+So let's copy that.
+
+And,
+
+that's going to go into
+
+the container section.
+
+We can have this anywhere,
+
+space that and the key name
+
+should be
+
+DB Secret.
+
+Okay, let's save the file.
+
+And I'm gonna allow us to edit it.
+
+That's fine, we're gonna quit.
+
+And let's do a Kubectl, replace, force...
+
+and specify the file.
+
+And we will just wait for the file,
+
+for the pod to be deleted and recreated.
+
+Okay, so that's done.
+
+And let's verify
+
+the pod.
+
+We see that the environment variables
+
+are read from the DB secret.
+
+Okay, let's check this out.
+
+Okay, that's configured correctly.
+
+And let's go back and review the web application.
+
+And we see that it's now a success.
+
+It's able to read the environment variables
+
+as we passed through, right?
+
+And, yeah, of course remember, we should not,
+
+you know, read passwords and display it like this.
+
+But this is, this is a sample application
+
+to prove how secrets can be passed
+
+through as environment variables.
+
+And this kind of helps us debug
+
+if something is not passed through right.
+
+Okay, so that's the end of this lab.
+
+Instructor: Okay, so in this video,
+
+we're going to look into encrypting secret data at rest.
+
+So if you go to the Kubernetes documentation pages
+
+and under Tasks, you have Administer a Cluster
+
+and Encrypting Secret Data at Rest,
+
+you have these following documents.
+
+I'm gonna follow this, but also kind of try and explain
+
+what we are trying to do.
+
+So the first thing, first things first,
+
+I'm going to start up a Kubernetes playground.
+
+So this is a single node cluster.
+
+All right, so
+
+this basically uses,
+
+it is built with the kubeadm tool and has containerd.
+
+I'm just gonna maximize this
+
+and we'll just work on the terminal.
+
+All right, so first things first,
+
+I'm gonna first create a secret object.
+
+So I'm going to do a kubectl create secret,
+
+and I want a generic secret, so I'll do that,
+
+and I'll probably create a secret from literal,
+
+so I'm just going to copy this command.
+
+Okay, so I'm gonna call it key1 and supersecret.
+
+So that's my secret object.
+
+So my secret object is created.
+
+So if I now do a get secret,
+
+I get to see my secret object.
+
+And if I do a describe secret,
+
+my-secret,
+
+I get to see the secret name and the data.
+
+If I wanna see a little bit more, I do a
+
+dash o yaml
+
+and I'm gonna do a get secret.
+
+Okay and I get to see the data here.
+
+Now if you look here, so this is key1,
+
+and this is kind of the encoded format of the secret.
+
+So remember that, you know, anyone could take this
+
+and decode it and easily view the actual secret, right?
+
+So if I do,
+
+let me see if I have base64,
+
+yup, I do.
+
+So
+
+gonna get that again.
+
+So I'm gonna do a echo,
+
+copy and paste this.
+
+Let's pass it through base64 and do a decode.
+
+And I get to the, the secret.
+
+Okay, so that's the first thing to know
+
+that the secrets object stored in the secret configuration
+
+as you see it here is just Base64 encoded.
+
+So if you just do a base64 decode, you're gonna see this.
+
+So remember not to create your secret definition files
+
+and push it to GitHub or something
+
+because anyone could just pick this up and run this command
+
+and see the secret, right?
+
+So that's the first step, but I wanna make it clear
+
+that the scope of this video is not really relevant
+
+to this encoding here.
+
+We are going to focus on the data
+
+that's stored within the etc server.
+
+Okay, so after we are done,
+
+this part is still gonna remain the same.
+
+So we're not really focusing on this part right here.
+
+What we're focusing on
+
+is how the data is stored in the etcd server,
+
+so that's the focus.
+
+So let's first look at how this data is stored
+
+in the etcd server.
+
+Okay, so for that, if you go to the bottom of this,
+
+there is this command.
+
+It uses the ETCDCTL_API version three.
+
+It runs the etcdctl command,
+
+passing the CA certificates for authentication,
+
+and we're gonna get this particular secret.
+
+So the way that it's stored in etcd
+
+is it's stored in registry/secrets/default
+
+and this is the secret name.
+
+So let me first see if we have the etcdctl command line.
+
+So we don't have that,
+
+so the first step is to get that installed.
+
+So I'm just gonna go apt-get install.
+
+I think it's it etcd-client.
+
+Yup, so if you do not have the etcd,
+
+so remember that the etcd server is running in a pod.
+
+So you can either ssh into the pod
+
+and then run the etcdctl command from within that.
+
+Or you wanna run it locally from your control plane node,
+
+you could use the etcdctl client utility.
+
+Now, if the client command line utility is not available,
+
+you have different options
+
+to install it on different systems.
+
+So let me see.
+
+Okay, so I have it installed on my machine
+
+using the package etcd-client.
+
+So look up for whatever it is
+
+the version of etcd that you're running.
+
+Okay, so that's there, so now we've got etcdctl utility.
+
+So remember that's client only,
+
+the server is still running on as a pod.
+
+So if you do kubectl get pods dash kube-system,
+
+I have the etcd control plane here, right?
+
+Okay, so the next step is to run this.
+
+So first, remember that you need the certificate files.
+
+So let's see if we have that.
+
+Yup, we do.
+
+So under etcd, you have all the certificates files needed
+
+for connecting or authenticating to the etcd server.
+
+So that's good.
+
+So I'm gonna copy this command.
+
+Remember to set the version, ETCDCTL_API version to three,
+
+and the name of the secret is secret1.
+
+See what I created,
+
+get secret,
+
+so it's named my-secret,
+
+so I'm gonna replace that with my-secret.
+
+I'm gonna do a my-secret.
+
+If I just run this command,
+
+you can see that it kind of gives me
+
+kind of a jumbled information,
+
+but you can kind of see the secret there as is, right?
+
+You can see the secret there in the text format.
+
+To see it in this format,
+
+you just need to append the hexdump to it
+
+because sometimes you may not be able to see it
+
+in the right format.
+
+So this is the data that's stored in etcd.
+
+And if you look closely,
+
+you'll see that the secret that I have,
+
+the password or whatever it is that I've stored,
+
+is actually visible like this.
+
+So the data is stored in etcd in an unencrypted format.
+
+So anyone with access to etcd
+
+will be able to just go through and get all the secrets
+
+and other confidential information
+
+stored as a secret object.
+
+So that's the problem here.
+
+So this is the problem that we are trying to solve
+
+by enabling encryption at rest in etcd.
+
+Now, if you go through this document,
+
+first thing that it says is,
+
+first we need to determine if encryption at rest
+
+is already enabled or not.
+
+So this is done with a property
+
+called encryption-provider-config.
+
+So if I go to my kube-api server,
+
+so let's say my kube-api server
+
+is running as a process here,
+
+and let me just grep for kube-api server,
+
+and I get to see the Kube API server process running
+
+with all the options.
+
+Let's first see if it has
+
+the encryption-provider-config option.
+
+So that's the first thing that we'll do.
+
+This is to check if encryption at rest is already enabled.
+
+And as you can see, it does not return a result.
+
+So that means this option is not configured.
+
+We can also kind of verify this
+
+because this is a kubeadm setup,
+
+it uses the
+
+var
+
+/manifest
+
+etc/
+
+kubernetes/manifests,
+
+yeah, etc/kubernetes/manifests,
+
+and here you have the kube-apiserver.
+
+So configuration, so if you look at this particular file,
+
+you can do a cat,
+
+we'll be able to see all the options provided.
+
+And here, you don't see the encryption option
+
+that we've talked about here.
+
+So this means that encryption at rest is not enabled.
+
+So that's the first step, and we've already verified that
+
+by creating the secrets object.
+
+Okay, so the next step is to create a configuration file
+
+and then pass it in as this particular option.
+
+So that's it, so that's basically the steps required
+
+to enable encryption, right?
+
+You create a configuration file
+
+and you pass it in as an option.
+
+So let's look at the configuration file.
+
+So this is what it is, so you have the API version,
+
+you have the kind, it's encryption configuration,
+
+and then you have resources.
+
+Now, you can pick and choose
+
+which resources you want to encrypt, right?
+
+So you have pods and deployments and secrets and services.
+
+Do you want to store all of them as encrypted?
+
+You might not because not everything is confidential, right?
+
+So you need not necessarily encrypt
+
+and save all the data about pods and deployments.
+
+Here our concern is just secrets.
+
+So under Resources, you specify the targets.
+
+So this is secrets, that means only the secret objects
+
+are going to be encrypted.
+
+Now, you can encrypt something
+
+using a set of providers, right?
+
+So the default one is called identity.
+
+The identity provider just means
+
+that there's no encryption at all.
+
+So you can see the list of providers here,
+
+and it says the identity provider says
+
+there's no encryption.
+
+Resources are written as-is without any encryption.
+
+And then you have other providers which are these,
+
+and those are listed here.
+
+So you have the secretbox,
+
+you have the aes, gcm, the aescbc,
+
+so all of these are encryption algorithms,
+
+different encryption algorithms,
+
+and you can see the details
+
+about how they encrypt here.
+
+So you can choose whichever one you want and provide a key.
+
+So this key has a secret.
+
+You can provide multiple keys, keys and secrets,
+
+and this secret is what will be used
+
+for the encryption by the encryption algorithm.
+
+Now, one thing to note here is the order.
+
+As you can see, providers is a list.
+
+So this is the first item in the list,
+
+second item in the list, third item,
+
+and fourth item in the list.
+
+So this order matters
+
+because when the encryption happens,
+
+at first it uses this to encrypt
+
+and then it could use any of these to decrypt, right?
+
+So always encryption happens with this.
+
+So if identity provider,
+
+which has no encryption is the first one,
+
+then there's no encryption enabled at all.
+
+So that's how it works.
+
+So if this is the first one,
+
+that means this is what is going to be used for encryption.
+
+And since it's identity,
+
+it's not going to encrypt anything at all.
+
+So if you really want to encrypt the data in etcd,
+
+then one of these should be at the top.
+
+Okay, whatever is the first one
+
+is what's going to be used for encryption.
+
+So let's just do this real quick.
+
+So we're gonna create a very simple version of this file,
+
+which is this,
+
+and this, as you can see, we have specified
+
+that all the secrets are gonna be encrypted
+
+and we're gonna use the aescbc encryption provider.
+
+And as you can see, identity is at the bottom.
+
+So the first one is aescbc,
+
+so this is what is going to be used for encryption.
+
+Now, this requires a secret object.
+
+So we could generate a 32-byte random key using this.
+
+I'm just gonna copy this,
+
+I'm gonna get that key first.
+
+So that's what our key is going to be.
+
+Then I'm gonna copy this
+
+and create encryption object file.
+
+So I'll call it enc.yaml
+
+and I'm gonna paste this,
+
+okay, should have copied the secret value first.
+
+I'm gonna copy this
+
+and I'm gonna go here and replace the secret object here.
+
+Okay.
+
+Okay, so that's that.
+
+So now I have the encryption configuration file.
+
+It's currently in my home directory.
+
+Now all I need to do is go and edit this file.
+
+So that's the next step shown here.
+
+So in the kube-apiserver, I'm gonna add this line
+
+to point to the encryption file that I just created.
+
+Then, of course, we need to,
+
+since the file is created locally,
+
+I have to mount it inside,
+
+so I'm gonna use volumes and volume mount.
+
+If you have not gone through the volumes
+
+and volume mounts yet,
+
+then you might want to take a look at that and come back.
+
+But this is pretty straightforward.
+
+So here you have the directory, the local directory,
+
+and that's on my control panel node here.
+
+And this directory is gonna be mapped
+
+to this path within the pod.
+
+So anything that's available here
+
+is gonna be available here.
+
+That's it, right?
+
+So first, I'm gonna create this local directory
+
+so that I can put my file there.
+
+Okay, I'm gonna move my encryption file from here
+
+to that local directory.
+
+Make sure.
+
+Yup, so I have the file there.
+
+So now I'm gonna edit the kube-apiserver manifest file
+
+and then make these changes.
+
+Okay, so that's the next step.
+
+So I'm gonna go into etc/kubernetes/manifests
+
+/kube-apiserver.
+
+And the first thing that I'm gonna do
+
+is I'm going to add this line.
+
+So this is what tells
+
+where the encryption configuration file is.
+
+So that's the first step.
+
+And then I'm gonna go down.
+
+So I have two things. I have volume mount.
+
+So this is inside my volume,
+
+inside the pod where it is gonna be mounted.
+
+So I'm gonna copy this.
+
+So the directory, the local directory
+
+is gonna be mounted into this path.
+
+So that's the first step.
+
+And then below under mount, I'm going to
+
+specify the location of my local directory.
+
+Okay, so this is how it works on my local host,
+
+the etc/kubernetes/enc directory is going to be mapped to
+
+the etc/kubernetes/enc directory inside the pod.
+
+And then,
+
+so since my enc.yaml file is available locally,
+
+that file is gonna be available inside.
+
+And that's it. Okay, let me save that.
+
+So now that I've saved and made changes to this file,
+
+the kube-apiserver should be restarting.
+
+So let's just give it a few seconds. Let's see.
+
+Okay, so this is now, it's now gone, so I'm gonna wait
+
+for it to come back.
+
+Waiting.
+
+And if you wanna see the status of the kube-apiserver,
+
+since we are using containerd,
+
+so you could use the crictl command.
+
+So you could do the crictl pods to see.
+
+It's come up, okay,
+
+so it looks like it's ready three seconds ago.
+
+Just gonna do, yup, so it's back.
+
+Okay, so now let's do a ps aux
+
+and grep for kube-apiserver.
+
+And let's see if it has,
+
+just to confirm if it has the encryption.
+
+Yeah, so it looks like it has
+
+the encryption provider configured.
+
+Okay, so that's good.
+
+Now what we're going to do
+
+is we're going to create another secrets file.
+
+So we're going to create a secret object.
+
+So we're gonna do a kubectl create secret generic.
+
+Okay, and we are going to,
+
+let's pick this,
+
+and this time we'll just create the second one,
+
+which is key2.
+
+So you have key2 and it's called, the value is topsecret.
+
+Create that.
+
+My secret already exists.
+
+I'm gonna say my-secret-2 maybe. Yup.
+
+Okay, so I now have two.
+
+This is the first one I created.
+
+This is the second one I just created
+
+after encryption was enabled.
+
+So I'm gonna go and run the same command
+
+as I did previously to check the status
+
+of that within etcd
+
+So run this
+
+and the name is my-secret-2.
+
+Okay, and as you can see,
+
+I can no longer see the topsecret.
+
+So the value was topsecret
+
+and no longer see that here.
+
+That means encryption is enabled.
+
+Okay, and if I do the same for the old one,
+
+I still see the supersecret.
+
+Now this is because after encryption is enabled,
+
+only things that you create newly will be encrypted.
+
+Everything that existed previously won't be re-encrypted.
+
+But if you update an existing configuration,
+
+then that will be re-encrypted.
+
+So one other thing that you have here
+
+is to ensure all secrets are encrypted
+
+and what this is doing
+
+is basically you're getting the secrets
+
+and then just replacing them with the same JSON file.
+
+So essentially, you're just updating the objects
+
+with the same data.
+
+So I'm just gonna do that. So that's done.
+
+And if I run the same command again,
+
+I see that I can no longer see the supersecret.
+
+All right, so that's basically encrypting
+
+secret data at rest
+
+using one of these encryption algorithms.
+
+Right, thank you very much and I'll see you in the next one.
+
+A Note on Secrets
+Remember that secrets encode data in base64 format. Anyone with the base64 encoded secret can easily decode it. As such the secrets can be considered as not very safe.
+
+The concept of safety of the Secrets is a bit confusing in Kubernetes. The kubernetes documentation page and a lot of blogs out there refer to secrets as a "safer option" to store sensitive data. They are safer than storing in plain text as they reduce the risk of accidentally exposing passwords and other sensitive data. In my opinion it's not the secret itself that is safe, it is the practices around it. 
+
+Secrets are not encrypted, so it is not safer in that sense. However, some best practices around using secrets make it safer. As in best practices like:
+
+Not checking-in secret object definition files to source code repositories.
+
+Enabling Encryption at Rest for Secrets so they are stored encrypted in ETCD. 
+
+
+
+Also the way kubernetes handles secrets. Such as:
+
+A secret is only sent to a node if a pod on that node requires it.
+
+Kubelet stores the secret into a tmpfs so that the secret is not written to disk storage.
+
+Once the Pod that depends on the secret is deleted, kubelet will delete its local copy of the secret data as well.
+
+Read about the protections and risks of using secrets here
+
+
+
+Having said that, there are other better ways of handling sensitive data like passwords in Kubernetes, such as using tools like Helm Secrets, HashiCorp Vault. I hope to make a lecture on these in the future.
+
+In this lecture we will talk about Multi-container pods in Kubernetes.
+
+The idea of decoupling a large monolithic application into subcomponents known as microservices enable
+
+us to develop and deploy a set of independent, small and reusable code.
+
+This architecture then helps us scale up and down, as well as modify each service as required, as
+
+opposed to modifying the entire application.
+
+However, at times you may need two services to work together, such as a web server with the main app.
+
+You need one web server per each app instance paired together.
+
+You don't want to merge and bloat the code of the two services, as each of them target different features,
+
+and you still like them to be developed and deployed separately.
+
+You only need the two functionality to work together.
+
+You need one web server per main app instance paired together so they can scale up and down together.
+
+And that is why you have multi-container pods that share the same lifecycle, which means they are created
+
+together and destroyed together.
+
+They share the same network space, which means they can refer to each other as localhost.
+
+And they have access to the same storage volumes.
+
+This way you do not have to establish volume sharing or services between the pods to enable communication
+
+between them.
+
+So to create a multi-container pod, add the new container information to the pod definition file.
+
+Now remember the container section under the spec section in a Pod definition file is an array.
+
+And the reason it is an array is to allow multiple containers in a single pod.
+
+So now I've added a another container with the name main app and the image main app.
+
+So in this case we add a new container named a web app as container one.
+
+And then we have another container named as main app as container two.
+
+This is a very simple example.
+
+We will look at more realistic examples later in this course.
+
+Let us now look at the different multi-container pods design patterns.
+
+So there are different patterns for multi-container pods.
+
+What we just saw was the co-located containers.
+
+This is the original form of Multi-container.
+
+It's as simple as two containers running in a pod.
+
+Both the containers are meant to continue to run throughout the entire pod lifecycle.
+
+These are usually used when two services are dependent on each other.
+
+Next is the init containers or the init containers as it's called these days.
+
+This is used when there are initialization steps to be performed when a pod starts before the main application
+
+itself.
+
+For example, this could be an init container that waits for a database to be ready before starting
+
+the main application.
+
+The init container does its job and ends its job, and then the main application starts.
+
+The third type is known as the sidecar container.
+
+A sidecar container is set up like an init container where the sidecar starts first, does its job,
+
+but instead of ending its run, it continues to run throughout the life cycle of the pod.
+
+The main application starts after the sidecar container starts.
+
+This is useful when you have a log shipper of sorts that needs to be run, along with the main application
+
+that needs to start before the main app starts, but continue to run as long as the main app runs and
+
+then end after the main app ends.
+
+So these are the three.
+
+The init container is differentiated well because we know that in in terms of the init container, it
+
+starts and then stops, and then the main app runs.
+
+However, the first and the last.
+
+So the co-located containers and the sidecar containers can be a bit confusing.
+
+So why are there two if they kind of serve the same purpose?
+
+Right.
+
+In both of those cases, you can see that the pods are running throughout the lifecycle.
+
+cycle.
+
+So then what's the difference between the first and the last?
+
+So the main difference is that with the co-located containers, the first one, there is no ability
+
+to define which container starts first and the order of that startup.
+
+So both of those containers are defined as and as elements in an in an array there is no differentiation
+
+between them.
+
+So it all starts together.
+
+And there is no guarantee that one would start before the other.
+
+So if that's not a real requirement for your use case, you may use that option.
+
+However, the Sidecar Containers option provides the ability to specify an order of startup and then
+
+continue to run throughout the pod lifecycle.
+
+So we'll see how to do that in the upcoming slides.
+
+So let's start with the first one.
+
+So here we have the pod definition file for the original uh, the co-located containers.
+
+In this case you can see that the container section is an array and it has two elements in the array
+
+two containers specified in the array.
+
+So when the pod is created, both of them start.
+
+There's no particular order in which they start and they continue to run.
+
+Next we have the regular init containers.
+
+So this is where instead of adding another container as the second item in the containers list, we
+
+define a separate property altogether called init containers.
+
+And under that we follow the same pattern as we do for containers.
+
+So under that we have the name and image and command as we do for the main container.
+
+This init container by default runs at the start and ends its run.
+
+In this case, once the wait for db to start script ends, then the main container starts.
+
+So you could define multiple init containers too, so that they can be run sequentially.
+
+For example, you could have another init container defined as a second item in the list, in this case.
+
+The second item is called an API checker and it waits for another API to be started.
+
+So what happens is first the checker script runs that container, runs and ends, and it ends that run.
+
+And then the second container init container starts, the API checker starts and then it ends its run.
+
+And then the main application starts.
+
+And then it continues to run until the end of the pod lifecycle.
+
+So that's how you can define an order of startup for the init containers.
+
+Now the third pattern is the sidecar containers.
+
+So this is where we still use the init container approach.
+
+So as you can see the code is still there.
+
+Um and this ensures that the init container starts first.
+
+And once they're ready the main app starts.
+
+However the init container continues to run as it has a restart policy set to always.
+
+So this will also ensure the init container is terminated after the main application stops.
+
+That way the log shipper can catch the startup and termination logs of the main container.
+
+So here's a more realistic example using the elastic search and Kibana stack.
+
+So this is a log collection aggregation framework.
+
+And where the elastic search is itself is a component that captures the logs from different endpoints,
+
+different applications.
+
+And Kibana is a visualizer that visualizes the logs, which is what which is a dashboard that users
+
+or administrators look at.
+
+So in this case, what we do is along with the app, we add a sidecar called Filebeat, which comes
+
+along with Elasticsearch.
+
+And that starts before the main app starts, so that it can capture the startup logs of the application,
+
+and then ends after the main app ends, so that it can capture any termination logs in case the in case
+
+the application ended due to any bugs, the termination log needs to be captured so that can be diagnosed
+
+and that is achieved using a sidecar container.
+
+Well, that's all for this lecture.
+
+InitContainers
+Understanding Init and Sidecar Containers in Kubernetes
+In a multi-container Pod, each container is expected to run a process that stays alive for the entire lifecycle of the Pod.
+
+For example, in a Pod with a web application and a logging agent, both containers are expected to remain active throughout the Pod’s lifecycle. The process in the logging agent container must stay alive as long as the web application is running. If any main container fails and the Pod's restartPolicy is Always or OnFailure, the entire Pod is restarted.
+
+Pod Restart Behavior in Multi-Container Pods
+In a multi-container Pod, the restartPolicy applies at the container level, not the Pod level. If a container exits, the kubelet restarts that individual container in place according to the policy—other containers in the Pod are unaffected and keep running.
+
+Always (default): restarts the container after any exit, regardless of exit code.
+
+OnFailure: restarts only on a non-zero exit code.
+
+Never: never restarts.
+
+The policy applies to app containers and regular init containers. Sidecar containers (init containers with their own container-level restartPolicy: Always) always restart regardless of the Pod's restartPolicy.
+
+Kubernetes does not restart the entire Pod when one container fails. The Pod is recreated only by its controller when the node dies or the Pod is removed.
+
+What is an Init Container?
+An init container is a special container that runs before the main containers in a Pod. Each init container must succeed (exit 0) before the next one is started. Once all init containers complete, the regular containers start simultaneously.
+
+They are configured similarly to other containers but are placed in the initContainers section of the Pod spec.
+
+If any init container fails, the entire Pod is restarted and all init containers are rerun from the beginning.
+
+✅ Using Init Containers
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp
+spec:
+  initContainers:
+    - name: init-myservice
+      image: busybox:1.31
+      command: ["sh", "-c", "until nslookup myservice; do echo waiting for myservice; sleep 2; done;"]
+    - name: init-mydb
+      image: busybox:1.31
+      command: ["sh", "-c", "until nslookup mydb; do echo waiting for mydb; sleep 2; done;"]
+  containers:
+    - name: myapp-container
+      image: busybox:1.28
+      command: ["sh", "-c", "echo The app is running! && sleep 3600"]
+Native Sidecar Containers (Kubernetes 1.33+)
+Starting with Kubernetes v1.33, sidecar containers are natively supported. This allows sidecar containers to follow a defined lifecycle relative to the main containers in the Pod — without requiring entrypoint hacks.
+
+✳️ How Native Sidecars Work
+Declared using the restartPolicy: Always field inside the initContainers block.
+
+Kubernetes treats such containers as sidecars, ensuring they:
+
+Start before main containers.
+
+Run alongside them.
+
+Shut down after the main containers complete.
+
+✅ Example: Native Sidecar Configuration
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sidecar-example
+spec:
+  initContainers:
+    - name: sidecar-logger
+      image: busybox:1.31
+      restartPolicy: Always
+      command: ["sh", "-c", "while true; do echo Sidecar running; sleep 10; done"]
+  containers:
+    - name: main-app
+      image: busybox:1.31
+      command: ["sh", "-c", "echo Main app starting; sleep 60"]
+In this setup:
+
+The sidecar-logger container behaves like a sidecar, though declared in initContainers.
+
+It uses restartPolicy: Always to stay alive throughout the Pod lifecycle.
+
+Kubernetes starts the sidecar first, waits for readiness, then starts the main app.
+
+📖 Learn more from the official documentation:
+👉 Kubernetes Docs: Init Containers
+👉 Kubernetes Docs: Native Sidecar Containers
+
+Okay, so in this video we're going to go through
+
+the lab on Init containers.
+
+So first let's identify the pod
+
+that has an Init container configured.
+
+So let's look at the pods that are available.
+
+And we see that there are three pods, red, green, and blue.
+
+And we need to identify the one that has
+
+an Init container available.
+
+So from the looks of it from here, it looks like this is
+
+the green is the one that has two containers.
+
+But let's look at all of the pods in more detail.
+
+So let's do a describe, You cut describe pod.
+
+And if you don't specify any pod name,
+
+it's going to list the description of all the pods.
+
+So if you look at red to begin with, it has containers
+
+it has red container.
+
+And if you look at green, it has two containers.
+
+So this is a green container 1 and a green container 2.
+
+But none of these are Init containers, right?
+
+So in Init containers will be
+
+in a separate section called Init containers.
+
+But these, these are not Init containers.
+
+And if you look at blue here we have
+
+an Init container section and we have a container section.
+
+So it is blue that has an Init container configured.
+
+So if you look at the output of the get pause command
+
+remember that it does not show up
+
+the detail of Init container here.
+
+This does not account for the Init container
+
+it only accounts for the actual containers for that pod.
+
+So the answer to this is blue.
+
+Now what is the image used by
+
+the Init container on the blue pod, is still
+
+describe and let's see, the Init container it has a
+
+container called Init service and the image is busy box.
+
+So busy box is the answer.
+
+Now what is the state of the Init container on pod blue?
+
+So if you look at the state, it says terminated,
+
+so terminated is the state.
+
+And why is the Init container terminated?
+
+And what is the reason?
+
+So if you look at the line below,
+
+it says the reason is completed.
+
+So if you look at this,
+
+the way that the Init container is set up,
+
+it has an image called busy box, it has a command
+
+and it's just a command that runs asleep in a shelf,
+
+so it just runs sleep for five seconds.
+
+So whenever this pod is created,
+
+when this pod was created, this Init container kicks in
+
+it just sleeps for five seconds
+
+and it just terminates that container
+
+and then the actual containers are spun up.
+
+So it's a simple setup for this, and that's the reason
+
+since this sleep command completed successfully
+
+the exit code is zero
+
+and that's why the reason is completed.
+
+So the process do not crash, the process cannot start,
+
+now the process completed successfully
+
+and that's why it has exit code zero here.
+
+Okay, now we just created a new app named Purple so, let's
+
+look at this and
+
+how many Init container does it have?
+
+So let's look at this odd
+
+in a bit more detail.
+
+And here you see that you have the Init container section.
+
+You have one container here, and you have another one here,
+
+so there are two, so that's one, one and one of two and
+
+so that's two, two is the answer to the question.
+
+Now, what is the state of the pod?
+
+So if you look at the state of the pod here,
+
+under get pod under the output of get pod,
+
+it's Init02. And over here under status
+
+you can see that it's in a pending state so the,
+
+the state is pending.
+
+Now how long after the creation of the pod
+
+will the application come up and be available to users?
+
+So let's take a look at how this pod is set up.
+
+So this pod has a purple container,
+
+which is the app right here
+
+but it has two Init containers.
+
+So you have the warmup 1 and warmup 2 Init containers.
+
+And the first one has a command
+
+set to sleep for 600 seconds.
+
+And the second Init container has a command
+
+set to sleep for 1200 seconds so
+
+this is gonna run first and then this is gonna run after.
+
+So you can have multiple Init containers
+
+change like this if required.
+
+So this is going to be 10 minutes
+
+and this is 20 minutes.
+
+So in total, before this actually comes up
+
+the Init containers are going to just sleep for 30 minutes.
+
+So only after 30 minutes will this come up.
+
+So yeah, it's a silly use case but
+
+it's just a very simple example to help you understand
+
+how the Init containers work.
+
+So that's 30 minutes.
+
+Now this could be, you know, anything in real life,
+
+and this could be things that, you know, prepare a database
+
+or prepare some startup scripts, stuff like that.
+
+And that is, that has to be run before the actual
+
+application comes up.
+
+Okay so, update the next question is to
+
+update the pod red to use an Init container.
+
+So there is a pod red,
+
+it has one container and it's in the running state
+
+and we need to update it to use an image container
+
+that uses a busy box image and sleeps for 20 seconds.
+
+So let's do an edit pod red
+
+and we have the in container section here,
+
+so we're gonna add a section called Init containers
+
+and then here we have the image,
+
+so the image is busy box,
+
+and then we have
+
+the names so this could be any name,
+
+let just say busy box
+
+and as a command,
+
+so the command is to sleep
+
+for 20 seconds.
+
+Okay so that's it, let's save that.
+
+And of course it didn't allow us to save
+
+so we're just gonna quit,
+
+we're gonna do a replace force, and this
+
+and let's just wait for the pod
+
+to terminate and recreate.
+
+Okay, so that's done. Let's check,
+
+let's go next.
+
+Now a new application orange is deployed,
+
+there is something wrong with it,
+
+identify and fix the issue
+
+and once fixed, wait for the application to run
+
+before checking the solution.
+
+So let's check the application called Pod.
+
+And it has one container and it's in a
+
+Init CrashLoopBackOff.
+
+So let's take a closer look at why it's failing.
+
+So if you look at this pod,
+
+we see that it has Init containers,
+
+there's one Init container called Init my service,
+
+and there's a container called Orange container
+
+and it's just a simple app.
+
+And here, if you look at this,
+
+it says back off, restarting failed container.
+
+So one of the containers seems to be,
+
+you know failing and restarting.
+
+And if you look at it here, it says Init crashed
+
+so back off indicates that it is Init container that's
+
+failing and that's what is being restarted.
+
+So one of the thing that we could look at
+
+when that happens is the logs.
+
+So you could look at the logs of
+
+a pod using the kubectl locks command
+
+and we're gonna specify orange as the pod,
+
+but we're not gonna have
+
+but just running logs is just
+
+always going to fetch logs from the orange container.
+
+But the orange container in the orange pod
+
+is just waiting to be restarted, waiting to start
+
+because it's actually in an initializing state.
+
+So let's find out what's happening with the
+
+let's look at the logs of the container,
+
+which is the Init container.
+
+So for that you specify that C
+
+and then give the container name, which is
+
+Init my service, and here you see that
+
+it says sleep not found.
+
+So the, it seems to be a typo in the sleep command.
+
+So if you look at how that Init container is configured
+
+you see that there's a command section and you have
+
+the sleep command, but it has a typo in it
+
+and that's basically the reason it's filling.
+
+And you see that the state is terminated,
+
+but this time the reason is error as opposed to completed
+
+as it is before.
+
+And then the exit code is is 127, right?
+
+So, and it's just, it just keeps restarting until you know,
+
+until it's fixed. So let's go ahead and fix that.
+
+Let's do a kubectl edit or Orange
+
+and go to Init containers,
+
+we're going to fix this.
+
+Just fix the typo and we'll save that
+
+and surprise, surprise
+
+and save that so we're going to
+
+just do a kubectl replace, force -f
+
+with this file. Okay, so that's replaced.
+
+Let's check, the status now.
+
+And we see that the Init container has a command
+
+which is now correct and it's already terminated
+
+and it's completed. Exit code is now zero.
+
+Check the status of the pod,
+
+it's now in a running state.
+
+Let's check, check it now. Okay, so that's done.
+
+Well, that's the end of this lab
+
+and I'll see you in the next one.
+
+Self Healing Applications
+Kubernetes supports self-healing applications through ReplicaSets and Replication Controllers. The replication controller helps in ensuring that a POD is re-created automatically when the application within the POD crashes. It helps in ensuring enough replicas of the application are running at all times.
+
+Kubernetes provides additional support to check the health of applications running within PODs and take necessary actions through Liveness and Readiness Probes. However these are not required for the CKA exam and as such they are not covered here. These are topics for the Certified Kubernetes Application Developers (CKAD) exam and are covered in the CKAD course.
+
+In the next few videos, we will talk about auto scaling from an exam point of view.
+
+We're going to talk about horizontal pod auto scaling or HPA vertical pod auto scaling or VPA.
+
+And because this is only one of the topics for the exam, we're going to keep it as light as possible.
+
+However, note that this is a vast topic and we have an entire course just for it on code cloud called
+
+as Kubernetes Auto Scaling.
+
+So I highly recommend you check that out.
+
+Okay, now before we begin to look at auto scaling, let's look at what scaling means in the first place.
+
+So let's forget about Kubernetes and containers for a second and go back to the plain old servers and
+
+apps hosted on physical servers.
+
+And so if you go back in time, millions and millions of years ago, when we used to host applications
+
+on physical servers with a predefined CPU and memory capacity.
+
+And what happens when the load increases and we run out of existing resources on the server.
+
+Now we need to scale up the server.
+
+So we took down the application and added more CPU or memory resources to it and then powered it back
+
+up.
+
+And that's referred to as vertical scaling.
+
+So as you just saw we basically increase the size of the existing server vertically.
+
+We added more resources to our existing server by adding more CPU and memory components to it vertically.
+
+And so that's vertical scaling if the application supported running in multiple instances.
+
+Another thing we could have done is that we could have avoided having to shut down the server.
+
+Instead, we could have added more servers to it and shared load between them.
+
+So running more instances of the application by adding more servers is known as horizontal scaling.
+
+So that's the basics of scaling.
+
+Vertical scaling refers to adding more resources to existing application, and horizontal scaling refers
+
+to adding more instances or more servers to your system.
+
+Now let's look at how that relates to Kubernetes and the container world.
+
+When we first introduced Kubernetes, we mentioned that one of the major purposes of a container orchestrator
+
+like Kubernetes is to host applications in the form of containers and scale up and down based on demand.
+
+So there are two types of scaling in Kubernetes.
+
+What we just spoke about, uh, is scaling workloads.
+
+So you can scale the workloads by adding or removing containers or pods onto the cluster.
+
+Another approach to scaling is scaling the underlying cluster itself.
+
+So that's adding or removing more servers or infrastructure to your cluster.
+
+So there's scaling workloads and scaling the cluster infra.
+
+So let's look at what these mean.
+
+So there are two ways of scaling these individually.
+
+So there's horizontal and vertical scaling.
+
+So when it comes to the cluster horizontal scaling refers to adding more nodes to the cluster.
+
+Vertical scaling would mean increasing the resources on existing nodes in the cluster.
+
+When it comes to scaling workloads, horizontal scaling would mean creating more pods and vertical scaling
+
+would mean increasing the resources allocated to existing pods.
+
+Now let's talk about the how.
+
+So there are two ways of scaling.
+
+There's the manual way and the automated way.
+
+The manual approach of horizontally scaling cluster infra would be to manually provision new nodes and
+
+then use the kube adm join command to add new nodes to the cluster.
+
+When it comes to vertical scaling, I don't think that's a common approach used for Kubernetes, because
+
+it would result in having to take down the server and applications running on them, and then add more
+
+resources to the servers and bring it back up, which is not something that we would want to do.
+
+So since most of the infra these days are virtual machines, you could easily provision a server with
+
+higher resources, add it to the cluster and remove the older server.
+
+So I don't think vertical scaling is that common of an approach.
+
+Now when it comes to horizontal scaling Rescaling workloads.
+
+The manual approach would be to run the kubectl scale command on the workload, to scale up or down
+
+the number of pods, and to vertically scale resources associated to a pod.
+
+You would usually run the kubectl edit command to go in to that deployment or stateful set or replica
+
+set, and change the resource limits and requests associated with the pods.
+
+Now we will dive into more details about each of these in the upcoming lectures, but I'm just giving
+
+you a high level overview right now.
+
+Now, now that we have discussed all of this, finally let's look at the automated approach.
+
+So for horizontally scaling the infra we have what is known as the Kubernetes cluster autoscaler.
+
+For horizontally scaling the workloads we have what is known as the horizontal pod autoscaler or HPA.
+
+And for vertically scaling workloads we have the vertical Pod autoscaler.
+
+So that, my friends, are the topic of discussion for the rest of this section.
+
+I'll see you in the next video.
+
+Let us now look at horizontal pod autoscaler in Kubernetes.
+
+Let's start by looking at how I would manually scale a workload horizontally.
+
+So I'm a Kubernetes administrator, and I'm sitting on my machine looking at a cluster.
+
+And I'm tasked to make sure that there is always sufficient workload to support demand for this application.
+
+From a deployment configuration perspective, I see this pod requests 250 milli CPU and has a limit
+
+of 500 millicores of CPU.
+
+This means that 500 Millicores is the max the CPU it gets, after which it doesn't get any more.
+
+Um, and the capacity that a single pod can handle is 500 millicores of CPU.
+
+So I would run the kubectl top pod command and monitor the resource consumption of the pod.
+
+If I had to do it manually.
+
+Now remember that you must have the metrics server running on the cluster to be able to monitor the
+
+resource usage like this.
+
+Now, when it reaches the threshold of 450 millicores or whatever it is that I have defined as the threshold
+
+or close to that.
+
+I would run the kubectl scale command to scale the deployment to add additional pods.
+
+So that's the manual way to scale a workload.
+
+The problems with this approach is that I have to sit in front of my computer and continuously monitor
+
+resource usage.
+
+I need to manually run commands to scale up and down.
+
+And if there's a sudden traffic spike and I want a break or something, I may not be able to react fast
+
+enough to support the spike in the application or in the traffic.
+
+So to solve this, we use the Horizontal Pod autoscaler.
+
+So the horizontal Pod autoscaler continuously monitors the metrics as we did manually using the top
+
+command.
+
+It then automatically increases or decreases the number of pods in a deployment Statefulset or replica
+
+set based on the CPU, memory, or custom metrics.
+
+And if the CPU, memory, or memory usage goes too high, HPA creates more paths to handle that, and
+
+if it drops, it removes the extra pods to save resources and thus balances the thresholds.
+
+And note that it can also track multiple different types of metrics, which we will refer to in in a
+
+few minutes.
+
+So let's see this in action.
+
+For the given nginx deployment, we can configure a horizontal pod autoscaler by running the kubectl
+
+autoscale command, targeting the deployment myapp, and specifying a CPU threshold of 50% with a minimum
+
+of one and maximum of ten pods.
+
+So when this command is run, Kubernetes creates a horizontal pod autoscaler for this deployment that
+
+first reads the limits configured on the pod, and then learns that it's set to 500 milli core.
+
+It then continuously pulls the metric server to monitor the usage, and when the usage goes beyond 50%,
+
+it modifies the number of replicas to scale up or down, depending on the usage.
+
+So to view the status of the created HPA, run the kubectl get HPA command and it lists the current
+
+HPA.
+
+The targets column shows the current CPU usage versus the threshold we have set, and the minimum and
+
+maximum and the current count of replicas.
+
+So it would never go beyond the maximum that we have specified when scaling up, and it would not go
+
+beyond the minimum that we specified when scaling down.
+
+And when you no longer need the HPA, you can delete it using the kubectl delete HPA command.
+
+Now that was the imperative approach to creating an HPA.
+
+There's also a declarative approach.
+
+So create an HPA definition file with the API version set to auto scaling v2 kind is set to horizontal
+
+pod autoscaler.
+
+The name is set to Myapp HPA and then we have the scale target ref.
+
+This is the target resource we want the HPA to monitor.
+
+That's the deployment named Myapp.
+
+We also have the min and max replicas defined.
+
+And then we have configured the metrics and resources to monitor in this case the resource being CPU
+
+and target utilization, uh being 50%.
+
+Now note that HPA comes built in with Kubernetes since version 1.23, so there is no separate installation
+
+procedures required.
+
+Note that it relies on metric server, so that is a prerequisite.
+
+So talking about metric server we spoke about the metric server that HPA depends on to get current resource
+
+utilization numbers.
+
+Now what we have been referring to is the internal metric server.
+
+But there are also other sources that we can refer to, such as a custom metrics adapter that can retrieve
+
+information from other internal sources, like a workload deployed in a cluster.
+
+However, these are still internal sources.
+
+We can also refer to external sources, such as tools or other instances that are outside of the Kubernetes
+
+cluster, such as a Datadog.
+
+Or Dynatrace instance using an external adapter.
+
+However, these are beyond the scope of this course, so more details and labs about these are available
+
+in our Kubernetes Auto Scaling course.
+
+To keep the scope just enough for the exam, this is all that we will discuss about HPA for now.
+
+Well, thank you so much for watching.
+
+Head over to the labs and I'll see you in the next one.
+
+Let us now look at in-place resizing of pods.
+
+So before we talk about Vertical Pod autoscaler, I thought it would be a good idea to talk about in-place
+
+resize of pod resources.
+
+So what does that mean?
+
+Now as of this recording, which is Kubernetes version 1.32 has has released, if you change resource
+
+requirements of a pod in a deployment, the default behavior is to delete the existing pod and then
+
+spin up a new pod with the new changes.
+
+So any resource, any changes to the resource definitions on pod.
+
+Uh ah.
+
+Does not happen in place.
+
+Which means the pod needs to be killed.
+
+And the new pod with the new resource definitions need to be created.
+
+So that's the default behavior.
+
+Now we know that this can be disruptive, especially for stateful workloads.
+
+So uh, there is an improvement that is being worked upon called as in-place update of Pod resources.
+
+This is a feature that is currently in alpha as of Kubernetes release 1.27, and is not enabled by default,
+
+and when it goes to the beta or stable stage in the future, it will become enabled by default.
+
+But as of this recording it is not.
+
+So it is still available with the features that are part of the Kubernetes cluster.
+
+You just have to enable it.
+
+So to enable this feature, you must set the feature flag called in-place pod vertical scaling to true.
+
+And once this is enabled, the Pod definition supports a set of resize policy parameters, which we
+
+will look at next.
+
+So the new resize policy options allow you to specify a restart policy for each resource.
+
+In this example, we have defined that a change in CPU resource will not require the pod to be restarted,
+
+and a change in memory will require a restart of the pod.
+
+And the next we make a change to a resource such as updating the CPU to one, and you can see that the
+
+pod does not need to be killed.
+
+Instead, it can simply be updated with the new resources and so it can just increase in size.
+
+So that explains how we can resize a CPU or memory resource assigned to a container without really restarting
+
+it.
+
+And this feature is currently in alpha with version 1.33.
+
+Release of Kubernetes.
+
+This is meant to be released as a beta feature, and in the future will be available as a stable feature.
+
+So now remember that we're still talking about manually scaling a pod, so we're not really talking
+
+about Vertical Pod Autoscaler yet.
+
+So in the next video we'll talk about Vertical Pod Autoscaler, but let's also look at some of the limitations.
+
+So some of the limitations of in place resizing of pods to keep in mind is that this only works for
+
+CPU and memory resources.
+
+Pod, QoS class, etc. cannot be changed.
+
+Init containers and ephemeral containers cannot be resized with this approach.
+
+Resource requests and limits cannot be moved once they are set.
+
+A containers memory limit may not be reduced below its usage.
+
+If a request puts a container in the state, the resize status will remain in progress until the desired
+
+memory limit becomes feasible.
+
+And finally, windows pods cannot be resized as of now.
+
+Well, that's it for this one.
+
+Let's now look at Vertical Pod Autoscaler
+
+in Kubernetes.
+
+So let's start by looking at
+
+how I would manually scale a workload vertically.
+
+Say I am a Kubernetes administrator
+
+and I'm sitting on my machine looking at a cluster,
+
+I'm tasked to make sure
+
+that there is always sufficient workload
+
+to support demand for this application.
+
+And from the deployment configuration,
+
+I see that this pod requests a 250 milli cores of CPU
+
+and has a limit of 500 milli cores of CPU.
+
+And this means that 500 milli cores
+
+is the max capacity it gets.
+
+So as I did before,
+
+I would run the kubectl top pod command
+
+and monitor the resource consumption of the pod.
+
+And so remember that you must have the metric server running
+
+on the cluster to be able to monitor as the same as before.
+
+And when it reaches a specific threshold,
+
+what I'm going to do to scale the pod vertically
+
+is run the kubectl edit deployment command.
+
+So I would run the edit deployment command
+
+and I would change the resource requests and limits
+
+assigned to the deployment under the pod template,
+
+under the container section, and then save it.
+
+And what would happen is it would then kill that pod
+
+and create a new pod.
+
+So that's basically how I would do it manually.
+
+Now of course we don't wanna do it manually.
+
+We have the vertical pod autoscaler for that.
+
+So similar to the horizontal pod autoscaler,
+
+the vertical pod autoscaler
+
+continuously monitors the metrics
+
+and then it automatically increases
+
+or decreases the resources assigned to the pods
+
+in a deployment
+
+and thus balances the workload.
+
+So let's look at it in a bit more detail.
+
+So unlike the horizontal pod autoscaler,
+
+the vertical pod autoscaler do not come built-in,
+
+as such, we must deploy it.
+
+So we first apply the vertical pod autoscaler
+
+definition file available in the GitHub repo.
+
+And then when we run the kubectl get pods command
+
+in the cube system namespace
+
+and search for VPA,
+
+we'll be able to see
+
+that there are multiple components deployed.
+
+So there is the admission controller recommender
+
+and the updater service, which should be running.
+
+So let's look at what those are.
+
+So the VPA deployment consists of multiple components.
+
+So there's the VPA admission controller,
+
+the updater, and the recommender.
+
+So the recommender is responsible
+
+for continuously monitoring resource usage
+
+from the Kubernetes metrics API,
+
+and collects historical and live usage data for pods,
+
+and then provides recommendations
+
+on optimal CPU and memory values.
+
+And the recommender itself does not modify the pod directly,
+
+or it only suggests changes.
+
+The updater detects pods that are running
+
+with suboptimal resources
+
+and evicts them when an update is needed.
+
+So it gets the information from the recommender
+
+and monitors the pod.
+
+And if a pod needs to be updated, it evicts them.
+
+That means it just terminates the pod.
+
+And the admission controller intervenes
+
+the pod creation process
+
+and uses the recommendations from the recommender again,
+
+to then mutate the pod spec
+
+to apply the recommended CPU and memory values at startup.
+
+And this ensures that the newly created pods
+
+start with the correct resource requests.
+
+So basically the VPA recommender collects information,
+
+the updater monitors
+
+or gets the information from the recommender,
+
+compares that to the actual pod.
+
+And if the pod is beyond the threshold, it kills the pod
+
+and whether it kills or not,
+
+that depends on the policy
+
+that we'll talk about in a bit.
+
+But ideally it would kill the pod
+
+and then the admission controller intervenes
+
+because when a pod is killed,
+
+it's automatically,
+
+the deployment will automatically recreate the pod.
+
+And when it does that, the admission controller intervenes
+
+and updates the resources so that the pod is now,
+
+now comes up with the new size.
+
+So let's look at how to create the VPA service
+
+using a definition file.
+
+So not that there's no imperative match to create a VPA
+
+because it's not a built-in component like the HPA.
+
+So here we have the API version,
+
+which is autoscaling.k8s.io/v1.
+
+The kind is vertical pod autoscaler.
+
+The name is my app VPA.
+
+The target to monitor is the my app deployment.
+
+The container policies define what is monitored,
+
+in this case, the CPU minimum allowed
+
+and max allowed are configured.
+
+And finally we have the update policy mode.
+
+So there are four modes that VPA operates in.
+
+The off mode, which only recommends changes
+
+but does not do anything.
+
+So in this case,
+
+it's only the recommender working,
+
+the updater and the admission controllers are not working.
+
+In case of the off-mode.
+
+The initial mode that only changes pods on creation,
+
+not later.
+
+So in the initial mode, the recommender recommends a change.
+
+And when the deployment is scaled for some other reason
+
+and the new pods come up,
+
+the admission controller intervenes
+
+and changes the pods resource definitions.
+
+The updater in this case does not work to kill
+
+or take down the pod.
+
+In case of the recreate mode,
+
+that's where the updater component jumps in
+
+and evicts an existing pod,
+
+when its resource consumption goes beyond range specified.
+
+And finally, we have the auto mode
+
+that updates existing pods to the recommended numbers.
+
+Again, for now, this behavior is similar to recreate.
+
+So as of now, the auto mode works exactly
+
+as a recreate mode.
+
+But when the support for the in-place a bit of Pod resources
+
+is available,
+
+the one that we spoke about in the previous video,
+
+then that mode would be preferred over recreate.
+
+So that auto-mode is really built for the future.
+
+When the in-place update of pod resources are available
+
+in stable version of Kubernetes,
+
+that would be the default behavior.
+
+But as of now, the auto-mode works exactly like recreate,
+
+where if a pod goes beyond a range, it is killed.
+
+Now VPA will monitor resource usage and suggest adjustments.
+
+So we can check the recommendations
+
+with the command kubectl describe VPA
+
+followed by the name of the VPA.
+
+And here you can see the recommendation.
+
+So VPAs are just increasing CPU to 1.5.
+
+So we spoke about horizontal and vertical pod autoscalers,
+
+but you must be wondering when to use which.
+
+So let's kind of compare the two.
+
+First, let's look at the scaling methods.
+
+So VPA as we know works by increasing CPU and memory
+
+for existing pods
+
+or by just recreating those pods with the new resources.
+
+Whereas HPA adds or removes pods based on demand.
+
+This means that the VPA optimizes
+
+individual pod performance,
+
+while HPA focuses on distributing the load
+
+across multiple instances.
+
+Next, in terms of pod behavior, VPA restarts pods
+
+to apply the new resource values.
+
+This means downtime is involved when scaling up vertically.
+
+In contrast, HPA keeps existing pods running
+
+and simply spins up new ones
+
+ensuring continuous availability.
+
+Now what about handling traffic spikes?
+
+So HPA is clearly the winner here.
+
+It instantly adds more pods when demand increases,
+
+making it the preferred choice for applications
+
+that require rapid scaling.
+
+And VPA on the other hand
+
+cannot handle sudden spikes efficiently
+
+because it requires restarting pods typically,
+
+which introduces delays.
+
+Now, from a cost optimization perspective,
+
+both have advantages.
+
+So VPA prevents over provisioning
+
+by adjusting CPU and memory allocation
+
+to match actual usage.
+
+And HPA on the other hand,
+
+avoids unnecessary idle pods
+
+ensuring that resources are used efficiently
+
+without keeping excess instances running.
+
+So when should you use which?
+
+So VPA is best suited for stateful workloads
+
+and CPU or memory heavy applications such as databases,
+
+JVM-based applications, AI and other workloads
+
+that require fine-tuned resources.
+
+So let's say some applications require
+
+like heavy CPU in the initial startup,
+
+but then later does not require that much CPU.
+
+What you could do is that's where VPA comes in.
+
+So you could start the instance with a lot of CPU
+
+and once that initialization process is over,
+
+I mean when it needs to reduce the CPU memory usage
+
+allocated to it, then that's where VPA comes into picture.
+
+The HPA is ideal for web applications,
+
+microservices and stateless services
+
+such as web servers, message queues,
+
+and API-based applications where quick scaling is needed
+
+to handle fluctuating traffic.
+
+So in summary, VPA is about optimizing resource allocation
+
+for individual pods,
+
+while HPA is about scaling the number of pods dynamically
+
+based on demand.
+
+So choosing the right autoscaler
+
+depends on the workload type
+
+and how you need to scale your application.
+
+All right, that's all for this lesson.
+
+Head over to the labs,
+
+and get your hands-on practicing with VPA.
+

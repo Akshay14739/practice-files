@@ -1,0 +1,5415 @@
+-: Hello, my name is (indistinct)
+
+and we are going through
+
+the certified Kubernetes Administrator's course.
+
+In this section,
+
+we look at various concepts
+
+related to scheduling in Kubernetes.
+
+We saw how to install
+
+and configure a scheduler briefly in the previous section.
+
+Here we take a closer look
+
+at the various options available for customizing
+
+and configuring the way the scheduler behaves
+
+through a set of fun and challenging practice exercises.
+
+Now I'm going to reran some topics a little bit
+
+to improve the flow.
+
+We will start with manual scheduling
+
+and see how you can schedule a pod manually
+
+we then look at demon sets, labels and selectors,
+
+and how resource requests
+
+and limits play a role in scheduling.
+
+We also see how to configure multiple schedulers
+
+and how to view the scheduler events.
+
+Well, let's get started
+
+and I hope you enjoy the lectures and practice tests
+
+In this lecture, we look at the different ways of manually scheduling a pod on a node.
+
+What do you do when you do not have a scheduler in your cluster?
+
+You probably do not want to rely on the built in scheduler and instead want to schedule the pods yourself.
+
+So how exactly does a scheduler work in the backend?
+
+Let's start with a simple pod definition file.
+
+Every pod has a field called node name that by default is not set.
+
+You don't typically specify this field when you create the pod manifest file.
+
+Kubernetes adds it automatically.
+
+The scheduler goes through all the pods and looks for those that do not have this property set.
+
+Those are the candidates for scheduling.
+
+It then identifies the right node for the pod by running the scheduling algorithm.
+
+Once identified, it schedules the pod on the node by setting the node name property to the name of
+
+the node by creating a binding object.
+
+So if there is no scheduler to monitor and schedule pods onto nodes, what happens?
+
+The pods continue to be in a pending state.
+
+So what can you do about it?
+
+You can manually assign pods to nodes yourself.
+
+Well, without a scheduler, the easiest way to schedule a pod is to simply set the node name field
+
+to the name of the node in your pod specification file while creating the pod.
+
+The pod then gets assigned to the specified node.
+
+You can only specify the node name at creation time.
+
+What if the pod is already created and you want to assign the pod to a node?
+
+Kubernetes won't allow you to modify the node name property of a pod.
+
+So another way to assign a node to an existing pod is to create a binding object and send a Post request
+
+to the pods binding API, thus mimicking what the actual scheduler does in the binding object.
+
+You specify a target node with the name of the node, then send a Post request to the pods binding API
+
+with the data set to the binding object in a JSON format.
+
+So you must convert the YAML file into its equivalent JSON form.
+
+Well, that's it for this lecture.
+
+Head over to the practice test and practice manually scheduling pods on nodes.
+
+-: Okay in this video, we're gonna walk
+
+over the practice test on manual scheduling.
+
+So the question is a pod definition file engine x.yaml
+
+is given and you have to create a pod.
+
+So let's go over this, but before that
+
+let's just quickly explore the environment.
+
+So if you're on the get nodes command
+
+we see that it's a two node cluster.
+
+So that's what we're working with now.
+
+And there is a file called engine x.yaml.
+
+And by the looks of it
+
+it's just a normal pod definition file
+
+with the name set to engine X
+
+and the image set to engine X as well.
+
+So let's go ahead and create this.
+
+Okay. and let's click on check.
+
+And so the goal of this exercise is just to create the pod
+
+you don't have to check the status for now
+
+let's go to the next question.
+
+So what is the status of the created pod?
+
+So we see that it's in a pending state.
+
+So that's the answer, it's an a pending state.
+
+Okay so why is the pod in a pending state?
+
+So inspect the environment for various Kubernetes
+
+control plane components.
+
+So one thing that we have learned is
+
+that's the scheduler that schedules the pod.
+
+So if the pod's status is in pending,
+
+let's take a closer look at the pod.
+
+And we don't see any additional details
+
+other than the fact that it's in a pending state.
+
+So that basically means the scheduler
+
+has not done its job of scheduling the pod on a node.
+
+You see if you look at it here
+
+the node field is set to none.
+
+So let's look at the scheduler.
+
+So the scheduler runs as a pod
+
+in the cube system name space.
+
+And we see that you have the API server,
+
+the controller manager, the proxy, the ETCD control plane,
+
+but there is no scheduler running.
+
+So that could be the reason why this pod is not running
+
+and it's in a pending state.
+
+So we're gonna say that there's no scheduler present.
+
+Okay, so now we have to manually schedule the pod
+
+on node zero one.
+
+Now we've already created the pod, but it's not assigned
+
+to any node.
+
+And one thing that we've learned in the previous lecture
+
+is that we can manually schedule the pod.
+
+So we're gonna edit the engine X study on the file.
+
+And I'm going to add a node name property here
+
+and we'll set that to node zero one.
+
+Okay. and then we, now we've got to recreate the pod.
+
+So we have to delete it and recreate it.
+
+One way to do that is just to, you know,
+
+delete the pod and recreate it.
+
+But we can also just use the replace command
+
+if we need to do that just in a single command.
+
+So we're gonna do a replace force
+
+so that's going to delete the pod and then recreate it.
+
+And then we're gonna specify the file.
+
+So that first, yeah the pod is deleted
+
+and then it's just replaced.
+
+So let's look at the status of the pod now.
+
+You see that it's in a container creating state.
+
+Now if you don't want to run the same command
+
+multiple times to check the status you could just
+
+add the watch option.
+
+And what it's gonna do is it's going to continue to
+
+monitor that pod and it's gonna update the status
+
+if something changes.
+
+So it's already in the running state, so we're good.
+
+Okay, next.
+
+Okay, now schedule the same pod on the control plane node.
+
+Right, so again, that's pretty simple.
+
+If we go in and make the same change
+
+so this is just for additional practice control plane
+
+and then we are going to have to do the same thing.
+
+Now remember that we cannot move a running pod
+
+from one node to another, right?
+
+So ultimately a pod is actually a container
+
+which is basically another process running on a system.
+
+So you cannot move a running process as is
+
+from one system to another.
+
+So there is no way to basically move pods
+
+from systems to systems.
+
+You can only delete pods from one system or one node
+
+and then recreate it on another.
+
+So that was a question that I got from a student.
+
+So let's do the replace again
+
+and remember to use a force.
+
+Be sure you wanna delete and recreate it
+
+and wait for it to terminate.
+
+Now again, if you look at this,
+
+it's taking a while to delete.
+
+So that's not a problem with Kubernetes
+
+or with our lab environment.
+
+It's normal for that to happen.
+
+When you terminate or when you delete a pod
+
+what happens is in the back end
+
+it has to go in and terminate the process that's running.
+
+In this case, the is the engine X process.
+
+So it basically sends a kill signal to the process.
+
+And the process, depending on what process is running
+
+and the way that it handles kill signals
+
+it might take some time for it to process that request
+
+and actually kill, or you know gracefully shut down, right?
+
+So that's really the the reason why it takes a few seconds
+
+when you delete certain pods.
+
+And that's why, that's what happened this time.
+
+So it's not because there's an issue with either Kubernetes
+
+or the node or the lab environment.
+
+That's just how it works.
+
+Okay, so let's now check the pod, we can check.
+
+See it's running,
+
+if you do a wide option
+
+then we'll get to see on which node it is scheduled
+
+so we can see that it's on the control plane node.
+
+Okay.
+
+All right, and that's the end of this lab.
+
+
+What do we know about labels and selectors already?
+
+Labels and selectors are a standard method to group things together.
+
+Say you have a set of different species.
+
+A user wants to be able to filter them based on different criteria, such as based on their class or
+
+kind, if they are domestic or wild, or say by their color and not just group, you want to be able
+
+to filter them based on a criteria such as all green animals or with multiple criteria such as everything
+
+green that is also a bird.
+
+Whatever that classification may be, you need the ability to group things together and filter them
+
+based on your needs.
+
+And the best way to do that is with labels.
+
+Labels are properties attached to each item, so you add properties to each item for their class.
+
+Kind and color selectors help you filter these items.
+
+For example, when you say class equals mammal, we get a list of mammals.
+
+And when you say color equals green, we get the green mammals.
+
+We see labels and selectors used everywhere, such as the keywords you tag to YouTube videos or blogs
+
+that help users filter and find the right content.
+
+We see labels added to items in an online store that help you add different kinds of filters to view
+
+your products.
+
+So how are labels and selectors used in Kubernetes?
+
+We have created a lot of different types of objects in Kubernetes pods, services, replica sets, deployments,
+
+etc. for Kubernetes.
+
+All of these are different objects.
+
+Over time, you may end up having hundreds or thousands of these objects in your cluster.
+
+Then you will need a way to filter and view different objects by different categories, such as to group
+
+objects by their type or view objects by application or by their functionality, whatever it may be.
+
+You can group and select objects using labels and selectors for each object.
+
+Attach labels as per your needs like app, function, etc..
+
+Then, while selecting specify a condition to filter specific objects.
+
+For example, app equals app one.
+
+So how exactly do you specify labels in Kubernetes?
+
+In a Pod definition file under metadata, create a section called labels.
+
+Under that, add the labels in a key value format like this.
+
+You can add as many labels as you like.
+
+Once the pod is created to select the pod with labels, use the Kube control get pods command along
+
+with the selector option and specify the condition like app equals app one.
+
+Now this is one use case of labels and selectors.
+
+Kubernetes objects use labels and selectors internally to connect different objects together.
+
+For example, to create a replica set consisting of three different parts, we first label the part
+
+definition and use selector in a replica set to group the parts in a replica set definition file.
+
+You will see labels defined in two places.
+
+Note that this is an area where beginners tend to make a mistake.
+
+The labels defined under the templates section are the labels configured on the pods.
+
+The labels you see at the top are the labels of the replica set itself.
+
+We're not really concerned about the labels of the replica set for now, because we are trying to get
+
+the replica set to discover the pods.
+
+The labels on the replica set will be used.
+
+If you were to configure some other object to discover the replica set.
+
+In order to connect the replica set to the pods, we configure the selector field under the Replica
+
+set specification to match the labels defined on the pod.
+
+A single label will do if it matches correctly.
+
+However, if you feel there could be other pods parts with the same label, but with a different function.
+
+Then you could specify both the labels to ensure that the right parts are discovered by the replica
+
+set on creation.
+
+If the labels match, the replica set is created successfully.
+
+It works the same for other objects like a service.
+
+When a service is created, it uses the selector defined in the service definition file to match the
+
+labels set on the pods in the replica set definition file.
+
+Finally, let's look at annotations.
+
+While labels and selectors are used to group and select objects, annotations are used to record other
+
+details for informatory purpose.
+
+For example, tool details like name version, build information, etc. or contact details, phone numbers,
+
+email IDs, etc. that may be used for some kind of integration purpose.
+
+Well, that's it for this lecture on labels and selectors and annotations, head over to the Coding
+
+Exercises section and practice working with labels and selectors.
+
+
+-: Hey, in this video, we're gonna walk through
+
+the practice test for labels and selectors.
+
+So, the question is, we have deployed a number of pods,
+
+they are labeled with a tier, ENV and BU
+
+And how many pods exist in the dev environment?
+
+So we have to use selectors.
+
+So first let's do a get pods.
+
+And we see that there are a number of pods.
+
+Now we've got to filter it
+
+and identify the pods that are in the dev environment.
+
+So I'm assuming ENV is for environment.
+
+So that's the label.
+
+And the, so this is the key and this is the value.
+
+So if we have to find pods using the selector
+
+and then we'll say ENV equals dev.
+
+And we see that these are the pods in the dev environment.
+
+So that's 1, 2, 3, 4, 5, 6, 7, 7 of them.
+
+If you want to find, so now let's say
+
+since there are just seven, it's easy to
+
+for us to just count.
+
+But let's say there are a lot of them there
+
+that now where it becomes difficult to count manually
+
+one thing you could do is just do a word count, right?
+
+So you could do a word count dash L.
+
+Now the problem with this is this also counts
+
+this top line which is the header.
+
+So there's a way to print this without the headers
+
+and that's using the no header's option.
+
+And when you run that
+
+you just get the output without the header.
+
+And then we can do a word count on that.
+
+And that's seven, so seven is the answer here.
+
+Okay, so the next question is how many pods are
+
+in the finance business unit?
+
+So, we saw that the
+
+that label key is the, UA so, for business unit.
+
+And the business unit we are looking at IT finance.
+
+And we'll just use same command for this.
+
+And this time is six.
+
+Okay, and how many objects are in the prod environment
+
+including pause, replica sets, and any other objects?
+
+So let's use the same command and change the labels.
+
+So the environment is broad
+
+and now we are only listing the pods.
+
+So to list all objects
+
+what you could do is give all instead of pods.
+
+So all lists, all the objects in that name space.
+
+So here we have pods, we have surveys
+
+and we have replica sets, right?
+
+So if you count this, that's, let's do a word count.
+
+And so that's number seven.
+
+So there are seven objects.
+
+And then the next question is to identify the pod
+
+which is part of the prod environment, the finance BU
+
+and the the front end tier.
+
+So one that has all of it.
+
+So the environment is prod.
+
+Then we can just add additional labels separated
+
+by a coma will BU equals finance and tier is front end.
+
+Okay, so that happens to be this particular pod, which is
+
+which starts with ZZXDF is this one right here.
+
+Okay, the final question is about, again labels.
+
+So there's a file called replica set definition file
+
+and the request is to create the replica set and
+
+but there's an issue with it, so we've got to fix it.
+
+So let's try creating it.
+
+Okay, and it says the replica set is invalid.
+
+Invalid value selector does not match template labels.
+
+So selector is this and template labels.
+
+So this template and template labels is this.
+
+So the error message is that this does not match this.
+
+Now we know that for replica set to manage the pod
+
+so this is basically the pod definition.
+
+The replica set needs to have these two match
+
+otherwise it won't be able to manage the pod.
+
+So that's the validation error here.
+
+So we're gonna fix this by changing this to the value below.
+
+Save that and let's create pod, sorry, the replica set.
+
+And it's created, let's verify creation.
+
+Yep, that's working.
+
+Okay, so that's the end of this lab.
+
+
+In this lecture, we will discuss about the pod to node relationship and how you can restrict what pods
+
+are placed on what nodes.
+
+The concept of taints and tolerations can be a bit confusing for beginners, so we will try to understand
+
+what they are using an analogy of a bug approaching a person.
+
+Now my apologies in advance, but this is the best I could come up with to prevent the bug from landing
+
+on the person.
+
+We spray the person with repellent spray or a taint as we will call it in this lecture.
+
+The bug is intolerant to the smell, so on approaching the person, the taint applied on the person
+
+throws the bug off.
+
+However, there could be other bugs that are tolerant to this smell, and so the taint doesn't really
+
+affect them and so they end up landing on the person.
+
+So there are two things that decide if a bug can land on a person.
+
+first, the taint on the person, and second the bugs toleration level to that particular taint.
+
+Getting back to Kubernetes, the person is a node and the bugs are pods.
+
+Now taints and tolerations have nothing to do with security or intrusion on the cluster.
+
+Taints and tolerations are used to set restrictions on what pods can be scheduled on a node.
+
+Let us start with a simple cluster with three worker nodes.
+
+The nodes are named one, two, and three.
+
+We also have a set of pods that are to be deployed on these nodes.
+
+Let's call them A, B, C, and D.
+
+When the pods are created, Kubernetes Scheduler tries to place these pods on the worker nodes.
+
+As of now, there are no restrictions or limitations, and as such, the scheduler places the pods across
+
+all the nodes to balance them out equally.
+
+Now let us assume that we have dedicated resources on node one for a particular use case or application.
+
+So we would like only those parts that belong to this application to be placed on node one.
+
+First, we prevent all pods from being placed on the node by placing a taint on the node.
+
+Let's call it blue.
+
+By default, pods have no tolerations, which means unless specified otherwise, none of the pods can
+
+tolerate any taint.
+
+So in this case, none of the pods can be placed on node one, as none of them can tolerate the taint
+
+blue.
+
+This solves half of our requirement.
+
+No unwanted pods are going to be placed on this node.
+
+The other half is to enable certain parts to be placed on this node.
+
+For this we must specify which pods are tolerant to this particular taint.
+
+In our case, we would like to allow only pod D to be placed on this node.
+
+So we add a toleration to pod D.
+
+Pod D is now tolerant to blue.
+
+So when the scheduler tries to place this pod on node one, it goes through node one can now only accept
+
+pods that can tolerate the taint blue.
+
+So with all the chains and tolerations in place, this is how the pods would be scheduled.
+
+The scheduler tries to place pod A on node one, but due to the time it is thrown off and it goes to
+
+node two, the scheduler then tries to place pod B on node one, but again due to the taint, it is
+
+thrown off and is placed on node three, which happens to be the next node.
+
+The scheduler then tries to place pod C to the node one.
+
+It is thrown off again and ends up on node two.
+
+And finally the scheduler tries to place pod D on node one.
+
+Since the pod is tolerant to node one, it goes through.
+
+So remember things are set on nodes and tolerations are set on pods.
+
+So how do you do this?
+
+Use the kube control taint nodes command to taint a node.
+
+Specify the name of the node to taint followed by the taint itself, which is a key value pair.
+
+For example, if you would like to dedicate the node to pods in application blue, then the key value
+
+pair would be app blue.
+
+The taint effect defines what would happen to the pods if they do not tolerate the taint.
+
+There are three taint effects no schedule, which means the pods will not be scheduled on the node,
+
+which is what we have been discussing.
+
+Prefer no schedule, which means the system will try to avoid placing a pod on the node, but that is
+
+not guaranteed.
+
+And third is no execute, which means that new pods will not be scheduled on the node and existing pods
+
+on the node, if any will be evicted if they do not tolerate the taint.
+
+These parts may have been scheduled on the node before the taint was applied to the node.
+
+An example command would be to taint node node one with the key value pair app equals blue and an effect
+
+of no schedule tolerations are added to pods to add a toleration to a pod.
+
+First, pull up the pod definition file in the spec section of the pod definition file.
+
+Add a section called Tolerations.
+
+Move the same values used while creating the taint under this section.
+
+The key is app operator is equal, value is blue and the effect is no schedule.
+
+And remember all of these values need to be encoded in double quotes.
+
+When the pods are now created or updated with the new tolerations, they are either not scheduled on
+
+nodes or evicted from the existing nodes depending on the effect set.
+
+Let us try to understand the no execute change effect in a bit more depth.
+
+In this example we have three nodes running some workload.
+
+We do not have any chains or tolerations at this point, so they are scheduled this way.
+
+We then decided to dedicate node one for a special application, and as such, we taint the node with
+
+the application name and add a toleration to the pod that belongs to the application, which happens
+
+to be pod D in this case.
+
+While tending the node, we set the taint effect to no execute, and as such, once the taint on the
+
+node takes effect, it evicts pod C from the node, which simply means that the pod is killed.
+
+The pod D continues to run on the node as it has a toleration to the tank blew.
+
+Now, going back to our original scenario where we have taints and tolerations configured, remember
+
+taints and tolerations are only meant to restrict nodes from accepting certain paths.
+
+In this case, node one can only accept pod D, but it does not guarantee that pod D will always be
+
+placed on node one, since there are no chains or restrictions applied on the other two nodes.
+
+Pod D may very well be placed on any of the other two nodes, so remember taints and Tolerations does
+
+not tell the pod to go to a particular node.
+
+Instead, it tells the node to only accept pods with certain tolerations.
+
+If your requirement is to restrict a pod to certain nodes, it is achieved through another concept called
+
+as node affinity, which we will discuss in the next lecture.
+
+Finally, while we are on this topic, let us also take a look at an interesting fact.
+
+So far we have only been referring to the worker nodes, but we also have master nodes in the cluster,
+
+which is technically just another node that has all the capabilities of hosting a pod.
+
+Plus it runs all the management software.
+
+Now, I'm not sure if you noticed the scheduler does not schedule any pods on the master node.
+
+Why is that?
+
+When the Kubernetes cluster is first set up, a tent is set on the master node automatically.
+
+That prevents any pods from being scheduled on this node.
+
+You can see this as well as modify this behavior if required.
+
+However, a best practice is to not deploy application workloads on a master server.
+
+To see this taint, run a cube control, describe node command with cube master as the node name and
+
+look for the taint section.
+
+You will see a taint set to not schedule any pods on the master node.
+
+Well, that's it for this lecture.
+
+Head over to the Coding Exercises section and practice working with Taints and Tolerations.
+
+
+Instructor: Okay, so let's go over the lab
+
+for practicing taints and tolerations.
+
+So let's start with the first question.
+
+How many nodes exist on the system?
+
+Including the control plane?
+
+So let's look at the number of nodes
+
+and we see that there are two nodes,
+
+control plane and node zero one.
+
+So the answer is two.
+
+Okay, so the next question is,
+
+do any taints exist on node zero one node?
+
+So for that we're gonna have to take a closer look
+
+at node zero one.
+
+So we do a kubectl, describe node, node zero one
+
+and we see taints right here.
+
+And we see that there are none.
+
+So there are no taints on this particular node.
+
+So I'm gonna select, no.
+
+It's going to clear my screen.
+
+Okay, so the next question is to create a taint
+
+on node zero one with key of spray value
+
+of martin and effect of NoSchedule.
+
+So we're gonna continue with the, the silly example
+
+that we used in the lecture
+
+of the spray and martin, and mosquito and B.
+
+So here the task is to create a taint.
+
+So we're gonna do kubectl taint
+
+and let's quickly look at the help.
+
+So the command is kubectl taint, and then nodes
+
+then the name of the node,
+
+and then followed by these values,
+
+which are the key has to be spray,
+
+and then the value is martin.
+
+And then the effect is NoSchedule.
+
+So let's do that.
+
+So it's kubectl paint, node, and it's node zero one,
+
+and then the key is spray
+
+and the value is obtain, and the effect is NoSchedule.
+
+Okay? Okay, let's confirm that.
+
+So we have the spray equals martin
+
+and the NoSchedule effect, right?
+
+So that's, that's done.
+
+So we now have attained on node zero one.
+
+Now the goal is to create a new pod
+
+with the engine X image,
+
+and the pod name as mosquito, right?
+
+So we're gonna do a kubectl run,
+
+and then, that's the pod name. Image equals engine X.
+
+Let's do... Get pods.
+
+And we see that, it's created.
+
+Ignore the, the, the status for now.
+
+Okay, so what is the state of the pod?
+
+So it seems to be in a pending state.
+
+So select pending.
+
+Now why do you think the pod is in a pending state?
+
+Is it because image is not available?
+
+Is there an error?
+
+So let's see, let's do describe pod in the pod name.
+
+And here you'll see the, the reason
+
+why it's in a pending state.
+
+It says that the pod didn't tolerate one node that had taint
+
+and spraying martin that the pod didn't tolerate.
+
+So basically the pod mosquito cannot tolerate the taint.
+
+martin, that's, that's the problem here.
+
+So we're gonna select that.
+
+Okay, so now we have to create another pod named B
+
+with the engine X image.
+
+Which has a toleration set to the taint martin.
+
+So we're gonna do a kubectl, run command, to create a pod.
+
+The name is going to be B,
+
+and the image is going to be engine X.
+
+And basically, now we have to add toleration to it,
+
+but you cannot specify toleration in the command lane.
+
+So what we're gonna do is we're gonna do a, a dry run,
+
+equals client, to generate AMO file for this pod.
+
+So that's the AMO file
+
+and we're gonna redirect that to B.AMO.
+
+So we have this in, in B.AMO,
+
+we're going to edit B.AMO file,
+
+and we're going to add in tolerations.
+
+So add a section called tolerations.
+
+Now if you're not sure of the, the format
+
+check out the Kubernetes documentation pages,
+
+and search for chains tolerations.
+
+And that's the first result.
+
+And these are, this is the command for taint,
+
+and this is, this is the format for tolerations.
+
+So dash key operator value and effect.
+
+So that's key.
+
+So key is going to be spray, operator, value, and effect.
+
+So the value is going to be seen,
+
+effect is going to be audio,
+
+finally we have operator just to be equal,
+
+operator set to equal.
+
+You save that... And let's create image.
+
+Okay, so it's now in a container creating state.
+
+Let's watch the creation process
+
+and we can see that it's now in a running state.
+
+So this part is now running.
+
+Okay, so that's, that's correct.
+
+Now noticed the B pod was scheduled on node zero one.
+
+So let's see where it was scheduled.
+
+And we see the B pod is on node zero one.
+
+So basically, now this B was able to tolerate the taint set
+
+on node zero one.
+
+Now do you see any taints on control plane node?
+
+So let's look at the control plane node
+
+and let's look at taints.
+
+And we see that yes, there is a taint set
+
+on the control plane node and it's set to NoSchedule.
+
+That's the effect.
+
+So yes, it's set, it's set to NoSchedule.
+
+Okay, now remove the taint on control plane,
+
+which currently has the taint effect of NoSchedule.
+
+So we've got to remove that.
+
+So first let's get that.
+
+So this is the taint, so let's copy that.
+
+And the command to remove it is the same kubecolor taint.
+
+And you just specify the node, that's control point node.
+
+Specify the 10 that we wanna remove
+
+and at the end you've got to put a dash or a minus
+
+for it to remove that 10.
+
+So it says it's untainted.
+
+So let's confirm that.
+
+Go back to taints and see it's, nothing is set.
+
+Just click on check.
+
+Okay, so that's, that's done,
+
+and now we've got to check the status of the pods again.
+
+And we see that the, the pod mosquito,
+
+which earlier was in a pending state,
+
+is now in a running state.
+
+So that's the state of, of the pod mosquito.
+
+And then we have to...
+
+Let's check at what, on what node is it placed.
+
+So as you can see it's now placed on the control plane node.
+
+So earlier at, in the beginning,
+
+the control plane node has a taint set, set on it,
+
+and then we set a taint on node zero one,
+
+and then we created the mosquito pod.
+
+And so it was not placed on any of the nodes
+
+because both of them had a taint then.
+
+Then we created the B pod
+
+with the toleration on node zero one.
+
+So the B pod was able to be placed on node zero one
+
+and then we removed the taint on control plane.
+
+And without doing anything the not, the,
+
+the pod mosquito was automatically placed on control plane
+
+because it no longer has any kind of taint on it.
+
+So it's, the answer to this is control plane.
+
+Okay, So that's the end of this lab.
+
+
+
+
+In this lecture we will talk about node selectors in Kubernetes.
+
+Let us start with a simple example.
+
+You have a three node cluster of which two are smaller nodes with lower hardware resources, and one
+
+of them is a larger node configured with higher resources.
+
+You have different kinds of workloads running in your cluster.
+
+You would like to dedicate the data processing workloads that require higher horsepower to the larger
+
+node, as that is the only node that will not run out of resources in case the job demands extra resources.
+
+However, in the current default setup, any pods can go to any nodes.
+
+So pod see in this case may very well end up on nodes 2 or 3, which is not desired.
+
+To solve this, we can set a limitation on the pods so that they only run on particular nodes.
+
+There are two ways to do this.
+
+The first is using node selectors, which is the simple and easier method for this.
+
+We look at the pod definition file we created earlier.
+
+This file has a simple definition to create a pod with a data processing image.
+
+To limit this pod to run on the larger node, we add a new property called node selector to the spec
+
+section and specify the size as large.
+
+But wait a minute, where did the size large come from?
+
+And how does Kubernetes know which is the large node?
+
+The key value pair of size and large are in fact labels assigned to the nodes.
+
+The scheduler uses these labels to match and identify the right node to place the pods on.
+
+Labels and selectors are a topic we have seen many times throughout this Kubernetes course, such as
+
+with services, replica sets, and deployments.
+
+To use labels in a node selector like this, you must have first labeled your nodes prior to creating
+
+this pod.
+
+So let us go back and see how we can label the nodes.
+
+To label a node, use the command Kube cube control label nodes, followed by the name of the node and
+
+the label in a key value pair format.
+
+In this case it would be cube control label nodes node one, followed by the label in a key value format
+
+such as size equals large.
+
+Now that we have labeled the node, we can get back to creating the pod, this time with the node selector
+
+set to a size of large.
+
+When the pod is now created, it is placed on node one as desired.
+
+Node selector served our purpose, but it has limitations.
+
+We used a single label and selector to achieve our goal here.
+
+But what if our requirement is much more complex?
+
+For example, we would like to say something like place the pod on a large or medium node or something
+
+like place the pod on any nodes that are not small.
+
+You cannot achieve this using node selectors.
+
+For this node affinity and anti-affinity features were introduced and we will look at that next.
+
+
+In this lecture we will talk about node affinity feature in Kubernetes.
+
+The primary purpose of node affinity feature is to ensure that pods are hosted on particular nodes.
+
+In this case, to ensure the large data processing pod ends up on node one.
+
+In the previous lecture, we did this easily using node selectors.
+
+We discussed that you cannot provide advanced expressions like or or not with node selectors.
+
+The node affinity feature provides us with advanced capabilities to limit pod placement on specific
+
+nodes.
+
+With great power comes great complexity.
+
+So the simple node selector specification will now look like this with node affinity.
+
+Although both does exactly the same thing, place the pod on the large node.
+
+Let us look at it a bit closer.
+
+Under spec you have affinity and then node affinity under that.
+
+And then you have a property that looks like a sentence called required during scheduling.
+
+Ignored during execution.
+
+No description needed for that.
+
+And then you have the node selector terms.
+
+That is an array.
+
+And that is where you will specify the key and value pairs.
+
+The key value pairs are in the form, key operator, and value where the operator is in the in operator
+
+ensures that the pod will be placed on a node whose label size has any value in the list of values specified
+
+here.
+
+In this case, it is just one called large.
+
+If you think your pod could be placed on a large or a medium node, you could simply add the value to
+
+the list of values like this.
+
+You could use the not in operator to say something like size, not n small, where node affinity will
+
+match the nodes with a size not set to small.
+
+We know that we have only set the label size to large and medium nodes, Notes.
+
+The smaller notes don't even have the label set, so we don't really have to even check the value of
+
+the label, as long as we are sure we don't set a label size to the smaller notes.
+
+Using the exists operator will give us the same result.
+
+The operator will simply check if the label size exists on the notes, and you don't need the values
+
+section for that, as it does not compare the values.
+
+There are a number of other operators as well.
+
+Check the documentation for specific details.
+
+Now we understand all of this and we're comfortable with creating a pod with specific affinity rules.
+
+When the pods are created, these rules are considered and the pods are placed onto the right nodes.
+
+But what if node affinity could not match a node with a given expression?
+
+In this case, what if there are no nodes with the label called size?
+
+Say we had the labels and the pods are scheduled.
+
+What if someone changes the label on the node at a future point in time.
+
+Will the pod continue to stay on the node?
+
+All of this is answered by the long sentence like property under node affinity, which happens to be
+
+the type of node affinity.
+
+The type of node affinity defines the behavior of the scheduler with respect to node affinity, and
+
+the stages in the lifecycle of the pod.
+
+There are currently two types of node affinity available required during scheduling, ignored during
+
+execution, and preferred during scheduling.
+
+Ignored during execution, and there are additional types of node affinity planned as of this recording.
+
+Required during scheduling.
+
+Required during execution.
+
+We will now break this down to understand further.
+
+We will start by looking at the two available affinity types.
+
+There are two states in the lifecycle of a pod when considering node affinity during scheduling and
+
+during execution.
+
+During scheduling is the state where a pod does not exist and is created for the first time.
+
+We have no doubt that when a pod is first created, the affinity rules specified are considered to place
+
+the pods on the right nodes.
+
+Now, what if the nodes with matching labels are not available?
+
+For example, we forgot to label the node as large.
+
+That is where the type of node affinity used comes into play.
+
+If you select the required type, which is the first one, the scheduler will mandate that the pod be
+
+placed on a node with the given affinity rules.
+
+If it cannot find one, the pod will not be scheduled.
+
+This type will be used in cases where the placement of the pod is crucial.
+
+If a matching node does not exist, the pod will not be scheduled.
+
+But let's say the pod placement is less important than running the workload itself.
+
+In that case, you could set it to preferred.
+
+And in cases where a matching node is not found, the scheduler will simply ignore node affinity rules
+
+and place the pod on any available node.
+
+This is a way of telling the scheduler, hey, try your best to place the pod on matching node, but
+
+if you really cannot find one, just place it anywhere.
+
+The second part of the property or the other state is during execution.
+
+During execution is the state where a pod has been running, and a change is made in the environment
+
+that affects node affinity, such as a change in the label of a node.
+
+For example, say an administrator removed the label we set earlier called size equals large from the
+
+node.
+
+Now, what would happen to the pods that are running on the node?
+
+As you can see, the two types of node affinity available today has this value set to ignored, which
+
+means pods will continue to run and any changes in node affinity will not impact them once they are
+
+scheduled.
+
+In the next lecture, we will compare taints and Tolerations and node affinity.
+
+
+-: Okay in this video, we will go over the practice test
+
+for node affinity. So the first question is
+
+to identify
+
+the labels on node, node 01,
+
+so to count
+
+the number of labels on node 01. So let's do
+
+kubectl, describe node,
+
+node 01
+
+and let's look at the labels.
+
+So we have 1, 2, 3, 4, 5, 5 labels.
+
+So we're gonna select five.
+
+And then the next question is, what is the value set
+
+to the label at beta.kubernetes.io/arc?
+
+So
+
+on node 01, so we are already
+
+on node 01 and it is AMD 64.
+
+That's
+
+this one.
+
+Okay. So the next question is to apply a label
+
+called color equals blue to node 01.
+
+So for that we're going to use the kubectl
+
+label command. So let's take a look at the help.
+
+And here we have some examples.
+
+So you have kubectl label, the pods or node,
+
+whatever.
+
+What is the object that we wanna apply the label to?
+
+And then the node name, and then just the label.
+
+So it's pretty straightforward.
+
+So we're gonna do kubectl, label,
+
+node,
+
+node 01
+
+and then color equals
+
+blue.
+
+Let's
+
+verify that
+
+it's set correctly.
+
+We're gonna go back, cause the labels
+
+and we see the color equals blue.
+
+Okay. Now the next one is to create a new deployment
+
+named blue with the nginx image and three replicas.
+
+So lets create a deployment.
+
+The name is blue,
+
+image is
+
+nginx,
+
+and
+
+replicas is three.
+
+Okay,
+
+so the next one is, which nodes can the pods
+
+for the blue deployment be placed on?
+
+So we, we've gotta check the tense on, on both
+
+the nodes. So let's do that.
+
+Let's
+
+check the tense on each one.
+
+So we're gonna do a, we've gotta describe node
+
+Let's check node 01.
+
+And
+
+let's
+
+check for
+
+tense.
+
+So there are no tense set on, node 01 and the
+
+other node which I believe is the control plane node.
+
+Let's check that too.
+
+So...
+
+So the node plane. So there are no, no tense on either
+
+of these nodes but for now the pods can be scheduled
+
+on either of the nodes because there are no tense
+
+on any of these nodes.
+
+Okay, so in this question, the task is to set node affinity
+
+to the deployment to place the part on node 01 only.
+
+So we're going to edit the deployment.
+
+So that's kubectl edit deployment
+
+blue.
+
+So we're here and
+
+what we need to do is on the pod specification
+
+now we've got to set the node affinity for these, right?
+
+So we, we have to use the required
+
+during scheduling, ignore during execution
+
+then use the color and the values to close.
+
+So for this, let's go to the Kubernetes documentation page
+
+and search for
+
+affinity.
+
+And let's get this.
+
+And here, let's look for the affinity
+
+spec.
+
+So we going to copy this
+
+and
+
+paste it here.
+
+So here, basically this one is an example for a pod.
+
+And so all of these are kind of aligned
+
+bit more to the left.
+
+But here, this is under the pod
+
+which is under the template section of deployment.
+
+So we have to move it all a little bit to the right.
+
+So for this, what I'm gonna do here is
+
+the first one is, okay, first line is okay
+
+but all these remaining lines
+
+we need to move it
+
+one step inside.
+
+So
+
+press capital V and then select all the lines.
+
+Then I'm gonna do a greater than symbol.
+
+So that's shift dot on the keyboard that I'm using.
+
+It moves everything to the, to the right.
+
+So it's not, not very pretty
+
+but I think that will do the job for now.
+
+And I'm just going to
+
+set the key to color
+
+and
+
+the value to low.
+
+So there, there are ways that we can set the VIM settings
+
+so that this always, it gets intended
+
+with spaces
+
+as opposed to multiple spaces at a time that you
+
+can see here. So, we're gonna save that
+
+and let's give this a shot.
+
+Okay, so that's done.
+
+Now the question is to find
+
+out which nodes the ports are placed on.
+
+So let's run a kubectl get pods -o wide
+
+that kind of shows us that all the pods
+
+are all node 01.
+
+So they're all on node 01.
+
+So the next task is to create a new deployment named red
+
+with nginx image and two replicas
+
+and ensure it gets placed on the control plane node only.
+
+And the recommendation is to use the label node kubernetes
+
+.io/master which is already set on the control plane node.
+
+So if you look at the
+
+control plane node
+
+we see that there is this label, right?
+
+It doesn't have a value set, right?
+
+So all we need to do is
+
+to set a node affinity
+
+rule that says
+
+the pods that are part
+
+of the deployment red should be placed
+
+on a node that has this label set.
+
+And the label does not have a value.
+
+But if this label exists
+
+then that's where it should be placed on.
+
+So let's try and do that.
+
+So we'll use the kubectl create deployment command
+
+and then the name is Redis.
+
+Sorry, red.
+
+Image is nginx
+
+and replicas
+
+=2.
+
+Okay? But we're not gonna create it.
+
+So we're gonna do a dry run because we need to
+
+get the yaml file to input the node affinity rules.
+
+So we're gonna do a dry run=client
+
+and then -o yaml
+
+that's gonna give us the yaml output.
+
+Then we're going to
+
+put it to a file named red.yaml.
+
+Now we're going to edit that file.
+
+And within the spec section
+
+we're gonna do the same
+
+as we did before.
+
+So we're gonna copy this node affinity rule
+
+and paste it.
+
+Now we've got to select all of these lines.
+
+I'm gonna do a
+
+shift dot shift dot on my keyboard
+
+which is gonna, and that's basically the, the greater
+
+than symbol and it's gonna move to the right.
+
+Now we're gonna change this to the key is the label
+
+which is this.
+
+I'm gonna copy and paste.
+
+And as we realize that this label does not have value
+
+so there's no point in checking the value here.
+
+So we're gonna get rid of this and all,
+
+all we are gonna do is say if the label exists
+
+so the operator would be Exists
+
+with the capital E,
+
+lets save that.
+
+And now we're going to create
+
+a deployment.
+
+There seems to be some error.
+
+So let's go back,
+
+see what the error is.
+
+It's on line 26
+
+Do not find expected
+
+key.
+
+So line
+
+26
+
+is this.
+
+Okay, actually it's this line here.
+
+So this is not currently intended, that's the problem.
+
+We're going to move it two characters before.
+
+Okay, So we're going to save that.
+
+Let's try that again.
+
+Okay. So even though here it's said line 26
+
+the issue was a few lines above
+
+okay so let's check our solution.
+
+All right, So that works.
+
+And if we look at pods now,
+
+we'll see that those
+
+the new pods are on node control plane.
+
+Okay?
+
+Okay, that's the end of this lab.
+
+
+Now that we have learned about taints and tolerations and node affinity, let us tie together the two
+
+concepts through a fun exercise.
+
+We have three nodes and three pods, each in three colors blue, red, and green.
+
+The ultimate aim is to place the blue pod in the blue node, the red pod in the red node, and likewise
+
+for green.
+
+We are sharing the same Kubernetes cluster with other teams, so there are other pods in the cluster
+
+as well as other nodes.
+
+We do not want any other pod to be placed on our node.
+
+Neither do we want our pods to be placed on their nodes.
+
+Let us first try to solve this problem using taints and tolerations.
+
+We apply a taint to the nodes, marking them with their colors blue, red and green, and we then set
+
+a toleration on the pods to tolerate the respective colors.
+
+When the pods are now created, the nodes ensure they only accept the pods with the right toleration.
+
+So the green pod ends up on the green node and the blue pod ends up on the blue node.
+
+However, taints and tolerations does not guarantee that the pods will only prefer these nodes, so
+
+the red pods ends up on one of the other nodes that do not have a taint or toleration set.
+
+This is not desired.
+
+Let us try to solve the same problem with node affinity.
+
+With node affinity, we first label the nodes with their respective colors blue, red, and green.
+
+We then set node selectors on the pods to tie the pods to the nodes.
+
+As such, the pods end up on the right nodes.
+
+However, that does not guarantee that other pods are not placed on these nodes.
+
+In this case, there is a chance that one of the other pods may end up on our nodes.
+
+This is not something we desire.
+
+As such, a combination of taints and tolerations and node affinity rules can be used together to completely
+
+dedicate nodes for specific pods.
+
+We first use taints and tolerations to prevent other pods from being placed on our nodes, and then
+
+we use node affinity to prevent our pods from being placed on their nodes.
+
+Well, that's it for this lecture.
+
+
+Let's look at resource requirements.
+
+Let us start by looking at a three node Kubernetes cluster.
+
+Each node has a set of CPU and memory resources available.
+
+Now every pod requires a set of resources to run.
+
+In this case, for example, this pod requires two CPUs and one memory unit.
+
+Now, whenever a pod is placed on a node, it consumes the resources available on that node.
+
+Now, as we have discussed before, it is the Kubernetes Scheduler that decides which node a pod goes
+
+to.
+
+The scheduler takes into consideration the amount of resources required by a pod and those available
+
+on the nodes, and identifies the best node to place a pod on.
+
+In this case, the scheduler schedules a new pod on node two because there are sufficient resources
+
+available on that node.
+
+If nodes have no sufficient resources available.
+
+The scheduler avoids placing the pod on those nodes, and instead places the pod on one where sufficient
+
+resources are available, and if there is no sufficient resources available on any of the nodes, then
+
+the scheduler holds back, scheduling the pod and you will see the pod in a pending state.
+
+And if you look at the events using the cube control describe pod command, you will see there is an
+
+insufficient CPU.
+
+Now let us now focus on the resource requirements for each pod.
+
+So what are these blocks and what are their values.
+
+Now you can specify the amount of CPU and memory required for Pod when creating one.
+
+For example, it could be one CPU and one GB of memory and this is known as the resource request for
+
+a container.
+
+So the minimum amount of CPU or memory requested by the container.
+
+So when the scheduler tries to place the pod on a node, it uses these numbers to identify a node which
+
+has sufficient amount of resources available.
+
+So to do this in the the sample pod definition file, all you need to do is add a section called resources
+
+under which add requests and specify the new values for memory and CPU usage.
+
+In this case, I set it to four gigabyte of memory and two counts of CPU.
+
+So when the scheduler gets a request to place this pod, it looks for a node that has this amount of
+
+resources available.
+
+And when the pod gets placed on a node, the pod gets a guaranteed amount of resources available for
+
+it.
+
+So what does one count of CPU really mean?
+
+Now you can specify any value as low as 0.1.
+
+So 0.1 CPU can also be expressed as 100 M, where M stands for milli, and you can go as low as one
+
+M, but not lower than that.
+
+Uh, now one count of CPU is equivalent to one Vcpu so that's one vcpu in AWS.
+
+So if you're looking at the AWS cloud, or it could be referred to as one core in GCP or Azure or one
+
+Hyperthread, um, on other other systems, and you could request a higher number of CPUs for the container
+
+provided your nodes are sufficiently funded.
+
+In this example, I have set it to five.
+
+Now, similarly with memory, you could specify 256 mebibyte using the mi suffix, or specify the same
+
+value in memory like this.
+
+That's the um, the full number, the whole number, and or specify the same value in memory like this
+
+as m.
+
+So um or use the suffix g for uh gigabyte.
+
+So note the difference between g and g.
+
+So g is gigabyte and it refers to 1000MB, whereas g refers to GB byte.
+
+And that that would be equivalent to 1024MB.
+
+So the same applies to megabyte and maybe byte in kilobyte and kibibyte.
+
+Now let's look at a container running on a node, and by default, a container has no limit to the resources
+
+it can consume on a node.
+
+So say a container that's part of a pod starts with one CPU on a node.
+
+It can go up and consume as much resources as it requires.
+
+And and that suffocates the native processes on the node or other containers of resources.
+
+Um, however, you can set a limit for the resource usage on these pods.
+
+For example, if you set a limit of one vcpu to um, the containers, a container will be limited to
+
+consume only one vcpu uh, from that node.
+
+So the same goes with memory.
+
+For example, you can set a limit of 512 megabyte on containers.
+
+Um, like this.
+
+Now you can specify the limits under the limits section.
+
+Under the resources section in your Pod definition file.
+
+So here specify the new limits for memory and CPU.
+
+Like this.
+
+Now when the pod is created, Kubernetes sets new limits for the container.
+
+And remember that the limits and requests are set for each container within a pod.
+
+So if there are multiple containers, then each container can have a request or limit set for its own.
+
+So what happens when a pod tries to exceed resources beyond its specified limit?
+
+In case of the CPU, the system throttles the CPU so that it does not go beyond the specified limit.
+
+A container cannot use more CPU resources than its limit.
+
+However, this is not the case with memory.
+
+A container can use more memory resources than its limit, so if a pod tries to consume more memory
+
+than its limit constantly.
+
+The pod will be terminated and you will see that the pod terminated with an error in the logs or in
+
+the output of the describe command.
+
+When you run it.
+
+So that's what is Om refers to out of memory kill.
+
+So now that we have learned what resource requests are and what limits are and how they function, and
+
+what happens when a particular container or pod hits the limits of that were defined, let's see what
+
+the default configuration is, right?
+
+So by default Kubernetes does not have a CPU or memory request or limit set.
+
+So this means that any pod can consume as much resources as required on any node, and suffocate other
+
+pods or processes that are running on the node of resources.
+
+So this is very, very important to note.
+
+So let's just look at how CPU requests and limits work.
+
+Let's say there are two pods competing for CPU resources on the cluster.
+
+And when I say pod, I mean a container within a pod.
+
+Right.
+
+So just keep that in mind.
+
+So without a resource or a limit set, one pod can consume all the CPU resources on the node and prevent
+
+the second part of required resources.
+
+So of course this is not ideal.
+
+Now let's look at another case where we have no request specified.
+
+But we do have limits specified.
+
+In this case, Kubernetes automatically sets requests to the same as limits.
+
+For example, requests and limits are assumed to be three in this case, and each pod is guaranteed
+
+three vCPUs and no more than that, as limits are also set to the same.
+
+The next one is where requests and limits are set.
+
+In this case, each pod gets a guaranteed number of CPU requests, which is one vcpu and can go up to
+
+the limits that is defined, which is three vcpu, but not more.
+
+So this might look to be the most ideal scenario.
+
+However, the issue is that if Pod one needs more CPU cycles for some reason and pod two isn't really
+
+consuming that many CPU cycles, then we don't want to limit pod one of CPU, right?
+
+So we'd like to allow pod one to use the available CPU cycles, as long as pod two doesn't really need
+
+it.
+
+So if there are sufficient CPU cycles available on the system, then why not let the pods use them?
+
+Right?
+
+So we don't want to unnecessarily limit resources of CPU cycles.
+
+So, uh, that's uh, that is not really the ideal scenario.
+
+And that's where the last, um, scenario comes in.
+
+So setting requests but no limits in this case because requests are set each pod is guaranteed one vcpu.
+
+However, because limits are not set when available, any pod can consume as many CPU cycles as available.
+
+But at any point in time, If pod two is, uh, requires additional, uh, CPU cycles or whatever it
+
+is.
+
+It has requested, then it will be guaranteed its requested CPU cycle.
+
+So this is the most ideal setup.
+
+Of course, there are cases where you absolutely may want to limit a pod of resources, and in that
+
+case you may set limits.
+
+For example, a good use case for setting limits is our labs themselves, where, um, all the labs
+
+that you've been, you guys have been going through and accessing, um, as part of this course, they
+
+are hosted as containers, um, on a cluster.
+
+Right.
+
+And since it's made accessible to public and um, users, uh, can run any kind of workload that they
+
+want, we set limits to prevent the user from misusing the infrastructure to, let's say, perform Bitcoin
+
+mining or, um, other resource consuming activities.
+
+So that works for us in that case.
+
+But in your case, if you don't want to restrict your application to consume additional CPU, uh, if
+
+needed, then you could consider not setting limits.
+
+But remember, if you were to do that, you need to make sure that all the pods have some request set,
+
+because that's the only way a pod will have resources guaranteed when there are no limits set for other
+
+pods.
+
+Right.
+
+So if there is any pod that has no request set and and there are no limits set for all the all the other
+
+pods, then it's possible that any pod could consume all the memory, all the CPU that's available on
+
+the node, and starve the pod that has no request defined.
+
+So just make sure that you have set requests for all the nodes.
+
+So a couple of things to note.
+
+The requests and limits may be different for each pod, but for the sake of simplicity we are assuming
+
+that it's the same for both pods in these examples that I'm sharing here.
+
+Right?
+
+But you can have absolutely different requests or limit set for containers for each containers within
+
+each pods.
+
+So also note that these recommendations are just for CPU.
+
+So let's look at how it works for memory next.
+
+So it's kind of similar.
+
+So if you look at the memory let's say there are two.
+
+In the first case there are two pods competing for memory resources on the cluster.
+
+And without a resource or limit set, one pod can consume all the memory resources on the node and prevent
+
+the second pod of required resources.
+
+So this is not ideal.
+
+Now let's look at the case where we have no requests specified.
+
+But we do have limits specified.
+
+And in this case Kubernetes automatically sets requests to the same as limits.
+
+So for example requests and limits are assumed to be three gigabytes in this case.
+
+And each pod is guaranteed three gigabytes and no more as limits is also the same.
+
+The next one is where requests and limits are set.
+
+In this case, each pod gets a guaranteed amount of memory, which is one gigabyte and can go up to
+
+the limits defined, which is three gigabytes but not more.
+
+And the last one is setting requests, but no limits.
+
+In this case, because requests are set, each pod is guaranteed one gigabyte.
+
+However, because limits are not set when available, any pod can consume as much memory as available,
+
+and if pod two requests more memory to free up pod one, the only option available is to kill it now,
+
+because unlike CPU, we cannot throttle memory once memory is assigned to a pod.
+
+The only way to kind of retrieve it is to kill the pod and free up all the memory that are used by it.
+
+Okay.
+
+So now, as we discussed before, by default, Kubernetes does not have resource requests or limits
+
+configured for pods.
+
+But then how do we ensure that every pod created has some defaults?
+
+Um, set.
+
+Now this is possible with limit ranges.
+
+So limit ranges can help you define default values to be set for containers in pods that are created
+
+without a request or limit specified in the Pod definition files.
+
+This is applicable at the namespace level.
+
+So remember that and this is an object.
+
+So you create a definition file with the API version set to v1 kind set to limit range.
+
+And we'll give it a name CPU resource constraint.
+
+We then set the default limit to 500 M.
+
+Default request to the same as well.
+
+Um.
+
+We will also specify a max CPU as one and a minimum as 100 M, so the max refers to the maximum limit
+
+that can be set on a container in a pod, and minimum refers to the minimum request a container in a
+
+pod can make.
+
+So these are of course some example values, not a recommendation or anything.
+
+So you must set whatever is best for your applications.
+
+Um so the same goes for memory.
+
+Uh, use memory instead of CPU and specify the defaults and max and min values in this in this form.
+
+And note that these limits are enforced when a pod is created.
+
+So if you create or change a limit range it does not affect existing pods.
+
+It will only affect newer pods that are created after the limit range is created or updated.
+
+And finally, is there any way to restrict the total amount of resources that can be consumed by applications
+
+deployed in a Kubernetes cluster.
+
+For example, if we had to say that all the pods together shouldn't consume more than this much of CPU
+
+or memory.
+
+What we could do is create quotas at a namespace level.
+
+So a resource quota is a namespace level object that can be created to set hard limits for requests
+
+and limits.
+
+In this example, this resource limits the total requested CPU and the current namespace to four and
+
+memory to four GB, and it defines a maximum limit of CPU consumed by all the parts together to be ten,
+
+and memory to be up ten gigabyte as well.
+
+Right.
+
+So that's um, that's another option, uh, that can be explored.
+
+Well, uh, that's all for now.
+
+Uh, refer to these pages on the Kubernetes documentation site for more information, and head over
+
+to the labs, and I'll see you in the next one.
+
+
+A quick note on editing Pods and Deployments
+Edit a POD
+Remember, you CANNOT edit specifications of an existing POD other than the below.
+
+spec.containers[*].image
+
+spec.initContainers[*].image
+
+spec.activeDeadlineSeconds
+
+spec.tolerations
+
+For example you cannot edit the environment variables, service accounts, resource limits (all of which we will discuss later) of a running pod. But if you really want to, you have 2 options:
+
+1. Run the kubectl edit pod <pod name> command.  This will open the pod specification in an editor (vi editor). Then edit the required properties. When you try to save it, you will be denied. This is because you are attempting to edit a field on the pod that is not editable.
+
+
+
+A copy of the file with your changes is saved in a temporary location as shown above.
+
+You can then delete the existing pod by running the command:
+
+kubectl delete pod webapp
+
+
+
+Then create a new pod with your changes using the temporary file
+
+kubectl create -f /tmp/kubectl-edit-ccvrq.yaml
+
+
+
+2. The second option is to extract the pod definition in YAML format to a file using the command
+
+kubectl get pod webapp -o yaml > my-new-pod.yaml
+
+Then make the changes to the exported file using an editor (vi editor). Save the changes
+
+vi my-new-pod.yaml
+
+Then delete the existing pod
+
+kubectl delete pod webapp
+
+Then create a new pod with the edited file
+
+kubectl create -f my-new-pod.yaml
+
+
+
+Edit Deployments
+With Deployments you can easily edit any field/property of the POD template. Since the pod template is a child of the deployment specification,  with every change the deployment will automatically delete and create a new pod with the new changes. So if you are asked to edit a property of a POD part of a deployment you may do that simply by running the command
+
+kubectl edit deployment my-deployment
+
+Instructor: Okay. So, let's go over the labs
+
+on resource limits, resource requests and limits.
+
+So, the first question is,
+
+a pod called rabbit is deployed.
+
+Identify the CPU request requirements set on the pod.
+
+So, let's do kubectl get pod,
+
+and see if there is a rabbit pod.
+
+So, let's do a kubectl describe pod rabbit.
+
+And, if you look at this section right here,
+
+we have limits, CPU limits and CPU requests.
+
+So, the CPU requests as requested here is one.
+
+So, let's select one.
+
+Okay, the next task is to delete the rabbit pod.
+
+So, kubectl delete pod rabbit.
+
+Okay.
+
+Okay, now another pod called elephant has been created.
+
+So, let's check that.
+
+Yep, so we have a pod called elephant
+
+and it fails to get to a running state.
+
+So, inspect this pod and identify the reason
+
+why it's not running.
+
+So, let's do a kubectl describe pod elephant.
+
+And, if you look at this section here, called Last State,
+
+it says, the reason is OOMKilled, right?
+
+So, that's, basically, that indicates
+
+that it's a memory issue.
+
+So, the reason is OOMKilled.
+
+So, let's select that.
+
+So, the status OOMKilled indicates that it is failing
+
+because the pod ran out of memory.
+
+Identify the memory limit set on the pod.
+
+So, the memory limit is, as you can see here, it's 10mi.
+
+Right? So, that's the memory limit set on this pod.
+
+So, the elephant pod runs a process
+
+that consumes 15 amount of memory.
+
+So, increase the limit of the elephant pod to 20,
+
+and delete and recreate the pod if required.
+
+So, one thing we have to do is to change it.
+
+So, as you can see here, the command used to
+
+create this pod is, is the stress command,
+
+and it is stresses.
+
+So, it basically gets the pod to use
+
+15 megabytes of memory, but the limit is 10.
+
+So, that's the reason why it's getting killed.
+
+So, we've got to change this to 20.
+
+So, one of the ways to do that
+
+is to do a kubectl edit pod elephant.
+
+But the problem is, we might not
+
+be able to change the limit with an edit.
+
+So, we're going to, let's give it a shot anyway.
+
+So, let's give it 20 and save.
+
+And what this says is, that you cannot,
+
+basically, edit the limits set to a running pod.
+
+So,
+
+So, anyway, let's come out of it.
+
+But, our changes are saved in this file.
+
+So, that's a temporary file, right?
+
+So, let's check that.
+
+And, if you look at the resource limits that we have set,
+
+so it's actually saved here. Our change is saved here.
+
+So, what we could do is, we could just use this file
+
+to recreate the pod, right?
+
+So, we can either delete the pod and then recreate it.
+
+Or, an easier way is to just use
+
+the kubectl replace command, and then use the force
+
+so it actually deletes the existing pod and recreates it,
+
+and give that file.
+
+Just change it here, kubectl replace force dash F,
+
+and then the file name.
+
+So it, basically, deletes the elephant pod
+
+and then it replaces it, recreates it.
+
+So, let's see the status now.
+
+And we see that it's in a running state.
+
+Let's also verify...
+
+that, yep, the limit that we set is now reflecting.
+
+Okay? Yep. We've just checked and made sure
+
+that it's in a running state.
+
+And, the next task is to delete pod.
+
+And, we'll just give it a few seconds
+
+for the process to terminate.
+
+Okay? That's the end of this lab.
+
+In this lecture we look at Daemonsets in Kubernetes.
+
+So far we have deployed various pods on different nodes in our cluster with the help of replica sets
+
+and deployments.
+
+We made sure multiple copies of our applications are made available across various different worker
+
+nodes.
+
+Daemonsets are like replica sets, as in, it helps you deploy multiple instances of pods, but it runs
+
+one copy of your pod on each node in your cluster.
+
+Whenever a new node is added to the cluster, a replica of the pod is automatically added to that node,
+
+and when a node is removed, the pod is automatically removed.
+
+The daemonset ensures that one copy of the pod is always present in all nodes in the cluster.
+
+So what are some use cases of Daemonsets?
+
+Say you would like to deploy a monitoring agent or log collector on each of your nodes in the cluster
+
+so you can monitor your cluster better.
+
+A daemonset is perfect for that, as it can deploy your monitoring agent in the form of a pod in all
+
+the nodes in your cluster.
+
+Then you don't have to worry about adding or removing monitoring agents from these nodes when there
+
+are changes in your cluster, as the Daemonset will take care of that for you.
+
+Earlier, while discussing the Kubernetes architecture, we learned that one of the worker node components
+
+that is required on every node in the cluster is a kube proxy.
+
+That is one good use case of Daemonsets.
+
+The kube proxy component can be deployed as a daemonset in the cluster.
+
+Another use case is for networking.
+
+Networking solutions like calico requires an agent to be deployed on each node in the cluster.
+
+We will discuss about networking concepts in much more detail later during this course, but I just
+
+wanted to point it out here for now.
+
+Creating a demon set is similar to the replica set creation process.
+
+It has nested pod specification under the templates section and selectors to link the demon set to the
+
+pods.
+
+A daemon set definition file has a similar structure.
+
+We start with the API version kind metadata and spec.
+
+The API version is apps v1.
+
+Kind is daemon set instead of replica set.
+
+We will set the name to Monitoring daemon.
+
+Under spec you have a selector and a pod specification template.
+
+It's almost exactly like the replica set definition, except that the kind is a daemon set.
+
+Ensure the labels in the selector matches the ones in the pod template.
+
+Once ready, create the daemon set using the kube control.
+
+Create daemon.
+
+Set command to view the created daemon set.
+
+Run the kube control, get daemon, set command and of course to view more details on the kube control,
+
+describe daemon sets command.
+
+So how does a demon set work?
+
+How does it schedule pods on each node?
+
+And how does it ensure that every node has a pod?
+
+If you were asked to schedule a pod on each node in the cluster, how would you do it?
+
+In one of the previous lectures in this section, we discussed that we could set the node name property
+
+on the pod to bypass the scheduler and get the pod placed on a node directly.
+
+So that's one approach.
+
+On each pod, set the node name property in its specification before it is created, and when they are
+
+created, they automatically land on the respective nodes.
+
+So that's how it used to be until Kubernetes version 1.12.
+
+From version 1.1 onwards, the daemon set uses the default scheduler and node affinity rules that we
+
+learned in one of the previous lectures to schedule pods on nodes.
+
+Well, that's it for this lecture.
+
+Head over to the Practice test and practice working with Daemon Sets.
+
+-: Okay, so let's go through the lab on demo sets.
+
+So the first question is, how many demo sets are created
+
+in the cluster in all name spaces?
+
+So let's do a cube cuttle, hit daemon sets.
+
+If you look at the default name space, there are none.
+
+But if you wanna look at all name spaces
+
+you do a dash A and we see that there are
+
+two demo sets in all name spaces as
+
+the cube flannel DS and cube proxy.
+
+So that's two.
+
+So the next question is
+
+which name space are the demo sets created in?
+
+So if you look at the name space column here
+
+we see that they are in the cube system name space.
+
+So, select cube system
+
+and which of the below is a demo set.
+
+So if you look here, we have the cube
+
+final DS and cube proxy, these are the demo sets.
+
+Should you core DNS, city master.
+
+These are not, it's the cube final DS.
+
+That's the demo set.
+
+On how many nodes are the pods
+
+should you'll buy the demo set cube proxy.
+
+So if you look at cube proxy here, we see the
+
+the design and current ready numbers are one.
+
+So it's just, it, it's one.
+
+But let's also look at it in detail,
+
+so we go describe demo sets cube proxy.
+
+Okay, the name space is you system.
+
+And that's that, okay?
+
+So here you can see the design number of nodes
+
+scheduled is one current number of nodes scheduled is one.
+
+So it's just, it's one, right?
+
+And that's also because if you looked
+
+at this cluster, there's only one
+
+node and that's the reason it's just one, okay?
+
+And what is the image used by the pod,
+
+deployed by the cube final DS team set.
+
+So let's look at the, let's look at the cube
+
+final DS in a bit more detail.
+
+So describe demo set cube flannel DS, and
+
+then the next space is cube system.
+
+And we see that the image is the one
+
+under core RS flannel, so that's this one.
+
+Now the next one is to deploy a demo set
+
+for fluent D login using the given specifications.
+
+So one way to get the specification for
+
+daemon set is to go to the coordinates
+
+documentation pages and get these, right?
+
+But since the, the structure is very similar
+
+to a deployment, an easier way to just do it from here
+
+from the command line is to use the dry run option
+
+for a deployment and create a file and then change it
+
+and just make the necessary changes, right?
+
+So let's assume that we're gonna create a
+
+a deployment because there is no create demo
+
+set command as of this recording, right?
+
+So we're gonna have to do a, create deployment.
+
+And the name is what's given here.
+
+So it's elastic search, name space is cube system
+
+image is this.
+
+And then we're gonna do a dry run.
+
+You're gonna do dry equals one.
+
+And then we're gonna do an output to ammo, right?
+
+So we'll write that to just call it find the ammo.
+
+Then we're gonna edit this file.
+
+So the kind is going to be demo set.
+
+And we don't need replicas, because demo sets
+
+don't have replicas, so you can actually
+
+look at it and compare it here.
+
+So there are no replicas, so we're
+
+gonna remove that and then we'll get rid
+
+of the strategy and this one right here.
+
+And the rest of everything looks okay.
+
+Let's save that file and just create it.
+
+And the name space is Cube System,
+
+and we have that demo set created.
+
+It's not ready yet, but yeah, that should be okay.
+
+So this is, of course a very, a simple example.
+
+If you've not provided any kind
+
+of options or parameters for this demo set
+
+so we're just gonna give it super simple.
+
+But yeah, as far as this task is concerned,
+
+that's all that's asked.
+
+Okay, so that's the end of this lab.
+
+In this lecture we discuss about static pods in Kubernetes.
+
+Earlier in this course, we talked about the architecture and how the Kubelet functions as one of the
+
+many control plane components in Kubernetes.
+
+The Kubelet relies on the kube API server for instructions on what pods to load on its node, which
+
+was based on a decision made by the kube scheduler which was stored in the etcd data store.
+
+What if there was no kube API server and kube scheduler, and no controllers and no etcd cluster?
+
+What if there was no master at all?
+
+What if there were no other nodes?
+
+What if you're all alone in the sea by yourself?
+
+Not part of any cluster.
+
+Is there anything that the Kubelet can do as the captain of the ship?
+
+Can it operate as an independent node?
+
+If so, who would provide the instructions required to create those pods?
+
+Well, the Kubelet can manage a node independently on the ship host.
+
+We have the cubelet installed and of course we have container D as well to run containers.
+
+There is no Kubernetes cluster, so there are no kube API server or anything like that.
+
+The one thing that the Cubelet knows to do is create pods, but we don't have an API server here to
+
+provide pod details.
+
+By now we know that to create a pod, you need the details of the pod in a pod definition file.
+
+But how do you provide the pod definition file to the kubelet without a kube API server?
+
+You can configure the Cubelet to read the Pod definition files from a directory on the server, designated
+
+to store information about pods.
+
+Place the pod definition files in this directory.
+
+The Cubelet periodically checks this directory for files, reads these files, and creates pods on the
+
+host.
+
+Not only does it create the pod, it can ensure that the pod stays alive if the application crashes,
+
+the kubelet attempts to restart it.
+
+If you make a change to any of the file within this directory, the Kubelet recreates the pod for those
+
+changes to take effect.
+
+If you remove a file from this directory, the pod is deleted automatically.
+
+So these pods that are created by Kubelet on its own, without the intervention from the API server
+
+or the rest of the Kubernetes cluster components are known as static pods.
+
+Remember, you can only create pods this way.
+
+You cannot create replica sets or deployments or services by placing a definition file in the designated
+
+directory.
+
+They're all concepts, part of the whole Kubernetes architecture that requires other cluster plane components
+
+like the replication and deployment controllers, etc. the Kubelet works at a pod level and can only
+
+understand pods, which is why it is able to create static pods this way.
+
+So what is that designated folder and how do you configure it?
+
+It could be any directory on the host, and the location of that directory is passed in to the kubelet
+
+as an option while running the service.
+
+The option is named Pod Manifest Path and here it is set to Etsy Kubernetes Manifest folder.
+
+There is also another way to configure this.
+
+Instead of specifying the option directly in the Kubelet service file, you could provide a path to
+
+another config file using the config option and define the directory path as static pod path in that
+
+file.
+
+Clusters set up by the Kube admin tool uses this approach.
+
+If you're inspecting an existing cluster, you should inspect this option of the Kubelet to identify
+
+the path to the directory.
+
+You will then know where to place the definition file for your static pods, so keep this in mind when
+
+you go through the labs.
+
+You should know to view and configure this option, irrespective of the method used to set up the cluster.
+
+First check the option pod manifest path in the Kubelet service file.
+
+If it's not there, then look for the config option and identify the file used as the config file and
+
+then within the config file, look for the static pod path option.
+
+Either of this should give you the right path.
+
+Once the static pods are created, you can view them by running the docker PS command.
+
+So why not the kube control command as we have been doing so far?
+
+Remember, we don't have the rest of the Kubernetes cluster yet, so the kube control utility works
+
+with the kube API server since we don't have an API server now.
+
+No kube control utility, which is why we're using the docker command.
+
+So then how does it work when the node is part of a cluster?
+
+When there is an API server requesting the Kubelet to create pods, can the Kubelet create both kinds
+
+of pods at the same time?
+
+Well, the way the Kubelet works is it can take in requests for creating pods from different inputs.
+
+The first is through the Pod definition files from the static parts folder as we just saw.
+
+The second is through an http API endpoint, and that is how the kube API server provides input to Kubelet.
+
+The Kubelet can create both kinds of pods, the static pods, and the ones from the API server at the
+
+same time.
+
+Well, in that case, is the API server aware of the static pods created by the Kubelet?
+
+Yes it is.
+
+If you run the kube control get pods command on the master node, the static pods will be listed as
+
+any other pod.
+
+Well, how is that happening?
+
+When the Kubelet creates a static pod, if it is a part of a cluster, it also creates a mirror object
+
+in the kube API server.
+
+What you see from the kube API server is just a read only mirror of the pod.
+
+You can view details about the pod, but you cannot edit or delete it like the usual pods.
+
+You can only delete them by modifying the files from the node's manifest folder.
+
+Note that the name of the pod is automatically Appended with the node name, in this case node zero
+
+one.
+
+So then why would you want to use static paths?
+
+Since static pods are not dependent on the Kubernetes control plane, you can use static pods to deploy
+
+the control plane components itself as pods on a node.
+
+Well, start by installing Kubelet on all the master nodes, then create pod definition files that uses
+
+Docker images of the various control plane components such as the API, server, controller, etcd,
+
+etc..
+
+Place the definition files in the designated manifest folder, and the Kubelet takes care of deploying
+
+the control plane components themselves as pods on the cluster.
+
+This way you don't have to download the binaries, configure services, or worry about the services
+
+crashing if any of these services were to crash.
+
+Since it's a static pod, it will automatically be restarted by the kubelet.
+
+Neat and simple.
+
+That's how the Kube admin tool sets up a Kubernetes cluster, which is why when you list the pods in
+
+the kube system namespace, you see the control plane components as pods in a cluster setup by the Kube
+
+admin tool.
+
+We will explore that setup in the upcoming practice test.
+
+Before I let you go, one question that I get often is about the difference between static pods and
+
+daemon sets.
+
+Daemon sets, as we saw earlier, are used to ensure one instance of an application is available on
+
+all nodes in the cluster.
+
+It is handled by a daemon set controller through the kube API server, whereas static pods, as we saw
+
+in this lecture, are created directly by the Kubelet without any interference from the kube API server
+
+or rest of the Kubernetes control plane.
+
+Components.
+
+Static pods can be used to deploy the Kubernetes control plane components itself.
+
+Both static pods and pods created by daemon sets are ignored by the kube scheduler.
+
+The kube scheduler has no effect on these pods.
+
+Well, that's it for this lecture.
+
+Head over to the practice test and practice working with static pods.
+
+-: Okay, so in this video we're going to go
+
+over this lab on static pods.
+
+So the first question is, how many static pods exist
+
+in the cluster in all of the named spaces?
+
+So let's go, let's do get pods dash a to list the pods
+
+in all named spaces.
+
+Now one way to figure out, or you know
+
+differentiate a static pod
+
+from the other pods is to look at its name
+
+and at the end you'll have the node name appended to it.
+
+So this one, this one, this
+
+this is a static pod created on control plane.
+
+All of all of these three are, and as well as this.
+
+So there are four static pods and then there are no others
+
+with a visible node name to the end of it.
+
+So that's one way to look at it.
+
+Another way to be sure is to look
+
+at one of the pod in a bit more detail.
+
+So let's say for example, this one let's do
+
+you could get pod and then we do
+
+we provide the name space, which is the system.
+
+And, but this is just going to list the pod.
+
+It's not gonna give us the information that we need.
+
+We need to look at the YAML format of the, of the pod
+
+So we're gonna do a dash O and YAML
+
+So this is gonna give us a lot of information
+
+but from this, what we need to do is we need to look
+
+at the owner reference section.
+
+So if you scroll down
+
+there's this section called owner references.
+
+And under this you'll see the owner of this pod is the node
+
+the kind is node, and the name is control plane.
+
+So that's one way to be sure if a
+
+a pod is a static pod or not.
+
+And if you look at the screen, and
+
+if you look at the same for another pod that is
+
+not a static pod
+
+cube system to YAML output.
+
+And if we look at the owner reference for this right here
+
+we see that the owner of this is a replica set
+
+right? So, so this is not a static pod.
+
+So that's one way to figure that out.
+
+There are ways that you can do this for all of the pods
+
+like using filters and selectors.
+
+We should be able to kind of go through this, traverse this
+
+this file and then look at the owner reference.
+
+But we haven't learned
+
+about filters and you know, advanced kubectl commands yet
+
+So we'll skip that for now.
+
+But this is an easy way
+
+There are two ways to find out if a pod is static or not
+
+and one of that is to look for no names at the end of it.
+
+And to be sure you can use the
+
+the command that I just shared.
+
+So we know that there are four static pods
+
+and they're all on control plane now, as of now.
+
+So let's run the command again.
+
+The question is, which
+
+of the below components is not deployed as a static pod?
+
+So if you look at this, we have the ETCD
+
+it's a control plane, ETCD is a static pod,
+
+cube PPA server is a static pod
+
+cube control manager is a static pod
+
+and cube scheduler is a static pod
+
+So not Core DNS
+
+Core DNS does not seem to be a static pod.
+
+So let's select that.
+
+Okay, which of the below components is not deployed?
+
+It's a static pod.
+
+Again, we know that all
+
+of these are except for the queue proxy.
+
+So the queue proxy is not a static pod.
+
+On which notes are the static pods created currently.
+
+So all of these, as we just saw, are on control planes.
+
+So control plane is answered to this question.
+
+Now what is the path of the directory holding the static pod
+
+and the definition files?
+
+So one way to figure that out is to look at the
+
+the cubelet conf.
+
+So, so our lib cubelet and then we have the config dot yaml
+
+And if you look into this file, so this is the cubelet
+
+configuration and we have learned that it is the cubelet
+
+that creates the pods.
+
+And there is this specification here that says
+
+static pod path.
+
+And it is currently said to the ETC Kubernetes
+
+Manifest directory.
+
+So let's look at that directory and we see that this is
+
+there are the files that are used to create the static pods.
+
+So that is slash etc slash kubernetes slash manifests
+
+That's the correct answer to this question.
+
+And also remember that this is the path to check the static
+
+pod configuration, the static pod path configuration
+
+on any given node.
+
+Okay, so how many pod definition files are present
+
+in the manifest folder?
+
+So that's 1, 2, 3, 4 4.
+
+And that is equal to the number of static pods
+
+that we have here.
+
+And what is the Docker image used to
+
+deploy the cube APA server as a static pod
+
+as a static pod.
+
+So if you look at cube APA server
+
+Here, so this followed by this
+
+and if we look into the image
+
+we see that it's kh dot gcr dot io slash cube APA server
+
+version 1 point 2 0 0.
+
+So as of this recording
+
+this is the version you should make sure
+
+that whatever the version needs that you are working on
+
+make sure you choose that as the answer.
+
+Okay? So the next question is to create a static pod
+
+named static pod static busy box that uses the
+
+busy box image and the command sleep.
+
+So we know that the command to create a pod is run
+
+and the name is static busy box, the image is busy box, okay
+
+And the command is sleep 1000.
+
+Now what we need to do is we don't want to create this
+
+I said we just wanna get the pod definition file
+
+and place it in the static pod path for this node, right?
+
+So we're going to do a dry run for this.
+
+So dry run here.
+
+Now when you, when you use the command option
+
+always remember not to place any option that is
+
+for the kubectl command after this, right?
+
+So anything that you put after this
+
+especially after the two dashes here
+
+is going to be considered as an option for this command.
+
+So do not place anything.
+
+So the, the command should always be at the end.
+
+So in this case I'm gonna put the dry run
+
+before the command option.
+
+So any, any option for the kubectl utility should be
+
+before the command option.
+
+So dry run equals find and then dash O yaml
+
+So I get this and okay
+
+so I'm going to redirect that to a file.
+
+So for now I'm going to put it to static busy box dot yaml
+
+Then I'm going to move this
+
+to a C Kubernetes manifest folder.
+
+And let's see if pod is created
+
+Okay, so the pod is now created
+
+static busy box control plane
+
+and it's in a running state.
+
+Okay, so let's go next.
+
+Now edit the image
+
+on the static pod to use the
+
+busy box 1 point 2 8 point 4 image
+
+So to make any changes to a static pod
+
+you could simply edit the file and save it.
+
+So let's just go to edit the file in EDC
+
+Kubernetes manifest add pod
+
+and then just change this right here
+
+busy boxy 1.284 and just save that
+
+And if we look at the pod now it's pending.
+
+Let's watch the status.
+
+Okay, there's a issue.
+
+Okay, got it wrong.
+
+Sorry about that.
+
+Change that now.
+
+So that's why you should always verify
+
+after you do anything, especially in the exam
+
+it's possible that we might make typos different places.
+
+So you always verify your work after you're done.
+
+Okay, so that's done.
+
+Let's wait for the next question.
+
+Okay, so we just created a new static pod
+
+named Static Green Box, find it and delete it.
+
+So let's see to get pods.
+
+And we see that there is indeed a static green box
+
+and we've, we have got to delete it.
+
+Now if we just try to delete the pod like this, okay
+
+it says it's deleted, but if you look at it
+
+it's gonna be recreated because we know
+
+that it's a pod that the cubelet manages so there's
+
+it's not possible to delete a static pod just
+
+using the delete command.
+
+It would delete it, but it would be created again, right?
+
+So we need to find the manifest file
+
+for that static pod and delete it.
+
+So if you look at, if you look at the
+
+the EDC Kubernetes manifest directory, we'll see that
+
+there's none for the green box.
+
+And that's basically because
+
+if you look at the name of, of the static pod
+
+you see that it's created on node zero one.
+
+So we've got to go, go to the node
+
+on node zero one and delete it from there.
+
+So let's find out how to go to node zero one.
+
+So let's look, got a node node command
+
+and we see that we have a
+
+indeed a control plane and a node zero one node.
+
+If we do a dashboard wide
+
+we'll see that it has an IP address.
+
+So the control plane is at 10, dot 38 dot 1 oh 2 dot 6
+
+And node zero one is at 10 dot 38, 1 oh 2 dot 8
+
+So let's the stage to node zero one.
+
+Okay? And, and sometimes if you
+
+just depending on how the DS is configured, if
+
+you just do SSS to just node zero one, that might work too.
+
+But if that isn't working, then you should always look
+
+up at the internal IP address following this command
+
+and sss do that node.
+
+So now we are on node zero one
+
+and all we need to do is find the
+
+the static file manifest path.
+
+So let's go to, let's see, EDC Kubernetes manifest directory
+
+And as you see it, it doesn't exist, right?
+
+So there is no static green box path here.
+
+So we'll need to see why that is.
+
+So let's see, let's go back and see the
+
+the cubelet configuration and find
+
+out what's wrong with the path to the static pod
+
+So the, the file is at slash war lib cubelet
+
+and then you have config dot yaml
+
+And if you look at this file
+
+you have the static pod path, and as you can see
+
+it's not at war, it's not at EDC Kubernetes manifest
+
+It's actually changed.
+
+It is at EDC just to mess with you.
+
+Right? So that's a change we made just to
+
+get you to think a little bit.
+
+So, yep.
+
+And there indeed, we have the green box dot yaml
+
+So all they need to do is just remove this file from here
+
+okay? And make sure it's removed.
+
+And let's exit and go back
+
+to the control plane and list, list the notes
+
+and let's watch and wait for it to be terminated.
+
+Okay? So the
+
+the pod is now being terminated and that's gone.
+
+Okay? So that's, that's that.
+
+And that's the end of this lab
+
+Let us now look at priority classes in Kubernetes.
+
+We know that Kubernetes runs different applications as pods with different priorities.
+
+For example, the Kubernetes control plane components itself run as pods within the cluster.
+
+And we know that no matter what, those workloads need to always run.
+
+Similarly, we may have priority databases, critical applications running on the cluster as well as
+
+lower priority workloads like background jobs.
+
+Now, we need a way to make sure that higher priority workloads always get scheduled without being interrupted
+
+by lower priority workloads.
+
+This is where priority classes come in.
+
+Priority classes help us define priorities for different workloads, so that higher priority workloads
+
+always get priority over lower priority ones.
+
+If a higher priority pod cannot be scheduled, the scheduler will try to terminate a lower priority
+
+workload to make that happen.
+
+So priority classes are non namespaced objects, meaning they are not created within a specific namespace.
+
+They are not attached to a specific namespace.
+
+So once they're created, they're available to be configured on any port in any namespace.
+
+So how do you define priorities?
+
+We define priorities using a range of numbers.
+
+So a priority can be defined as high as 1 billion and as low as -2 billion or around that number.
+
+A larger number indicates higher priority.
+
+Now this range that I've just mentioned is for the applications and workloads that are deployed on the
+
+cluster.
+
+So the positive 1 billion to -2 billion number is for the applications or workloads that are deployed
+
+as apps on the cluster.
+
+But there is a separate range that's dedicated for internal system critical parts such as the Kubernetes
+
+control plane components itself.
+
+So they always get the highest priority.
+
+and they have priorities up to 2 billion.
+
+So to list existing priority classes run the kubectl get priority class command.
+
+And as you can see it currently lists the system cluster critical and system node critical classes.
+
+And as you can rightly see the value of these are close to 2 billion or around that range.
+
+Let us now see how we can create a new priority class.
+
+So to create a new priority class, we create an object with the API version set to scheduling v1 kind
+
+set to priority class metadata with a name.
+
+And then we define the value.
+
+So this is the number that we just spoke about.
+
+And finally we have the description.
+
+The description is an optional field.
+
+Once this is created we associate this priority class to a pod by using the priority class name property
+
+inside the pod definition.
+
+Like this.
+
+When that pod is created, it is assumed to have this priority that is assigned to the priority class.
+
+Now, what if I don't specify a priority class name for a pod?
+
+By default it is assumed to have a priority value of zero.
+
+However, if you'd like to modify that, you must create a new priority class and assign the global
+
+default property to true.
+
+So this is an optional field, but it can be used to define the default priority of all the pods.
+
+If there are no priority class name explicitly defined in that pod's configuration file.
+
+So as such.
+
+Also note that it can only be defined in a single priority class, so the global default property can
+
+only be defined in a single priority class because you cannot have multiple default values, right?
+
+So you cannot have more than one priority class with the global default property set to true.
+
+Now let us look at the effect of pod priority.
+
+So say there are two workloads with two priorities coming in to be scheduled a critical app with a higher
+
+priority of seven, and a jobs app with a lower priority of five.
+
+Now, since the critical app is of higher priority, it gets, uh, placed first.
+
+And if there is still resources available.
+
+So what you see here are the available resources on the cluster or the consumption of the resources
+
+on the cluster.
+
+So there is still some more resources left.
+
+So the workload with the lower priority also gets placed.
+
+Uh next uh after the higher priority pod gets placed.
+
+Now let's say we have a higher priority job that comes in with a priority of six.
+
+And there are no more resources available on the cluster.
+
+What happens?
+
+Do we evict existing workload or does it wait?
+
+What does it do?
+
+Now that behavior is defined by the preemption policy defined in the priority class assigned to the
+
+new workload.
+
+If the preemption policy is not set, its default value is set to preempt a lower priority.
+
+This means that it would kill the existing lower priority job and take its place.
+
+But if you do not want it to kill or evict the existing workload, and instead wait for the cluster
+
+resources to free up, then you must set this preemption policy to never.
+
+So a preemption policy set to never makes the pods in that priority class non preempting, meaning that
+
+they cannot preempt other pods and it will wait to be scheduled in the scheduling queue.
+
+However, they will get a higher priority in scheduling over other lower priority pods that are also
+
+waiting to be scheduled.
+
+So there's the priority still applies only when it is going to be scheduled.
+
+But will it kill the existing preempt, or will it evict the existing workload or not?
+
+That is defined by the preemption policy.
+
+Well, that's it for this lecture.
+
+Head over to the labs and practice what we just learned
+
+In this lecture, we look at deploying multiple schedulers in a Kubernetes cluster.
+
+Now we have seen how the default scheduler works in Kubernetes in the previous lectures.
+
+It has an algorithm that distributes pods across nodes evenly, as well as takes into consideration
+
+various conditions.
+
+We specify through taints and tolerations and node affinity, etc..
+
+But what if none of these satisfies your needs?
+
+Say you have a specific application that requires its components to be placed on nodes after performing
+
+some additional checks, so you decide to have your own scheduling algorithm to place pods on nodes
+
+so that you can add your own custom conditions and checks in.
+
+Kubernetes is highly extensible.
+
+You can write your own Kubernetes Scheduler program, package it, and deploy it as the default scheduler,
+
+or as an additional scheduler in Kubernetes cluster.
+
+That way, all of the other applications can go through the default scheduler.
+
+However, some specific applications that you may choose can use your own custom scheduler, so your
+
+Kubernetes cluster can have multiple schedulers at a time.
+
+When creating a pod or a deployment, you can instruct Kubernetes to have the pod scheduled by a specific
+
+scheduler.
+
+So let's see how that's done.
+
+Now, when there are multiple schedulers, they must have different names so that we can identify them
+
+as separate schedulers.
+
+So the default scheduler is named default scheduler.
+
+And this name is configured in a kube scheduler configuration file that looks like this.
+
+Now the default scheduler doesn't really need one because if you don't specify a name it sets the name
+
+to default scheduler.
+
+But this is how it would look if you were to create one.
+
+And for the other schedulers, we could create a separate configuration file and set the scheduler name
+
+like this.
+
+So let's start with the most simplest way of deploying an additional scheduler.
+
+Now earlier we saw how to deploy the Kubernetes Kube scheduler.
+
+We download the kube scheduler binary and run it as a service with a set of options.
+
+Now, to deploy an additional scheduler, you may use the same kube scheduler binary or use one that
+
+you might have built for yourself, which is what you would do if you needed the scheduler to work differently.
+
+In this case, we're going to use the same binary to deploy the scheduler, and this time we point the
+
+configuration to the custom configuration file that we created.
+
+So each scheduler uses a separate configuration file, and with each file having its own scheduler name.
+
+Note that there are other options to be passed in, such as the kubeconfig file to authenticate into
+
+the Kubernetes API, but I'm just skipping that for now just to keep it super simple.
+
+This is not how you would deploy a custom scheduler 99% of the time today, because with kube ADM deployment,
+
+all the control plane components run as a pod or a deployment within the Kubernetes cluster.
+
+So let's look at another way.
+
+So let's look at how it works if you were to deploy the scheduler as a pod.
+
+So we create a pod definition file and specify the Kubeconfig property, which is the path to the scheduler
+
+conf file that has the authentication information to connect to the Kubernetes API server.
+
+We then pass in our custom kube scheduler configuration file as a config option to the scheduler.
+
+Note that we have the scheduler name specified in the file, so that's how the name gets picked up by
+
+the scheduler.
+
+Now another important option to look here is the leader elect option.
+
+And this goes into the scheduler configuration.
+
+The leader elect option is used when you have multiple copies of the scheduler running on different
+
+master nodes, as in a high availability setup where you have multiple master nodes with the scheduler
+
+process running on both of them.
+
+If multiple copies of the same scheduler are running on different nodes, only one can be active at
+
+a time, and that's where the leader elect option helps in choosing a leader who will lead the scheduling
+
+activities.
+
+So we will discuss more about his setup in another section.
+
+In case you do have multiple masters, just remember that you can pass in this additional parameter
+
+to set a log object name.
+
+And this is to differentiate that the new custom scheduler from the default selection process.
+
+Now let's take a look at how to deploy the scheduler as a deployment.
+
+And for this I'm going to go into the Kubernetes documentation pages.
+
+And for the one for configuring multiple schedulers.
+
+And if you look here first of all it shows you how to if you were to build your own scheduler, how
+
+you could clone the Kubernetes repo and then make changes to the scheduler and build it and package
+
+it into a Docker image.
+
+And then here you can see the config file to create a scheduler as a deployment.
+
+You can ignore all of this to begin with.
+
+So this is what it is really.
+
+So here you have the deployment.
+
+And this deployment is similar to the pod but it's just that it's a deployment.
+
+The pot that we just looked at.
+
+But it's just that it's a deployment.
+
+So here you have the image which is the custom cube scheduler image.
+
+And this is the config file that we just talked about which has your custom scheduler config file.
+
+Right.
+
+And the binary is the cube scheduler binary.
+
+Now for this to work there are some additional kind of prerequisites.
+
+So some of these are like the service account and the cluster role bindings.
+
+And these are basically for authentication right.
+
+And we discussed about cluster role bindings and cluster roles and service accounts in uh the auth section.
+
+So if you haven't gone through that yet just hold off on this.
+
+You can basically ignore this for now.
+
+And the only other thing is how this file is passed into the deployment.
+
+Right.
+
+So you can either create this file locally and then pass it in as a volume mount as it's done for the
+
+other pods usually.
+
+Or another thing you could do that's done here.
+
+The approach that's used here is basically creating a config map.
+
+So this is the kube cube scheduler configuration that we just talked about.
+
+Um, with the leader option set to false because I think the replicas is just one.
+
+And then you have the, uh, the scheduler name here.
+
+So this is the, uh, the config file.
+
+And then this config file is passed in as a volume here as a config file.
+
+So basically whatever is the contents in the uh, in that particular config map is then mapped to a
+
+volume mount to a volume here the specific location.
+
+And then from this location you have this YAML file which has which basically has this content.
+
+Right.
+
+So this is how that maps.
+
+But again if you haven't gone through the volume and volume mount sections of this course, then just
+
+hold off on this for now and you'll understand that when we talk about these and then again liveness
+
+probes, readiness probes, resources and security context, all of these are sections that we talk
+
+about later.
+
+So again you can ignore these for now.
+
+But what we need to understand here is just that this section on how this file is passed to this custom
+
+scheduler Are just proceeding with our lecture.
+
+So when you run the the get pods command in the kube system namespace, you can then see the new custom
+
+scheduler running.
+
+So this is if you run it as a pod.
+
+And if you run it as a deployment then you'll probably see a slightly different naming convention.
+
+But you'll be able to see the pod there.
+
+Just make sure you're checking the right namespace.
+
+Now, once we have deployed that custom scheduler, the next step is to configure a pod or a deployment
+
+to use this scheduler.
+
+So how do you use our custom scheduler.
+
+So here we have a pod definition file.
+
+And what we need to do is add a new field called scheduler name and specify the name of the scheduler.
+
+And that's basically it.
+
+This way when the pod is created, the right scheduler gets picked up and the scheduling process works.
+
+Now create the pod using the kubectl create command.
+
+If the scheduler was not configured correctly, then the pod will continue to remain in a pending state.
+
+And if everything is good, then the pod will be in a running state.
+
+So if the pod is in a the pending state, then you can look at the logs under the pod describe command.
+
+If you've got a describe command and you'll mostly notice that the scheduler isn't configured correctly.
+
+Now how do you know which scheduler picked it up.
+
+So we have multiple schedulers.
+
+How do you know which scheduler picked up scheduling a particular pod.
+
+Now we can view this in the events using the kubectl get events command with the dash o wire option.
+
+And this will list all the events in the current namespace and look for the scheduled events.
+
+And as you can see, the source of the event is the custom scheduler that we created.
+
+That's the name that we gave to the custom scheduler.
+
+And the message says that successfully assigned the image.
+
+So that indicates that it's working.
+
+You could also view the logs of the scheduler in case you run into issues.
+
+So for that we have logs using the kubectl logs command and provide the scheduler pod name or the deployment
+
+name.
+
+And then the right namespace.
+
+Well that's it for this lecture and I'll see you in the next one.
+
+
+-: Okay, so let's go over the practice test
+
+for multiple schedulers.
+
+For what is the name of the pod
+
+that deploys the default Kubernetes scheduler
+
+in this environment?
+
+Okay, so let's do a kubectl get pods command
+
+in the kube-system namespace.
+
+So we're gonna look here.
+
+And we see the pod is kube scheduler-control plane.
+
+So let's select that.
+
+Now, what is the image used
+
+to deploy the Kubernetes scheduler?
+
+Inspect the kube scheduler, pod and identify the image.
+
+Let's do a kubectl describe pod
+
+scheduler.
+
+And then specify the namespace as kube-system.
+
+Okay, so here we have the image
+
+and that is case.gcr.io/kube-scheduler
+
+version 1.23.0 as of this recording.
+
+So I'm gonna select that.
+
+Okay, now we've already created the service account
+
+and cluster role binding
+
+that our custom scheduler will make use of.
+
+So all of these are already created.
+
+If we'd like to take a look,
+
+we can do a get service account
+
+my scheduler.
+
+Okay.
+
+So we see the my scheduler service account
+
+and the kube-system namespace
+
+and similarly, there are cluster role bindings as well.
+
+So that's already done for us.
+
+So we don't have to worry about that.
+
+Let's go forward.
+
+And let's create a ConfigMap that the new scheduler
+
+will employ using the concept of ConfigMap
+
+as a volume.
+
+So we have to create a ConfigMap with a name
+
+using the contents of the file,
+
+so there's already a file here.
+
+And this is the configuration.
+
+It will be passed through to the new scheduler
+
+that we're gonna create.
+
+So the file is there.
+
+We just have to create a ConfigMap for it.
+
+So we'll do a kubectl create ConfigMap.
+
+And the name will be,
+
+let's copy and paste.
+
+And it has to be created from file.
+
+We use the form file
+
+as data path to the file.
+
+And also specify the name system.
+
+This will be kube-system.
+
+There's no name.
+
+Okay.
+
+Let's verify that it's created.
+
+It's in the kube-system namespace.
+
+Okay, so that's created.
+
+Go next.
+
+Deploy an additional scheduler to the cluster
+
+following the given specification.
+
+Use the manifest file provided
+
+at root my scheduler.
+
+So there's already a file given for us.
+
+Let's add root.
+
+My scheduler.yaml
+
+or just since we are already in that directory,
+
+you could just give the file name.
+
+And we see that most of the work
+
+is already done.
+
+The liveness probe, the readiness probe are all set
+
+so we don't really have to worry about that.
+
+And all we need to do is add this image
+
+that's given here
+
+and we have to use the same image
+
+that's used by the current scheduler.
+
+So let's find that out first.
+
+Let's do a kubectl pods -a.
+
+And this is current scheduler.
+
+So do a describe.
+
+And kube-system.
+
+And let's do it for the image.
+
+And let's get this image ID.
+
+And we're going to put that in
+
+in the file instead of this placeholder here.
+
+Okay?
+
+And if you look at the rest of the file,
+
+it already has the ConfigMap that we created.
+
+If you scroll down,
+
+you'll see there is the ConfigMap that we created.
+
+So that's already configured.
+
+And that basically passes through
+
+as a volume mount here.
+
+We'll talk about ConfigMaps
+
+in the upcoming lectures,
+
+if you haven't already gone through that yet.
+
+And we're going to create this.
+
+Let's verify that it's created.
+
+In the kube-system namespace, we have my scheduler here.
+
+Let's check.
+
+Okay, so that's done.
+
+And the final step is to create a pod.
+
+So there's already a pod definition file given
+
+and use it to create a pod with a new custom scheduler.
+
+So here we have the NGINX pod definition file
+
+and this is pretty straightforward.
+
+Just a NGINX pod with the NGINX image.
+
+And what we need to do is specify the custom scheduler,
+
+which is basically my scheduler given here.
+
+So as we learned in the lecture,
+
+you have to add a new field here called
+
+scheduler name.
+
+And then we specify the name
+
+of the scheduler we just created.
+
+Save that.
+
+And then we create
+
+a pod.
+
+And we make sure pod is running.
+
+Okay, so that's it.
+
+And that's the end of this lab.
+
+
+Let us now look at what scheduler profiles are.
+
+So let's first recap how the Kubernetes Scheduler works.
+
+Using this simple example of scheduling a pod to one of these four nodes that you can see here that
+
+are part of the Kubernetes cluster.
+
+So here we have our pod definition file.
+
+And there's our pod.
+
+It is waiting to be scheduled on one of these four nodes.
+
+Now it has a resource requirement of ten CPU.
+
+So it's only going to be scheduled on a node that has ten CPU remaining.
+
+And you can see the available CPU on all of these nodes that are listed here.
+
+Now it is not alone.
+
+There are some other pods that are waiting to be scheduled as well.
+
+So the first thing that happens is that when these pods are created, the pods end up in a scheduling
+
+queue.
+
+So this is where the pods wait to be scheduled.
+
+So at this stage, pods are sorted based on the priority defined on the pods.
+
+So in this case our pod has a high priority set.
+
+So to set a priority you must first create a priority class that looks like this.
+
+And you should set it a name and set it a priority value.
+
+In this case it's set to 1 million.
+
+So that's really high priority.
+
+So this is how pods with higher priority gets to the beginning of the queue to be scheduled first.
+
+And so that sorting happens in this scheduling phase.
+
+Then our pod enters the filter phase.
+
+This is where nodes that cannot run the pod are filtered out.
+
+So in our case the first two nodes do not have sufficient resources.
+
+So do not have ten CPU remaining.
+
+So they are filtered out.
+
+The next phase is the scoring phase.
+
+So this is where nodes are scored with different weights from the two remaining nodes.
+
+The scheduler associates a score to each node based on the free space it will have after reserving the
+
+CPU required for that part.
+
+So in this case the first one has two left and the second will have six left.
+
+So the second node gets a higher score.
+
+And so that's the node that gets picked up.
+
+And finally in the binding phase this is where the pod is finally bound to a node with the highest score.
+
+Now all of these operations are achieved with certain plugins.
+
+For example while in the scheduling queue it's the priority sort plugin that sorts the pods in an order
+
+based on the priority configured on the pods.
+
+This is how pods with priority class gets higher priority over the other pods.
+
+When scheduling in the filtering stage, it's the Node Resources Fit plugin that identifies the nodes
+
+that has sufficient resources required by the pods, and filters out the nodes.
+
+That doesn't.
+
+Now, some other plugin examples that come into this particular stage are the node name plugin that
+
+checks if a pod has a node name mentioned in the pod spec, and filters out all the nodes that does
+
+not match this name.
+
+Another example is the node unschedulable plugin, and that filters out nodes that has the Unschedulable
+
+flag set to true.
+
+So this is when you run the command on a node, which we will discuss later.
+
+But all the nodes that has unschedulable flags set to true.
+
+It's this particular plugin that makes sure that no pods are set on those nodes.
+
+Now in the scoring phase again, the Node Resources Fit plugin associates a score to each node based
+
+on the resource available on it, and after the pod is allocated to it.
+
+So as you can see, a single plugin can be associated in multiple different phases.
+
+Another example of a plugin in this stage would be the image locality plugin, that associates a high
+
+score to the nodes that already has the container image used by the pods among the different nodes.
+
+Now note that at this phase, the plugins do not really reject the pod placement on a particular node.
+
+For example, in case of the image locality node, it ensures that pods are placed on a node that already
+
+has the image.
+
+But if there are no nodes available, it will anyway place the pod on a node that does not even have
+
+the image.
+
+So it's just a scoring that happens at this stage.
+
+And finally, in the binding phase, you have the default binder plugin that provides the binding mechanism.
+
+Now, the highly extensible nature of Kubernetes makes it possible for us to customize what plugins
+
+go where, and for us to write our own plugin and plug them in here.
+
+And that is achieved with the help of what is called as extension points.
+
+So at each stage, there is an extension point to which a plugin can be plugged to.
+
+In the scheduling queue, we have a short extension to which the Priority Sort plugin is plugged to,
+
+and then we have the filter extension, the the score and the bind extension to which each of these
+
+plugins that we just talked about are plugged two.
+
+As a matter of fact, there's more.
+
+So there are extensions before entering the filter phase called the Prefilter extension, and the and
+
+after the filter phase called post filter.
+
+And then there are Pre-score before the score extension point and reserve after the extension point,
+
+the score extension point.
+
+And then there is permit and pre bind before the bind and post bind after the binding phase.
+
+So there are so many options available.
+
+Basically you can get a custom code of your own to run anywhere in these points by just creating a plugin
+
+and plugging it into the respective kind of point that you want to plug into.
+
+And here is a little bit more details on some additional plugins that come by default that are associated
+
+with the different extension points.
+
+As you can see, some of the plugins span across multiple extension points, and some of them are just
+
+within a specific extension point.
+
+So that's what scheduling plugins and extension points are.
+
+So the highly extensible nature of Kubernetes allows us to customize the way that these plugins are
+
+called and, and write our own scheduling plugin if needed.
+
+So having learned that, let's look at how we can change the default behavior of how these plugins are
+
+called and and and how we can get our own plugins in there if it's really needed.
+
+So taking a step back earlier, we talked about deploying three separate schedulers, each with a separate
+
+scheduler binary.
+
+So we have the the default scheduler and then the my scheduler and then the my scheduler to.
+
+Now all of these are three separate scheduler binaries that are run with a separate scheduler config
+
+file associated with each of them.
+
+Now that's one way to deploy multiple schedulers.
+
+Now the problem here is that since these are separate processes, there is an additional effort required
+
+to maintain these separate processes.
+
+And also more importantly, since they are separate processes, they may run into race conditions while
+
+making scheduling decisions.
+
+For example, one scheduler may schedule a workload on a node without knowing that there's another scheduler
+
+scheduling a workload on that same node at the same time.
+
+So with the 1.18 release of Kubernetes, a feature to support multiple profiles in a single scheduler
+
+was introduced.
+
+So now you can configure multiple profiles within a single scheduler in the scheduler configuration
+
+file by adding more entries to the list of profiles, and for each profile, specify a separate scheduler
+
+name.
+
+So this creates a separate profile for each scheduler, which acts as a separate scheduler itself,
+
+except that now multiple schedulers are run in the same binary as opposed to creating separate binaries
+
+for each scheduler.
+
+Now, how do you configure these different scheduler profiles to work differently?
+
+Because right now all of them just simply have different names.
+
+So they're going to work just like the default scheduler.
+
+How do you configure them to work differently?
+
+Under each scheduler profile, we can configure the plugins the way we want to.
+
+For example, for the scheduler two profile, I'm going to disable certain plugins like the Taint and
+
+Toleration plugin and enable my own custom plugins for the scheduler three profile.
+
+I'm going to disable all the Pre-score and score plugins, so this is how that's going to look.
+
+Under the plugins section, specify the extension point and enable or disable the plugins by name or
+
+pattern as shown in this case.
+
+So yeah, so that's about it.
+
+I hope that gives you an overview of how schedulers and scheduler profiles work, and how you can configure
+
+multiple scheduler profiles in Kubernetes.
+
+To read more about this, check out the Kubernetes enhancement proposal that introduced Multi Scheduling
+
+Profiles.
+
+It's the cap 1451 um that introduced the multi scheduling profiles and the article uh on scheduling
+
+framework.
+
+Well that's all for now.
+
+I will see you in the next one.
+
+
+In this lecture we will learn about admission controllers.
+
+So we've been running commands from our command line using the kubectl utility to perform various kinds
+
+of operations on our Kubernetes cluster.
+
+And we know every time we send a request say to create a pod, the request goes to the API server.
+
+And then the pod is created and the information is finally persisted in the etcd database.
+
+When the request hits the API server, we've learned that it goes through an authentication process,
+
+and this is usually done through certificates.
+
+If the request was sent through kubectl, we know the kube config file has the certificates configured,
+
+and the authentication process is responsible for identifying the user who sent the request and making
+
+sure the user is valid.
+
+And then the request goes through an authorization process.
+
+And this is when we check if the user has permission to perform that operation.
+
+And we have learned that this is achieved through role based access controls.
+
+So in this case, if the user was assigned this particular role of a developer, the user is allowed
+
+to list, get, create, update or delete pods.
+
+And so if the request that came in matched any of these conditions, in this case it does.
+
+As the request is to create a pod it is allowed to go through.
+
+Otherwise it's rejected.
+
+So that's authorization with role based access control.
+
+Now with role based access control, you could place in different kinds of restrictions, such as to
+
+allow or deny those with a particular role to say, create, list or delete different kinds of objects
+
+like pods, deployments or services.
+
+We could even restrict access to specific resource names such as, say, a developer can only work on
+
+pods named blue or orange, or restrict access within a namespace alone.
+
+Now, as you can see, most of these rules that you can create with role based access control is at
+
+the Kubernetes API level.
+
+And what user is allowed access to what kind of API operations.
+
+And it does not go beyond that.
+
+But what if you want to do more than just define what kind of access a user has to an object?
+
+For example, when a pod creation request comes in, you'd like to review the configuration file and
+
+look at the image name and say that you do not want to allow images from a public Docker Hub registry.
+
+Only allow images from a specific internal registry, or to enforce that, we must never use the latest
+
+tag for any images.
+
+Or say for example, you'd like to say if the container is running as the root user.
+
+Then you do not want to allow that request or allow certain capabilities only, or to enforce that the
+
+metadata always contains labels.
+
+So these are some of the things that you can't achieve with the existing role based access controls.
+
+And that is where admission controllers comes in.
+
+Admission controllers help us implement better security measures to enforce how a cluster is used.
+
+Apart from simply validating configuration, admission controllers can do a lot more, such as change
+
+the request itself or perform additional operations before the pod gets created.
+
+We will go over some examples in the upcoming slides.
+
+There are a number of admission controllers that come pre-built with Kubernetes, such as always pull
+
+images that ensures that every time a pod is created, the images are always pulled.
+
+The default storage class admission controller that observes the creation of PVCs and automatically
+
+adds the default storage class to them if one is not specified, the event rate limit admission controller
+
+can help set a limit on the requests with the the API server can handle at a time.
+
+To prevent the API server from flooding with requests, the namespace exists.
+
+Admission controller rejects requests to namespaces that do not exist, and there are many more admission
+
+controllers available.
+
+So let's take that as an example and look at it in a bit more detail.
+
+The namespace exists.
+
+Admission controller.
+
+Say we want to create a pod in a namespace called blue that doesn't exist.
+
+If I run this command, it would throw an error that says the namespace blue is not found.
+
+What's happening here is that my request gets authenticated, then authorized, and it then goes through
+
+the admission controllers, The namespace exists.
+
+That mission controller handles the request and checks if the namespace is available.
+
+If it is not, the request is rejected.
+
+The namespace exists.
+
+Is a built in admission controller that is enabled by default.
+
+There is another admission controller that is not enabled by default, and that is called as the namespace
+
+auto provision admission controller.
+
+This will automatically create the namespace if it does not exist.
+
+We will see how it can be enabled in a minute.
+
+First, to see a list of admission controllers enabled by default, run the kube API server command
+
+and grep for enable admission plugins.
+
+Now here you will see a list of admission controllers that are enabled by default.
+
+The ones that are highlighted in green.
+
+Note that if you're running this in a cube ADM based setup, then you must run this command within the
+
+cube API.
+
+Server control plane pod using the kubectl exec command first.
+
+Like this.
+
+To add an admission controller, update the enable admission plugins flag on the kube API server service
+
+to add the new admission controller.
+
+So if you're in a kube EDM based setup, then update the flag within the kube API server manifest file
+
+as shown here on the right.
+
+So the one on the left is if you're updating the kube API server service, and the one on the right
+
+is if the API server is running as a pod in a cube based setup.
+
+Similarly, to disable admission controller plugins, you could use the disable admission plugins flag.
+
+Once updated, the next time we run the command to provision a pod in a namespace that does not exist
+
+yet, the request goes through authentication, then authorization, and then the namespace auto provision
+
+controller, at which point it realizes that the namespace doesn't exist, so it creates namespace automatically
+
+and the request goes through successfully to create the pod.
+
+If you list the namespaces now, you'll see that the namespace is automatically created.
+
+So that's one example of how an admission controller works.
+
+It can not only validate and reject requests from users, it can also perform operations in the backend
+
+or change the request itself.
+
+Note that the namespace, auto provision, and namespace exists.
+
+Admission controllers are deprecated and is now replaced by the namespace lifecycle admission controller.
+
+The namespace lifecycle admission controller will make sure that requests to a non-existent namespace
+
+is rejected, and that the default namespaces such as default kube system and kube public cannot be
+
+deleted.
+
+Well, that's it for now.
+
+Head over to the labs and practice our working with admission controllers, and I will see you in the
+
+next lecture.
+
+Instructor: In this video,
+
+I'm gonna walk you through these solutions
+
+for the admission controllers lab.
+
+And for the first question,
+
+it's asking what is not a function of admission controllers?
+
+And the correct answer is authenticate users.
+
+The admission controllers doesn't handle
+
+any of the authentication side of things.
+
+That actually takes place after the authentication.
+
+The next question is asking
+
+which admission controller is not enabled by default.
+
+And so the way we can get this information is
+
+by checking the enable-admission-plugins
+
+in the Kube-apiserver help options.
+
+So I do a kubectl get pods
+
+-: n kube-system.
+
+You'll see that we have the kube-apiserver-controlplane.
+
+So I'm gonna do a kubectl exec -it,
+
+and I'm gonna grep this pod
+
+-: n kube-system.
+
+Then I'm gonna run a specific command.
+
+I'm gonna run the kube-apiserver,
+
+and I'm gonna pass in the -h flag.
+
+And what I want to do is I want to grep
+
+for enable-admission-plugins.
+
+And the output we're looking for is right here.
+
+So it says admission plugins, that should be enabled,
+
+in addition to the default enabled ones.
+
+So this list right here is going to be the list
+
+of all of the default enabled plugins.
+
+And so we could see NamespaceLifecycle
+
+is enabled by default,
+
+so that's not the answer.
+
+We'll take a look at MutatingAdmissionWebhooks.
+
+If it shows up on this list,
+
+that means it's enabled by default.
+
+So here's MutatingAdmissionWebhook,
+
+then we have ValidatingAdmissionWebhook,
+
+however, we don't see NamespaceAutoProvision in this list,
+
+so NamespaceAutoProvision is not enabled by default.
+
+The next question is asking which admission controller
+
+is enabled in this cluster which is normally disabled?
+
+And so we have to go to the kube-apiserver.yaml.config,
+
+so this is going to be in /etc/kubernetes/manifests
+
+/kube-apiserver.yaml.
+
+And what we want to do is
+
+we can search for something by doing a forward slash,
+
+and then searching for enable-admission-plugin.
+
+And so you could see what is enabled
+
+that wasn't enabled by default,
+
+and that's gonna be NodeRestriction,
+
+so this is the plugin that was enabled,
+
+which isn't enabled by default.
+
+And if you don't want to go into vi,
+
+we can always just grep for this,
+
+so I can say grep enable-admission-plugins,
+
+and then passing the path to that specific file.
+
+And so this is gonna show us
+
+all the plugins that are enabled.
+
+So NodeRestriction is the correct answer.
+
+The next question is telling us to create
+
+an nginx pod in the blue namespace,
+
+and it points out that the blue namespace
+
+has not been created yet,
+
+and it explicitly tells us
+
+to not create the namespace beforehand.
+
+So let's copy this command,
+
+which is going to create that pod,
+
+and we can see that it throws an error,
+
+because the namespace blue was not found.
+
+Now the reason this ultimately failed
+
+and it threw that error
+
+was because Kubernetes has
+
+a NamespaceExists admission controller enabled,
+
+which rejects requests to namespaces that do not exist.
+
+So if you wanted it
+
+to automatically create a namespace for you,
+
+you could enable
+
+the NamespaceAutoProvision admission controller.
+
+And for this question, that's going to be the task at hand.
+
+We have to enable that specific admission controller.
+
+And so to do that, we want to go back into that same file,
+
+the /etc/kubernetes/manifests/kube-apiserver.
+
+And we want to go down to the same line we looked at,
+
+at one of the previous questions,
+
+which is the enable-admission-plugins,
+
+and we can see we just have NodeRestriction,
+
+so we're just gonna add the new one after this.
+
+So we'll just add a comma,
+
+and then put in the name of
+
+the new admission controller that you want enabled,
+
+so that's gonna be NamespaceAutoProvision.
+
+Then we'll save that.
+
+And after we save that,
+
+the API server is going to restart.
+
+And we'll give this a couple minutes
+
+before we run the validation,
+
+'cause it takes a little while for it to restart.
+
+All right, let's run the validation.
+
+Okay, so now it's telling us
+
+to run that nginx pod in the blue namespace again
+
+and check to see if it succeeds.
+
+So I'm just gonna hit the Up arrow a couple times,
+
+we're gonna run the same command,
+
+and once again, keep in mind,
+
+right now the namespace blue does not exist.
+
+So when we run this,
+
+what should happen is
+
+it should now create a namespace called blue.
+
+So if I do a kubectl get namespace,
+
+we can now see that the blue namespace
+
+was created seven seconds ago,
+
+and so that's because of that admission controller.
+
+And this next question is just pointing out
+
+that the NamespaceExists
+
+and the NamespaceAutoProvision admission controllers
+
+are deprecated and are now replaced
+
+by the NamespaceLifecycle admission controller.
+
+The next question is asking us
+
+to disable the DefaultStorageClass admission controller.
+
+So once again, we're gonna go into
+
+the kube-apiserver.yaml manifests,
+
+so I'm gonna do:
+
+vi /etc/kubernetes/manifests/ kube-apiserver.
+
+And just like we had the enable-admission-plugin,
+
+we're going to add a disable-admission-plugin.
+
+So I'm gonna go right below this line,
+
+and I'm gonna say disable-admission-plugins=
+
+and then we're gonna add DefaultStorageClass.
+
+And, once again, after you make these changes,
+
+the API server is gonna have to restart,
+
+so give it a couple minutes,
+
+and then we'll run the validation.
+
+And for the final question,
+
+it says that the kube-apiserver is running as a pod.
+
+So you could check the process
+
+to see enabled and disabled plugins.
+
+So if we just copy this command,
+
+this is going to list out all of the enabled
+
+and disabled plugins with this command.
+
+And that's going to wrap up the admission controller's lab.
+
+In this lecture, we will take a closer look at the different types of admission controllers and how
+
+we can configure our own admission controller.
+
+We looked at the namespace exists or namespace lifecycle admission controller.
+
+It can help validate if a namespace already exists and reject the request if it doesn't exist.
+
+This is known as a validating admission controller.
+
+Let's look at another type of admission controller plugin named as the default storage class plugin.
+
+This is a plugin that is enabled by default.
+
+Say for example, you're submitting a request to create a PVC.
+
+The request goes through authentication, authorization, and finally the admission controller.
+
+The default storage class admission controller will watch for requests to create a PVC and check if
+
+it has a storage class mentioned in it.
+
+If not, which is true in our case, it will modify your request to add the default storage class to
+
+your request.
+
+This could be whatever storage class is configured as the default storage class in your cluster.
+
+So when the PVC is created and you inspect it, you will see that a storage class default is added to
+
+it even though you hadn't specified it during the creation.
+
+So this type of admission controller is known as a mutating admission controller.
+
+It can change or mutate the object itself before it is created.
+
+So those are two types of admission controllers.
+
+Mutating admission controllers are those that can change the request, and validating admission controllers
+
+are those that can validate the request and allow or deny it.
+
+And there may be admission controllers that can do both that can mutate a request as well as validate
+
+a request.
+
+Now, generally mutating admission controllers are invoked first, followed by validating admission
+
+controllers.
+
+This is so that any change made by the mutating admission controller can be considered during the validation
+
+process.
+
+In this example, the namespace auto provisioning admission controller, which is a mutating admission
+
+controller, is run first, followed by the validating controller namespace exists.
+
+If it was run the other way, then the namespace exists.
+
+Admission controller would always reject the request for namespace that does not exist, and the namespace
+
+auto provisioning controller would never be invoked to create the namespace.
+
+And when a request goes through these admission controllers, if any admission controller rejects the
+
+request, the request is rejected and an error message is shown to the user.
+
+Now, these are all built in admission controllers that are part of the Kubernetes source code and are
+
+compiled and shipped with Kubernetes.
+
+Now, what if we want our own admission controller with our own mutations and validations?
+
+That has our own logic You support external admission controllers.
+
+There are two special admission controllers available mutating Admission Webhook and then Validating
+
+admission Webhook.
+
+And this is what we will look at next.
+
+We can configure these webhooks to point to a server that's hosted either within the Kubernetes cluster
+
+or outside it.
+
+And our server will have our own admission webhook service running with our own code and logic.
+
+After a request goes through all the built in admission controllers, it hits the webhook that's configured.
+
+We will see how to configure that in a bit.
+
+And then and then once it hits the webhook, it makes a call to the admission webhook server by passing
+
+in an admission review object in a JSON format.
+
+This object has all the details about the request, such as the user that made the request and the type
+
+of operation the user is trying to perform, and on what objects and the and details about the object
+
+itself.
+
+On receiving the request, the admission webhook server responds with an admission review object with
+
+a result of whether the request is allowed or not.
+
+If the allowed field in the response is set to true, then the request is allowed and if it's set to
+
+false, it is rejected.
+
+So how do we set this up?
+
+First, we must deploy our admission webhook server, which will have our own logic, and then we configure
+
+the webhook on Kubernetes by creating a webhook configuration object.
+
+So let's take a look at each of these steps next.
+
+So the first step is to deploy our own webhook server.
+
+Now this could be an API server that could be built on any platform.
+
+An example code of a webhook server written in go can be found here in the Kubernetes documentation
+
+pages.
+
+It's written in the go programming language.
+
+You could develop your own server in other languages as well if required.
+
+The only requirement is that it must accept the mutate and validate APIs and respond with a JSON object
+
+that the web server expects.
+
+So here's a pseudo code of a simple webhook server written in Python.
+
+There are two calls a validate call and a mutate call.
+
+The validate call receives the validation webhook request, and in this example compares the name of
+
+the object and the name of the user who sent the request and rejects the request if it's the same name.
+
+Well, just a simple sample use case to show what we can do with the requests that come in.
+
+And if you look down, we'll see the mutating webhook which gets the username and responds with a JSON
+
+patch operation of adding the username as a label to any request that was raised by anyone.
+
+So if you take a closer look at this particular piece of code, a patch object is a list of patch operations,
+
+with each operation being add, remove, replace, move, copy, or test.
+
+And we then specify the path within the JSON object that needs to be targeted for change.
+
+In this case, it is slash metadata slash label slash users.
+
+And then the value that needs to be added if it is an add operation.
+
+So we get the username from the request.
+
+So that's going to be the value of that particular label.
+
+This is then sent as a base64 encoded object as part of the response.
+
+On a side note, from an exam point of view, you will not be asked to develop any code like this.
+
+So don't worry if you don't fully understand this piece of code.
+
+All you need to take away from this is that the admission Webhook server is a server that you deploy
+
+that contains the logic or the code to permit or reject a request, and it must be able to receive and
+
+respond with the appropriate responses that that the webhook expects.
+
+So this is just a simple example to show what kind of things that you can do or what, what, what kind
+
+of things that you can code and implement in the webhook server that you deploy.
+
+Okay, so moving on.
+
+Once we have developed our own webhook server, the next step is to host it.
+
+So we either run it as a server somewhere or containerize it and deploy it within Kubernetes cluster
+
+itself as a deployment.
+
+If deployed as a deployment in a Kubernetes cluster, then it needs a service for it to be accessed.
+
+So we have a service named Webhook Service as well.
+
+The next step is to configure our cluster to reach out to the service and validate or mutate the requests.
+
+For this, we create a validating webhook configuration object.
+
+So we start with the API version kind metadata and webhooks section.
+
+API version is admission registration.io v1.
+
+Kind is validating webhook configuration.
+
+If we are configuring a mutating webhook this would be a mutating webhook configuration.
+
+We then give it a name.
+
+Now under webhooks we configure the different webhooks.
+
+So a webhook has a name, a client config and a set of rules.
+
+So the name we set it to example.com.
+
+The client config is where we configure the location of our admission webhook server.
+
+If we deploy this server externally on our own, and that is not a part of a deployment in Kubernetes
+
+cluster, then we can simply provide a URL path to that server like this.
+
+Now instead, if we deployed the server as another service on our own cluster, as we see here as it
+
+is on the left, then we can use the service configuration and provide the namespace and name of the
+
+service, which in our case is webhook dash service.
+
+Now of course, the communication between the API server and the webhook server has to be over TLS.
+
+So a certificate bundle should be configured.
+
+So the server has to be configured with a pair of certificates.
+
+Then a Certificate.
+
+ACA bundle is to be created and passed into this client config SCA bundle.
+
+Next we must specify when to call our API server.
+
+We can specify rules to configure exactly when we want our webhook server to be called for validation.
+
+Now we might not want to do that for all of the calls.
+
+For example, we may only want it to be called while creating pods, or deleting pods, or creating
+
+deployments, etc. whatever that may be.
+
+It can be added as a rule under the rules section using API groups, API versions, operation types
+
+and resources.
+
+In this example, we're only going to call this webhook configuration when calls are made to create
+
+pods, and that should be it.
+
+Once this object is created, every time we create a pod, a call would be made to the webhook service
+
+and depending on the response, it would be allowed or rejected.
+
+Well, that's it for this lecture.
+
+Head over to the labs and practice working with webhooks and I will see you in the next lecture.
+
+Instructor: In this video, I'm gonna walk you
+
+through the validating
+
+and mutating admission controllers lab.
+
+The first question is asking,
+
+which one of the below combinations is correct for mutating
+
+and validating admissions controllers?
+
+So for the first one,
+
+it says that a namespace auto provision admission
+
+controller is mutating.
+
+And when you think about it, since it's automatically,
+
+you know, creating a namespace
+
+and changing something (indistinct), right?
+
+That would be correct, and then the namespace exists.
+
+Well that's gonna be validation
+
+'cause it's validating to see if a namespace exists.
+
+So the first one actually ends up being the correct answer.
+
+If you take a look at the other ones,
+
+namespace, auto provision, validating,
+
+the auto provision is not validating,
+
+it's actually just making a change for you.
+
+Namespace exists is the validation.
+
+So it's gonna be the first one.
+
+What is the flow of invocation of the admission controllers?
+
+Well, the way it goes is first it mutates,
+
+and then it validates.
+
+So it's going to be the first answer here.
+
+Next question is asking us
+
+to create a namespace called webhook dash demo.
+
+So that's just gonna be kubectl create webhook,
+
+create NS, webhook dash demo.
+
+And if I do a kubectl get NS, we can see
+
+our newly created namespace.
+
+The next question is asking us to create a TLS secret
+
+called webhook dash server dash TLS
+
+for a secure webhook communication
+
+in the webhook dash demo namespace.
+
+And it's already created a certificate and a key,
+
+and these are gonna be the respective paths
+
+for both of those.
+
+And so to create a TLS secret, we can do kubectl,
+
+and we'll do dash N to provide the namespace,
+
+that's gonna be the new webhook dash demo.
+
+And then we're gonna create a secret
+
+TLS, and then this'll be webhook dash server dash TLS.
+
+And then I'm gonna go down to the next line
+
+to keep everything pretty, dash dash cert.
+
+And then now we provide the path to the cert.
+
+So this is gonna be this path right here.
+
+And then we're gonna provide the path to the key,
+
+which is gonna be this path here.
+
+And then we can hit Enter,
+
+and then it was successfully created.
+
+I'll then run the validation.
+
+For the next question, it's asking us
+
+to create a webhook deployment,
+
+and they've already provided us
+
+a sample deployment definition.
+
+And so if you wanna take a look at that,
+
+we can just do cat webhook, deployment dot yaml.
+
+So we're gonna just deploy this,
+
+and so all we have to do is do a kubectl apply,
+
+dash F, and then we'll just call webhook deployment.
+
+So that's been deployed.
+
+And then for the webhook, we also need to create a service
+
+so that it can communicate,
+
+and we've already been provided a service configuration
+
+that's gonna be in webhook dash service.
+
+You can take a look at that if you want.
+
+I'm gonna do a kubectl apply dash F, webhook dash service.
+
+And a mutating webhook configuration has been supplied
+
+to us under webhook dash configuration dot yaml.
+
+And it's asking us if we apply this configuration,
+
+which resource actions will it affect?
+
+So let's actually take a look at this.
+
+So we'll do webhook dash configuration,
+
+and if you wanna figure out what it's doing,
+
+go under the rule section,
+
+and we can see that it works for operations
+
+of creating on resources of pods.
+
+So pod with the create operations.
+
+Now we have to deploy the webhook configuration.
+
+So once again, we'll just do a kubectl apply,
+
+dash F webhook dash configuration.
+
+So in the previous step, we deployed a demo webhook,
+
+which does the following.
+
+It denies all requests for a pod to run
+
+as root in container if no security context is provided.
+
+So if no value is set for run as non root, a default
+
+of true is applied, and the user ID defaults to 1234.
+
+In addition to, it allows a container to run
+
+as root if the run as non root is explicitly set
+
+to false in the security context.
+
+So what we're gonna do is,
+
+we're first going to test this out
+
+by deploying a pod with no security context.
+
+So there's been a configuration provided under pod
+
+with defaults.
+
+So you can see there's nothing provided
+
+from a security context perspective.
+
+So it's just gonna use the default,
+
+so I'm gonna do a kubectl apply dash F,
+
+and then we'll do pod dash with defaults.
+
+And so it's, the next question's asking us,
+
+what are the run as non root, and run as user values
+
+for the previously created pod security context?
+
+Because remember, we didn't explicitly provide this.
+
+I'm gonna do a kubectl get pod,
+
+and it's gonna be pod dash with defaults.
+
+And then I'm gonna do a dash O yaml.
+
+I wanna see the configuration.
+
+And hold on, what is this called?
+
+Get pod.
+
+And I realize I forgot the S.
+
+And so if we look for a security context,
+
+we should see what it provided.
+
+So we could see, when you provide nothing, it's going
+
+to default to run as non root as true,
+
+and the user's gonna be 1234.
+
+So we wanna find run as non root true,
+
+run as user 1234.
+
+The next question is asking us to deploy a pod
+
+with a security context,
+
+explicitly allowing to run as root.
+
+And this definition file for this has already been provided.
+
+So if we take a look at pod with override, we can see
+
+that the security context is set to run
+
+as non root set to false.
+
+So if you do a kubectl apply, so we can deploy this.
+
+We can check this now, and go to the next question.
+
+The next question is asking us to deploy a pod
+
+with a conflicting security context.
+
+So a pod with conflict dot yaml is gonna
+
+provide the definition for that.
+
+So if we take a look at that,
+
+and we can see under security context, it said for run,
+
+run is non root set to true.
+
+And it's gonna say run as user of zero.
+
+So we'll do a kubectl apply dash F,
+
+and we should see that it's going to reject this
+
+because we are asking to run as non root
+
+with it set to true, but then run as user set to zero,
+
+which is the root user.
+
+So you can't have run as non root set to be true,
+
+and then ask to be run as a root user.
+
+So we would have to set it as false.
+
+And so the validation was successful,
+
+and it rejected the application,
+
+or the creation of this pod.
+
+And that's going to wrap up this lab session.
