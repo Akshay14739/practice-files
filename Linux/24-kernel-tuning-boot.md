@@ -295,6 +295,8 @@ The app team and even most cluster users never see any of the left column. When 
 - **`initramfs` and `initrd`** are used interchangeably in docs; both mean the temporary early-boot root filesystem.
 - **`systemd-modules-load` : `/etc/modules-load.d/`** as **`systemd-sysctl` : `/etc/sysctl.d/`** — the exact same "boot unit replays a drop-in directory" pattern, once for modules, once for knobs.
 
+> **Check yourself before Rung 5:** Using only the vocabulary above, name the two files a colleague must `cat` to answer "is `ip_forward` on right now, and will it survive a reboot?" — and say which term connects the second file to the boot process that re-applies it. (Hint: one lives under `/proc/sys`, the other under `/etc/sysctl.d/`, and a `systemd-*` unit ties them together.)
+
 ---
 
 ## 🔬 Rung 5 — The Trace
@@ -580,7 +582,6 @@ Fill this in for any kernel knob or module you touch:
 - [iptables-netfilter](12-iptables-netfilter.md) — why `br_netfilter` + `bridge-nf-call-iptables=1` are the gate that lets kube-proxy's `KUBE-*` chains see bridged pod traffic
 - [cgroups](14-cgroups.md) — why swap-off keeps memory accounting honest, and where the kernel command line forces cgroup v2
 - [systemd-services](16-systemd-services.md) — PID 1, targets, and the `systemd-modules-load` / `systemd-sysctl` units that replay your tuning at boot
-- [namespaces](13-namespaces.md) — the kernel feature that, with cgroups, makes a container; also configured through the running kernel
 - [storage-mounts](15-storage-mounts.md) — OverlayFS (the `overlay` module) as containerd's image-layer snapshotter, plus swap and fstab
 - [linux-philosophy](01-linux-philosophy.md) — "everything is a file": why `cat`/`echo` on `/proc/sys` is the entire sysctl API
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — the full Linux↔Kubernetes mapping and node-triage quick reference

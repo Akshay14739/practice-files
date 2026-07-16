@@ -172,6 +172,8 @@ Why this pairing is powerful, mechanically:
 
 Neither cron nor timers are for "run this *once*, 5 minutes from now." That's the **`at`** command (daemon: `atd`). You pipe it a command and a time-spec; it queues the job, runs it exactly once at that time, then forgets it. Think of it as a scheduler with a schedule of length one.
 
+> **Check yourself before Rung 4:** A script dropped into `/etc/cron.daily/` has **no** cron fields in it at all — so what actually decides it runs once a day, and which helper executes it? And in the systemd world, if you write both units but run `systemctl enable --now backup.service` instead of `backup.timer`, what happens to the schedule?
+
 ---
 
 ## Rung 4 — 🏷 The Vocabulary Map
@@ -203,6 +205,8 @@ Neither cron nor timers are for "run this *once*, 5 minutes from now." That's th
 - **Places to declare a *recurring* job:** `crontab -e` (per-user), `/etc/crontab`, `/etc/cron.d/*`, `cron.daily/` scripts, and a `.timer`+`.service` pair — all five are "where you write down *when and what.*"
 - **Catch-up-after-downtime mechanisms:** anacron **and** systemd's `Persistent=true` — literally the same feature, one bolted onto cron, one built into systemd.
 - **The two "relative vs absolute" pairs:** cron's `@reboot` ≈ systemd's `OnBootSec=`; cron's `0 2 * * *` ≈ systemd's `OnCalendar=*-*-* 02:00:00`. Same intent, two dialects.
+
+> **Check yourself before Rung 5:** Without peeking at the table, name the two mechanisms that catch up a missed run after the machine was powered off — one bolted onto cron, one built into systemd — and state the minimum granularity limit of each.
 
 ---
 
@@ -263,6 +267,8 @@ Now the clock crosses 02:00:00. Here's every hop:
 4. The container runs to completion; kubelet reports exit status; Job marks Complete. Pod logs (not mail, not a file) are the output channel — `kubectl logs`.
 
 Same five fields. Same "match the clock, then spawn a unit of work." The difference is only *what gets spawned*: a shell child vs. a pod. **But** — and this is the whole reason your etcd backup can't be a CronJob — the CronJob's pod runs *inside* the cluster, and etcd is the thing the cluster is *made of*. You can't reliably back up the foundation using a tool built on top of it. Node-level cron/timer it is.
+
+> **Check yourself before Rung 6:** In step 5 of the trace, cron runs your job through `/bin/sh -c '...'` rather than exec'ing the script directly. Why does the shell need to be in the middle — and which part of step 7 (the `>> log 2>&1` redirection) would stop working if it weren't?
 
 ---
 

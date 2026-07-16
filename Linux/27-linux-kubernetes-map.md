@@ -201,7 +201,7 @@ done
 # ── 8. CORE PROCESSES ── are kubelet/runtime/etcd actually running as processes? ─
 line "8. CORE PROCESSES (top consumers + K8s daemons)"
 ps -eo pid,ppid,uid,pcpu,pmem,rss,comm --sort=-pcpu | head -n 12
-pgrep -a kubelet containerd etcd kube-apiserver 2>/dev/null || true
+pgrep -a 'kubelet|containerd|etcd|kube-apiserver' 2>/dev/null || true   # pgrep takes ONE regex, not a list
 #   Cross-check: systemd says active but no process? runtime says active but no shim? [07-processes-job-control.md]
 
 line "TRIAGE COMPLETE — the first block above showing red is almost always your root cause."
@@ -403,10 +403,5 @@ The primitives that carry the most Kubernetes weight — start here when a triag
 - [15-storage-mounts.md](15-storage-mounts.md) — OverlayFS images, tmpfs Secrets, PV mounts, and the `/var` disk that causes NotReady.
 - [16-systemd-services.md](16-systemd-services.md) — kubelet-as-a-service, static pods, journald. Where node triage begins.
 - [11-networking.md](11-networking.md) — resolv.conf/CoreDNS, ports, the overlay, and `ss`/`ip` for network triage.
-- [26-tls-pki-openssl.md](26-tls-pki-openssl.md) — the certs behind every control-plane connection; the silent cause of many `NotReady`/apiserver outages.
-- [24-kernel-tuning-boot.md](24-kernel-tuning-boot.md) — the required sysctls (`br_netfilter`, `ip_forward`) and swap-off that a node needs before it can be a node at all.
-- [21-performance-monitoring.md](21-performance-monitoring.md) — PSI, `dmesg`, `strace`, `lsof` when the node is *slow* rather than *down*.
-- [17-capabilities.md](17-capabilities.md) · [18-seccomp.md](18-seccomp.md) · [19-apparmor.md](19-apparmor.md) · [20-selinux.md](20-selinux.md) — the four layers of `securityContext` and the CKS exam's core.
-- [00-README.md](00-README.md) — back to the index and the 30-day plan.
 
 *You climbed all 27 rungs. You can now read a Kubernetes symptom, name the Linux primitive underneath it, and `cat` the exact file that proves what's really happening. That round-trip — abstraction down to kernel and back — is mastery. Go debug something.*

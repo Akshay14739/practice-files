@@ -12,7 +12,7 @@
 
 ```text
 Unable to connect to the server: x509: certificate has expired or is not yet valid:
-current time 2026-07-16T08:00:00Z is after 2025-07-15T09:12:44Z
+current time 2026-07-16T08:00:00Z is after 2026-07-15T09:12:44Z
 ```
 
 The cluster is a year and a day old. Nobody rotated anything. The apiserver's serving certificate expired at the one-year mark, and now *nothing* trusts it — not your laptop, not the kubelets, not the controller-manager. Pods that were already running keep running (the kubelet doesn't kill them), but you can't schedule, can't scale, can't `exec`, can't see anything. This is the single most common self-inflicted Kubernetes outage in existence, and the fix — `kubeadm certs renew all` — takes thirty seconds *once you understand what a certificate is and why it expired*. This chapter builds that understanding from the ground up.

@@ -69,6 +69,8 @@ Derive the rest from it:
 
 If you internalize "**tunnel first, mutual identity second, arbitrary channels third**," the entire SSH surface — keys, config, forwarding, scp — is just those three ideas in different clothes.
 
+> **Check yourself before Rung 3:** The One Idea packs three moves *in order* — encrypted tunnel, then mutual identity, then arbitrary channels. By the time you first see the "The authenticity of host … can't be established" prompt, which of the three has *already* completed, and which of the three is that prompt actually part of?
+
 ---
 
 ## ⚙️ Rung 3 — The Machinery (the important one — go slow)
@@ -94,7 +96,7 @@ Notice the symmetry: `known_hosts` authenticates the **server to you**; `authori
 A keypair is two mathematically linked blobs. Anything the **private** key signs, the **public** key can verify — and *only* that matching public key can. You keep the private key secret (mode `600`, never leaves the machine); you copy the public key everywhere. Authentication never sends the private key or a password over the wire. Instead the server sends a random challenge, you sign it with your private key, and the server checks the signature against the public key sitting in its `authorized_keys`. An eavesdropper sees a signature they cannot reuse and cannot reverse. This is why key auth is both **more secure** and **more convenient** than passwords — nothing sniffable ever crosses, and there's nothing to type.
 
 **ed25519 vs rsa 4096.** These are the two key algorithms you'll actually pick:
-- **`ed25519`** — a modern elliptic-curve key. Small (68-byte public key), fast, and considered very strong. This is the **default choice today**. `ssh-keygen -t ed25519`.
+- **`ed25519`** — a modern elliptic-curve key. Tiny (a 32-byte raw public key, one short line in the `.pub` file), fast, and considered very strong. This is the **default choice today**. `ssh-keygen -t ed25519`.
 - **`rsa` with 4096 bits** — the older, universally-supported algorithm. Bigger and slower but works on *everything*, including ancient appliances and some hardware tokens that predate Ed25519. Reach for `ssh-keygen -t rsa -b 4096` only when a target is too old to speak ed25519. (Never use RSA below 2048; 1024 is broken.)
 
 ### 3.3 The handshake: what happens before you get a prompt
@@ -219,6 +221,8 @@ Typing your key passphrase on every connection is painful, and copying your *pri
 - **`PermitRootLogin no`** (or `prohibit-password`) — never let anyone log in *directly* as root; force a named user + `sudo`, so actions are attributable and the root password becomes irrelevant to remote attackers.
 After editing, `sshd -t` validates the file and `systemctl reload ssh` applies it *without dropping your current session* (so a typo doesn't lock you out — keep a second session open just in case).
 
+> **Check yourself before Rung 4:** Walk the handshake (3.3) from memory. At which numbered step does traffic become encrypted, and name one credential you offer *after* that point that is therefore never exposed even on a failed login. Then explain why the client consults `known_hosts` (server identity) *before* it ever offers your key (your identity), not the other way around.
+
 ---
 
 ## 🏷️ Rung 4 — The Vocabulary Map
@@ -253,6 +257,8 @@ After editing, `sshd -t` validates the file and `systemctl reload ssh` applies i
 - **`-L`, `-R`, `-D`** are all "port forwarding" — the same channel mechanism (3.5) with the listening socket on different ends and a fixed vs. dynamic destination.
 - **`scp` and `rsync` and interactive `ssh`** are all *channels on one tunnel* — a shell, a whole-file stream, and a delta stream, respectively.
 - **A key's "private/public" halves** are the same relationship as a TLS cert's key/cert and a Kubernetes client cert in `admin.conf` — asymmetric crypto reused everywhere (see [TLS/PKI](26-tls-pki-openssl.md)).
+
+> **Check yourself before Rung 5:** `known_hosts` and `authorized_keys` are "the same idea pointed opposite ways." For *each* file, say which host it lives on and whose public keys it stores — then predict the concrete symptom you'd see if you deleted each one and reconnected.
 
 ---
 
@@ -291,6 +297,8 @@ You want the last 50 lines of the kubelet's logs *without an interactive session
 ```
 
 The magic to notice: you got the node's *own* view of the kubelet — the ground truth the API server never sees — over a channel that was encrypted and authenticated before your command was even transmitted.
+
+> **Check yourself before Rung 6:** In this trace `ssh node1 "journalctl …"` opened an *exec* channel, not a pty+shell (step 7). Name one observable difference between passing a command string and running plain `ssh node1`, and explain why your laptop shell's `$?` ended up equal to `journalctl`'s own exit status.
 
 ---
 

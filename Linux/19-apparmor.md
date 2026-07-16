@@ -52,6 +52,8 @@ Memorize that sentence. Everything else is a corollary:
 
 If you can derive those five bullets from the one sentence, you understand AppArmor. The commands are just how you load, inspect, and toggle that whitelist.
 
+> **Check yourself before Rung 3:** AppArmor runs *after* DAC and both must agree. So can an AppArmor profile *grant* access to a file that DAC already denied (wrong mode/owner)? Predict which layer wins when they disagree — and why "either can say no, neither can override the other's no" is the only safe ordering.
+
 ---
 
 ## ⚙️ Rung 3 — The Machinery (the important one — go slow)
@@ -109,6 +111,8 @@ The confined process has **no idea it's confined**. It calls `open()`, gets back
 
 On a Kubernetes node, **containerd/CRI-O launch each container as a normal Linux process** inside namespaces and cgroups. The runtime can attach an AppArmor profile to that process at exec time — it's just another attribute set alongside the seccomp profile, the cgroup path (`kubepods/...`), and the capability set. The kubelet passes the requested profile name down through the CRI to the runtime; the runtime, when it `execve`s your entrypoint, transitions the new process into that AppArmor profile. From that instant, `/proc/1/attr/current` inside the container shows the profile, and every file the container touches is filtered by the kernel against it. **Crucial gotcha:** the profile must already be *loaded into the kernel of that specific node* (`apparmor_parser -r` on each node, or via a DaemonSet/the Security Profiles Operator). Kubernetes does **not** ship the profile for you — it only references it by name. Reference a profile that isn't loaded on the node the pod lands on, and the pod fails to start.
 
+> **Check yourself before Rung 4:** You edit `/etc/apparmor.d/usr.sbin.nginx`, save the file, and nginx behaves exactly as before. Which single step did you skip, which binary actually performs it, and where does the change take effect — on disk or in kernel memory?
+
 ---
 
 ## 🏷️ Rung 4 — The Vocabulary Map
@@ -147,13 +151,13 @@ On a Kubernetes node, **containerd/CRI-O launch each container as a normal Linux
 
 ## 🔬 Rung 5 — The Trace
 
-**One concrete action:** an nginx process, confined by profile `k8s-nginx` in enforce mode, tries to read `/etc/shadow` (which the profile explicitly denies). Follow it hop by hop.
+**One concrete action:** an nginx process, confined by profile `k8s-nginx` in enforce mode, tries to read `/etc/shadow` (a path the profile never whitelists). Follow it hop by hop.
 
 1. **App makes a syscall.** nginx (PID 48213 on the node, PID 1 inside the container) calls `open("/etc/shadow", O_RDONLY)`. It has no idea AppArmor exists.
 2. **Kernel resolves the path.** The VFS layer walks the pathname to an inode. Before returning a file descriptor, the kernel reaches the LSM hook `security_file_open`.
 3. **DAC check runs first.** Normal permission check: is the process allowed by `rwx`/owner? nginx here runs as root inside the container, so **DAC says yes** — root bypasses. (This is exactly why DAC alone is insufficient.)
 4. **AppArmor hook fires.** The kernel calls AppArmor's hook implementation, passing the task's current profile (`k8s-nginx`) and the resolved path (`/etc/shadow`) with requested mask `r`.
-5. **DFA match.** AppArmor runs the path through the compiled state machine for `k8s-nginx`. It finds the rule `deny /etc/shadow r`. Match → **DENY**.
+5. **DFA match.** AppArmor runs the path through the compiled state machine for `k8s-nginx`. It finds **no allow rule** matching `/etc/shadow` — the path was never whitelisted. Default-deny → **DENY**. (This matters: because it's a *default* deny, not an explicit `deny` rule, complain mode can later flip it to ALLOW. Explicit `deny` rules stay blocked even in complain mode.)
 6. **Decision applied (enforce mode).** Because the profile is in *enforce* mode, the kernel makes `open()` return `-1` with `errno = EACCES`. nginx sees a plain "Permission denied."
 7. **Audit record emitted.** AppArmor writes an audit event: `apparmor="DENIED" operation="open" profile="k8s-nginx" name="/etc/shadow" requested_mask="r" denied_mask="r" pid=48213 comm="nginx"`. This flows into the kernel audit buffer → visible in `dmesg`, `journalctl`, and auditd.
 8. **You debug it.** On the node you grep the audit stream, see the `DENIED`, and now *know* it was AppArmor — not a file mode, not a missing capability.
@@ -174,7 +178,7 @@ On a Kubernetes node, **containerd/CRI-O launch each container as a normal Linux
       │                 └──────┬───────┘                                    
       │                        ▼                                            
       │                 ┌──────────────┐   profile=k8s-nginx                
-      │                 │ 2. AppArmor  │   rule: deny /etc/shadow r         
+      │                 │ 2. AppArmor  │   /etc/shadow: not whitelisted     
       │                 │    DFA match │───────────────▶ DENY               
       │                 └──────┬───────┘                                    
       │   errno=EACCES         │                                            
@@ -184,6 +188,8 @@ On a Kubernetes node, **containerd/CRI-O launch each container as a normal Linux
       │                                                          │          
       │                                              grep apparmor ◀────────┘
 ```
+
+> **Check yourself before Rung 6:** Re-run the trace with the profile in **complain** mode instead of enforce. Which numbered step changes its outcome, does nginx still get its file descriptor, and does the step-7 audit line still fire — if so, what tag does it carry now?
 
 ---
 
@@ -244,7 +250,7 @@ cat /proc/self/attr/current
 
 ### Example 2 — Edge/failure case: write a profile, watch enforce vs complain flip the outcome
 
-**Prediction:** I'll confine a tiny script that reads two files. In **complain** mode both reads succeed but the forbidden one gets logged as `ALLOWED`. After `aa-enforce`, the same forbidden read returns "Permission denied" and logs `DENIED` — **BECAUSE** the only thing that changed is the profile's mode flag, and in enforce mode a non-matching (or `deny`-matching) access is blocked, not merely audited.
+**Prediction:** I'll confine a tiny script that reads two files. In **complain** mode both reads succeed but the un-whitelisted one gets logged as `ALLOWED`. After `aa-enforce`, that same read returns "Permission denied" and logs `DENIED` — **BECAUSE** the only thing that changed is the profile's mode flag: a *non-whitelisted* (default-denied) access is merely *logged* in complain mode but *blocked* in enforce mode. (I deliberately leave `/etc/shadow` off the whitelist rather than writing an explicit `deny` rule — an explicit `deny` stays blocked even in complain mode, which would hide the very difference I'm trying to show.)
 
 First, the profile. Save as `/etc/apparmor.d/myapp`:
 
@@ -255,11 +261,12 @@ include <tunables/global>
 
 profile myapp /usr/local/bin/myapp {
   include <abstractions/base>
+  include <abstractions/bash>   # the interpreter runs under this same profile
 
-  /usr/local/bin/myapp r,       # may read its own binary
+  /usr/local/bin/myapp r,       # may read its own script
   /etc/myapp/**       r,         # may read its config tree
   /var/log/myapp/**   w,         # may write its logs
-  deny /etc/shadow    r,         # explicitly forbidden, silence-free deny
+  # /etc/shadow is simply NOT listed -> default-denied (and logged when hit)
 
   network inet tcp,              # may open IPv4 TCP sockets
 }
@@ -271,8 +278,9 @@ Set it up and load it in complain mode:
 # tiny stand-in binary the profile names
 sudo tee /usr/local/bin/myapp >/dev/null <<'EOF'
 #!/bin/bash
-cat /etc/myapp/config 2>&1
-cat /etc/shadow >/dev/null 2>&1 && echo "READ shadow OK" || echo "shadow DENIED"
+# read files with bash's own redirection -- no child processes to confine
+echo "config: $(< /etc/myapp/config)"
+if { : < /etc/shadow ; } 2>/dev/null; then echo "READ shadow OK"; else echo "shadow DENIED"; fi
 EOF
 sudo chmod +x /usr/local/bin/myapp
 sudo mkdir -p /etc/myapp && echo "hello=1" | sudo tee /etc/myapp/config >/dev/null
@@ -285,7 +293,7 @@ sudo aa-complain /usr/local/bin/myapp
 # Setting /usr/local/bin/myapp to complain mode.
 
 sudo /usr/local/bin/myapp
-# hello=1
+# config: hello=1
 # READ shadow OK        <-- complain mode ALLOWS, but still logs it
 
 # now enforce and repeat
@@ -293,8 +301,8 @@ sudo aa-enforce /usr/local/bin/myapp
 # Setting /usr/local/bin/myapp to enforce mode.
 
 sudo /usr/local/bin/myapp
-# hello=1
-# shadow DENIED         <-- enforce mode BLOCKS the forbidden read
+# config: hello=1
+# shadow DENIED         <-- enforce mode BLOCKS the un-whitelisted read
 ```
 
 Confirm the mode flip and read the audit trail:
@@ -330,13 +338,15 @@ profile k8s-nginx flags=(attach_disconnected) {
   include <abstractions/base>
 
   /usr/sbin/nginx     r,
-  /var/log/nginx/**   w,
-  deny /etc/shadow    r,
-  deny /** w,                 # deny all other writes (whitelist stance)
-  /var/log/nginx/**   w,      # ...but re-allow the log path
+  /var/log/nginx/**   w,      # the ONLY writable path; everything else default-denied
+  audit deny /etc/shadow r,   # explicit + audited deny of the classic target
 
   network inet tcp,
 }
+# NOTE: a whitelist needs no "deny /** w" catch-all -- anything not allowed is
+# already denied (and logged) by default. And beware: an explicit `deny` in
+# AppArmor OVERRIDES any allow rule for the same path, so "deny /** w" would
+# have silently killed the /var/log/nginx writes above. Deny always wins.
 EOF
 sudo apparmor_parser -r -W /etc/apparmor.d/k8s-nginx
 sudo aa-status | grep k8s-nginx   # confirm it's loaded on THIS node
@@ -361,7 +371,7 @@ spec:
 ```
 
 ```yaml
-# older API (deprecated, removed in 1.30): the annotation
+# older API (deprecated in 1.30, still honored for backward compat): the annotation
 apiVersion: v1
 kind: Pod
 metadata:

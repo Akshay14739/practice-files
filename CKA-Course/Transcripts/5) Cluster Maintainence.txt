@@ -1,0 +1,1624 @@
+Hello, this is (indistinct)
+
+and we are going through
+
+the certified Kubernetes Administrator's course.
+
+In this lecture,
+
+we discuss about cluster maintenance related topics.
+
+We start by looking at operating system upgrades.
+
+We see the implications of losing a node from the cluster
+
+or when you take a note out of the cluster on purpose
+
+like for applying patches or upgrades on the OS itself.
+
+We then look at the cluster upgrade process.
+
+But before we do that, we need to know a little bit
+
+about Kubernetes releases and versions
+
+and the best practices around upgrading, when to upgrade,
+
+what version to upgrade to, et cetera.
+
+So we look at that first.
+
+Once you learn the upgrade procedure,
+
+you are asked to upgrade a cluster by yourself.
+
+You will perform an end-to-end upgrade of a cluster yourself
+
+with live applications running on them.
+
+And finally, we look at some
+
+of the backup and restore methodologies.
+
+You will practice a disaster recovery scenario
+
+where you take a backup of the Kubernetes cluster
+
+then go through a simulated disaster
+
+and then you're asked to recover from that disaster
+
+and bring the cluster back to the previous state.
+
+Well, fun stuff coming up.
+
+So let's get started.
+
+In this lecture,
+
+we will discuss about scenarios
+
+where you might have to take down nodes as part
+
+of your cluster, say for maintenance purposes,
+
+like upgrading a base software
+
+or applying patches like security patches, et cetera,
+
+on your cluster.
+
+In this lecture, we will see the options available
+
+to handle such cases.
+
+So you have a cluster with a few nodes
+
+and pods serving applications.
+
+What happens when one of these nodes go down?
+
+Of course, the pods on them are not accessible.
+
+Now, depending upon how you deploy those pods,
+
+your users may be impacted.
+
+For example, since you have multiple replicas
+
+of the blue pod, the users accessing the blue application
+
+are not impacted as they're being served
+
+through the other blue pod that's online.
+
+However, users accessing the green pod are impacted as
+
+that was the only pod running the green application.
+
+Now, what does Kubernetes do in this case?
+
+If the node came back online immediately,
+
+then the cube control process starts
+
+and the pods come back online.
+
+However, if the node was down for more than five minutes,
+
+then the pods are terminated from that node.
+
+Well, Kubernetes considers them as dead.
+
+If the pods were part of a replica set,
+
+then they're recreated on other nodes.
+
+The time it waits for a pod to come back online is known
+
+as the pod eviction timeout
+
+and is set on the controller manager
+
+with a default value of five minutes.
+
+In modern Kubernetes, pod eviction is handled
+
+through node taints and pod tolerations.
+
+When a node becomes not ready
+
+or unreachable, Kubernetes applies no execute taints
+
+and pods are evicted after a grace period
+
+unless they tolerate those taints.
+
+So whenever a node goes offline, the master node waits
+
+for up to five minutes before considering the node dead.
+
+When the node comes back online
+
+after the pod eviction timeout,
+
+it comes up blank without any pod scheduled on it.
+
+Since the blue pod was part of a replica set,
+
+it had a new pod created on another node.
+
+However, since the green pod was not part
+
+of a replica set, it's just gone.
+
+Thus, if you have maintenance tasks
+
+to be performed on a node, if you know
+
+that the workloads running on the node have other replicas,
+
+and if it's okay that they go down for a short period
+
+of time, and if you're sure the node will come back online
+
+within five minutes, you can make a quick upgrade
+
+and reboot.
+
+However, you do not for sure know if a node is going
+
+to be back online in five minutes.
+
+Well, you cannot for sure say it is going to be back at all.
+
+So there is a safer way to do it.
+
+You can purposefully drain the node of all the workloads so
+
+that the workloads are moved to other nodes in the cluster.
+
+Well, technically, they're not moved.
+
+When you drain a node, the pods are gracefully terminated
+
+from the node that they're on and recreated on another.
+
+The node is also cordoned or marked as unschedulable,
+
+meaning no pods can be scheduled on this node
+
+until you specifically remove the restriction.
+
+Now that the pods are safe on the other nodes,
+
+you can reboot the first node.
+
+When it comes back online, it is still unschedulable.
+
+You then need to uncoordinated so
+
+that the pods can be scheduled on it again.
+
+Now remember, the pods that were moved
+
+to the other nodes don't automatically fall back.
+
+If any of those pods were deleted
+
+or if new pods were created in the cluster,
+
+then they would be created on this node.
+
+Apart from drain and uncordon,
+
+there is also another command called cordon.
+
+Cordon simply marks a node unschedulable.
+
+Unlike drain, it does not terminate
+
+or move the pods on an existing node.
+
+It simply makes sure
+
+that new pods are not scheduled on that node.
+
+Well, the set for this lecture.
+
+Head over to the practice test
+
+and practice training, coordinating
+
+and then coordinating a note.
+
+I will see you in the next lecture.
+
+In this lecture we will see how Kubernetes manages software releases.
+
+So what do we know about API versions in Kubernetes so far?
+
+We know that when we install a Kubernetes cluster, we install a specific version of Kubernetes.
+
+We can see that when we run the kubectl get nodes command.
+
+In this case it's version 1.33.0.
+
+Now let's take a closer look at that version number.
+
+The Kubernetes release versions consists of three parts.
+
+The first is the major version, followed by the minor version and then the patch version.
+
+Now, while minor versions are released every few months with new features and functionalities, patches
+
+are released more often with critical bug fixes.
+
+Now, just like many other popular applications out there, Kubernetes follows a standard software release
+
+versioning procedure.
+
+Every few months it comes out with new features and functionalities through a minor release.
+
+The first major version, version 1.0, was released in July of 2015, and later releases followed through
+
+2016 to 2018, to version 1.20 in 2020 and version 1.33 in April 2025.
+
+Now, apart from these, you will also see Alpha and beta releases.
+
+All the bug fixes and improvements first go into Alpha release.
+
+Tagged Alpha.
+
+In this release, the features are disabled by default and may be buggy.
+
+And then from there they make their way to beta release where the code is well tested.
+
+The new features are enabled by default in this release, and finally they make their way to the main
+
+stable release.
+
+You can find all the releases in the releases page of the Kubernetes um repository or the documentation
+
+page.
+
+You download the Kubernetes dot tar dot js file and extract it to find executables for all the different
+
+components.
+
+The downloaded package, when extracted, has all the control plane components in it, all of them of
+
+the same version.
+
+Now remember that there are other components within the control plane that do not have the same version
+
+numbers.
+
+The etcd cluster and the core DNS servers have their own versions as their separate projects.
+
+The release notes of each release provides information about the supported versions of dependent applications,
+
+like etcd and core DNS.
+
+Check out the links for some references.
+
+So that was a quick overview of the release versions.
+
+In the upcoming lecture, we will discuss how to upgrade from one version to another.
+
+In this lecture we discuss about cluster upgrade process in Kubernetes.
+
+In the previous lecture, we saw how Kubernetes manages its software releases and how different components
+
+have their versions.
+
+We will keep dependency on external components like etcd and DNS aside for now, and focus on the core
+
+control plane components.
+
+Is it mandatory for all of these to have the same version?
+
+No.
+
+The components can be at different release versions, since the kube API server is the primary component
+
+in the control plane, and that is the component that all other components talk to.
+
+None of the other components should ever be at a version higher than the kube API server.
+
+The controller, manager and scheduler can be at one version lower.
+
+So if kube API server was at EKS, controller managers and kube schedulers can be at x minus one and
+
+the kubelet and kube proxy components can be at two versions lower x minus two.
+
+So if kube API server was at 1.1, the controller manager and scheduler could be at 1.1 or 1.9, and
+
+the kubelet and kube proxy could be at 1.8.
+
+None of them could be at a version higher than the cube API server, like 1.11.
+
+Now this is not the case with kube control.
+
+The kube control utility could be at 1.11 a version higher than the API server 1.11 the same version
+
+as the API server, or at 1.9 a version lower than the API server.
+
+Now this permissible skew in versions allows us to carry out live upgrades.
+
+We can upgrade component by component if required.
+
+So when should you upgrade?
+
+Say you were at 1.1 and Kubernetes releases versions 1.11 and 1.12 at any time.
+
+Kubernetes supports only up to the recent three minor versions.
+
+So with 1.12 being the latest release, Kubernetes supports versions 1.12, 1.11, and 1.1.
+
+So when 1.13 is released, only versions 1.13, 1.1 and 1.11 are supported.
+
+Before the release of 1.13 would be a good time to upgrade your cluster to the next release.
+
+So how do we upgrade?
+
+Do we upgrade directly from 1.1 to 1.13?
+
+No.
+
+The recommended approach is to upgrade one minor version at a time.
+
+Version 1.1 to 1.11, then 1.11 to 1.12, and then 1.12 to 1.13.
+
+The upgrade process depends on how your cluster is set up.
+
+For example, if your cluster is a managed Kubernetes cluster deployed on cloud service providers like
+
+Google, for instance, Google Kubernetes Engine lets you upgrade your cluster easily with just a few
+
+clicks.
+
+If you deployed your cluster using tools like Kube ADM, then the tool can help you plan and upgrade
+
+the cluster.
+
+If you deployed your cluster from scratch, then you manually upgrade the different components of the
+
+cluster yourself.
+
+In this lecture we will look at the options by kube adm.
+
+So you have a cluster with master and worker nodes running in production, hosting pods serving users.
+
+The nodes and components are at version 1.1.
+
+When upgrading a cluster involves two major steps.
+
+First, you upgrade your master nodes and then upgrade the worker nodes while the master is being upgraded.
+
+The control plane components such as the API, server, scheduler, and controller managers go down
+
+briefly, the master going down does not mean your worker nodes and applications on the cluster are
+
+impacted.
+
+All workloads hosted on the worker nodes continue to serve users as normal.
+
+Since the master is down, all management functions are down.
+
+You cannot access the cluster using kube control or other Kubernetes API.
+
+You cannot deploy new applications or delete or modify existing ones.
+
+The controller managers don't function either.
+
+If a pod was to fail, a new pod won't be automatically created.
+
+But as long as the nodes and pods are up, your applications should be up and users will not be impacted.
+
+Once the upgrade is complete and the cluster is back up, it should function normally.
+
+We now have the master and the master components at version 1.11, and the worker nodes at version 1.1.
+
+As we saw earlier, this is a supported configuration.
+
+It is now time to upgrade the worker nodes.
+
+There are different strategies available to upgrade the worker nodes.
+
+One is to upgrade all of them at once, but then your pods are down and users are no longer able to
+
+access the applications.
+
+Once the upgrade is complete, the nodes are back up, new pods are scheduled, and users can resume
+
+access.
+
+That's one strategy that requires downtime.
+
+The second strategy is to upgrade one node at a time.
+
+So going back to the state where we have our master upgraded and nodes waiting to be upgraded, we first
+
+upgrade the first node where the workloads move to the second and third node, and users are served
+
+from there.
+
+Once the first node is upgraded and back up, we then update the second node where the workloads move
+
+to the first and third nodes, and finally the third node where the workloads are shared between the
+
+first two.
+
+Until we have all nodes upgraded to a newer version, we then follow the same procedure to upgrade the
+
+nodes from 1.11 to 1.12 and then 1.13.
+
+A third strategy would be to add new nodes to the cluster nodes with newer software version.
+
+This is especially convenient if you're on a cloud environment, where you can easily provision new
+
+nodes and decommission old ones.
+
+Nodes with the newer software version can be added to the cluster.
+
+Move the workload over to the new.
+
+And remove the old node until you finally have all new nodes with the new software version.
+
+Let us now see how it is done.
+
+Say we were to upgrade this cluster from 1.1 to 1.13.
+
+Kubeadm has an upgrade command that helps in upgrading clusters with Kubeadm.
+
+Run the Kubeadm upgrade plan command and it will give you a lot of good information.
+
+The current cluster version.
+
+The Kubeadm tool version, the latest stable version of Kubernetes.
+
+Then it lists all the control plane components and their versions and what version these can be upgraded
+
+to.
+
+It also tells you that after we upgrade the control plane components, you must manually upgrade the
+
+Kubelet versions on each node.
+
+Remember, kube adm does not install or upgrade Cubelets.
+
+Finally, it gives you the command to upgrade the cluster.
+
+Also note that you must upgrade the cube ADM tool itself before you can upgrade the cluster.
+
+The cube ADM tool also follows the same software version as Kubernetes.
+
+So we are at 1.11 and we want to go to 1.13.
+
+But remember we can only go one minor version at a time.
+
+So we first go to 1.1 to first upgrade the cube ADM tool itself to version 1.12, then upgrade the cluster
+
+using the command from the upgrade plan output cube upgrade apply.
+
+It pulls the necessary images and upgrades the cluster components.
+
+Once complete, your control plane components are now at 1.12.
+
+If you run the kube control get nodes command, you will still see the master node at 1.17.
+
+This is because in the output of this command, it is showing the versions of Kubelets on each of these
+
+nodes registered with the API server, and not the version of the API server itself.
+
+So the next step is to upgrade the Kubelets.
+
+Remember, depending on your setup, you may or may not have Kubelets running on your master node.
+
+In this case, the cluster deployed with Kube ADM has Kubelets on the master node, which are used to
+
+run the control plane components as pods on the master nodes.
+
+When we set up a Kubernetes cluster from scratch later during this course, we do not install Kubelet
+
+on the master nodes.
+
+You will not see the master node in the output of this command in that case.
+
+So the next step is to upgrade Kubelet on the master node.
+
+If you have Kubelets on them, run the apt.
+
+Get Kubelet command for this.
+
+Once the package is upgraded, restart the Kubelet service running the kube control get nodes command
+
+now shows that the master has been upgraded to 1.12.
+
+The worker nodes are still at 1.11.
+
+So next the worker nodes let us start one at a time.
+
+We need to first move the workloads from the first worker node to the other nodes.
+
+The kube control drain command lets you safely terminate all the pods from a node and reschedules them
+
+on the other nodes.
+
+It also cordons the node and marks it unschedulable.
+
+That way no new pods are scheduled on it.
+
+Then upgrade the kubectl and kubelet packages on the worker nodes as we did on the master node.
+
+Then, using the kube adm tool upgrade command, update the node configuration for the new Cubelet version.
+
+Then restart the Cubelet service.
+
+The node should now be up with the new software version.
+
+However, when we drain the node, we actually marked it Unschedulable.
+
+So we need to unmark it by running the command kube control on node one.
+
+The node is now Schedulable, but remember that it is not necessary that the pods come right back to
+
+this node.
+
+It is only marked as Schedulable.
+
+Only when the pods are deleted from the other nodes, or when new pods are scheduled.
+
+Do they really come back to this first node?
+
+Well, it will soon come when we take down the second node to perform the same steps to upgrade it.
+
+And finally the third node.
+
+We now have all nodes upgraded.
+
+Well that's it for this lecture.
+
+Head over to the practice test where you will practice upgrading a live cluster with applications running
+
+on it without taking the applications down.
+
+Good luck.
+
+Instructor: In this video, I'm gonna walk you through
+
+a demo of upgrading a Kubernetes cluster
+
+from version 1.28 to version 1.29.
+
+And what we're gonna do
+
+is we're gonna follow the documentation
+
+when it comes to upgrading using kubeadm.
+
+And so if you go to the Kubernetes documentation
+
+and you go under Tasks, under Administer a Cluster,
+
+and then down here under Administration with kubeadm,
+
+select Upgrading a kubeadm cluster.
+
+And this is gonna have all of the instructions necessary
+
+to perform an upgrade on a Kubernetes cluster
+
+using kubeadm, and it'll have separate instructions
+
+for each different upgrade.
+
+So you've got one from version 1.28 to version 1.29,
+
+which is what I'm on now,
+
+which is the latest kind of upgrade,
+
+because version 1.29 is the latest at the moment.
+
+But you can see you could also have 1.27 to 1.28,
+
+1.26 to 1.27, 1.25 to 1.26,
+
+and 1.24 to 1.25.
+
+So just select whichever upgrade path you're performing
+
+and just follow those instructions
+
+and you'll see that it's gonna be pretty much identical
+
+regardless of what versions you're upgrading from
+
+and upgrading to.
+
+All right, so let's go ahead and get started.
+
+So I'm gonna scroll down
+
+and you can see that there's an important note
+
+which is "Changing the package repository."
+
+And so if you guys aren't up to date as to what happened,
+
+the old package repositories
+
+for all of the different Kubernetes tools and components
+
+was stored at app.kubernetes.io
+
+and yum.kubernetes.io.
+
+And so those have been deprecated.
+
+So moving forward, we want to use
+
+the pkgs.k8s.io repositories to actually, you know,
+
+download the latest versions of like kubectl,
+
+kubeadm, and all of the different tools.
+
+So we're gonna have to, you know, at the early stages
+
+of performing the upgrade, we're gonna have to make sure
+
+that we're utilizing the newer repositories
+
+and not the older ones.
+
+And I'll show you guys
+
+how we can actually go ahead and do that.
+
+And so what we're gonna do
+
+is we're gonna click on this link right here,
+
+and this is gonna give us the instructions
+
+on how to actually use and set up
+
+the new package repositories.
+
+And it's actually pretty straightforward.
+
+So the first thing that we have to do
+
+is we have to make sure we know
+
+what our, you know, distribution is
+
+'cause the commands are gonna be a little bit different.
+
+So if I go to my cluster right here,
+
+and just to show you guys, I have a two node cluster.
+
+So if I do kubectl get node,
+
+we can see that I've got two nodes here,
+
+one control plane, one worker node.
+
+And keep in mind the steps for upgrading a cluster,
+
+you know, whether it's, you know, two nodes, three nodes,
+
+five nodes, it's all going to be identical.
+
+But if I want to see what, what distribution
+
+my servers are using,
+
+I can do a cat /etc/*release*,
+
+and this is gonna tell us what distribution we're using.
+
+And we can see here we're using Ubuntu 20.04.6.
+
+So this is using Debian,
+
+and so we're gonna follow the instructions
+
+for that on this specific page.
+
+All right, so I'm gonna scroll down here
+
+and it's gonna show the instructions
+
+for Debian, Ubuntu operating systems.
+
+And so here we replace the app repository definition
+
+so that it points to the new one.
+
+And so all we have to do is just copy this command.
+
+And what I'm gonna do is I'm gonna just copy this
+
+and paste this into Notepad
+
+or some text editor of my choice, and we're gonna select,
+
+or we're gonna have to update one thing,
+
+which is the specific minor version that we want.
+
+So this example uses the new package repository,
+
+which is what we want,
+
+but there's a different package repository
+
+for each minor version.
+
+So there's gonna be one for version 1.28, 1 dot version 29.
+
+You'll even have a one for version 1.27 and 1.26.
+
+So we are going to be upgrading to version 1.29,
+
+so we just have to change this to be nine.
+
+And then there's a second command in here,
+
+which is right here,
+
+"Download the public signing key
+
+"for the Kubernetes package repositories."
+
+So this is, once again, we're gonna copy this.
+
+I'm gonna open up my Notepad and I'm gonna paste it in here.
+
+And once again, we're gonna make sure
+
+that we specify the version that we want to upgrade to,
+
+which is gonna be something in the version 1.29 release.
+
+So now if I just scroll down here,
+
+that should be everything that we do.
+
+And then after we run those two commands,
+
+we can do an apt-get update and we should be all set.
+
+So I'm going to go back to my cluster
+
+and I'm going to paste those two commands in.
+
+All right, and the next thing I'm gonna do
+
+is I'm gonna do this same thing on my worker node.
+
+So I'm gonna SSH to my worker node
+
+and we'll copy those two commands once again.
+
+And keep in mind,
+
+if you have like a 3, 4, 5, 10-node cluster,
+
+you're gonna do this on all of your nodes.
+
+All right, so that's all set.
+
+So now we're gonna go back to the documentation,
+
+and right here it's telling us,
+
+"Determine which version to upgrade to."
+
+So obviously, you know, as I said,
+
+we're gonna be upgrading from version 1.28 to version 1.29,
+
+but what specific version within the 1.29 minor release
+
+do we want to upgrade to?
+
+So first of all, we have to see
+
+what are the available versions
+
+and we're just gonna select the latest version
+
+in the 1.29 train.
+
+So we're gonna copy this, we're gonna do an update,
+
+and then we'll do an apt-cache madison kubeadm.
+
+So that's gonna show us what is the latest version
+
+in version 1.29 for kubeadm.
+
+And that way we can go ahead and download it
+
+and set that up.
+
+So I'll just do this on the control plane node.
+
+So after we update, I'll then run this madison command
+
+and this is gonna show us the available versions.
+
+And we can see all of the different versions,
+
+we've got 1.29.0-1.1, and we want the top one here,
+
+which is gonna be the latest one,
+
+which is 1.29.3-1.1.
+
+So I'm gonna just copy this
+
+and I'm gonna save this in my notes just for reference.
+
+So now if I go back to the documentation,
+
+we're gonna start off by upgrading the control plane nodes.
+
+You always upgrade the control plane
+
+and then you upgrade the worker nodes.
+
+So just pick one of your control plane nodes,
+
+doesn't really matter which one.
+
+And we're gonna follow the following steps right here.
+
+So we're gonna upgrade the kubeadm tool first.
+
+So we're gonna copy this command for upgrading it
+
+and we're gonna copy it and paste it
+
+into this text editor once again.
+
+Reason why I'm doing this,
+
+we have to change a few values here.
+
+So this is what we want to upgrade to,
+
+so right here, if we just change the value here
+
+to be the specific version that we want,
+
+then I can just copy this, go back to my cluster,
+
+and paste this into my control plane node.
+
+So the only thing it's gonna do
+
+is it's going to upgrade the kubeadm tool.
+
+So to be able to upgrade to version 1.29,
+
+we have to actually upgrade kubeadm first,
+
+so that kubeadm can then upgrade the cluster
+
+to version 1.29.
+
+All right, so that's complete.
+
+Let's verify that it actually got upgraded.
+
+So if I do kubeadm version,
+
+it should show that version 1.29.
+
+And we can see version 1, minor version 29,
+
+and we can see GitVersion 1.29.3, perfect.
+
+Now if we go back to the documentation,
+
+the next thing we want to do is run
+
+the sudo kubeadm upgrade plan.
+
+So the plan command is just gonna walk us through
+
+the different versions that we can upgrade our cluster to
+
+and it's gonna make sure that there aren't some sort
+
+of like, compatibility issues.
+
+And it's gonna let us know if there's going
+
+to be some problems if we try to perform an upgrade
+
+to a specific version.
+
+So it's just kind of like a dry run just to make sure
+
+that, you know, everything looks okay
+
+and it's gonna tell us, like,
+
+hey, what are the different components
+
+that kubeadm will upgrade for us automatically,
+
+and what are the different components
+
+that we'll have to manually upgrade afterwards as well?
+
+So I'll copy this.
+
+We're gonna run this once again
+
+on that same control plane node.
+
+So let's take a look at the output
+
+of the upgrade plan command.
+
+So right here we can see
+
+the steps it's kind of going through.
+
+So it's just verifying a few things.
+
+Right here, it's going to let us know
+
+that right now our kubeadm is set to version 1.29.3,
+
+cluster is set to version 1.28.0.
+
+And here it says the components
+
+that have to be upgraded manually
+
+after you upgrade the control plane,
+
+which is gonna be the kubelet process.
+
+And so this first section will show us how to upgrade
+
+to the latest version in the 1.28 minor release,
+
+which is 1.28.8.
+
+So if we wanted to go to 1.28.8,
+
+we would have to upgrade the kubelet manually,
+
+kubeadm never upgrades the kubelet for us,
+
+but the components that will get upgraded
+
+by kubeadm are the following components.
+
+So it can actually upgrade all of those
+
+for us automatically.
+
+And if we want to do that,
+
+we can always do a kubeadm upgrade apply v1.28.8,
+
+but we don't want that, we want to upgrade to 1.29.3,
+
+which is the instructions down here.
+
+And so it's gonna let us know
+
+we have to manually upgrade kubelet, right?
+
+Because kubelet is not running in a pod,
+
+so we have to upgrade it ourselves.
+
+But kubeadm will upgrade all the other components
+
+to version 1.29.3.
+
+All we have to do is just run
+
+the kubeadm upgrade apply v1.29.3 command.
+
+And so if we go back to the documentation, right,
+
+we ran the plan command,
+
+the next thing we have to do
+
+is we have to run that sudo kubeadm upgrade apply command,
+
+which is exactly what we're gonna do.
+
+So I can just copy this,
+
+and just do a sudo, and then paste this,
+
+and it's going to perform the upgrade process for us.
+
+All right, so the upgrade was successful
+
+and it's successfully completed.
+
+Now if I do a kubectl get node,
+
+you're gonna see something interesting.
+
+You're gonna see that it still points to version 1.28.0.
+
+Well, why is that?
+
+I thought we just upgraded,
+
+it says we've successfully upgraded.
+
+Well keep in mind when you do a kubectl get node,
+
+and you see the version column here, this version column,
+
+it pulls the version that your kubelet is running.
+
+So our kubelet, remember,
+
+based off the kubeadm plan command,
+
+it needs to be upgraded manually afterwards,
+
+after kubeadm is run.
+
+So this version is just getting pulled
+
+from whatever version your kubelet is running,
+
+so that's why it still says version 1.28.0.
+
+Once we upgrade kubelet, it'll then point to 1.29.3.
+
+But let's go back to the documentation
+
+and let's go ahead and see the next steps.
+
+So after we run the kubeadm upgrade apply,
+
+the next thing that we have to do
+
+is if we do need to upgrade the CNI provider plugin,
+
+you know, maybe after a certain version
+
+you have to upgrade the plugin
+
+so that it can operate seamlessly with the newer version,
+
+then go ahead and upgrade it at this point.
+
+There's no changes that we need to make
+
+to our provider plugin, so we're gonna skip that step.
+
+Then if we're running multiple control plane nodes,
+
+which in our case we only have one,
+
+but if you had more than one, then all you would have to do
+
+is you'd have to run the same commands.
+
+So you would go back to when we updated
+
+the package repository.
+
+So run those two commands,
+
+then you would want to upgrade kubeadm
+
+to that specific version.
+
+And then all you have to do
+
+is instead of running a kubeadm upgrade apply,
+
+you would run a kubeadm upgrade node command
+
+on the control plane node.
+
+Then once you've done that,
+
+we have now successfully upgraded
+
+all of the control plane components
+
+on the control plane nodes, or the master nodes.
+
+The next thing we have to do is we have to upgrade
+
+the kubelet processes on the control plane nodes.
+
+So anytime you're messing with the kubelet process,
+
+we want to make sure we drain the nodes of all of the pods.
+
+And yes, we have to drain the nodes
+
+on the control plane nodes as well
+
+because they do have pods running on them
+
+like the, you know, the core DNS pods
+
+and some of the other control plane components
+
+which are run as pods.
+
+So we do want to make sure we drain them
+
+and move them to some of the other control plane components.
+
+So all we have to do is do a kubectl drain,
+
+the name of the node, and then --ignore-daemonsets.
+
+So I can just copy this,
+
+paste that in,
+
+and just change the name of the node,
+
+which is going to be controlplane
+
+as per the output of kubectl get node,
+
+which we got here, the control plane node
+
+is just called controlplane.
+
+So that's been drained.
+
+And then what we'll do is we will upgrade
+
+the kubelet process now.
+
+So to upgrade kubelet, I'm gonna copy this command,
+
+and keep in mind the command they gave us here
+
+will upgrade kubelet as well as kubectl.
+
+So we'll copy that
+
+and I'm gonna paste it below here.
+
+And we're gonna copy the version,
+
+that specific version,
+
+and change these two fields
+
+so that we can upgrade kubeadm,
+
+and kubectl to that specific version.
+
+And then we'll go ahead and paste it in
+
+and then restart the kubelet process.
+
+So I'll copy this,
+
+now we can go ahead and restart the kubelet process.
+
+So now if I do a kubectl get node,
+
+we can see that the control plane node got upgraded
+
+to version 1.29.3.
+
+We can see that scheduling is still disabled
+
+because we drained the node.
+
+So let's go ahead and uncordon the node.
+
+And we can do that by running kubectl uncordon,
+
+and the name of the node.
+
+So I'll say kubectl uncordon controlplane.
+
+Now if I do a get node,
+
+we should see we no longer have the scheduling disabled
+
+next to our control plane node.
+
+Now if you have more than one control plane node,
+
+you would just do the same process
+
+on all the other control plane nodes.
+
+So you would run this command, well first of all,
+
+you would drain the specific control plane node
+
+that you're working on at the moment,
+
+upgrade kubelet and kubectl,
+
+and then after you upgrade it,
+
+do a restart of the kubelet process.
+
+And then you've upgraded the next control plane node.
+
+And you'll just do that one by one
+
+until you've got all of them upgraded.
+
+And then once that's done,
+
+if we go back to the documentation,
+
+we can see that we can now move on
+
+to upgrading worker nodes.
+
+And so there's gonna be instructions
+
+for both types of machines, whether it's a Linux
+
+or a Windows machine.
+
+So I'll open up the Linux one
+
+'cause that was what we're using,
+
+and we could take a look at the instructions.
+
+And so you'll see here you get that same message
+
+about changing package repository,
+
+but we already did that for our worker node
+
+so we don't need to do that again.
+
+And just like we did with the control plane node,
+
+we're gonna have to upgrade kubeadm on our worker node.
+
+So we already have the command
+
+that we need in our text editor.
+
+So that's gonna be the kubeadm one right here.
+
+So we'll copy this
+
+and I'll go to my node01, paste that in.
+
+And then once that's done,
+
+if we take a look at the documentation,
+
+we could run a sudo kubeadm upgrade node.
+
+So we don't do an apply, we do an upgrade node.
+
+All right, so that's done.
+
+And then if we go down here,
+
+it's gonna be very similar to the control plane node.
+
+We have to drain the node of, you know, all of its pods,
+
+and then we have to upgrade the kubelet process.
+
+So let's go ahead and drain that node.
+
+And obviously I have to go to the control plane node
+
+to actually run the command to drain it.
+
+So I'll do kubectl drain node01,
+
+and I forgot the --ignore-daemonsets.
+
+And then after we do that,
+
+we're gonna upgrade kubelet and kubectl
+
+if you do have kubectl on your node machine.
+
+Keep in mind, you don't technically need
+
+to have that on there, but if you do,
+
+go ahead and upgrade that as well.
+
+And once again, we have the command for that,
+
+that's why I saved it in the text editor.
+
+We'll go back to node01.
+
+So after upgrading the kubelet process,
+
+we're gonna have to then restart it.
+
+So I'll copy these two commands.
+
+And then the last thing that we have to do
+
+is we have to uncordon the node
+
+so that we can deploy pods on it again.
+
+So I'll do kubectl uncordon node01.
+
+And this node has been officially upgraded,
+
+so if I do a kubectl get node,
+
+we can see that they're both running version 1.29.3.
+
+Now you're obviously gonna have more than one worker node,
+
+so after you've finished upgrading your first worker node,
+
+you just follow these instructions again
+
+on the next worker node.
+
+So you're going to do the same thing.
+
+You're going to upgrade the kubeadm tool.
+
+You're gonna run the sudo kubeadm upgrade node,
+
+then you'll drain the node
+
+before you update the kubelet process.
+
+You'll then update the kubelet process,
+
+restart kubelet, and then uncordon the node.
+
+And you'll just do that on all your working nodes
+
+one by one until your entire cluster has been upgraded.
+
+And so that's going to wrap up this demo.
+
+I just walked you guys through
+
+how to upgrade a Kubernetes cluster using the kubeadm tool.
+
+In this lecture we look at the various backup and restore methodologies.
+
+Let's start by looking at what you should consider backing up in a Kubernetes cluster.
+
+So far in this course, we have deployed a number of different applications on our Kubernetes cluster
+
+using deployment pods and service definition files.
+
+We know that the etcd cluster is where all cluster related information is stored.
+
+And if your applications are configured with persistent storage, then that is another candidate for
+
+backups.
+
+With respect to resources that we created in the cluster, at times we use the imperative way of creating
+
+an object by executing a command, such as while creating a namespace or a secret or configmap, or
+
+at times for exposing applications.
+
+And at times we used the declarative approach by first creating a definition file and then running the
+
+kube control apply command on that file.
+
+This is the preferred approach if you want to save your configuration, because now you have all the
+
+objects required for a single application in the form of object definition files in a single folder.
+
+This can easily be reused at a later time or shared with others.
+
+Of course, you must have a copy of these files saved at all times.
+
+A good practice is to store these on source code repositories.
+
+That way it can be maintained by a team.
+
+The source code repository should be configured with the right backup solutions with managed or public
+
+source code repositories like GitHub.
+
+You don't have to worry about this.
+
+With that, even when you lose your entire cluster, you can redeploy your application on the cluster
+
+by simply applying these configuration files on them.
+
+While the declarative approach is the preferred approach, it is not necessary that all of your team
+
+members stick to those standards.
+
+What if someone created an object the imperative way without documenting that information anywhere?
+
+So a better approach to backing up resource configuration is to query the cube API server, query the
+
+cube API server using the cube control, or by accessing the API server directly, and save all resource
+
+configurations for all objects created on the cluster as a copy.
+
+For example, one of the commands that can be used in a backup script is to get all pods and deployments
+
+and services in all namespaces using the kube control utilities.
+
+Get all command and extract the output in YAML format, then save that file.
+
+And that's just for a few resource group.
+
+There are many other resource groups that must be considered.
+
+Of course you don't have to develop that solutions yourself.
+
+There are tools like Arc or now called Valero by Heptio that can do this for you.
+
+It can help in taking backups of your Kubernetes cluster using the Kubernetes API.
+
+Let us now move on to etcd.
+
+The etcd cluster stores information about the state of our cluster.
+
+So information about the cluster itself, the nodes and every other resources created within the cluster
+
+are stored here.
+
+So instead of backing up resource as before, you may choose to backup the etcd server itself.
+
+As we have seen, the etcd cluster is hosted on the master nodes.
+
+While configuring etcd, we specified a location where all the data would be stored.
+
+The data directory that is, the directory that can be configured to be backed up by your backup tool.
+
+Etcd also comes with a built in snapshot solution.
+
+You can take a snapshot of the etcd database by using the etcd control utilities.
+
+Snapshot save command.
+
+Give the snapshot a name.
+
+Snapshot A snapshot file is created by the name in the current directory.
+
+If you want it to be created in another location, specify the full path.
+
+You can view the status of the backup using the snapshot status command.
+
+To restore the cluster from this backup at a later point in time.
+
+First stop the kube API server service, as the restore process will require you to restart the etcd
+
+cluster, and the API server depends on it.
+
+Then run the etcd controls snapshot restore command with the path set to the path of the backup file,
+
+which is the snapshot db file.
+
+When etcd restores from a backup, it initializes a new cluster configuration and configures the members
+
+of etcd as new members to a new cluster.
+
+This is to prevent a new member from accidentally joining an existing cluster on running this command.
+
+A new data directory is created in this example at location var lib etcd from backup.
+
+We then configure the etcd configuration file to use the new data directory.
+
+Then reload the service daemon and restart etcd service.
+
+Finally, start the kube API server service.
+
+Your cluster should now be back in the original state.
+
+A quick note before I let you go with all the etcd commands, remember to specify the certificate files
+
+for authentication.
+
+Specify the endpoint to the etcd cluster and the certificate, the server certificate and the key.
+
+So we have seen two options a backup using etcd and backup by querying the kube API server.
+
+Now both of these have their pros and cons.
+
+Well if you're using a managed Kubernetes environment, then at times you may not even have access to
+
+the etcd cluster.
+
+In that case, backup by querying the kube API server is probably the better way.
+
+Well, that's it for this demo.
+
+Head over to the practice test and practice backing up etcd in a cluster and then restoring from backups.
+
+Working with ETCDCTL and ETCDUTL
+WORKING WITH ETCDCTL & ETCDUTL
+etcdctl is a command line client for etcd.
+In all our Kubernetes hands-on labs, the ETCD key-value database is deployed as a static pod on the master. The version used is v3.
+
+To make use of etcdctl for tasks such as backup, verify it is running on API version 3.x:
+
+etcdctl version
+Example:
+
+controlplane ~ ➜  etcdctl version
+etcdctl version: 3.5.16
+API version: 3.5
+Backing Up ETCD
+Using etcdctl (Snapshot-based Backup)
+To take a snapshot from a running etcd server, use:
+
+ETCDCTL_API=3 etcdctl \
+  --endpoints=https://127.0.0.1:2379 \
+  --cacert=/etc/kubernetes/pki/etcd/ca.crt \
+  --cert=/etc/kubernetes/pki/etcd/server.crt \
+  --key=/etc/kubernetes/pki/etcd/server.key \
+  snapshot save /backup/etcd-snapshot.db
+Required Options
+--endpoints points to the etcd server (default: localhost:2379)
+
+--cacert path to the CA cert
+
+--cert path to the client cert
+
+--key path to the client key
+
+Using etcdutl (File-based Backup)
+For offline file-level backup of the data directory:
+
+etcdutl backup \
+  --data-dir /var/lib/etcd \
+  --backup-dir /backup/etcd-backup
+This copies the etcd backend database and WAL files to the target location.
+
+Checking Snapshot Status
+You can inspect the metadata of a snapshot file using:
+
+etcdctl snapshot status /backup/etcd-snapshot.db \
+  --write-out=table
+This shows details like size, revision, hash, total keys, etc. It is helpful to verify snapshot integrity before restore.
+
+Restoring ETCD
+Using etcdutl
+To restore a snapshot to a new data directory:
+
+etcdutl snapshot restore /backup/etcd-snapshot.db \
+  --data-dir /var/lib/etcd-restored
+To use a backup made with etcdutl backup, simply copy the backup contents back into /var/lib/etcd and restart etcd.
+
+Notes
+etcdctl snapshot save is used for creating .db snapshots from live etcd clusters.
+
+etcdctl snapshot status provides metadata information about the snapshot file.
+
+etcdutl snapshot restore is used to restore a .db snapshot file.
+
+etcdutl backup performs a raw file-level copy of etcd’s data and WAL files without needing etcd to be running.
+
