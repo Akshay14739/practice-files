@@ -1,0 +1,2015 @@
+In this section we are going to learn about Docker Compose.
+
+So let's understand a little bit about why we need Docker compose.
+
+So here in retail store location we know that it's a multi-container application, which means we have
+
+multiple microservices and we have close to ten containers.
+
+So here if you want to deploy this entire application, not one simple container, the entire application
+
+if you want to deploy, which means all ten containers, how we need to do that.
+
+So here comes the question.
+
+So let's understand a little bit more about this now.
+
+So we have something called Docker compose which solves lot of challenges we get by using manual Docker
+
+commands.
+
+So let's say if you want to use these manual Docker commands let's see.
+
+We can achieve all the questions, whatever we are talking.
+
+So from deployment perspective, how do we start all these containers with a single command?
+
+Is that possible using manual Docker commands?
+
+It's not possible.
+
+So you have a application with a ten containers and you want to first start this mysqldb.
+
+And after that start this catalog service.
+
+So in that case how you are going to handle so dependency management how you are going to handle that
+
+in your.
+
+So far whatever you have learned using Docker commands is that achievable.
+
+It's not achievable.
+
+So in the same line uh like uh configuration perspective.
+
+So where do you define all the container settings ports, volumes, environmental variables.
+
+So you have built a Docker image okay.
+
+And if you want to override the settings defined in the Docker file you can pass them using command
+
+line, but it looks clumsy.
+
+So from configuration and maintenance maintainability perspective also Docker commands is not the right
+
+option.
+
+In addition to that, from networking perspective, how do services talk to each other like UI to cart
+
+or cart to DB?
+
+So how these connections you are going to establish using this command line?
+
+We can do that, but it becomes too complex.
+
+You need to run multiple commands and implement it.
+
+You also need to create networks and all those things and then implement it.
+
+And in addition to that, how can we test the entire whole system locally.
+
+Right.
+
+And also how do you stop all these things with a single command.
+
+Start with a single command and stop with a single command.
+
+So all these things are not possible with manual Docker commands.
+
+So one thing very important here is even if you want to do that, you want to write multiple Docker
+
+commands and execute them.
+
+So that's becomes complex multiple Docker commands you need to execute.
+
+But if you say like if you say start and it starts all these ten containers, and if you say stop and
+
+all these ten containers stops at a time, that's good, right?
+
+So that thing you can do using Docker Compose, so you can see that Docker compose here, which is a
+
+simplified orchestration for microservices.
+
+So in this using Docker compose all ten containers you can start them with this command docker compose
+
+up in single shot and in the same line.
+
+If you want to stop all these containers, you can stop them with command docker compose down.
+
+So start and stop is completed.
+
+Now let's go to dependencies.
+
+So compose supports something called.
+
+Depends on so and also health checks.
+
+Using these things you can implement a dependency.
+
+Saying that after mysqldb is started then only catalog db should be started.
+
+So after DynamoDB.
+
+Started then only carts API should be started.
+
+Or like after all these things are started then only.
+
+UI should be started.
+
+So like this.
+
+You can define the dependencies here.
+
+In addition to that, you can also define health checks for every service here.
+
+And then these health checks will ensure that means like compose waits for these services to become
+
+healthy before others start.
+
+So that's what with health checks.
+
+In addition to that, you know, like you can do everything declaratively, which means you can you
+
+can define all these things in a simple YAML file and like the service settings means like this is a
+
+catalog service.
+
+This is a cart service and this is a order service.
+
+This is a checkout service.
+
+This is a UI service.
+
+So you have five services.
+
+And in each service like catalog service you have two containers carts two containers.
+
+So everything you can declaratively define them in YAML file including health checks depends on environment
+
+variables everything.
+
+So you can create a centralized config file which is a YAML file.
+
+And using that YAML file using that YAML file you can say docker compose up and then docker compose
+
+down so that all these things will be started.
+
+So now what is the key advantage of having that.
+
+Very simple.
+
+So you can build your local development environments and start them and stop them easily.
+
+So all these things together, you can.
+
+Let's consider this as a simple local development environment, and you are making a fix for one specific
+
+thing in catalog API, right?
+
+But or even like something in orders API, you are making a change, right?
+
+So the changes we made to this order API, we need to we can directly test only from order API using
+
+the APIs or from the UI.
+
+If you want to test, you need the entire development environment.
+
+So which means all the ten containers are five.
+
+Services should be running for us.
+
+So this docker compose helps us to bring our development environment in seconds.
+
+In seconds you can make your development environment up or you can make it down.
+
+So that's the advantage of key advantage of using Docker Compose.
+
+So let's go ahead and then practically implement and understand about it in detail.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+In previous lecture, we learned about what are the challenges in using Docker commands when deploying
+
+big applications like microservices applications which contains multiple containers, or when deploying
+
+Multi-container applications with manual Docker commands.
+
+What are the challenges we are going to face?
+
+And then using Docker Compose how they will be solved?
+
+Also, we have discussed.
+
+So now we are going to go ahead and then review a sample docker compose file.
+
+So let's go back to our GitHub repository.
+
+And we are in our GitHub repository.
+
+And section zero for Docker compose.
+
+Here I have put a sample docker compose file.
+
+And in step one I have also provided the links for those things.
+
+So you can go to our retail store application.
+
+And as on today latest is 130.
+
+We are baselining this demo on that respective release.
+
+And you can find the Docker compose here.
+
+Okay, so docker compose file from here.
+
+Or you can go directly to our GitHub repository and you have the Docker compose file here.
+
+So we'll go to our Visual Studio Code and we can find it here in zero four Docker compose you have the
+
+docker compose dot YAML file.
+
+Now let's talk about the top level structure in this docker compose file.
+
+So here we have name networks and services.
+
+So name your application name.
+
+You can provide it here.
+
+So it is a retail store or retail sample whatever we want.
+
+And in networks you have defined a default network named retail sample default.
+
+Right.
+
+So what this network does.
+
+So this network will be the network used by all these ten containers.
+
+So which means they can communicate to each other without any issues because all these will be in a
+
+single network.
+
+So you have defined network at the root level and it is a default network for all these containers.
+
+Now let's come to the services.
+
+So we already know we have ten containers here right.
+
+So for all these ten containers we have the ten services defined here.
+
+So you can see here cart and carts DB catalog and catalog DB checkout and checkout.
+
+Redness and orders.
+
+Orders DB.
+
+And in addition to that for orders we also have a RabbitMQ and finally UI service.
+
+So for each container is defined as a service.
+
+And for this service inside this service we are going to provide all the configuration values so that
+
+you can declaratively manage that container by YAML file using Docker Compose.
+
+So that's the advantage of using Docker compose now instead of explaining every single service, line
+
+by line.
+
+I'll show you the pattern by going deep into one database service and one application service.
+
+Then we will do a quick tour of remaining services.
+
+And finally we will move into the demo implementation.
+
+And this demo is going to be very interesting.
+
+So now here we are going to start with our cart and carts DB services.
+
+So we will review carts DB and cart.
+
+Line by line.
+
+And then later we are going to review the other services on a very high level more or less the values
+
+the the key value pairs inside whatever you see in cart and carts DB so the keys are going to be the
+
+same.
+
+Values might differ because it might be a different service, right?
+
+So now in cart and cart DB we are going to start with the cart DB service.
+
+So now let's open this.
+
+And here this is where we run a local DynamoDB database which is our card service will connect to.
+
+So this card's DB, this line defines the service name.
+
+And then you have something called cap add.
+
+So we are adding a few extra Linux capabilities like own setgid and set UID.
+
+So these let the container manage file permissions if needed.
+
+So for that purpose.
+
+So for security reasons you are saying only specific permissions are allowed on our file system in the
+
+container.
+
+Right.
+
+And then uh you also said that cap drop all.
+
+So this means we drop all the capabilities for this container other than whatever we have defined here.
+
+This keeps the container locked down for security.
+
+So whatever you see this cap drop and cap.
+
+And these are security things ideally not related to key implementation of our application.
+
+Just a security thing.
+
+So in your dev implementation, even if you remove them there should not be any issue.
+
+Now let's go to the next thing inside this DB which is health check right.
+
+So we define how Docker checks if this container is healthy.
+
+The command is just exit zero which always succeeds.
+
+So this is just a dummy health check defined inside this carts db.
+
+So this is a DynamoDB.
+
+So there is no specific thing available here to check it.
+
+So for that purpose they have defined some dummy health check.
+
+But for CART service we are going to review it in detail.
+
+We have a valid real health check available for Cod service.
+
+Here we will review that a little bit later.
+
+Right now we will go to the hostnames thing.
+
+So this sets the internal hostname to carts db.
+
+So which means it will set the host name of your container as carts db.
+
+And this is the image it is going to use Amazon DynamoDB.
+
+So and so version right.
+
+And now you see the networks here.
+
+So it is attached to the default network.
+
+So when you say default null which means this carts db will attach to this default network on the top
+
+whatever you have defined.
+
+So when you say default null, in addition to that, you also set that read only true, which means
+
+the file system is logged as read only.
+
+And in addition to that you also defined a restart.
+
+always.
+
+So container will always restart if it fails.
+
+So these are the things and there are a couple of more which is another security feature available here.
+
+We set no new privileges equal to true for extra safety.
+
+So no new privileges are allowed on this container.
+
+And we are also going to mount a slash temp directory.
+
+We give it a temporary in-memory slash temp directory with restrictions like no execution and no suid.
+
+So here no exact means.
+
+Files in slash temp cannot be executed, and no suid means no privilege escalation.
+
+So this is a safe and isolated scratch space for temporary files.
+
+So that's about cars.
+
+DB.
+
+In our next lecture we will also review the CART service.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Let's move on to our cart service.
+
+So this is a spring boot microservice that actually handles shopping cart operations.
+
+And it connects to the DynamoDB local we just set up.
+
+So here we have set up a carts db and that's carts DB right.
+
+So that one will be used as the underlying database for this spring boot cart microservice application.
+
+So we will go here and open this and we will review this cart service now.
+
+Right.
+
+So let's start with the name is cart here.
+
+So earlier it is carts DB.
+
+Now for this service name is cart.
+
+And as usual we have two things defined which are related to security.
+
+One is allow only net bind service.
+
+This one allows the container to bind to low number ports for example under less than 1024 ports, it
+
+will be allowed.
+
+So by default containers cannot do that.
+
+But since we are running a web service, this is required, provided if we need it.
+
+Our container runs on 8080.
+
+We really don't need it.
+
+But as a safety option, this compose file which is written by AWS, they have added it.
+
+Now let's talk about cab drop.
+
+We are dropping all other Linux capabilities except this.
+
+Net bind service for this container means like all security related capabilities, we are dropping right?
+
+Which means which is not allowed here.
+
+Now comes the very very important thing.
+
+So that is depends on.
+
+So this is the very important thing for multiple microservices application which you are going to use
+
+in your Docker compose file.
+
+So that the order how your applications need to be started can be defined using this depends on argument
+
+only.
+
+So in this depends on argument, we first say cards db here.
+
+So why we are saying cards db.
+
+So because our database should be first up before starting our spring boot application.
+
+So we said it.
+
+This card service will depend on cards DB and its service healthy.
+
+So this ensures Docker waits until cards DB is marked healthy before starting the card service or cards
+
+container.
+
+And we also said required equal to true which means this dependency becomes mandatory.
+
+And next thing is we'll move on to the environment thing.
+
+So we set up environmental variables for this card service here.
+
+So.
+
+These are the things which we are going to define for our Spring boot application.
+
+So these are mainly for our application related things where how to connect to DynamoDB from Spring
+
+Boot application.
+
+So from Spring Boot to DynamoDB.
+
+So we define the endpoint here.
+
+And what is the underlying database.
+
+We are using DynamoDB and respective logs enabled or not accordingly.
+
+And when it connected to the DynamoDB, if our items table does not exist, create it.
+
+So for that purpose, this setting and these are the dummy credential settings that need to be provided
+
+for DynamoDB when using that container.
+
+Local DynamoDB, we need to provide those things.
+
+So those are the things related to environment.
+
+Now let's talk about health check in detail now right.
+
+So Docker runs the health check every 10s.
+
+So interval you have given is 10s, so it runs every 10s and it also retries three times.
+
+So which means this gives the service the.
+
+If it fails three times in a row, the container will be marked unhealthy.
+
+So that's about retries.
+
+And we also have something called start period.
+
+This gives the service 15 seconds to warm up before health checks start.
+
+So that's about start period.
+
+In addition to that we have the test command here.
+
+This is the actual health check command which we are defining.
+
+And we are using the shell to run this command.
+
+And the command is we are using we are running using curl.
+
+So this tries to fetch the spring boot actuator health.
+
+Right.
+
+And uh if the service responds with the healthy status the check passes.
+
+Otherwise it fails.
+
+And we also have a timeout here and the each check must complete within 10s.
+
+So that's about health check in detail.
+
+So it keeps uh, the for every check.
+
+The interval is 10s and it keeps checking whether the service is healthy or not using this endpoint.
+
+So Spring Boot has a default actuator where you can define the health check URL.
+
+And that is actuator slash health.
+
+Using that we do that.
+
+So we can see here after health check we have defined the hostname as carts.
+
+This sets the internal hostname of the container to carts so that other services can use this name to
+
+talk to this respective carts container.
+
+And in addition to that network we are defining it as default null, which means whatever we have defined
+
+on the top network default network we have defined, that network defined it is going to use.
+
+So we have defined retail sample default at the top of this docker compose file so that it is going
+
+to use.
+
+And we also need to understand something called it said ports and then braces.
+
+This is an empty list.
+
+That means we are not publishing any ports from this container to the host machine.
+
+So this is a container and we so what exactly that means is cart service is only accessible inside the
+
+Docker network, not from the outside, which means from the EC2 VM where our Docker container is running.
+
+Using the EC2 vm ip address, we cannot access this cart container.
+
+We can only access UI container because there we are not going to use this empty list.
+
+So there we are going to use uh there we are going to use specific ports.
+
+So there we can access it.
+
+But for these things these carts container will be accessible only inside the Docker network.
+
+And as usual, we can see it here.
+
+Read only file system.
+
+Read only equal to true.
+
+Once the inside the container is read only.
+
+This prevents changes or tampering.
+
+And as usual we have the restart always and security option.
+
+No new privileges allowed and also temporary file system.
+
+And this is the Docker image we are using.
+
+So that's about cart service in detail.
+
+So these things we have discussed when we are discussing carts DB so I am again not going in detail
+
+for security OP or temp.
+
+Temp file system and all those things.
+
+And that's our cart service explained line by line together with the carts DB service.
+
+This completes the setup for our shopping cart microservice running with DynamoDB local in our Docker
+
+compose.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Now on a very high level review the catalog and catalog DB service.
+
+So in catalog DB service.
+
+So we can see it here we have the environment variables defined.
+
+So those are related to database.
+
+So you have something called database name catalog DB and user is catalog user and MySQL password.
+
+You need to set it right.
+
+So this we will set it using environment variable.
+
+On our Linux system.
+
+We can say export db password and value and Docker compose will pick it.
+
+So when we are running the demo we will understand that in detail.
+
+And you also said that MySQL allow empty password true and also root password.
+
+You are setting it here and you are also saying some additional parameter reschedule on node failure.
+
+So these are the environmental variables defined to catalog DB.
+
+And here we have also defined the health check.
+
+So let's review the health check once.
+
+So this is the health check that is defined.
+
+So earlier we have seen different health checks.
+
+So this is a MySQL related database.
+
+So you are using MySQL admin ping as the database health check here.
+
+And you also said that host name is catalog DB and image is MariaDB.
+
+And networks defaults to null means you are going to use the default network defined inside this docker
+
+compose YAML file on the top, whatever we have defined.
+
+So that is about catalog db on a very high level.
+
+In catalog DB you can also see other things which is restart always and security opt no new privileges.
+
+True pretty standard ones which we already discussed.
+
+Now let's go to catalog service.
+
+So we'll open catalog DB.
+
+We have verified and we are opening the catalog service.
+
+So this catalog service so we can see it here.
+
+Again cab drop all permissions drop and we have the depends on and this depends on saying that catalog
+
+service need to wait for catalog DB to be healthy.
+
+So that's the thing we are waiting for.
+
+And inside this catalog service for this catalog application these are the environmental variables required.
+
+Which means whatever the catalog application is there, if it need to connect to MySQL database, it
+
+need the provider, which we are using is MySQL and this is the DB endpoint.
+
+And this is the password it need to use.
+
+So those information you are passing for your catalog application using this environment variables.
+
+And next is health check for catalog.
+
+So you can see the endpoint is 8080 slash health.
+
+And using curl you are going to do that.
+
+In addition to that you have the host name.
+
+You are going to define for this container as catalog so that other services can connect to this service
+
+using this name and as usual again default equal to null network, which means on the top, whatever
+
+you have defined it is going to use and ports you are giving empty or empty list, which means only
+
+this container is accessible inside the Docker network.
+
+Restart.
+
+Always.
+
+And in addition to that, no new privileges are allowed.
+
+And this is the Docker image.
+
+So that's the catalog service.
+
+How so.
+
+We have seen the pattern for cart and carts DB in detail.
+
+So now catalog and catalog DB became very quick.
+
+Within 2 to 3 minutes we understood the entire thing in catalog and catalog DB.
+
+Now let's also review the checkout Reddis and checkout on a very high level quick two minutes okay.
+
+So checkout Reddis.
+
+So we can see here in checkout Reddis.
+
+Right.
+
+So we have the health check defined here.
+
+So in Reddis we are using the Redis CLI with ping as the monitor and host name is.
+
+Checkout and image we are using is this one.
+
+This is standard, this is standard.
+
+This is standard.
+
+Same as our other services which we have seen in carts and then carts.
+
+DB so now we'll move on to Checkout Service.
+
+So in checkout service let's review what is present.
+
+So we have something called standard thing which is cap ad net bind service.
+
+Adding the additional means like less than 1024 port should be allowed and rest all permissions should
+
+be dropped.
+
+And you can see that depends on again it need to be means like this checkout service will depend on
+
+checkout.
+
+Uh ready service, healthy or not.
+
+And this checkout service application needs this information to be passed as environment variables.
+
+So persistent provider is read this and this is the Redis host name.
+
+And then endpoint.
+
+And this checkout service also communicates with order service.
+
+So orders related information.
+
+Also we are providing them here.
+
+So if you go here right this is the checkout service.
+
+And from this checkout service when placing the order you can see the communication here to orders API.
+
+So which means this checkout API needs orders information order related hostname and port so that you
+
+have given here.
+
+So that's what we are seeing here.
+
+So this is the one and another health check.
+
+You can see 8080 and then health defined here for this uh respective checkout service.
+
+Now we also have hostname which is defined as checkout network's default null and ports empty list which
+
+means only the, uh, this container is accessible inside the Docker network and read only file system.
+
+True and restart always and temp file system is present for this.
+
+And in addition to that this is the Docker image we are using.
+
+So that's about checkout and checkout readiness.
+
+We will also review the orders orders DB and RabbitMQ.
+
+Now.
+
+Now let's start with the orders db.
+
+And in orders DB.
+
+You know orders is a PostgreSQL database.
+
+And here you are starting with something called environment variables right.
+
+So you are setting the Postgres DB schema name orders and user is orders.
+
+Underscore user and password is.
+
+You are going to set it using your Linux environmental variable.
+
+Export DB password is equal to some value and run the docker compose up or something, and it will pick
+
+from there.
+
+So your variable using the password here and this is the Pkgs are ready.
+
+This is the standard health check for our PostgreSQL databases.
+
+So that is implemented.
+
+And this is the host name orders DB.
+
+And this is the Docker image.
+
+We are using networks, defaults null and ports empty list and restart.
+
+Always.
+
+Now it became standard for us most of the settings it became standard for us.
+
+So we'll also review the RabbitMQ here.
+
+Another very short one here.
+
+Okay so you can see for RabbitMQ you are setting the default username and password here.
+
+And hostname is RabbitMQ.
+
+And image is this one.
+
+And default networks default equal to null.
+
+Which means whatever we have defined at the top of our docker compose YAML, that network it is going
+
+to use ports is empty list, which means this RabbitMQ is accessible only inside the Docker network.
+
+Restart always and no new privileges.
+
+True.
+
+So that's about RabbitMQ.
+
+Pretty standard.
+
+Now we'll go to order service.
+
+So here there are a lot of things we need to see.
+
+Let's start with one after the other.
+
+So we have order service.
+
+And here you are saying a cap ad net buying service.
+
+We already know about it.
+
+Rest all permissions from security perspective drop and less than 1024 allow.
+
+That is what net bind service is doing.
+
+And you have the depends on for orders.
+
+So orders container will start only when orders DB service is healthy.
+
+So that's the thing in depends on and we have the following environment variables defined.
+
+So like Tomcat access log enabled and database related information here and RabbitMQ related information
+
+defined here.
+
+And health check for this orders.
+
+Here is.
+
+Again actuator health because this is also a spring boot application.
+
+So you are using the actuator health and hostname.
+
+Again as usual orders default equal to null networks ports empty list read only true restart always
+
+security option, no new privileges and also tmp fs, temporary file system edition and all those things.
+
+And here is the Docker image which is sample orders.
+
+So that is about order service.
+
+So we have seen RabbitMQ orders DB and orders.
+
+So we'll move on to UI also now.
+
+So we can see here for UI service you are saying cap drop all all permissions drop for the Linux from
+
+security perspective.
+
+And here comes the important thing.
+
+So it depends on card service catalog service checkout service and order service.
+
+So when all these four are healthy then only start the UI container.
+
+So start UI container.
+
+So only start it when when this all four things are ready.
+
+So we can go here.
+
+And when this when this complete service, this, this, this and these everything is healthy.
+
+Then only start this.
+
+So that's what depends on is doing here for us.
+
+So here in addition to we have also defined in addition to depends on we have defined environment variables
+
+here okay.
+
+So this is Java related one.
+
+You can put it aside.
+
+These are the Tomcat access logs enabled.
+
+That is fine.
+
+But all the four service endpoints you can see defined here.
+
+So which means from UI.
+
+So from UI you have connections to you can see the connection to catalog service card service order
+
+service.
+
+So you can see it here okay.
+
+So this is the call and this is the call.
+
+And this is the call.
+
+So these things right.
+
+So you have defined these information here in our Docker compose file.
+
+So when you are you remember that everywhere you are setting the host name in this docker compose file
+
+for each service.
+
+So catalog cards, orders and then checkout.
+
+So that is the host name and their equivalent ports also defined here.
+
+See all those things.
+
+So that's about means like for this UI service to communicate with other service.
+
+These are the environmental variables required.
+
+Now in addition to that we also need to review the health check here.
+
+This is again another spring boot application.
+
+So we are using again the actuator health uh means like actuator slash health as the endpoint.
+
+Now after health check you have something called host name which is UI.
+
+And for this UI service you also adding additional thing which is mem limit as five MB and default network
+
+is null.
+
+And for all other services you have seen ports as empty list right?
+
+Empty list.
+
+But here you can see you have defined some things here.
+
+This is a UI service which need to be accessible via browser.
+
+So you said mode is ingress protocol is TCP published.
+
+Port is going to be 8888 which means from your browser HTTP right colon slash slash and your EC2 public
+
+IP, ec2 IP which is a public IP colon 8888.
+
+Your application should be accessible and target port which is nothing but your container port.
+
+So this is a container port restart always.
+
+And this is the UI container the Docker images UI docker image.
+
+So that's about the complete Docker compose file.
+
+We have reviewed end to end.
+
+I'll see you in the next lecture.
+
+Until then bye bye
+
+Welcome back!
+
+We have successfully reviewed the docker compose file for our retail store application.
+
+Now we are going to install the docker compose in our EC2 instance.
+
+So let's go back to our EC2 instance and connect to that instance and install the Docker compose.
+
+So click on connect.
+
+And here in the SSH client we'll copy this and we'll try to open the cloud shell in our new tab and
+
+try to connect to our VM instance.
+
+So let me make this full screen.
+
+Now we are in Cloud Shell and we are connecting to our EC2 VM instance.
+
+And now we will go back here and we will install first.
+
+If we want, we can verify the thing.
+
+Okay.
+
+So we will.
+
+Go back here.
+
+And paste the command docker compose version.
+
+Docker compose is not a docker command.
+
+So which means it is not installed.
+
+So we are going to install Docker compose is a additional plugin for Docker.
+
+So we are going to install that.
+
+First we are going to download the docker compose CLI plugins.
+
+So for that purpose we are going to create a folder here in our EC2 instance usr local lib docker cli
+
+plugins.
+
+So we are going to create this create this directory first and then we are going to download the plugin
+
+and copy there.
+
+So this is the command to Download and this will download the latest docker compose.
+
+And once it is downloaded here we are going to provide the executable permission.
+
+We will provide that.
+
+And then we are going to move this docker compose to this location.
+
+Let me copy that and paste it.
+
+Finally we are going to verify the docker compose version.
+
+And we can see it is successfully installed.
+
+Now the next thing is we know that we have the following services and we are going to install them.
+
+So first thing is we need to download the docker compose to our EC2 VM instance.
+
+So we'll create a demo compose folder.
+
+And inside that folder we will download the docker compose YAML file.
+
+Okay.
+
+So now we will create this.
+
+So let me go here mkdir demo compose and CD to demo compose.
+
+And we will go and then download it.
+
+So this link we have taken it from here.
+
+So this is our retail store sample application.
+
+And here are the releases.
+
+And we are baselining to 1.3.0 today's latest release and copy link address.
+
+And we will say W get.
+
+Now if you see here this is the Docker compose file.
+
+Now we have the docker compose file.
+
+We will go ahead and then first set the db password.
+
+If you remember in our Docker compose file, right.
+
+So if we go here.
+
+Right.
+
+Everywhere if you go to any of these things catalog DB right.
+
+So you say DB password.
+
+So DB password is set from outside.
+
+So we need to set that password now.
+
+So we'll go here and set that password.
+
+So we'll copy paste most of the time okay.
+
+So that is going to be easy.
+
+Instead of typing even it is going to save time for us okay.
+
+Now we have done that.
+
+Now this are the commands okay.
+
+Docker compose up and docker compose down are the commands.
+
+So we'll we'll execute them okay.
+
+And docker compose with hyphen f docker-compose.yml.
+
+We'll discuss that one also hyphen f okay.
+
+So now let's come back here and let's start with this thing okay I'll say clear and we'll start with
+
+echo dollar DB underscore password.
+
+If our DB password variable is set or not we are verifying it is set Mydb 101.
+
+Now we will say docker compose up.
+
+Right.
+
+So when your file name is right, when your file name is docker compose dot yml.
+
+So you don't need to specify hyphen f docker-compose.yml and then up.
+
+So you don't need to.
+
+You don't need this okay.
+
+By default it will search for this file name and then execute.
+
+But some if your file name is example like docker-compose.yml to ABC compost dot YAML something like
+
+this okay ABC dot YAML something.
+
+Just say like this okay.
+
+And this when you want to execute using ABC YAML, then you need to say docker compose, hyphen, f,
+
+ABC, YAML and up.
+
+So you need to specify the file there.
+
+But when you are using the name as docker compose.
+
+You don't need to worry.
+
+So I'll remove the ABC, YAML and docker compose up and this will run.
+
+But hyphen d it will run in the detached mode.
+
+If not, it is going to continuously stream the logs from every container for us.
+
+So the best option is using hyphen D so both you can try.
+
+Without hyphen D you can try and see what happens, but I'll try and use or we can try right.
+
+So docker compose up.
+
+So first it is running and it is trying to pull all the docker images.
+
+Right.
+
+All the ten Docker images it is trying to pull.
+
+It might take a minute or two.
+
+Those are huge in size.
+
+So let's wait for it to download.
+
+Downloaded all the Docker images so we can go up here.
+
+Huge logs okay, so all these logs you need to bear from here on if you see.
+
+Right.
+
+So it has downloaded all the Docker images and it's first created the retail sample default network.
+
+And then it started creating the containers for us.
+
+So orders catalog cards checkout RabbitMQ cart catalog checkout.
+
+So everything okay DBS.
+
+And also first it created all the DBS you can see db, db, db checkout, redis, RabbitMQ, then it
+
+created all the uh applications, card catalog checkout or microservices related things.
+
+Okay.
+
+So now you can see here all the things are running continuously and all the logs are streaming for us.
+
+So without using hyphen D this is the thing okay.
+
+So it will keep running all the logs on the screen okay.
+
+So that's the difference.
+
+Now I'll try to stop this or I'll say control Z or command Z.
+
+I'll try to.
+
+So it has started anyway.
+
+So we'll try to stop it okay.
+
+So I have stopped the entire thing.
+
+So I'll also say one more time.
+
+Docker compose down and everything.
+
+All the containers are removed so we'll go with hyphen D.
+
+That is the good option.
+
+We are going to run it in the detach mode now already the containers are already the docker images are
+
+downloaded.
+
+Downloaded.
+
+It is going to be easy for us.
+
+There is no download thing.
+
+It will immediately go and then start.
+
+Okay, so now you can see containers are created but not yet healthy.
+
+Okay, so one after the one they are becoming healthy.
+
+You can see those things okay.
+
+Catalog DB is healthy, orders is healthy RabbitMQ it is coming and cars DB one is healthy.
+
+Checkout is healthy.
+
+After that these containers started.
+
+So that's the important thing to remember.
+
+Now cart is uh becoming healthy.
+
+Checkout is becoming healthy.
+
+Catalog is becoming healthy.
+
+Orders is still waiting.
+
+So one after the other.
+
+It is doing now in the order because we implemented depends on effectively with health checks in our
+
+Docker compose file.
+
+That's the important thing here, so let's wait for it to start.
+
+We can see here all the containers started successfully.
+
+So which means you can see with a single command.
+
+We have started entire application retail store application entire application we have started.
+
+Now the next thing here is we need to go and then access our application.
+
+So for that purpose EC2 instance and IP is 8888.
+
+So if you remember here right.
+
+So if you go to our UI service so you say you have seen clearly that the publisher port is 8888.
+
+So now what we will do here is we will go to our AWS, AWS, EC2 right.
+
+So this is the EC2 instance and this is the public IP.
+
+Right.
+
+So we will come here and we will say 8888 and the firewall is open.
+
+Our application should be accessible so our application is accessible.
+
+So the important thing here is this is the first time we are starting our application.
+
+All the containers we have started.
+
+One thing we need to verify here is topology.
+
+So there is a topology endpoint they have provided in the application.
+
+So it will tell the health of all the applications.
+
+So topology is the endpoint.
+
+So here catalog is healthy.
+
+Endpoint is catalog 8080.
+
+And under that you have database endpoint catalog DB 3306.
+
+Next is cards.
+
+It is saying cards is healthy with cards 8080 and it has the cards DB 8000.
+
+Check out is healthy checkout 8080 is the microservices application endpoint and Redis checkout 6379
+
+is the database endpoint Redis endpoint and in orders orders is healthy orders 8080 and it is Postgres
+
+and is the DB and it's DB port is five four, three two and RabbitMQ with 5672.
+
+Even this is healthy.
+
+So this is one thing.
+
+And now another thing is if you go here and click on explore right and click on add to load out.
+
+So now the cart service is triggered.
+
+Start equipment requisition.
+
+And now you can see the checkout service is triggered.
+
+You can see it here and click on continue.
+
+Continue purchase.
+
+And your order also got created.
+
+So entire application is working now.
+
+So that's what is the key thing here.
+
+So you have successfully tested by accessing your application and also your topology.
+
+And in our next lecture we will focus on learning some more important Docker compose commands.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+Let's go ahead and then execute some more Docker compose commands.
+
+So we will go to our EC2 instance here.
+
+And now you have started the all the containers.
+
+So how to check if these containers are running.
+
+So we can run the command docker compose PS.
+
+And you can see here all the things.
+
+Okay.
+
+Card service cards DB service catalog service catalog DB service and their statuses.
+
+You can see up from so and so time and they are healthy.
+
+Also you have implemented health check.
+
+So it is also showing showing healthy status here.
+
+Okay.
+
+So in addition to that what is the Docker image it is using and what ports it is using everything it
+
+is showing mainly the UI service you can see from the internet.
+
+Edge 8888 means like from the host port to your container port.
+
+This is the mapping container port is 8080 and the host port which is your EC2 VM port is 8888?
+
+So that is clearly shown and everything.
+
+You can see all the details about how you run when you run the Docker PS, how for containers, how
+
+you see it right when you run docker compose PS also you will see that but in a service view, which
+
+means you will also get the service name here exactly the way it is defined in your docker compose file.
+
+Now when you have run the command docker compose up right and hyphen d, it downloaded the docker images.
+
+So you can run the command docker images to see what all it downloaded.
+
+So you can see these are the things it downloaded.
+
+So these are the ten things it downloaded.
+
+So that's about it.
+
+Now how to stop and start these services.
+
+So those also will see.
+
+Now to stop any specific service you can say that that respective service related name docker compose
+
+stop orders and verify if that service is stopped or not PS PS all the commands is like same docker
+
+commands only.
+
+Additionally, you will have compose here.
+
+That's all.
+
+Okay.
+
+So now let's see that okay.
+
+So let's go back here and we will do that.
+
+Now here Docker compose stop orders is the service name orders.
+
+And you can see orders is stopped now.
+
+So if you say docker compose PS right.
+
+And here you don't find anything orders because it is stopped okay.
+
+Only orders DB is present.
+
+So if you say hyphen A then you can see orders should be in the exited state.
+
+Where is this is the orders and it is in the exited state.
+
+Now let's also go here and go back to demo store here.
+
+And let's refresh the topology page and see what happens okay.
+
+See it is showing unhealthy because you have stopped the orders thing.
+
+Now let's go home and explore.
+
+Add to cart.
+
+Start equipment requisition.
+
+Continue.
+
+Continue.
+
+Purchase.
+
+And it failed because orders application is down.
+
+So that's the thing.
+
+So we have successfully stopped the order service and verified that in the topology.
+
+And also when we have run the functionality of our application it failed.
+
+So now we can see all the applications are distributed means like all the microservices are interconnected.
+
+And we can sense that in detail.
+
+All the communication is working as expected.
+
+Now what we will do is we will go back here and we will docker compose start orders.
+
+Okay.
+
+And it is healthy now.
+
+So we can come back here and then go here and then try to refresh and orders should be healthy very
+
+soon.
+
+Okay.
+
+So we have started just now.
+
+It might take a little bit of time.
+
+Okay.
+
+So we can see here orders is healthy now.
+
+Now let's come back here.
+
+So we have seen the stop start single service in detail.
+
+So there is one more option.
+
+If you want you can restart that service also.
+
+So you can try this option.
+
+Also you can say clear and Docker compose restart right.
+
+So restart and cart service example.
+
+So it is restarting the complete cart service now means like only that respective service nuts underlying
+
+DB.
+
+But that respective cart service is getting restarted.
+
+We can see it here.
+
+Our cart service is restarted successfully.
+
+Another thing we need to verify is viewing the logs.
+
+So we'll see this okay.
+
+So we can run the command.
+
+Docker compose logs will give all service logs for a specific service.
+
+You need to provide your this one okay service name here.
+
+And if you want to follow logs, which means tail the logs.
+
+When you are accessing your application you can say hyphen f.
+
+So let's see that okay so docker compose logs.
+
+So all application logs will be thrown here means like all the ten containers whatever is there.
+
+Those logs you will see when you run that.
+
+So docker compose logs and checkout.
+
+When you say checkout only checkout service logs will be present here.
+
+Now we can also say we can also say here.
+
+Docker compose logs hyphen f and then checkout.
+
+And now we are following the logs means like tailing the logs here.
+
+So we will uh go ahead and tail the logs now and we will parallely access the application.
+
+So we'll go back here and this is the application.
+
+So I will remove this and access it.
+
+This is the basic landing page we have accessed.
+
+And nothing came in the checkout service.
+
+So we will first add the product to the cart.
+
+And nothing came in the checkout service.
+
+Now when I click on the start equipment requisition see checkout is called here.
+
+And in the logs also you can see checkout is called and you can click on continue.
+
+Continue.
+
+Continue.
+
+And you can see it is successful.
+
+And all these are the checkout logs you can see there.
+
+So this is the way you can verify the logs of each container using Docker compose logs command.
+
+Now the next thing is also we can run a command inside a container.
+
+So using docker compose exec command same as docker exec when using the direct containers.
+
+When using compose you can say docker compose exec and your service name.
+
+So we and you can run any of these commands.
+
+Okay.
+
+So we'll run a couple of commands here.
+
+That's all okay.
+
+So we'll say docker compose exec UI.
+
+And such is the thing now here right.
+
+You can see ID it should be app user.
+
+And you can see the jar file UI is a spring boot application.
+
+This is the Jar file.
+
+So etc. and then host name.
+
+So it should be UI.
+
+Okay so and cat etc. and OS release.
+
+So mostly it should be this one okay.
+
+So like this you can run anything you name minus n okay.
+
+Which will give you the host name.
+
+And you name mine you name minus m.
+
+So it will give you the hardware platform of this x86 64.
+
+So like this you can also run curl I think so called I think what is the command which is working call
+
+it is there maybe, I don't know, it is installed or not but we will try localhost 8080.
+
+This should give us the landing page in UI okay.
+
+So it is accessible.
+
+So curl is present inside this container.
+
+And if you want you can also say localhost colon 8080 and topology.
+
+And it should be accessible.
+
+And if you want you know you have the actuator page actuator slash health.
+
+This is a spring boot application UI.
+
+So you can see status up.
+
+It is displayed here.
+
+So that's the thing.
+
+So you can connect and run the commands.
+
+So that's about running the commands.
+
+Now there are other commands here.
+
+Compose stats and stats UI and top and then top UI.
+
+So these are the things it will provide.
+
+The stats resource usage statistics and top will provide you the processes of all service containers.
+
+So in each service, whatever the processes are running.
+
+Docker compose stop will produce it.
+
+Okay.
+
+So now let's come back here and run that Docker compose stats.
+
+And you can see for each each of the service you can see everything in detail.
+
+So how the CPU memory limitations and everything is defined here only for the UI.
+
+You have defined the limit as phi to L, and it is using this much for rest of the things you didn't
+
+define.
+
+So how much is present here on the VM?
+
+Everything it is taking as the maximum limit.
+
+Okay, so that is compose stats, docker compose stats and service name is example UI.
+
+When you provide that only for the UI service, it will provide the details.
+
+Net I o black I o block I o everything all the details in the same way.
+
+Docker compose top to display the processes running inside these containers.
+
+So you can see these are the processes running in these containers.
+
+But we'll try to take one thing okay.
+
+Docker compose top and then UI.
+
+Here we should see a Java process running.
+
+See this is the Java process running.
+
+And if you want you can run cart.
+
+Okay.
+
+And here also app dot jar.
+
+Another Java process running.
+
+And if you want you can say catalog okay.
+
+And it is some other application is present here app main maybe Node.js or something.
+
+So that is the thing.
+
+And if you want catalog hyphen db okay.
+
+And this is a MariaDB process is running inside it.
+
+So like this you can verify this is another very important command docker compose top.
+
+So that's it.
+
+We have learned a lot of commands here.
+
+In our next lecture we are going to focus on one more important concept here.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+In this lecture we are going to make changes to the docker compose file and deploy those changes.
+
+So what are the changes we are making here.
+
+So one important thing here is this command.
+
+We are primarily trying to learn which is docker compose up hyphen d and force recreate UI.
+
+So force recreate is the thing which we are going to learn now.
+
+So what exactly this means is you made some changes in your doc in your Docker compose, there are 5050
+
+microservices running and you made change for one specific microservice related configuration.
+
+So you don't need to stop all the containers and start right.
+
+So what you can do is for that respective container, right?
+
+If you stop and start it, it is not going to take that configuration into effect.
+
+We need to force recreate that change force recreate that container.
+
+So that's the importance of this flag.
+
+Docker compose up hyphen d run in detached mode and force recreate the UI service.
+
+That's what we are going to do with what configuration change we are making here.
+
+Let's see that now.
+
+So this is the application we know right.
+
+So we will go here.
+
+Okay.
+
+So this is the retail store sample app and UI app documentation.
+
+We will find it here when we click that directly.
+
+But I will browse you through that or section configuration.
+
+Also it will take from here directly okay.
+
+But what I do is we will browse from the AWS Containers Retail Store sample app and here in the source.
+
+So you have the direct links in our GitHub repository where you can go.
+
+But I am showing the navigation.
+
+So we went to the source.
+
+And in source right you have the UI service here okay.
+
+This is the UI service.
+
+So I'll click on that UI service and in UI service right.
+
+So if you go down these are this is the UI service documentation.
+
+And here there is one environment variable which is saying that retail UI theme will be default.
+
+Okay.
+
+So which is this one.
+
+If you go home this is the default theme.
+
+So whatever the purple color you are seeing here, secret shop everything purple color buttons, all
+
+these purple colors are default theme, but you have other also available.
+
+One is green, orange and then teal.
+
+So we will try to add this environment variable in our UI service in our Docker compose YAML file with
+
+value as green.
+
+And then we will force recreate that container and then access our application.
+
+That's what we are going to do now.
+
+So this is the environment variable we are going to add.
+
+So we'll go here.
+
+And this is the demo compose.
+
+And inside that you have the docker compose file.
+
+And this is present at the end UI service right.
+
+So this is the UI service related environment variable.
+
+See all four endpoints are there.
+
+Now here I will go here and say hyphen retail UI.
+
+So before.
+
+Before making the change one thing we can do.
+
+So we'll say docker compose exec right.
+
+And then service is UI and s.
+
+Or we can directly say env.
+
+So we'll say env and see what happens.
+
+So all environment variables from UI it is displaying.
+
+So we pipe it with grep retail right.
+
+And it has only endpoints present inside that.
+
+Currently there is no retail UI theme explicitly set.
+
+So it is using the default theme.
+
+So now what we will do is we'll go to Docker compose file.
+
+And here we will enter this and retail UI theme equal to green.
+
+I will say okay and then save it okay.
+
+Now if I say docker compose stop UI right and start UI.
+
+Let's see what happens okay.
+
+Ideally it should not make any change okay.
+
+Stop it.
+
+And I'll also start UI service okay.
+
+And.
+
+UI started okay.
+
+Now if I say docker compose exec u env grep retail nothing.
+
+No changes in effect even if you go and then access your application also.
+
+Right.
+
+So this is the application there.
+
+It will show the purple.
+
+Only the default is purple, so it should show the purple only.
+
+I'm accessing.
+
+See, it is the purple.
+
+So the fix here is we need to run to force recreate this container.
+
+So sample UI should be force recreated.
+
+So the command here is.
+
+So if you come back here the command here is this is the one okay.
+
+Docker compose force recreate is the command.
+
+So we will do that now.
+
+So docker compose up write and hyphen and hyphen hyphen force and create and which service you are going
+
+to do that UI service force recreate UI service.
+
+And now it is recreating that service.
+
+So it is saying recreated.
+
+Now if I say docker compose exec ui e and v pipe grep red tail.
+
+So we should see that theme green is added here.
+
+Now if we go back here and this is the demo store, this is the earlier one, we will try to open the
+
+new tab here and access it.
+
+And we should see the green theme here, see green buttons here and green start equipment requisition
+
+button.
+
+So this also in green.
+
+So everything is in green.
+
+So now you know right.
+
+So when you want to make configuration changes in a specific microservice in Docker compose file, you
+
+can make those changes.
+
+And you can run the command force recreate to have the changes applied.
+
+So that's the important thing here.
+
+Either you can do this or all services.
+
+You can make them down and then start them back again.
+
+That is another thing.
+
+So but this is not the right option right.
+
+So learning force recreate is the important thing here.
+
+So we have successfully tested that.
+
+Now if you want to if you want you can do as assignment retail UI theme.
+
+You can change it to orange or teal and test the whole thing.
+
+You can try that now.
+
+How to stop all these things?
+
+The thing is docker compose down.
+
+So we will go back here and say docker compose down and all the services will be stopped now.
+
+Right.
+
+It is stopped and then those containers are removed.
+
+So docker PS or docker PS hyphen a right.
+
+So nothing is there.
+
+These are all my containers.
+
+Nothing related to this one okay so that's the thing.
+
+And in addition to that, if you want to remove everything Docker images clean up everything.
+
+So you have the command here system prune hyphen a and if any volumes are there everything.
+
+If you want to force remove you can run this.
+
+I am not running it, but if you want you can clean up everything in your mission using this command.
+
+So this completes the demo about Docker compose.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you

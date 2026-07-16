@@ -1,0 +1,247 @@
+In this lecture, we are going to understand about the application we are going to use in this course.
+
+So we are going to talk about retail store microservices application.
+
+So we'll start with the component diagram first and then we'll move on to the architecture diagram for
+
+the same thing.
+
+So for this microservices application we have five services inside it starting with catalog service
+
+which is written in go programming language.
+
+In the same way we have something called card service which is written in Java programming language.
+
+And we also have checkout service which is written in Node.js.
+
+And we also have Order service and UI service which are written in Java Spring Boot.
+
+So we have three applications which are written in Java Spring Boot, one in go and then other is in
+
+Node.js.
+
+So we have various technologies involved here.
+
+For each microservices a different type of underlying language is used, and in addition to that, for
+
+these respective microservices we have used three types of databases.
+
+So if we talk about catalog service we are using MySQL database.
+
+And if we are talking about cart service, we are using DynamoDB which is a NoSQL database.
+
+And for order service we are using PostgreSQL, which is again another relational database.
+
+And in addition to that we also used Reddis as a caching service.
+
+And also for messaging we have used RabbitMQ or you can also use AWS SQS.
+
+So altogether we have these five microservices with three databases and one Redis server and one RabbitMQ.
+
+So all these components are present as part of this application.
+
+Now let's talk about the architecture involved in this respective retail store application.
+
+So we already know that we have five microservices, three databases, one cache server and one messaging
+
+server total.
+
+We are going to have ten containers if we run them as containers.
+
+So then we need to run ten containers.
+
+So it's a big application.
+
+So now let's understand how all these things fit together inside uh this retail store application.
+
+So as a user when you access your application it goes to the web UI.
+
+So our UI service or you can say web application, whatever it is.
+
+Right.
+
+So this web UI, which is your UI service which will be calling other services here.
+
+So the first thing is if you take any of the retail store application, like even Amazon, uh, Amazon
+
+or Flipkart, you can see that it need to first display the products.
+
+So means like it need to have a catalog of products in a database and those catalog of products it need
+
+to display on your UI.
+
+So we have something called catalog API here, and all the product information is stored inside this
+
+mysqldb.
+
+And using this catalog service, we will be able to display those products on the UI here.
+
+So this is catalog service and any of the product if you like.
+
+And if you want to purchase that, first thing is you are going to add it to the cart.
+
+So you have the carts API here.
+
+So when you add it to the cart, that information will be stored in the DynamoDB.
+
+That's about cart API.
+
+In addition to that, once you you have added it to the cart, then you will start the checkout process.
+
+So you have the checkout API.
+
+So where you will have the address information and then to which address it need to be delivered and
+
+all the information.
+
+Right.
+
+And then you will place the order.
+
+So when you are placing the order.
+
+So once you place the order order information will be stored inside this orders DB.
+
+So orders API will be called.
+
+And then it will create a order for you.
+
+And that information will be stored inside this PostgreSQL database temporarily.
+
+When you are checking out, it will also store that checkout process information in the Redis cache
+
+for speeding up your processes.
+
+And in addition to that, not only storing in PostgreSQL database, it will also ensure that the same
+
+order information is stored in RabbitMQ also.
+
+So if you have any other services like a inventory service, okay, or some other delivery service,
+
+okay.
+
+So all those things.
+
+Right.
+
+So you can uh, integrate it with this messaging service so that whatever the order information you
+
+have stored here, whatever the order generated and stored here, same information is present inside
+
+this messaging server.
+
+And then you can pick that information from this messaging server and process other services inventory
+
+or delivery or any other services, whatever we have.
+
+So our scope here is to only limited to five services here catalog cards, checkout orders and then
+
+web UI.
+
+So these are the services we are going to use.
+
+Now let's quickly go ahead and then understand these services on a visual manner before going and practically
+
+implementing them.
+
+So our demo store is going to look like this.
+
+So as soon as you access your application right.
+
+So once you deploy the containers and access it so it's going to look like this.
+
+So whatever the information you are seeing all these things right.
+
+So if you click on explore and you see all this information see slash catalog.
+
+So these information is coming from Catalog Service okay.
+
+So all the information whatever you are seeing here is in from Catalog Service.
+
+So when you say add to load out right.
+
+So it will be added to the cart here.
+
+So you can see it is added in the cart.
+
+And you can see slash cart related service services called here.
+
+Now the next thing here is once you have seen the catalog service and card service.
+
+Next, when you click on the start equipment requisition.
+
+So it will start the checkout service.
+
+So you can see it here Checkout Service.
+
+And in this checkout process you can click on continue by selecting the Location and Delivery type Priority
+
+or Priority Mail Express.
+
+And then also you can provide your card information and all these things.
+
+All these are dummy information.
+
+And when we click on purchase right.
+
+So all this is still in the in checkout service.
+
+Now when we click on purchase right.
+
+So immediately it will call the orders API.
+
+It will generate the order ID.
+
+And this order ID will be also stored in our stored in our uh Postgres SQL database.
+
+And also same order information is also placed in RabbitMQ which is a messaging service.
+
+So that's the complete flow.
+
+Let's see one more time.
+
+Right.
+
+So we are on the home.
+
+So all these are the catalogs.
+
+So you can see catalog.
+
+So all these products are displayed from the catalog service under underlying is the MySQL DB where
+
+all the product information is present.
+
+When we click on add to load out.
+
+So it will be like it is stored in a cart.
+
+Right.
+
+So you can see cart service is called.
+
+And then when you click on the start equipment requisition.
+
+So it will start the checkout process.
+
+And once the checkout process is completed right.
+
+Finally when you click on purchase order ID will be generated, orders API will be called and order
+
+information will be stored in the PostgreSQL database.
+
+And also same information also will be stored in RabbitMQ.
+
+So we have seen twice what it is in our practical demos.
+
+We will start from Docker and we will also move on to Kubernetes.
+
+We'll move on to helm.
+
+So like that one after the other same application we are going to use and then implement.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.

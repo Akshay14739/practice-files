@@ -1,0 +1,3155 @@
+Welcome back.
+
+Before we dive into Kubernetes on AWS ECS, let's pause and answer a very important question, which
+
+is why Kubernetes?
+
+And why not just Docker alone?
+
+So let's understand that when we talk about Docker it is a containerization engine.
+
+So it packages your app into a lightweight container that can run anywhere.
+
+For example, if I build a Python app on my laptop, I can run that Docker image anywhere.
+
+Anywhere in the sense I can run on other laptop, or I can run on cloud or wherever Docker is present.
+
+I can run them.
+
+So anywhere we can say in short, we can say anywhere we can run that Docker image.
+
+But here is the catch.
+
+Docker alone right?
+
+Only solves the packaging and runtime problem.
+
+It does not solve the key important item which is orchestration.
+
+So this is the problem Docker alone cannot solve.
+
+So if you have just one app on your laptop, Docker is enough.
+
+But what if you have hundreds of containers across multiple servers needing scaling, load balancing,
+
+and self-healing?
+
+That's where Docker starts to break down, so it's not a best choice.
+
+So when we talk about Kubernetes we call it as orchestration superpower.
+
+So Kubernetes steps in as the orchestrator.
+
+It doesn't replace Docker.
+
+It manages Docker containers at scale.
+
+So let's see how it is going to do that.
+
+So the first item here is scalability.
+
+So Kubernetes can automatically spin up or remove containers based on load.
+
+So it can do that.
+
+And when coming to load balancing right in Kubernetes instead of manually routing traffic, Kubernetes
+
+has built in load balancing across pods.
+
+Balancing alone.
+
+Load balancing alone in Kubernetes is a huge concept.
+
+So wherein we can talk about huge amount of options.
+
+So you will have different types of services available here with which we can load balance our backend
+
+applications, our workloads like cluster IP service and node port service.
+
+And we have something called ingress service.
+
+We have headless service.
+
+So like this.
+
+And we have something called gateway API.
+
+So there are lots of options available here when we talk about load balancing in kits.
+
+So it's always advanced when we compare with Docker as a basic thing.
+
+In addition to that, when we talk in the lines of high availability, if a container crashes, Kubernetes
+
+simply restarts it or reschedules it on another node.
+
+So that's the self-healing in action.
+
+So this feature is not available in Docker.
+
+And when we talk about multi node support unlike Docker which runs on our host machine, Kubernetes
+
+can manage workloads across an entire cluster of machines.
+
+So those machines can be like a thousand nodes or 2000 nodes.
+
+So that big clusters you can build using multi node support in Kubernetes.
+
+So we also have multi node support in Docker with the Docker Swarm.
+
+In our next lecture we will discuss that.
+
+But for now Kubernetes has the multi node support wherein you can have your nodes any number of nodes
+
+wherein you can expand it.
+
+So that's about it.
+
+And when we talk about automation in Kubernetes right.
+
+So your deployments you are scaling your recovery all automated.
+
+So there is no manual work needed here.
+
+So no manual is no manual work is needed here when we talk about automation.
+
+And another important thing about it is rolling updates.
+
+So we provide a zero downtime when we are upgrading our applications to new app versions.
+
+So without any downtime.
+
+And in addition to that, the extraordinary feature it has is desired state management.
+
+So here you just declare the state you want.
+
+And Kubernetes continuously makes sure reality matches that state.
+
+For example, if you say I want five replicas, Kubernetes will always keep five running, even if something
+
+will fail.
+
+So that's the state management.
+
+Replicas are nothing, but you can say them as your pods, which means in in Docker terminology you
+
+can say like containers.
+
+For now, when we go to advanced, we'll understand what is pod and what is replica.
+
+Everything okay.
+
+And another important thing which we need to know is production readiness and also cloud adoption.
+
+So that is very limited in Docker.
+
+But when we talk about Kubernetes it integrates seamlessly with AWS Azure AKS and GCP GKE.
+
+So with all these things, Kubernetes is in place as a cloud version of it.
+
+So that's why enterprises choose Kubernetes over Docker.
+
+It's built for scale automation and production grade reliability.
+
+So in very simple terms Docker gives us containers wherein you can generate Docker images and use containers.
+
+Okay.
+
+But Kubernetes gives us complete container orchestration.
+
+Both are important.
+
+But if you want to run applications at scale in the real world, Kubernetes is the superpower you need.
+
+So that's the reason Kubernetes is very important to learn.
+
+So in our next lecture we will also see why Kubernetes and not Docker Swarm.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+In this lecture, we are going to understand something very important.
+
+A very common question is why Kubernetes and why not Docker Swarm?
+
+So Docker Swarm is built into Docker.
+
+It's simple and it feels easier to get started with.
+
+So why do most enterprises choose then Kubernetes instead of Docker Swarm right.
+
+So Docker Swarm biggest strength is simplicity.
+
+So you can set up a swarm cluster with just using this command Docker swarm Docker swarm init.
+
+That's it.
+
+Super quick and very beginner friendly.
+
+But for this is suitable for small dev test environments.
+
+Or if you just want to experiment with few containers.
+
+So this is plainly for some dev test or for small deployments you can use this Docker swarm.
+
+But this simplicity comes up with some important trade offs.
+
+Swam is limited when you move towards production scale workloads.
+
+But when you talk about Kubernetes, right.
+
+So this is a enterprise grade enterprise grade orchestration engine right.
+
+So it it it takes more effort to understand concepts of Kubernetes like pods, replica sets and deployments.
+
+So which means there is a huge learning curve when you talk about Kubernetes.
+
+Right.
+
+But whatever you have learned, right.
+
+Whatever the effort you have put, that effort pays off.
+
+Because Kubernetes is designed for enterprise scale, real world production environments.
+
+So let's see a little bit quick about these features.
+
+Whatever we are talking how swarm and how Kubernetes.
+
+Uh, we can compare them and then see how they look like.
+
+Right.
+
+So when we talk about scalability Swam is fine for smaller clusters, but Kubernetes scales to thousands
+
+of nodes, so you can have in a single cluster thousands of nodes.
+
+So that's the advantage of using Kubernetes.
+
+And if you talk about very, very, very important thing, which is ecosystem and adoption, swarm adoption
+
+is very, very small okay.
+
+Very very limited here.
+
+So limited community is available for Docker Swarm.
+
+But when we talk about Kubernetes it's like a huge ecosystem industry standard.
+
+Kubernetes is today an industry standard and it is huge ecosystem.
+
+So accordingly based on the popularity why it is popular because of its special features, whatever
+
+available inside it.
+
+Right.
+
+So now another important thing is from load balancing perspective also.
+
+Right.
+
+So swarm has only basic round robin load balancing.
+
+But Kubernetes provides advanced service discovery Right.
+
+So it will provide the advanced service discovery and intelligent load balancing.
+
+So it will also provide a intelligent load balancing.
+
+So even from load balancing perspective Kubernetes takes the first rank.
+
+And when we talk about auto scaling right.
+
+Swarm doesn't support native auto scaling.
+
+But in Kubernetes right.
+
+So we have uh different options available here.
+
+Like we have something called.
+
+Cluster autoscaler.
+
+So these things right.
+
+So horizontal pod autoscaler will take care of horizontally scaling your pods.
+
+And vertical pod autoscaler will automatically take care of scaling your, uh, hardware.
+
+Scaling your hardware assigned to your application means like CPU, memory and all those things.
+
+How we need to increase based on the need and even cluster autoscaler CA takes care of scaling your
+
+nodes.
+
+So if currently you have only ten nodes running, if you want to increase it to 20 nodes based on the
+
+traffic, then all those things will be taken care using auto scaling.
+
+And in addition to that, when we talk about high availability right.
+
+So swarm has a basic failover but Kubernetes offers self-healing right.
+
+So that's another important feature.
+
+If a pod dies it restarts or moves it to another healthy node.
+
+So self-healing is one very good option available in Kubernetes.
+
+And when we talk about storage and from networking perspective right.
+
+Swarm offers only basic volume and simple networking.
+
+But in Kubernetes you have persistent volumes, storage classes, and advanced CNI networking policies.
+
+So because its community is huge, a lot of things are built in the need how we need it to deploy our
+
+applications at scale.
+
+So that is available in Kubernetes.
+
+And when we talk about cloud support or cloud integration.
+
+right.
+
+So no cloud provider offers swam as a managed service.
+
+Okay.
+
+But when you talk about Kubernetes is a fully managed service on AWS, Azure AKS and GCP, GKE.
+
+So that's another advantage of using Kubernetes.
+
+So the rule of thumb here is very simple.
+
+Use Docker Swarm for small experimental workloads or dev test setups.
+
+But for production grade or enterprise grade and multi-cloud deployments Kubernetes is the only choice.
+
+So in very simple terms, Docker Swarm wins on simplicity, but Kubernetes wins on power, scalability,
+
+and long term reliability.
+
+So that's why Kubernetes has become the industry standard.
+
+So now you understand, right?
+
+Why Kubernetes and why not Docker Swarm.
+
+So in our next lecture we are going to focus on another Kubernetes concept.
+
+Until then bye bye.
+
+Thank you
+
+All right, everyone, before we start using Kubernetes on AWS ECS, let's step back and understand
+
+how Kubernetes actually works under the hood.
+
+So let's take some analogy here so that it will be easy for us to understand.
+
+Think of Kubernetes like a well organized city.
+
+So you have got a city council making big decisions, and then you got workers on the ground doing the
+
+actual work or tasks in Kubernetes.
+
+The city council is the master node and the workers are your worker nodes here.
+
+So the master node is basically the brain of Kubernetes.
+
+So this is the brain of your Kubernetes.
+
+So let's see what all components involved inside this master node and understand them in detail.
+
+So we will start with something called Z.
+
+So imagine this as your city's record book.
+
+It keeps track of everything what buildings exist, where the roads are and who lives where.
+
+In Kubernetes terms, Z stores the entire cluster state.
+
+So you can also say very simply its underlying database for all the information related to Kubernetes.
+
+So that's about Z.
+
+And we also need to know something about another super important component which is kube API server.
+
+So this kube API server think of it as the front desk at the city hall.
+
+Anytime you want something done, deploy a new app, scale it up or shut it down.
+
+You submit your request here.
+
+Every other components talks through this API server only.
+
+Even if we want to deploy something as an administrator, so you need to go via cube API server only.
+
+So whatever you have deployed, the request first will be submitted to this cube API server.
+
+So that's about cube API server.
+
+Next is cube set scheduler.
+
+So let's think of in your city council this as something like a job board.
+
+You have got tasks that need workers.
+
+The schedulers job is to match tasks with the right workers.
+
+So tasks you can say it as tasks means.
+
+So tasks means equal to pods and right workers.
+
+You can say in our city council right workers means nodes.
+
+So this cube scheduler job is to match pods with right nodes.
+
+So based on resources and availability in these worker nodes.
+
+So in which worker node you can assign this respective pod will happen only based on the availability
+
+of that respective node.
+
+System resources.
+
+So in in city council terms like deciding which construction crew builds which building.
+
+So that whole decision making happens in kube scheduler talked about z kube API server and kube scheduler.
+
+Now we have one more which is kube controller manager.
+
+So these are the city managers making sure everything is running smoothly.
+
+For example if a worker leaves or a building collapses, the controller notices and makes sure it's
+
+rebuilt in same line.
+
+We also have something called Cloud Controller manager, and if we are running in the cloud like AWS
+
+EKS, this guy acts as the city's ambassador to the cloud provider.
+
+Need a example?
+
+Like if you need a load balancer or a volume from AWS.
+
+This is who makes the request, so he can make the request to allocate those things from the cloud.
+
+Okay, that was the simple version of Kube controller Manager and cloud controller manager like city
+
+managers and ambassadors.
+
+But let's add a little more detail because behind the scenes these components are actually doing a lot
+
+of job.
+
+So when we talk about this kube controller manager, it isn't just a single controller.
+
+It actually runs a whole collection of controllers like replication controller.
+
+So you will have something called replication controller and you will have node controller and you will
+
+have endpoints controller.
+
+And you will have something called namespace controller.
+
+So namespace controller and end points controller.
+
+So all these controllers are present inside this cube controller manager.
+
+So each one each of these controllers constantly watches the API server.
+
+And make sure the actual state of the cluster matches the desired state.
+
+So let's take an example so we understand it in detail.
+
+So if you asked for three parts for a application but only two are running the replication controller
+
+inside this kube controller.
+
+Inside this kube controller, the replication controller will quickly create the missing one pod in
+
+the same line.
+
+Let's take one more.
+
+So we take one example of replication controller.
+
+Let's take one more related to node controller.
+
+So if any one node goes down.
+
+So example like this node went down which is worker node three.
+
+The node controller marks it as unhealthy so workloads can be shifted to active nodes.
+
+So that's the job of node controller present in Kube controller manager.
+
+And let's also talk a little bit more about Cloud Controller Manager.
+
+So on the cloud side this guy takes care of four big jobs.
+
+One is node life cycle.
+
+So it will have something called node life cycle.
+
+And second is root controller.
+
+And third is service controller.
+
+So it will have something called service controller.
+
+And fourth is volume controller.
+
+So these four are the key important things related to cloud controller manager.
+
+So node lifecycle making sure new cloud VMs register into the Kubernetes cluster.
+
+The job is with the node lifecycle controller.
+
+And when we talk about route controller configuring the networking routes in the cloud, it takes care.
+
+And when we talk about service controller IT provision provisioning, cloud load balancers.
+
+When you expose a service.
+
+So all these things we are going to practically implement at that time.
+
+You can relate to this respective cloud controller manager.
+
+And when we talk about volume controller it takes care of attaching and detaching storages like AWS,
+
+EBS volumes, Elastic Block Store volumes.
+
+So in short, the Kube controller manager is the cluster's internal manager.
+
+So this is internal manager.
+
+And the cloud controller manager is the official ambassador to AWS Azure or.
+
+So that's about kube controller manager and cloud controller manager.
+
+So now let's talk about something called Kubernetes worker nodes.
+
+Right.
+
+So these are like the construction workers in our city.
+
+They do the real job of running our applications.
+
+So in this we have three important things to discuss which is cubelet cube proxy and container runtime.
+
+So let's start with the cubelet here right.
+
+Think of this as the site supervisor.
+
+It makes sure that the containers your apps are running as expected on that worker machine.
+
+So Kubernetes says, hey, run three copies of this app, the Cubelet.
+
+This guy makes sure that happens whatever Kubernetes said.
+
+So he is like a site supervisor.
+
+And we have something called kube proxy.
+
+So this is like a traffic cop.
+
+It directs request to the right pods ensuring networking rules and load balancing work properly.
+
+So the requests coming to this worker node need to go to specific parts.
+
+That job will be taken care by this kube proxy.
+
+You can call it as a simply a traffic cop in our analogy.
+
+And we have something called container runtime.
+
+So finally this is the actual tool that runs the containers.
+
+So it can be Docker container D or whatever the latest whatever that respective cloud provider supports.
+
+That might be the container runtime used in those work, in those worker nodes and even in the master
+
+nodes.
+
+This is like the engine that keeps the machines running.
+
+So individually we have seen all the things, all the components and understood about them.
+
+So now let's see how it all works together so we get a complete picture of it.
+
+So when you say Kubernetes, deploy my shopping app with three replicas.
+
+What happens.
+
+We are going to see about that.
+
+So when you say that as a admin, you have deployed the respective Kubernetes manifest in that what
+
+is present is deploying a shopping app with three replicas.
+
+So then the request first comes to this cube API server.
+
+And that is you can call it as your front desk.
+
+Then the request is immediately stored in your Z.
+
+So nothing but in your record book.
+
+Then the scheduler.
+
+So this cube scheduler right assigns the parts to the available worker nodes.
+
+So in which worker node we have the system resources available.
+
+Cube scheduler takes care of assigning those things to that respective worker node, and the kubelet
+
+on each worker node ensures the containers actually are run and the cube proxy routes the routes the
+
+traffic coming to that respective shopping application, so that when customers visit your shopping
+
+app, they reach the right container.
+
+So that's the importance of these things.
+
+So Kubernetes is like a well run city where everyone has a job.
+
+And uh, together they keep your application running smoothly.
+
+Scaling when needed and healing themselves when things break.
+
+So in very, very simple terms, when you hear Kubernetes cluster, just picture this.
+
+The master node as the brain and decision maker and the worker node as the hands doing the real work.
+
+And together they form a city that never sleeps, always keeping your applications alive and healthy.
+
+This completes the Kubernetes architecture discussion.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Now that we understand why Kubernetes is very important, let's take a look at how an Amazon EKS cluster
+
+is actually structured inside AWS cloud.
+
+So here is a high level architecture diagram that shows the moving parts of EKS cluster.
+
+So let's start with the first thing which is control plane right.
+
+So here we have the EKS control plane in a different VPC.
+
+And this VPC is AWS managed VPC.
+
+And even here the control plane itself is fully managed by AWS.
+
+Which means we don't need to worry about provisioning or maintaining the Kubernetes masters.
+
+So if we see here the Kubernetes architecture based Kubernetes architecture, whatever, we are seeing
+
+this entire master node architecture, right.
+
+When it comes to.
+
+X, this is managed by AWS.
+
+So that's the thing we are trying to explain here.
+
+So this whole part is managed by AWS as a Kubernetes admin.
+
+We will interact with this control plane using cube CTL, C.
+
+So which will be installed in our desktop.
+
+The control plane then manages and schedules workloads across all these worker nodes.
+
+So we can see the worker nodes here.
+
+So that is the key thing here.
+
+Now let's understand the little bit more about uh our VPC here.
+
+Right.
+
+So all of this leaves all the worker nodes lives inside our VPC.
+
+You can see our EC2 worker nodes.
+
+So this one this one and then this one.
+
+So this is a customer VPC.
+
+So we have two VPCs here.
+
+So far whatever we have created is in our previous demos is this one.
+
+This is the customer VPC we have built.
+
+And whenever we create an ECS cluster control plane is created in AWS owned VPC.
+
+And even the control plane is managed by AWS itself.
+
+So this we don't have any control over this part.
+
+We have control over customer VPC means like our VPC where in which subnet we want our worker nodes
+
+to be created.
+
+So we have selected here that our worker nodes to be created on private subnets.
+
+So and this is a standard VPC architecture which we have already discussed wherein VPC is ten 000 16.
+
+And we have three public subnets in three availability zones.
+
+And also we have three private subnets in three availability zones.
+
+All this stuff right.
+
+So now what we are going to discuss is so we have the worker nodes in private subnets and load balancers.
+
+We create in public subnets.
+
+So you can see here the application load balancer and network load balancer, right?
+
+In addition to load balancers, these public subnets will also have the Nat gateways.
+
+So they also host these Nat gateways because these private worker nodes.
+
+Right.
+
+So these worker nodes need outbound internet access for example to download the container images hosted
+
+in Docker Hub.
+
+So to do that we have the flow here.
+
+You can see right.
+
+So from EC2 worker node to Nat gateway.
+
+So this is one thing.
+
+So via Nat gateway it will go to the internet gateway via that it will go to Docker Hub and then download
+
+those Docker images.
+
+So when you deploy your application your container image need to be downloaded.
+
+Right.
+
+If it is present in Docker Hub it will download from Docker Hub.
+
+If it is present in Elastic Container Registry, it will download from Elastic Container Registry.
+
+So in the same line.
+
+So these are the worker nodes which we used to deploy our applications using Kubernetes example, you
+
+have a Python application which you want to deploy.
+
+So it's equivalent to Kubernetes deployment object will be deployed and it will be deployed to the worker
+
+nodes where we have the system resources available.
+
+So you can see the pods specified here.
+
+Right.
+
+So actual Kubernetes uh workloads will be running inside this worker nodes.
+
+Now when you access the application deployed in these worker nodes right.
+
+So they come via internet gateway to your application load balancer.
+
+And from there you are going to access your applications hosted inside these worker nodes.
+
+So that is the inbound flow and outbound flow we have seen to download the Docker images and how to
+
+deploy these applications using as a Kubernetes admin using kubectl CLI configured in your local desktop.
+
+So you will deploy the Kubernetes related objects by accessing the EKS control plane.
+
+So you will have the kube API server endpoint so that endpoint to that endpoint we deploy the applications
+
+and in the cube in the EKS control plane equivalent kube scheduler.
+
+So which we have seen here right.
+
+So this is the cube scheduler.
+
+So equivalent kube scheduler will take care of allocating those uh those Kubernetes objects to equivalent
+
+worker nodes, whatever is available at that point of time.
+
+So that is the third flow.
+
+To summarize, application users connect to load balancers in the public subnet, and the load balancer
+
+forwards request to parts inside the private worker nodes.
+
+So that is flow one.
+
+And Kubernetes admins use cube CTL to talk to the manager EKS control plane and the worker nodes.
+
+Talk to the Docker Hub or ECR through Nat for pulling docker images.
+
+So this is another flow.
+
+These three are the key important flows for us.
+
+And now what this architecture ensures is high availability across multiple availability zones.
+
+Security by keeping worker nodes in private subnets and flexibility since the control plane is fully
+
+managed by AWS.
+
+So this is the foundation of how almost every production grade EKS cluster is set up.
+
+So there will be additional security requirements like exposing the kube API server endpoint only instead
+
+of exposing it to internet.
+
+You can expose this kube API server endpoint to only inside AWS cloud and access it from inside itself
+
+and all those things.
+
+Additional advanced security things also you can implement.
+
+But for now, these are the key architecture elements and components which we need to understand.
+
+So in our next lecture we will start focusing on going and writing the Terraform code to create this
+
+EKS cluster.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+We are entering into the demo zero seven Terraform EKS cluster.
+
+So here in section seven we are going to create an ECS cluster and worker nodes using Terraform.
+
+And the project structure is going to look like this.
+
+So you can see all the uh files terraform configs how we have arranged for this respective project.
+
+So up until now in section six we have learned all the Terraform fundamentals like how to define providers,
+
+variables, outputs, data sources, locals, and even how to use remote state and local state all the
+
+key concepts we have learned.
+
+Now it's time to put all of them into practice in this respective section.
+
+Instead of typing every single line of code again, we will review this ready made project file by file.
+
+So first we will review C1.
+
+Then we will review Variables.tf and then remote state after that data sources like this one after the
+
+other, we will go and we will focus our attention on not the code, but what all things are required
+
+to create an EKS cluster using Terraform.
+
+As we already know how to write the code, we'll focus on what all objects required to create this EKS
+
+cluster using Terraform.
+
+The idea is simple you already know how to write the basics.
+
+Now I want you to see how those pieces come together to build a real world EKS cluster.
+
+So think of this section as a guided walkthrough of a real project where we will focus on the structure,
+
+the logic, and the connection between these files.
+
+So let's start with C1 versions now.
+
+So we'll go here and we are in zero seven Terraform EKS cluster.
+
+And here you have two projects.
+
+One is zero one VPC Terraform manifest which is a copy of whatever we have in our 0607 VPC module.
+
+So exactly our previous demo.
+
+So just for convenience, I have copied that entire Terraform manifest here and named it as project
+
+zero one.
+
+Underscore VPC underscore Terraform manifest.
+
+Everything is going to be same.
+
+Whatever we have seen in 0607.
+
+And the second project in this respective section zero seven is zero to terraform manifest.
+
+So we have all these files here.
+
+So we'll start with the C1 versions.
+
+So where we can see that we have the standard terraform block and where you have the required version
+
+which is Terraform CLI version.
+
+And this is provider version.
+
+And here you have the remote backend configuration.
+
+Here you need to update your remote state your S3 bucket name which you have created as part of demo
+
+0605.
+
+So you need to update that and provider standard provider information, right?
+
+So it's pretty standard, which we have seen multiple times in our previous demos.
+
+So we are moving into C2 variables dot pdf.
+
+So we have the variable AWS region.
+
+This tells Terraform in which AWS region to create our resources.
+
+So by default it is set to us East one.
+
+But we can change it based on our deployment needs.
+
+Now the next one is environment and business division.
+
+So these two are variables we have defined here.
+
+And this is this environment name is used to used in resource names and tags for example dev staging
+
+or prod.
+
+It helps us clearly separate environments for us.
+
+So that's the environment name and default we have provided is dev.
+
+We also have something another variable which is business division.
+
+This is useful in large organizations.
+
+For example, if the retail division owns this ECS cluster we can add that info as a tag.
+
+It is great way to track costs and ownership.
+
+So for that purpose, we have also included business division as a variable name here.
+
+And after that comes the EKS cluster configuration related variables we have defined here.
+
+One is cluster name.
+
+So the default cluster name we have given here is EKS demo.
+
+And we have something called cluster version.
+
+Right here we define which Kubernetes version we want.
+
+For example 1.321.33 etc. etc. or we can leave it to null in the default value here.
+
+And even when creating the cluster, uh, if we leave it to null, then it will pick the default version
+
+as on today available.
+
+It might be 1.33 or 1.44 whatever available.
+
+Right.
+
+So whatever is available latest which AWS set it as default.
+
+So that will be picked up.
+
+And next we have something called cluster service IPv4 Cidr.
+
+So this is another variable we have defined here.
+
+This defines the Cidr block for Kubernetes services.
+
+Again if left null AWS will use its defaults.
+
+So we have put it to null.
+
+In the same line we have something called cluster endpoint private access.
+
+So we have two two variables here.
+
+One is cluster endpoint private access and the other is cluster endpoint public access, which we have
+
+already discussed here.
+
+So by default cluster endpoint private access which means to access your EKS cluster publicly is going
+
+to be true.
+
+So whatever we are seeing this path okay.
+
+Right.
+
+And the other one is privately if you want to access your EKS cluster inside AWS cloud right.
+
+So that is by default it is false.
+
+And if you want to make it true, you can make it true.
+
+So and usually the best practice security practice is whatever the public one.
+
+Usually they will make it to false and private one.
+
+They will make it to true.
+
+But in our learning case, we don't need to do that.
+
+We need to access our cluster to deploy our things.
+
+So we will try to have the cluster endpoint public access true and cluster endpoint private access to
+
+false.
+
+So what happens is you will be able to access your EKS cluster publicly, which means your kube API
+
+server API endpoint is accessible publicly so that when you configure it your kubectl CLI is configured.
+
+Then you will you will be able to run your CLI commands kubectl commands against your EKS cluster.
+
+So that's about these two variables.
+
+And you also have something called cluster endpoint public access Siddhars even you are you and your
+
+EKS cluster kube API server endpoint is publicly accessible.
+
+Right.
+
+So this path whatever you are seeing.
+
+Right.
+
+So this path, it is accessible.
+
+But you have the you you can restrict your sidr means like So from which sources you want to allow.
+
+So we have given the entire internet range which is 0.0.0.0.
+
+But here you can restrict to some IP addresses or some IP subnets only if you want, even in the public
+
+for additional security purpose if you want.
+
+So even that variable we have added here.
+
+In addition to that we have also have something called tags.
+
+This block defines tags applied to all resources created in this project.
+
+So tags are essential for cost allocation, ownership tracking and even general organization related
+
+things.
+
+It will be helpful.
+
+And we also have something called variables for x node group configuration.
+
+So we already said that x node group is nothing.
+
+But in node group you will have these worker nodes.
+
+So altogether you call these as a node group.
+
+So you can call these as a node group.
+
+So in this node group you will have multiple EC2 instances.
+
+So now node instance types.
+
+So what is the node instance type you need.
+
+So we have selected default as P3 medium.
+
+In the same way you have something called node capacity type.
+
+So whether we want the on demand VM EC2 instances or spot EC2 instances that will be decided using this
+
+node capacity type.
+
+So default we have put it here as on demand and in addition to that node disk size.
+
+So whatever the EC2 instance we are creating here these worker nodes.
+
+Right.
+
+So for these things how much GB of data disk should be available.
+
+So we have given 20 GB.
+
+So based on your usage and based on the size of your things how much you want you can put it default.
+
+I have put it as 20 GB so that's about C1 and C2 variables.tf in EKS cluster.
+
+Terraform manifest.
+
+In our next lecture we will focus on another uh tf config file.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+We are in C3 remote states.
+
+So what exactly this means?
+
+This is another new concept in Terraform we are going to implement.
+
+So we are going to do a live code writing here and also understand that in detail.
+
+So any new concept in Terraform which comes through our way will try to understand it in detail.
+
+So the concept name here is remote state data source.
+
+So far you have seen that every Terraform project generates a state file.
+
+It's basically the Terraform memory of what resources it created.
+
+In last section, we also moved the state file, the local state file to an S3 bucket for our AWS VPC
+
+project so that it can be shared and used across teams.
+
+But here is the real world challenge.
+
+So imagine we have two different Terraform project.
+
+One is project one VPC and the second is project to EKS cluster.
+
+Okay, so now the EKS project needs to know the details about the VPC, like the VPC ID, private subnets,
+
+and public subnets.
+
+Why does it need it?
+
+Because it need to create its EKS worker nodes in the private subnet in that respective VPC.
+
+Whatever we have created in project one.
+
+So it needs entire information about what is the VPC ID right and what is the subnet IDs right, which
+
+is public and private.
+
+So all that information, this project needs them so that it can deploy its EKS cluster in those respective
+
+VPC in those respective subnets.
+
+So then how does this project to EKS cluster gets access to project one VPC related information.
+
+So that's the problem point here.
+
+So how do we share the project one VPC related information to project two.
+
+So there comes the concept called Terraform remote state data source.
+
+So it lets one project read the outputs from another project's state file.
+
+So in simple terms, in any of the projects, whatever we create, we define our outputs.
+
+Right.
+
+And nothing but we export our outputs.
+
+And in those outputs only we will have the important information about our that respective project like
+
+VPC ID, subnet IDs and all those things.
+
+So all those things are already saved in our AWS S3 bucket terraform state of your VPC.
+
+Now it is very simple that this Terraform remote state data source.
+
+Right.
+
+So this will when you use this data source right.
+
+So if you provide this S3 bucket information here it can get the information of outputs present in your
+
+project one VPC Terraform tf state file and those outputs have the information about VPC, ID, subnet
+
+ID and all those informations.
+
+So you can use those information to create your ex private node group in those respective VPC and then
+
+subnets.
+
+So that's the importance.
+
+So outputs are not just only for having the information in the terminal to read what we have what what
+
+are the resources created.
+
+And those resource IDs.
+
+We can also use outputs effectively like this.
+
+Like sharing the information of one project into another project wherever needed.
+
+So that's the importance of outputs in other way and how you are going to share that using the concept
+
+called remote state data source.
+
+So all this we are going to practically implement now I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Now let's go back and review the Terraform remote state data source documentation.
+
+So you can go to the documentation and go to the example usage of your remote backend.
+
+So you can go through all these things if you want.
+
+But our core focus is on how we are going to define it.
+
+So this is the sample block.
+
+We are going to take it and then we are going to reference it.
+
+Not only remote backend you can also reference.
+
+You can see the local backend also.
+
+So you can also reference the local backend and its path where it is present.
+
+So the best way is to use the remote backend.
+
+So we'll go ahead and then use that.
+
+So we'll go to our VS code and we will define that.
+
+So here we need to define Terraform remote state.
+
+And then this this Terraform remote state data source.
+
+You are querying the data from a VPC project.
+
+So we will say VPC and back end we are using here S3 as the backend and in configs, right?
+
+So we need to accordingly define those things.
+
+So we'll go here and we will have something called bucket name you need to provide.
+
+And where that file is located even that you need to provide and in which region it is provided.
+
+So for region we can directly use var dot aws underscore region and bucket name.
+
+We know the bucket name is going to be.
+
+So this is the VPC project.
+
+And this is the bucket name.
+
+So we can get that bucket name here and put it so in that bucket right.
+
+So you in this location exactly right.
+
+So you can go to your VPC project and get this information.
+
+So this is the place where that respective state file is stored.
+
+So that's about defining the remote state data source.
+
+So which means now this project two this project two has access to project one VPC related information.
+
+Because that entire state file is at your disposable in in in your in your access in project two.
+
+Right.
+
+So now another important thing is how are you going to access them in your project two.
+
+Right.
+
+So you have the data with you, but how are you going to access them.
+
+Right.
+
+So that's the thing which you can just define a simple output to understand okay.
+
+So output usually prints right.
+
+So you want the VPC ID right.
+
+So VPC id.
+
+So you are just printing it here as output by getting the information from uh VPC project using Terraform
+
+remote state data source.
+
+So we'll say value.
+
+And now here you can see this is the data block Terraform remote state dot VPC.
+
+So till here it is clear right.
+
+So data dot terraform remote state dot VPC.
+
+And now comes the important thing.
+
+So where we are getting the information from from the outputs of your previous project which is this
+
+is the previous project which is VPC.
+
+Terraform manifests in that you have VPC id as the name.
+
+So outputs dot VPC id will be your thing.
+
+So you will say outputs dot vpc id.
+
+So that's about VPC id in the same way if you want right.
+
+So if you want for private subnet IDs right.
+
+So you can define another.
+
+And just we are trying to get that information and see using these outputs that's all.
+
+Okay.
+
+So you can say this way and here instead of VPC ID.
+
+So we need to say private subnet IDs in same line.
+
+If you want you can also get the public subnet ID.
+
+So we'll say copy paste and we'll say public subnet IDs.
+
+And here we'll say public subnet ID.
+
+So data dot terraform remote state dot VPC dot outputs dot public subnet IDs.
+
+Which means whatever the outputs name you have defined here in your project one.
+
+Right.
+
+So those names output and this name you need to provide.
+
+So whatever in the output you have provided.
+
+So here private subnet IDs underscore Kalyan you have provided.
+
+Let's see.
+
+Right.
+
+So then in your remote state also when you are accessing those things you need to provide that.
+
+So that's the key important thing to remember here.
+
+So now I'll roll back that Kalyan here and in the outputs also we will remove here in our project one.
+
+So this completes the creation of C3 remote State Data source.
+
+In our next lecture we will focus on other configurations.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Now let's move to C4 data sources and locals.
+
+So here we didn't define any data sources which we need for this project, but we have defined the locals
+
+block.
+
+Right.
+
+Already we know locals are basically shortcuts or reusable values.
+
+So instead of repeating the same expression in multiple places, we define them once here and then reference
+
+them everywhere.
+
+So this keeps our code clean, consistent and error prone.
+
+So here is what we are defining.
+
+So we are defining the owners which comes from the business division variable.
+
+So for example your business division name is retail.
+
+So you can name them as owners here and environment.
+
+So another variable which is another local value which is environment wherein you are getting the value
+
+from the var dot environment name.
+
+And now in the name Local value.
+
+You are combining both the things local dot owners hyphen local dot environment, which means it becomes
+
+something like retail dev, right?
+
+And in addition to that, we'll also have one more local value, which is EKS cluster name, wherein
+
+you will append it with the cluster name.
+
+So local dot name.
+
+So this is the name which has retail dev.
+
+And you will append it with var dot cluster name.
+
+So finally your cluster name becomes retail dev demo.
+
+So now you might ask the question why we need to do all these things.
+
+Imagine you have man.
+
+You are managing multiple environments like dev, staging and prod across different divisions like retail
+
+and finance.
+
+So with locals you are naming automatically stays consistent.
+
+So instead of accidentally deploying a cluster with mismatched tags, Every resource will clearly follow
+
+a standard naming pattern.
+
+Think of it like setting up a company wide naming policy, and Terraform locals enforce that policy
+
+for you automatically, so that's the advantage of using it.
+
+So now what we will do is we will move to the next Terraform config which is C5X tags.
+
+So before going and reviewing this code we need to talk about an important requirement in Amazon ECS
+
+which is subnet tags.
+
+So whatever we are adding these tags.
+
+These tags are for our public and private subnets of our VPC.
+
+So when you deploy workloads in Kubernetes that requests a load balancer type service.
+
+So for example you are deploying a application and it needs a load balancer.
+
+So you have also deployed the load balancer related Manifest, so at that point of time.
+
+EKS cluster relies on specific tags on subnets to decide.
+
+So in your VPC.
+
+In those subnets, if that respective tag is present then only it can go ahead and then create the load
+
+balancer effectively to load balance the applications deployed in EKS cluster.
+
+So tagging subnets is critical for EKS networking to work correctly.
+
+So let's go through the tags we are applying so we understand them in detail.
+
+So the first tag here is kubernetes.io/elb.
+
+And the value for that is one.
+
+Okay so tells EKS.
+
+These subnets can host internet facing load balancers which are created using EKS cluster.
+
+So that's the importance of this tag.
+
+And the another tag you have is kubernetes.io/cluster slash.
+
+You provide your cluster name here.
+
+So local dot eks cluster name will get your cluster name which we have seen in our uh data sources and
+
+locals.
+
+So local dot eks cluster name will get your actual cluster name retail dev EKS demo something like this.
+
+So what we will do here is we will go to the EKS tags here.
+
+And so this whatever you are defining this key with the value as shared which means associates these
+
+subnets with our EKS cluster.
+
+The value shared means multiple clusters.
+
+Multiple EKS clusters could use the same subnets if needed.
+
+So that's the importance of using this EC2 tag.
+
+And now if we go to the private subnets it is saying.
+
+So earlier you said Kubernetes our role ELB.
+
+But here you are saying Kubernetes IO role internal ELB, which means this tells ECS these subnets should
+
+be used only for internal only load balancers.
+
+Right.
+
+So that's the importance of this respective key.
+
+And then value.
+
+So this EC2 tag.
+
+So why we are defining it for private subnets.
+
+Because internal load balancer should be created using private subnets only.
+
+Again we have something called Kubernetes cluster and cluster name and then shared as the value which
+
+means associates the private subnets with our cluster.
+
+So that's the thing.
+
+So the big takeaway here is without these tags ECS will not know where to place load balancers.
+
+So your service of type load balancer in your Kubernetes would simply fail to get an external IP when
+
+you are deploying your public load balancer.
+
+Because if these tags are not properly added to your subnets.
+
+So that's the very important thing.
+
+So now let's look at the Terraform code what we have written.
+
+So if we see for one everything is same.
+
+So now let's start with the resource.
+
+And the resource here is AWS EC2 tag.
+
+And we have provided the local name for this respective resource.
+
+Inside Terraform it is going to be ECS subnet tag.
+
+And we are saying public ELB right.
+
+Another one is public cluster okay.
+
+Now this is the ELB related tag.
+
+You are adding it and you have something called key and then value where you have your uh key value
+
+and key key key thing and then value thing.
+
+You have provided it here for this argument.
+
+This is the value.
+
+And for value this is the value actually now these are standard okay.
+
+So for any EC2 tag resource.
+
+But important thing here is to which resource ID you need to assign the EC2 tag You are creating, right?
+
+So for that, what we have done is instead of writing this respective resource three times.
+
+Why?
+
+Because we have three public subnets.
+
+So this tag need to be added.
+
+So this role slash ELB equal to one should be added for three public subnets.
+
+And another one.
+
+This one also should be added for three more three public subnets.
+
+So total you need to create six resources for these things and six resources for these things.
+
+Total you need to create total 12 resources for four tags you want to add right.
+
+So that becomes a huge file.
+
+So what we have done our standard approach which is we have used the meta argument for each here.
+
+And with this meta argument what we have said is.
+
+So we'll get the public subnet IDs.
+
+So which we have already seen here.
+
+So how to get the public subnet IDs data dot terraform remote state dot VPC dot outputs dot public subnet
+
+IDs using our Terraform remote state so that we have brought here.
+
+Okay.
+
+So we got the public subnet IDs and we said two set.
+
+So this is a list item.
+
+And for each we have providing it as a two set okay.
+
+So now what we will do is from these subnet IDs we will iterate over each dot value.
+
+And in the value you are going to have the subnet ID actually.
+
+So it is going to iterate for three times and provide the uh means like apply this EC2 tag, whatever
+
+we have defined for all three public subnets.
+
+Same happens for this resource also.
+
+So here for this Kubernetes cluster local dot eks cluster name equal to shared.
+
+So this tag also will be added for three public subnets.
+
+In the same way we have defined the same thing here for private subnets also.
+
+And another very important thing you need to understand here is so when you are Kubernetes cluster slash.
+
+What is your cluster name.
+
+We didn't hard code it here.
+
+So we we said that local dot eks cluster name.
+
+So we are effectively already started using our locals block whatever we have defined here.
+
+So that's another important thing when we talk about CFI, eks tags.
+
+So all in all we need to understand that these subnet tags are the glue that connects AWS networking
+
+with Kubernetes services.
+
+So they ensure that when you deploy an app and expose it via load balancer service, AWS knows exactly
+
+which subnets to use public for internet traffic or private for internal traffic.
+
+So all those things happen via these tags, only the decision making.
+
+So that's the reason these are very important.
+
+So in our next lecture we will focus on learning about another TF config.
+
+Until then bye bye.
+
+Thank you
+
+Now let's move on to the next TF config, which is ECS cluster II role.
+
+So let's understand why do we need this role first.
+
+Right.
+
+So when you create an ECS cluster AWS provisions and manages the control plane for you, which is nothing
+
+but this one.
+
+So a control plane will be created.
+
+Inside this you are going to have Kubernetes API server asset database and also controllers.
+
+So you have seen the key architecture of Kubernetes master nodes and all these things.
+
+Whatever you are seeing here right.
+
+So these things will be present in your ex control plane.
+
+Now one thing you need to understand here is right in this ECS control plane is managed by AWS and this
+
+is present in AWS account okay.
+
+It is not in your AWS account.
+
+AWS will have a separate account and in that it is there.
+
+So that's the reason we call it as AWS VPC.
+
+Who's VPC is it Amazon ECS.
+
+And in our AWS account.
+
+So this whatever you are seeing is in our AWS account account.
+
+So that is where we that's the reason we call it as customer VPC.
+
+So now what is the problem here.
+
+The problem here is control plane.
+
+This control plane whatever we have created right.
+
+To actually manage resources inside your AWS account in your VPC.
+
+Right.
+
+So whatever the resources in your account is there.
+
+So if you want to manage them right you need access.
+
+You means in the AWS needs access to do that.
+
+So what all types of tasks something like attaching load balancers configuring networking or manage
+
+parts inside your EC2.
+
+Worker nodes.
+
+So you need permissions.
+
+So that's where this IAM role comes in.
+
+So whatever the IAM role we are talking about which is EKS cluster IAM role.
+
+So that comes in at this point.
+
+So this control plane need to have access to your AWS account related resources.
+
+So for that purpose we need that.
+
+So this role is assumed by the EKS service.
+
+So which is you can see it here EKS service.
+
+So this is the one x dot Amazon AWS.
+
+Com.
+
+So it is assumed by this respective service so it can act on your behalf.
+
+So without it your EKS cluster would exist.
+
+But it couldn't interact with AWS resources in your AWS account.
+
+So now what we do is let's break down the code and understand a little bit.
+
+So we are creating a aws IAM role here.
+
+Okay.
+
+And name of your IAM role you are saying and the local name for this respect to IAM role, you are saying
+
+EKS cluster and local name.
+
+You are saying your name of your resource.
+
+You are saying is local name hyphen eks cluster role which means retail dev eks demo hyphen eks cluster
+
+role.
+
+It is going to say when it replaces the local dot name.
+
+And this is the assume role policy, right?
+
+So we define a trust policy here.
+
+This policy says only the service x.amazon.com is allowed to assume this role.
+
+In other words, only the EKS service itself can use this role.
+
+In simple terms, only the EKS service means only the service, whatever the control plane you have,
+
+right?
+
+So this service can assume that role to perform the permissions associated with that role.
+
+Now let's come back here.
+
+So that's about the role you have created.
+
+And you have some tags assigned here.
+
+VAR dot tags.
+
+Okay.
+
+So that's about the x IAM role.
+
+And you have the resources here.
+
+So some additional policies you have associated with it.
+
+One is AWS IAM role policy attachment.
+
+And it is a EKS cluster policy.
+
+And to this policy whatever you are defining here right to which IAM role you are assigning.
+
+So aws iam role dot eks cluster dot name.
+
+So aws iam role dot eks cluster dot name.
+
+So which means for this IAM role you are associating this policy which is which is nothing but Amazon
+
+EKS cluster policy.
+
+So this is the mandatory policy.
+
+It gives EKS the basic permissions needed to manage the cluster control plane.
+
+Without this, the cluster won't even function.
+
+So that's the very important thing to understand.
+
+And we also have one more policy which we are associating, which is Amazon EKS VPC Resource Controller.
+
+So this policy is required for more advanced networking features.
+
+It also needed if you need to use Fargate or Karpenter for node provisioning.
+
+So AWS recommends including it by default for production grade clusters.
+
+So for our deployment, even this is not there.
+
+It is going to work, but it is a recommended policy for future updates.
+
+What we do to our control plane.
+
+Like if you want to use Fargate nodes or even Karpenter for node provisioning, we can use this IAM
+
+policy and AWS recommends it for default production grade clusters.
+
+So that's about the IAM role for EKS cluster.
+
+In our next lecture, we will focus on reviewing the EKS cluster resource itself.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Alright, now it's time to create the centerpiece of our setup, which is ECS cluster itself.
+
+So this resource represents the Kubernetes control plane running in AWS.
+
+So remember the control plane is managed by AWS.
+
+So it includes kube API server asset database schedulers and controllers.
+
+So this part we are currently writing the code for Terraform code.
+
+We are writing for provisioning the ECS control plane.
+
+Before going and reviewing the code for the AWS ECS cluster resource, you can find the sample cluster
+
+provisioning related code here and their argument reference and attribute reference.
+
+All information is provided here, and example usage with few of the examples are also provided.
+
+So we will go ahead and review whatever is required for our use case.
+
+So we will start with something called name of your ECS cluster.
+
+So this we are bringing it from local ECS cluster name wherein we have defined here in C4 data sources.
+
+You have defined the in your local block, you have defined the ECS cluster name should be like this
+
+something like retail dev ECS demo, local dot name, hyphen where cluster name.
+
+So if you go back to ECS cluster here you are just saying local dot cluster name.
+
+Next we have something called Kubernetes version right.
+
+So this is very important when we are talking about which version we want to use and all those things.
+
+So as on today we are trying to use the latest version.
+
+So if you go to documentation here right Amazon ECS.
+
+And if you click on versioning right.
+
+And in Kubernetes versions so you have all the available versions and then standard support.
+
+Extended support.
+
+You will find all the information here.
+
+This is very important so that based on this only we take decision what version we should use and for
+
+each version also what are the changes they have done.
+
+Right.
+
+So those also will be provided here.
+
+For example if you take 1.34 so and so changes has been happened.
+
+So they will very clearly right here.
+
+So it's always good to review this before choosing which version we are planning to use.
+
+So as in our case we are trying to use the latest available as on today.
+
+So we are going to bring that from var dot cluster version.
+
+So if you go to the variables you have something called var dot cluster version.
+
+We have put it as null.
+
+So from where it is coming.
+
+So if you put null it will take it from the defaults of x cluster.
+
+Or if you want to configure it explicitly you can go to Terraform.
+
+And here you see you have provided the cluster name as X demo one, which means local X cluster name.
+
+Right.
+
+And it has something called in your locals.
+
+You have the var dot cluster name.
+
+So retail hyphen hyphen x demo one will be our cluster name.
+
+And if you go to Terraform you can see the cluster version is 1.34 as on today.
+
+So that will be used okay in when you are implementing it.
+
+If it is a different version you can always go to Terraform and update it.
+
+So that's about cluster version.
+
+Now then comes the IAM role.
+
+So this is the role we created earlier that X assumes to manage resources on our behalf.
+
+So without this control plane would not be able to function.
+
+So if you go to that so this is the IAM role.
+
+You say aws iam role dot eks cluster dot a.
+
+So that is the role you have provided.
+
+And next is very important thing.
+
+You are going to do a VPC configuration.
+
+So you have the VPC config block here.
+
+And inside that one is you need to provide the subnet IDs in which our control plane elastic network
+
+interfaces to be created so that we are using the private subnet ID.
+
+So from where we are getting this private subnet IDs from our project one, we are getting this subnet
+
+IDs right.
+
+And how we are getting it using the remote state data source.
+
+We are getting it.
+
+So that's the important thing to remember.
+
+So if we come back here.
+
+So if you go to C3 remote state you have something called data dot terraform remote state VPC outputs
+
+private subnet IDs.
+
+From there we are getting those subnet ID information.
+
+And there are some additional settings here.
+
+One is endpoint private access and endpoint public access.
+
+So endpoint private access controls whether the EKS API is accessible privately from inside the VPC
+
+or not, so the decision will be inside this respective variable.
+
+So it can be true or false.
+
+So you can see endpoint private access false, endpoint public access true and endpoint public access
+
+ideas you provide to the entire internet range.
+
+It is accessible.
+
+So this you have set true and in the when you when it is enabled for public access to which IP addresses
+
+it is enabled.
+
+Also you can define.
+
+So so far we have defined it as for the entire internet range.
+
+But in production you can restrict this IP spaces instead of 0.0.00 only.
+
+For specific IPS you can allow the public IP of your EKS cluster.
+
+So like that.
+
+Also you can define.
+
+So that's about the VPC configuration for your EKS cluster.
+
+So now the next comes is the Kubernetes network configuration.
+
+So here we will define the service IPv4 Sidr which defines the range of IP addresses used for Kubernetes
+
+services.
+
+If it is left to null, AWS will pick the default.
+
+So in Terraform dmtf first we have defined this one.
+
+So if we put it to null, if we comment this in variables, we have already set it as null if I remember.
+
+So if we go here see this is null.
+
+So then it will pick the AWS default whatever is available.
+
+So that's about services IPv4.
+
+See idea.
+
+Now when coming to this block write enabled cluster log types.
+
+So logging is also enabled here.
+
+So we have added the main categories of EKS control plane logs like API server logs and audit logs and
+
+authenticator logs, control controller manager logs and scheduler logs.
+
+So you can see those things.
+
+So this is the EKS control plane.
+
+And inside this we are going to have all these components.
+
+So it is saying that controller manager logs, API server logs, scheduler logs, audit logs.
+
+So like this everything is enabled.
+
+So these logs when enabled gives you the visibility for troubleshooting and debugging.
+
+When we have issues related to any of the use cases.
+
+And in addition to that we also defined a meta argument here.
+
+So whatever you are seeing depends on this is not a some argument related to our EKS cluster resource.
+
+It's not an argument related to this resource.
+
+It's a meta argument in Terraform.
+
+So then what is it doing here.
+
+Right.
+
+This ensures the IAM role policies are fully attached before the cluster gets created.
+
+That is one thing.
+
+And in the same line it will also avoid race condition either during provisioning the EKS cluster or
+
+during the destroy operations.
+
+So let's say like when you are destroying the all the resources in this respect to X project.
+
+So before deleting the X cluster, if it deletes the IAM policies and roles, IAM policy attachment
+
+and role, then we will be in trouble.
+
+Your X cluster will not be destroyed successfully.
+
+So in that line, when we face some issues, we can add the explicit dependencies like this.
+
+Using depends on meta argument.
+
+So that's what we have done.
+
+In addition to that we also have something called tags.
+
+So these are common tags in the cluster to help with cost allocation and then management.
+
+So in addition to event tags we have some very important uh block here access config block.
+
+This is new and very important.
+
+AWS recently introduced a new Access Entries API to manage who can access an EKS cluster.
+
+So which users can access ECS cluster, or which users should not get access to ECS cluster.
+
+All that can be defined using ECS access entries.
+
+So here is how we have defined it.
+
+So access config can have different options here.
+
+Okay so we have something called config map.
+
+And another one is API.
+
+And another one is whatever we have defined here.
+
+So we have three options here.
+
+So I'm just defining those here three options we have and out of which we have took a hybrid option
+
+Abi and config map.
+
+So let's understand that this means we are enabling both systems.
+
+What are those both systems.
+
+The old way of managing access to ECS cluster is using AWS auth Configmap.
+
+So that option we have enabled here in the same line the new API way, which is x axis entry's API way
+
+that.
+
+So that is another way.
+
+So they have given.
+
+If you want a default is old config map or new one is API.
+
+If you want an hybrid option you can use both.
+
+So we said we will use both.
+
+So when we are using this way which we can say that this X cluster is future ready, at the same time
+
+old things are also supported.
+
+So in that line we have given it and we also have something called bootstrap cluster.
+
+Create admin permissions which is by default true.
+
+So this is another critical argument here.
+
+It ensures that the person creating the cluster in this case you which means whatever wherever we are
+
+running the Terraform commands.
+
+Right.
+
+So if we say terraform apply from here right.
+
+So already we have done the AWS configure in our local and with our access key, and then secret access
+
+key IDs for a specific user in your AWS.
+
+Right.
+
+So using that only we are doing the things.
+
+So means when whenever we run the Terraform apply command, which means using that user only.
+
+We are doing that so that user will be the user who will get administrative access to your EKS cluster.
+
+So that user gets the complete cluster admin rights.
+
+So without this means like when you say this as false right.
+
+So when you say this as false, when you say this when you change this to false like this.
+
+Right.
+
+So when you change it okay, what happens is you will not have at least one administrator for your EKS
+
+cluster and you will be in a problem.
+
+So it's always this is the default value here.
+
+So we'll try to leave it to the same thing.
+
+So that's about access config.
+
+So we have reviewed the entire AWS EKS cluster related configuration in detail from EKS cluster perspective
+
+and from Terraform perspective.
+
+In our next lecture we will focus on other things.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+In our previous lecture we have completed C7 x cluster.
+
+Now we will go to c8 x node group IAM role.
+
+So here we need to understand why we need this role first okay.
+
+So let's understand that right.
+
+So before that what we are trying to do we are going to see in the picture.
+
+So if you see this right.
+
+So here all these are the worker nodes.
+
+So if we go here so all these are the worker nodes we have.
+
+So let me round them.
+
+So all these worker nodes together we call it as a x node group.
+
+So when we create a node group in that these nodes will get created.
+
+These EC2 instances will get created.
+
+So now we are going to create a IAM role right.
+
+So why we need this role is when AWS launches these worker node EC2 instances as part of EKS managed
+
+node group.
+
+Those nodes need permission to talk to the cluster and also to other AWS services.
+
+For example, they may need to register with the Kubernetes control plane and manage networking or pull
+
+container images.
+
+So for all these things, it need an IAM role and permissions to do the job.
+
+So that's why these EC2 instances need IAM role specifically for the node group.
+
+Each worker node EC2 instances assume this role to perform the activities whatever is required to be
+
+done by them.
+
+So now let's look at the Terraform code in detail to understand.
+
+So this is the IAM role and whose local name is EKS node group role.
+
+And then here you can see local dot name hyphen eks node group role.
+
+That is the name of this IAM role.
+
+And you also have a trust policy defined here which allows only the EC2 service to assume this role.
+
+This means whenever a new EC2 worker node is launched for the cluster, it can take on this role and
+
+use the permission attached to it.
+
+And of course, we apply our standard tags to keep consistent everything in our cluster resources,
+
+whatever we are creating.
+
+And here we have three permissions we have added for this respective IAM role.
+
+Starting with Amazon EKS node worker node policy.
+
+This gives the basic permissions worker nodes which need to join the cluster and function as part of
+
+EKS.
+
+Any worker node created here need to join the Kubernetes control plane.
+
+So for that, these permissions, whatever we have defined is going to be useful, which is Amazon ECS
+
+CNI policy.
+
+So you can see policy Arn is this one.
+
+And this is the role this role I am Rolex node group role dot name.
+
+So which means whatever we have defined here this is the one it is going to use.
+
+So that's the first policy X worker node policy.
+
+And we have the second policy which is VPC x CNI policy.
+
+So this CNI policy this is this is a critical policy for networking.
+
+So it allows the nodes to create and manage elastic network interfaces using the VPC CNI plugin.
+
+So without this pods would not get proper IP addresses inside the VPC.
+
+So pods means our workloads.
+
+So that's the reason this is another important policy here.
+
+And next comes the EC2 Container Registry read only policy.
+
+So this policy allows worker nodes to pull container images from Amazon ECR.
+
+So if you go back to this picture right.
+
+So we have already defined the outbound route to get the Docker images from Docker Hub or from public
+
+ECR.
+
+So this is for public ECR.
+
+But if you have a private ECR repo which is inside the AWS cloud, you have a private your own ECR repo,
+
+some ECR repo you have created in standard real world production grade implementation.
+
+You will have your own private ECR repo so that private ECR repo if you want to download the docker
+
+images from that.
+
+Right.
+
+So if you want to download to this EC2 worker node, you need permissions.
+
+And those permissions we are defining here which is Amazon EC2 Container Registry read only permissions
+
+we are giving.
+
+And that IAM role associated with this EC2 worker nodes.
+
+It can easily pull those images when if if you host your Docker images in your Elastic Container Registry,
+
+which is a private registry.
+
+So that's what is your third policy.
+
+So these are the three things which will be associated to this IAM role.
+
+In our next lecture we will focus on creating the AWS EKS node group.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+We are in C9 Xe node Group private.
+
+So here we are going to create the Xe node group resource.
+
+So in Kubernetes control plane handles the complete management.
+
+But the worker nodes actually run your application pods.
+
+So you can see the pods here running inside worker nodes.
+
+So in EKS worker nodes are organized.
+
+All these EKS worker nodes are organized into node groups.
+
+So all this together become a node group.
+
+So you can call it as node group.
+
+But there also will be something called managed node group.
+
+So m and g managed node group.
+
+So managed node group means AWS takes care of provisioning.
+
+Updating those nodes means like patching them and if required replacing those nodes.
+
+So everything end to end will be taken care by AWS.
+
+Only the workloads, whatever we want to run as per our organization, whatever the applications we
+
+want to deploy, we deploy to those worker nodes, but they're provisioning, updating and then replacing
+
+them whenever needed.
+
+All those things we can define in a configuration and automatically AWS will take care of that.
+
+Okay.
+
+So that's what we are going to define now.
+
+So we will start with something called cluster name.
+
+So we will provide the cluster name to which this node group should be associated to or linked to.
+
+So we have the cluster name here which is aws eks cluster dot main dot name.
+
+So that is the one we have provided.
+
+And this node group name as usual local dot name hyphen, hyphen ng ng means node group and node role.
+
+Arn is another thing, so you need to provide your IAM role for this node group.
+
+So we discussed that in our previous lecture, which is AWS iam role dot x node group role dot.
+
+So you can see that here IAM role dot x node group role dot.
+
+In addition to that, we also need to define the subnets in which the worker nodes need to run which
+
+are created using this node group which is subnet IDs.
+
+So data dot terraform remote state dot VPC dot outputs dot private subnet IDs.
+
+So we have seen that in our remote state here.
+
+So this is the one which will get our subnet IDs.
+
+So that's about subnet IDs and instance type and capacity type and disk size.
+
+So instance type from our variables capacity type from variables and disk size from variables.
+
+So if you go to terraform those will be defined here.
+
+Node instance type T3 medium node capacity type.
+
+We are using on demand or spot.
+
+Both options are there.
+
+So ideally on demand or spot.
+
+Based on the above, if we use spot instances, it gives cost savings for us.
+
+And if we use on demand, it gives stability for us.
+
+We are also giving the disk size as 20 GB, which sets the root volume size for each worker node.
+
+In addition to that, we have something called EMI type.
+
+So here we are using the latest Amazon Linux 2023, the optimized OS for EKS fully supported in Kubernetes
+
+1.5 and then later.
+
+So the latest 1.34 also supports this Ami.
+
+And now the latest versions we should.
+
+It is mandatory to use Amazon Linux 2023 and but not still the older versions which are like Amazon
+
+Linux two Ami.
+
+So AWS mandates it to start Migrating their current environments to Amazon Linux 2023.
+
+So from 1.34 onwards.
+
+So that's about instance details instance type capacity type Ami type and then disk size.
+
+Now we will focus on something called scaling configurations.
+
+So in scaling configurations first we define the minimum size.
+
+The node group will never go below one node when you define the minimum size and when you define the
+
+max size right.
+
+So it can scale up to maximum six nodes if needed.
+
+And in addition to that, we will also define the desired size.
+
+When this group is created this node group is created.
+
+It will launch three worker nodes whatever the desired size you provide.
+
+So based on that accordingly it will launch.
+
+So if you say here for it will launch four nodes.
+
+If you say one it will launch only one node.
+
+So we are giving three nodes here so that it will launch three nodes when this x node group is created.
+
+So that's about scaling config.
+
+And we also have something called update config here we said max unavailable percentage is 33.
+
+This means that during an update at at most one third of the nodes can be unavailable at the same time,
+
+so this helps ensure your workloads stay up while nodes are being upgraded.
+
+So very important setting.
+
+In addition to that, we have one more setting force update version equal to true.
+
+So this ensures that if AWS releases a new ECS optimized Ami, our node group will automatically roll
+
+out updates for our worker nodes.
+
+So in addition to that, you can also define the labels for your worker nodes.
+
+So this labels right.
+
+Apply these labels applied inside Kubernetes.
+
+Right?
+
+So that we can schedule pods by either the environment or by the team, whatever we are defining.
+
+So this is a little advanced concept.
+
+So you can have it or you can even leave it.
+
+This is an optional thing here.
+
+Okay.
+
+So we have put some things here.
+
+And next is standard tags.
+
+Whatever we define.
+
+Usually those things we have added here.
+
+And in addition to that we have also added that depends on meta argument which will primarily focus
+
+on our three work three IAM role policies.
+
+This is to ensure as usual that when we are creating the worker node, when we are creating the node
+
+group, it need to ensure that first, these policy attachments are successful to the IAM role which
+
+is associated with this node group.
+
+So this is the one.
+
+And when we are destroying the resources, first node group should be destroyed.
+
+And after that then only these attachments with the IAM role should be detached, and that IAM role
+
+should be deleted so that it will not have any race conditions and our destroy process also will be
+
+successful.
+
+So that's about ECS node group.
+
+In addition to that, we will also discuss the ECS outputs.
+
+So here you can see we have defined the ECS cluster endpoint ECS cluster ID, ECS cluster version,
+
+ECS cluster name and ECS cluster Certificate authority data.
+
+So all these things we are bringing them from our documentation itself in our ECS cluster attribute
+
+reference.
+
+So you can see certificate authority data, cluster ID and plane ID.
+
+So whatever is needed we will go ahead and then define them as outputs.
+
+So we already know the outputs concept and how we can define them, how we can define the value for
+
+outputs we have seen multiple times.
+
+So these are the ECS cluster things.
+
+In addition to that, we have defined the private node group name aws eks Nodegroup dot private nodes,
+
+dot node group name.
+
+So you can see it here.
+
+This is the one.
+
+And then node group name.
+
+So it's equivalent.
+
+If you want to verify the documentation you can go to the AWS eks node group and go to Attribute Reference.
+
+And you can find all the things here.
+
+Reference name.
+
+You don't find the node group name, but if it is present in your argument reference, you can use it
+
+or you can get both uh argument references.
+
+So you can see you can you can print in outputs both the argument references or attribute references.
+
+And you also have the node group Arn.
+
+And also this is one important command right.
+
+It will display after your cluster is created outputs will be displayed.
+
+Right.
+
+So there we have given one output saying to configure kubectl.
+
+So this will this is the command to configure your kubectl CLI in your local desktop to access your
+
+EKS cluster created in AWS cloud.
+
+So this command, when you run AWS, ECS and in which region your cluster is there and update Kubeconfig
+
+and hyphen hyphen name and your cluster name.
+
+So when you run this command in your local desktop, your local desktop with kubectl cli will get access
+
+to your ECS cluster.
+
+So that's the thing.
+
+So means like to put it handy when our ECS cluster is created I have added this additional output here.
+
+So this completes the review of all the Terraform configs for creating the ECS cluster.
+
+In addition to that, these are the Terraform file.
+
+These things already we have reviewed and these are the default things.
+
+AWS region is US East.
+
+One environment is dev and business division is retail.
+
+Cluster name is ECS.
+
+Demo one.
+
+In our next lecture we will go ahead and then run the Terraform commands and verify all the cluster
+
+resources created successfully or not.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+Now let's go back to zero seven Terraform ECS cluster.
+
+And you have two projects here zero one VPC Terraform manifest and zero to ex Terraform manifest.
+
+So to create the ECS cluster you need to have the VPC created.
+
+So in the previous demos which is 0607, we ensured that we have destroyed whatever we have created
+
+the ECS cluster as part of these demos.
+
+So we are starting here fresh.
+
+So first we will go to zero one VPC Terraform manifest and ensure that in your C1, your S3 bucket is
+
+updated here successfully so that you can store your Terraform state in your AWS account in your S3
+
+bucket, so that we need to do as the first thing after that in zero to ex terraform manifest.
+
+Also ensure in C1 versions.tf your bucket name is updated accordingly.
+
+So now we will go to our terminal here and we will go to the section zero seven and we'll go to zero
+
+one VPC Terraform manifest.
+
+You can run the command Terraform init to initialize and to download the provider plugins.
+
+And after that you can run Terraform validate plan and then apply auto approve.
+
+So I already initialized it earlier.
+
+So we'll run the command Terraform validate plan.
+
+So this is an existing project which we have tested multiple times.
+
+I will skip both validate and plan.
+
+And I will run apply auto approve.
+
+My VPC should be created without any issues.
+
+It's the same copy paste of 0607.
+
+It is the same project.
+
+So let's wait for the VPC to get created.
+
+It is going to take 2 to 3 minutes to create the VPC because it also need to create the Nat gateway.
+
+So let's wait for all the resources to get created.
+
+So we can see here our VPC all the resources 18 resources created successfully.
+
+Now we will go to zero to x Terraform manifest.
+
+We'll run the command terraform init.
+
+Ensure that in your zero to x terraform manifest.
+
+Also you have your S3 bucket updated here in C1.
+
+And now we will go ahead and run the command Terraform validate.
+
+So this is a new project which we have built just now.
+
+So we'll run the command validate.
+
+We'll also run the command Terraform plan.
+
+And after that we'll run the command Terraform apply.
+
+So let's wait for the plan execution plan to be printed here we can see execution plan is printed here.
+
+So we'll start from the top.
+
+What it is going to create for us okay.
+
+So here it said that it first reading the data terraform remote state VPC which means it is going to
+
+our S3 bucket and getting the terraform state outputs whatever we have there for our project one.
+
+And then you can see these are the EC2 tags it is creating on our subnets okay.
+
+So if you go back to our AWS console.
+
+And if you go to the VPC here.
+
+Right.
+
+And in VPC.
+
+Right.
+
+So if we click on any subnet whatever we have created right.
+
+So these are the subnets we have created which is dev private.
+
+And all these things any subnet if you open in inside them there is no tags related to whatever related
+
+to ECS currently.
+
+Okay.
+
+So now we are going to add that using this plan we have printed.
+
+Right.
+
+So all these tags will be added for all the subnets which we already discussed.
+
+And another resource is ECS cluster.
+
+We are going to also create a ECS cluster.
+
+These EC2 tags itself three subnets.
+
+And we have close to four tags.
+
+So 12 resources will be here only.
+
+It need to get created okay.
+
+And next is ECS cluster.
+
+So here you can see see all the configuration whatever we have set.
+
+Okay.
+
+And you can see the tags information and the version information, which is 1.34 and region.
+
+You can see us East one and name of the cluster which is business Division, hyphen, environment,
+
+hyphen cluster name, retail dev X demo one and authentication mode.
+
+You can see API and config map.
+
+So all the configurations we have provided all are here okay.
+
+And another one is x node group all the information.
+
+You can see it here.
+
+And we can also see the IAM roles for EKS cluster and IAM role for EKS node group also.
+
+And in addition to that their equivalent policy attachments also present here.
+
+So finally it is going to create 21 resources for us.
+
+And these are the outputs okay.
+
+So EKS cluster certificate authority data endpoint cluster ID cluster name is going to be this one.
+
+And cluster version.
+
+So all those things and we have also provided the outputs related to subnet names subnet IDs.
+
+And from our C3 Terraform remote state file.
+
+You have also provided output for subnets.
+
+So those also displayed here in the output.
+
+And you have the VPC ID also.
+
+And here you can see that to configure kubectl right.
+
+So this is the one command you need to use.
+
+So what we will do is we will run the command terraform apply.
+
+And if you want you can wait for the confirmation after execution plan is printed.
+
+And after that we can provide the s after reviewing the entire plan.
+
+So entire plan is printed again when we have run the Terraform apply.
+
+So do you want to perform these actions?
+
+We'll say yes and we will wait for the cluster to get created.
+
+It might take 8 to 14 minutes to create the cluster.
+
+So let's wait for all these resources to get created.
+
+So you need to first create the EKS cluster.
+
+It might take 8 to 9 minutes and after that it also need to create the EKS node group.
+
+So let's assume like 8 to 12 to 15 minutes.
+
+Whatever it is it will take to create the cluster.
+
+So I will pause the video.
+
+Until then, we can see here it took close to eight minutes to create the EKS cluster.
+
+And now the node group is getting created.
+
+It took another three minutes to create the nodes, so almost like 10 to 11 minutes it took to create
+
+the EKS cluster.
+
+And we have 21 resources added successfully.
+
+And these are the outputs.
+
+So this is the cluster API endpoint.
+
+And this is the cluster ID and cluster name which is retail dev EKS demo1 and cluster one is cluster
+
+version is 1.34.
+
+And this is the node instance role Arn.
+
+And this is the private node group name.
+
+So all these things we have provided in the output.
+
+So we got it.
+
+So now if we want to connect to this EKS cluster right.
+
+So we need to have the kubectl cli installed on our local desktop.
+
+So if I say which kubectl so I have the kubectl installed.
+
+So if I say cube CTL version right.
+
+So it said that client version means like the CLI version is 1.34.1 and it is unable to connect to any
+
+of the EKS clusters.
+
+So what we will do is we will run this command which is aws, eks hyphen, hyphen region and us east.
+
+One is the region where our EKS cluster is there and update Kubeconfig and name of my EKS cluster is
+
+retail dev EKS demo one.
+
+So I'll try to copy this complete command and run it.
+
+So we will copy this and run it.
+
+And it should update our Kubeconfig present in our home directory in cube folder there will be a file
+
+called config file and it will update that.
+
+And after that if I run the command cube CTL version, it should show both the cluster and the means
+
+like the client and the server version.
+
+So this is the server version and this is the client version.
+
+Now if we run the command cube CTL nodes it should show me the nodes.
+
+We said desired nodes as three nodes.
+
+So if we go to our tf config here which is the node groups, and here you can see desired, we said
+
+three nodes.
+
+So it created three nodes for us.
+
+And we said that it need to be created in the private subnets.
+
+Okay.
+
+So private subnet means it should not have any public IP assigned for them.
+
+So if I say cube CTL get nodes and hyphen oh and then wide and it will provide the IP addresses for
+
+those nodes.
+
+So this is the node thing.
+
+And you can see these are the internal IP addresses for these nodes.
+
+And there is no external IP for them because they are created in the private subnets.
+
+So in addition to that what all other things it has created.
+
+So if you go to kubectl get namespaces okay you will, it will list the namespaces present inside that.
+
+And this is the system namespace where all system related resources will be running.
+
+So if we say kubectl get all from hyphen, n is the namespace.
+
+And if we say kube system.
+
+So it will provide all the things present in that kube system namespace kubectl get all hyphen and kube
+
+system hyphen n means in namespace.
+
+So you can see here these are the pods running inside this kube system namespace which means actual
+
+workloads running.
+
+And these are the services present in that kube system namespace.
+
+And these are the daemonsets.
+
+And these are the deployments and replica sets.
+
+We will know all these things in our next demo wherein we will discuss about deployment, replica set
+
+pod service, everything we are going to discuss, but on a very high level.
+
+These are the things present inside this cube system namespace.
+
+So we can also go to our console here.
+
+Right.
+
+And we can search for the ECS cluster here.
+
+So before that we will refresh this.
+
+We need to see the tags right.
+
+So we'll go to the VPCs here our subnets here and try to refresh the subnets and then open this private
+
+subnet related tags thing okay.
+
+And you can see uh it's a tag here added.
+
+See this is a private subnet.
+
+And this is shared Kubernetes cluster slash retail dev ex one and then shared.
+
+And one more is kubernetes.io/internal ELB one.
+
+This is for the private subnet okay.
+
+And in the same line we will also open the public subnet once okay.
+
+So we'll take any one public subnet and click on tags and naming.
+
+We will try to open this.
+
+See Kubernetes IO role ELB one and retail dev X1 shared.
+
+Okay.
+
+So this is for the public subnet.
+
+So both successfully added.
+
+So other things we can verify if you want.
+
+But one in public and one in private.
+
+We have verified.
+
+Now we will go ahead and open our EKS cluster in the new tab.
+
+And we will go to that EKS cluster.
+
+And you can see retail dev EKS demo one EKS cluster is running here.
+
+And the version you can see 1.34 as of today latest okay which created just 16 minutes ago.
+
+We will try to open this EKS cluster.
+
+And we have lot of options available here.
+
+Its current status is active and version, and all the information about it is provided here.
+
+And in the overview tab you have the API server, endpoint, certificate, authority data and all the
+
+information related to it.
+
+So now the thing here is in resources section, you will find actual things running in that EKS cluster
+
+as on today.
+
+So you can see these are the pods running which means actual workloads running in that EKS cluster.
+
+So these are the pods running and all the cluster related resources.
+
+You can browse using this resources tab.
+
+Or you can run example like if you want the pods running in kubectl get pods hyphen n and in kube system
+
+namespace.
+
+So you it will list all the pods using kubectl you need to use using the kubectl CLI.
+
+You can get those things, or you can go in your cluster to the resources tab and click on pods.
+
+And those are the same things you are seeing here and then here.
+
+So in the same way if you want to see daemonsets okay.
+
+So this is the these two are the Daemonsets in the resources section here you can run the command kubectl
+
+get ds ds means daemonsets.
+
+It's the alias name.
+
+And in the kube system namespace.
+
+And it should show these two things AWS node and cube proxy.
+
+You can see that here.
+
+So like this.
+
+Either you can use commands or resource types.
+
+You can directly browse here in our AWS console.
+
+And if we go to compute, we should see the node group we have created, which is retail dev.
+
+Private Ng is the node group we have created, and we have three nodes created for that okay.
+
+Desired nodes are three which are which are of type T3 medium.
+
+So we can see them here.
+
+And in addition to that if we want we can also go to EC2 here and verify these things there in the near
+
+the EC2 section.
+
+Also we should have three worker nodes running in the EC2.
+
+So let's wait for it.
+
+See these are the three nodes created as part of this EKS cluster node group.
+
+Right.
+
+And if you want you can go and browse this node group and all those things.
+
+And you can also browse and view these nodes in detail.
+
+And here are the networking information.
+
+So this is the VPC we have selected.
+
+This is the service IPU for Sidr service IPU for IPv4 range.
+
+And these are the subnets we are using right in the networking.
+
+So if you want you can click on that subnet.
+
+And it is a private subnet.
+
+Mostly it should open.
+
+So this is the dev private US East one.
+
+See.
+
+Okay so uh that we have seen and cluster security group and API server endpoint access.
+
+We said public and public access source allow list entire internet range.
+
+So we can see all those things and in add ons.
+
+We'll talk about this a little later.
+
+Uh, when we are learning about load balancers we will learn more about this in the add ons section
+
+there.
+
+Okay.
+
+And from access perspective.
+
+So here we can see it here.
+
+Uh, it has added the Kalyan Dev user as the access entry.
+
+So if you remember right.
+
+So if you go to the code here right.
+
+So if you go to EKS cluster and you said access config right.
+
+So this is the access config.
+
+And in this access config.
+
+You said both API and config map both use it and ensure that bootstrap cluster creator admin credentials.
+
+True.
+
+So which means our cluster is created using this Kalyan dev user, which is configured in our terminal
+
+using AWS configure with uh with the security keys.
+
+Right.
+
+So using those security keys, these are the secure access key and then security access key using those
+
+we have configured it.
+
+So that's the reason as we said here true in the access config this should be true.
+
+So Kalyan Dev user became the uh one of the administrative user for this EKS cluster.
+
+It can see Amazon EKS cluster admin policy is associated with that respective Kalyan dev user.
+
+So more users if you want to grant access you can create here more access entries and then do that okay.
+
+So for now we will leave it aside.
+
+We are just reviewing all the things whatever is present via console and in the observability section
+
+you will have lot of observability.
+
+Things are here means like all monitoring related and update history related.
+
+And here we have the tags.
+
+So that's on a very high level.
+
+Okay.
+
+So we will slowly go one after the other each demo and then understand everything in detail.
+
+So this completes the demo about creating the EKS cluster right.
+
+So if we go back to our pictures here.
+
+So we have created a EKS cluster here.
+
+And this EKS cluster we have created in a means like we have created a custom VPC.
+
+And we have ensured that all our EKS worker nodes are running in the private subnets and control plane
+
+is created as usual standard.
+
+So all these things we have completed as part of this demo and everything we have done using Terraform.
+
+In our next lecture we will focus on another concept.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you

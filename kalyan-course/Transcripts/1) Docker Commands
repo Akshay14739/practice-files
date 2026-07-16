@@ -1,0 +1,1898 @@
+Welcome back.
+
+Do you want to know what Docker concepts power this real world retail store microservices application?
+
+In simple terms, do you want to run this retail store microservice application using Docker?
+
+Then we need to learn lots of concepts in Docker to run it smoothly.
+
+So we'll start with the very basic here right.
+
+So we have categorized it into three things.
+
+Okay one is Docker workflow and another one is Docker builds right.
+
+So Docker workflow and then Docker builds.
+
+And we'll also focus on something called Docker Compose.
+
+Let's start with one after the other.
+
+What we are going to learn.
+
+So this is just only a intersection where what all Docker concepts we are going to cover.
+
+So at each and every stage when we go to that respective demos.
+
+So we learn those concepts in detail.
+
+So first what we will do is we will learn about the Docker workflow.
+
+So the very basic workflow is you have a Docker image and which is present in the Docker Hub, and you
+
+want to pull and then run it.
+
+So there you will learn that.
+
+And after that you also want to build a Docker image.
+
+And whatever the Docker image you have built, you want to run that application, whatever is present
+
+in that image.
+
+And then finally you have built run the Docker image.
+
+You also want to push the Docker image to Docker Hub so that we are going to do here.
+
+And in addition to that, if you want to see some sample open source images present in the Docker Hub,
+
+how to pull them and then change them and push it, you can do those things also.
+
+So now and after that we know now a very basic Docker commands.
+
+So we'll move on to the next thing here which is Docker files okay.
+
+So these Docker files we are going to again go to a absolute real world model.
+
+So we'll take any one of the five services.
+
+So we have catalog cart UI multiple services.
+
+Right.
+
+So we'll take one service from this retail store application and then dissect that Docker file in detail.
+
+So there you are going to learn about multiple Docker file instructions.
+
+So those concepts you are going to learn.
+
+So whatever you are seeing here from run copy volume Workdir all these things right.
+
+So all these things are Docker file instructions.
+
+So those Docker file instructions including the docker ignore, we are going to review and understand
+
+in detail for one sample service from our retail store application.
+
+In addition to that we will also focus on very very important concept when you are building Docker images,
+
+which is nothing but multi-stage builds.
+
+So you are going to see what we are going to have in build stage, what you are going to have in package
+
+stage, and why do we need these multi-stage builds.
+
+So all those concepts we are going to learn.
+
+So that's about the second part.
+
+So you learned about Docker workflow and Docker commands, and you learned about Docker files and multi-stage
+
+builds and building Docker images using multi-stage build concept.
+
+Now the next thing is.
+
+So this is for one application like cart.
+
+You have built it.
+
+Right now you have like this.
+
+You can build for all other services also.
+
+But once you have those all five services, how you are going to run all of them together with wherein
+
+they need to interconnect each other.
+
+For example, UI service will be called calling multiple services, right?
+
+So it will call CART service.
+
+It will call catalog service, checkout service, order service everything it is going to call.
+
+So how that networking we are going to implement and how all these services with a single click, you
+
+are going to start them and then start them.
+
+So there comes the concept called Docker compose.
+
+So we already know that we have ten containers.
+
+So five are related to services and five are related to persistent stuff which means like databases
+
+and messaging and then caching.
+
+So these ten containers whatever we are going to see.
+
+Right.
+
+So all these things we can using Docker compose, we can run them at a time, we can start them at a
+
+time and we can stop them at a time.
+
+And inside this docker compose also we have multiple concepts like services, networks, volumes, health
+
+checks, depends on environment variables and security options.
+
+So all these things together we will implement a docker compose file for all our five services.
+
+So those also we are going to review in detail understand in detail and we are going to run them.
+
+So from Docker perspective these are the things we are going to cover for our retail store microservices
+
+application.
+
+So there are many other concepts in Docker.
+
+But whatever is required for running our retail store microservices application, all those things we
+
+are going to cover.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+Welcome back.
+
+In this demo we are going to create a AWS EC2 instance.
+
+And in that EC2 instance we are also going to install Docker.
+
+And when creating the EC2 instance, we are also going to create a SSH key pair and associate that SSH
+
+key pair to this EC2 instance, so that we will be able to log in to this EC2 instance and install Docker,
+
+and also run all the Docker commands inside this EC2 instance.
+
+And to connect to this EC2 instance, we are going to use AWS Cloud Shell.
+
+So everything on AWS we are going to do right.
+
+So now let's go ahead and then install them all the detailed steps for this respective demo.
+
+You can go to zero to Docker commands.
+
+And inside that 0 to 0 one EC2 Docker setup you will find all the steps related to it.
+
+So what we are going to do is we are going to launch an EC2 instance, connect to that EC2 instance
+
+and install Docker on this respective EC2 instance, and also run a simple test container.
+
+So these things we are going to do now.
+
+So let's go to AWS console here and in AWS console.
+
+So we can directly go to EC2 service right.
+
+And in EC2 service we'll click on instances.
+
+Before going to instances you can go ahead and then create a key pair EC2 key pair I already have one.
+
+And in your case you need to create a EC2 key pair.
+
+And you can say something anything.
+
+Okay, so DevOps demos something like 101 and when and it's a key pair type is RSA and private key file
+
+format is PEM.
+
+And click on Create Key pair immediately.
+
+It will try to download that key pair.
+
+So save that key pair in your local wherever it is safe okay.
+
+And now we will go to EC2 instances right.
+
+And we'll click on Launch instances.
+
+And here I'll say.
+
+VM and we'll try to select the OS as Amazon Linux 2023 which is latest available today, and architecture
+
+64 bit.
+
+We'll leave it to defaults with everything.
+
+And here instance type will try to select a P3 large.
+
+So we need to run huge amount of containers close to ten containers.
+
+We need to run in this.
+
+So we'll use two vcpu with eight GB memory.
+
+So T3 large.
+
+And here in the key pair section you can select your key pair okay.
+
+So like DevOps demos 101.
+
+And in the security group section you will allow SSH from anywhere.
+
+And after that we'll also allow all the traffic also means like all TCP ports will allow for better.
+
+Accessibility of applications installed on this VM instance.
+
+Okay.
+
+And also from storage perspective, we'll try to use 30 GB.
+
+Right.
+
+And we'll go ahead and then launch the instance now.
+
+So this all those are default settings with just storage as 30 GB which we have changed.
+
+And we have also associated that uh respective key pair whatever we have downloaded.
+
+Right.
+
+And we can see here our EC2 instance is running.
+
+I'll try to open it in a new tab here.
+
+And I'll go ahead and then click on connect to that instance again in the new tab.
+
+And we'll also try to open the AWS Cloud Shell in a new tab here okay.
+
+And this is the connect option SSH hyphen I.
+
+And then DevOps demo 101. PIM file.
+
+Right.
+
+And then EC2 user at the rate your instance related DNS name.
+
+So this is the command to run.
+
+Now we are in Cloud Shell and in Cloud Shell.
+
+We'll click on actions here and upload file.
+
+And we'll go to downloads.
+
+And we'll upload our PEM file here DevOps demos 101. PEM.
+
+And once it is uploaded we'll also provide the permissions chmod 400 for that okay.
+
+So let me copy this.
+
+And file is uploaded successfully.
+
+And if you see it here you have you should see that DevOps demo 101 file.
+
+And now we'll also provide the permissions chmod 400 for that okay.
+
+Now the next thing here is we have the command here.
+
+So using this command will connect to this respective EC2 instance.
+
+So we'll connect to that EC2 instance.
+
+And once we are connected.
+
+So we'll go ahead and then run the docker command.
+
+So we are in our EC2 instance now.
+
+So we'll click clear.
+
+And the first thing is we'll say sudo DNF update hyphen y.
+
+And after that we'll install.
+
+We'll run the command sudo dnf install docker.
+
+So it is done.
+
+Now we'll say sudo dnf install docker and hyphen y.
+
+So this should install the docker for us.
+
+So we can see here all the Docker related packages installed successfully.
+
+We'll run the command clear and we have all the commands here documented.
+
+So you can just copy paste them okay.
+
+So sudo dnf update install docker, enable systemctl for docker and start docker and also provide user
+
+permissions.
+
+So we'll go here and copy paste this commands and run it right.
+
+And we can also start the docker.
+
+Now paste and run it.
+
+And finally usermod command.
+
+Also Let's run it.
+
+And that's all okay.
+
+And now we can logout and then login.
+
+So I'll try to say exit.
+
+And now I am in Cloud Shell mission.
+
+And I'll try to run one more time and clear.
+
+And now Docker should be running.
+
+So if I run the command docker version and you can see it is running here.
+
+So this is the client version which means the Docker commands whatever you are executing using Docker.
+
+And this is the server version.
+
+And now we'll go ahead and also run a simple command which is Docker run hello world.
+
+So before running it so we can run the command docker images.
+
+So we need to see any images present locally.
+
+Nothing.
+
+So if I run the command docker run hello world.
+
+So it will go to the Docker hub and download this docker image to local and run it as a instance as
+
+a container.
+
+Okay.
+
+So now if you see here.
+
+Right.
+
+So it said that unable to find the image.
+
+Hello world latest locally which means in your local desktop.
+
+So pulling from so and so library from your Docker hub and then pull is complete.
+
+After that it has executed this.
+
+Hello from Docker right.
+
+So this message shows that your installation appears to be working correctly.
+
+So these are the things it need to display when you run Docker run hello world.
+
+And it displayed successfully.
+
+And now if you see in the Docker images section.
+
+So if I say clear and docker images.
+
+So you should see it has downloaded this.
+
+And if you run the command docker PS no containers are running docker PS command will show any running
+
+containers.
+
+Okay.
+
+But here you have run a Hello World container which has run to the completion, which means it has its
+
+job is to execute one echo command.
+
+Hello from Docker and then run to the completion.
+
+So it should be in the completed state.
+
+So if you run docker PS hyphen A right you should see that container.
+
+Hello world.
+
+Right.
+
+So it has run and run to completion.
+
+It executed zero about a minute ago.
+
+So it has successfully run okay.
+
+So now if you want to write all the commands we are running and then exploring them in a live way.
+
+So we have learned Docker images and we have learned docker run and docker PS also we have learned and
+
+docker PS hyphen docker PS will give you the active running containers and PS hyphen A will give you
+
+the stopped container list okay or exited container list.
+
+So now what we will do is so PS hyphen a q which will give only the container id okay instead of all
+
+these things.
+
+So you can say docker r m which is like deleting the container which is even in the stop state.
+
+And I will say dollar docker PS hyphen a q.
+
+So this docker PS hyphen aq will give you the container id and that container id I will send it to this
+
+docker rem command.
+
+So docker rm space and provide the container id to remove this stopped container okay or exited container.
+
+So now if I run the command docker PS aq.
+
+So you should see nothing.
+
+So now nothing about containers.
+
+But you also need to see something called images.
+
+So you have one image which is downloaded to your local repository.
+
+And if you want to delete that also you can say docker r m I docker rm is for deleting the containers
+
+docker rmi, which is nothing but deleting the images.
+
+So RMI and then you can provide this image name or image id, or you can say Docker images will give
+
+you the list of images and hyphen.
+
+Q will give you the image ID so you can say docker rmi and dollar docker images hyphen q.
+
+And this should delete all the images present here okay, because it provides all the image ids to this
+
+docker rmi command.
+
+Now if I run the command docker images, I should see nothing here because whatever the things we have
+
+run the command docker version, docker images docker run and docker PS docker PS hyphen docker rm and
+
+then also docker r m I.
+
+So all these things we have run as part of this demo.
+
+So just running Hello World application doesn't look good okay.
+
+We'll try to run retail store application by pulling it from the Docker Hub and understand more about
+
+it in our next demo.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+Let's understand the Docker terminology in a real world DevOps project.
+
+All right.
+
+So let's talk about our retail store application here.
+
+Okay so you have multiple services present inside that.
+
+And you like UI cart catalog checkout and orders.
+
+So here we'll take one thing here which is UI service right.
+
+So for this UI service we'll try to understand the entire Docker terminology here.
+
+Okay.
+
+So in Docker we will have something called Docker host where your Docker daemon will be running.
+
+And in addition to that you will also have something called Docker client like your local desktop where
+
+you will run your Docker commands by connecting to this Docker host.
+
+In our case, both host and also client, both are same.
+
+So how we are going to see.
+
+Now let's go back here.
+
+And if we run the command right.
+
+So Docker version right.
+
+So in our EC2 instance we are running the Docker version.
+
+So it is saying this is the client version and this is the server engine version.
+
+So we have both client and server in the same VM instance.
+
+So now let's come back here.
+
+And in our case we have seen that both are Docker daemon and also Docker client.
+
+Both are in the same VM instance.
+
+So now let's understand the entire workflow now.
+
+So you have the retail store application source code for UI.
+
+And using that you want to build a Docker image.
+
+So you will run the command docker build to create a Docker image.
+
+And that Docker image will be stored in your Docker host.
+
+Right.
+
+And whatever the Docker image you have built right, and you want to run it and then test it means like
+
+you want to run that application and then test it.
+
+You can run it as a container.
+
+So so you will use the command docker run to run this Docker image as a container.
+
+So you can access your application once the container is running and then verify it.
+
+After that, you want to store this Docker images in a central location, which is called Docker Hub.
+
+So you will push this Docker image to your central location which is Docker Hub.
+
+And if someone want to.
+
+Right.
+
+So this is in perspective for you.
+
+But if someone want to use your Docker image, they can use the command docker pull to download that
+
+to their own local desktop or their own Docker host.
+
+And then using these commands, they will be able to run all the things like docker run to run this
+
+Docker image by pulling it right.
+
+And if they have the application source, they can also build the newer versions on top of it.
+
+Okay, based on the changes in your application.
+
+So this is the overall on a high level about Docker terminology.
+
+Now we also need to understand about something called uh.
+
+First thing is how to pull Docker image and run a Docker container.
+
+So let's also do that now.
+
+So in our Docker Hub we have something called this Docker image.
+
+Right.
+
+And this Docker image we are using Docker pull.
+
+We are going to pull now to our VM instance.
+
+And then once we pull we will verify if the pull is successful.
+
+And then we will run the command docker run to create a container.
+
+And after that we are going to access the application running inside this container using http url.
+
+Okay.
+
+And uh ec2 instance ip address, colon port and then verify our retail store application is accessible
+
+or not.
+
+So this is what we are going to do in this demo.
+
+In the next demo we will focus on about building the Docker image.
+
+But for now we will just pull the Docker image to our VM instance and run it.
+
+In the previous demos, we just learned about simple Hello world!
+
+So that's not the case, right?
+
+We need to run our retail store application so we get a idea right?
+
+So we'll try to do that now.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+We are in 0 to 0 to pull from hub and run Docker image section.
+
+So we have all the steps here in detail about this demo.
+
+So let's go ahead and then practically implement it.
+
+So the first thing is we need to go ahead and then verify our Docker image in Docker Hub.
+
+So in my case I will go to Hub.docker.com and I'll try to sign in here.
+
+It's a public image.
+
+So ideally we can go ahead and then search directly okay.
+
+So we'll go back here.
+
+And this is the Docker image okay.
+
+So we'll try to search it directly in the Docker Hub.
+
+It's a public image.
+
+It should be accessible for anyone okay.
+
+You don't need to sign into your Docker Hub okay.
+
+So this is the one uh stack simplify retail store sample UI.
+
+And you have 1.0.0 and then 2.0.0 versions.
+
+Okay.
+
+Now uh, we need to pull this Docker image.
+
+So we'll first pull the 1.0.0 version.
+
+So Docker pull and your Docker image name and then tag.
+
+So let me copy this and we'll go to our cloud shell.
+
+Here we are in our EC2 instance EC2 user at the right so and so.
+
+Right now before pulling it we will run the command Docker images.
+
+And we have nothing here.
+
+And you can run the command docker pull whatever you have copied from here.
+
+You can do that and it's equivalent right.
+
+So if you go to github.com and here in the packages section right.
+
+So you will find equivalent uh retail store sample UI.
+
+Right.
+
+So the same Docker image also available in GitHub packages.
+
+Also there are some times in Docker Hub right.
+
+So you will find the pull image pull limits.
+
+So when you see that instead of pulling it directly from Docker Hub, you can also pull that Docker
+
+image from our GitHub packages which doesn't have any download limits.
+
+So when you face any issue when pulling this Docker image from Docker Hub.
+
+Right.
+
+So when you run this command, it is facing, if you are facing any issue, you can also pull the same
+
+Docker image from our GitHub packages.
+
+So in the GitHub packages it is available again with 1.0 and then 2.0.0 version.
+
+Okay, now we have successfully pulled that Docker image.
+
+So we'll say Docker images.
+
+And we should see that it is available now in our local right.
+
+So now what we will do is we will try to move on with the next, which is nothing.
+
+But we are going to run this Docker image as a container.
+
+So here are the docker run command for the same thing.
+
+So docker run and name of your container.
+
+You can provide a name of your container like my app one and hyphen P.
+
+And you can map your host port and container port.
+
+So this is a retail store application which is running on AT&amp;T port.
+
+So now that one to your host port which means your VM instance port.
+
+You can map something.
+
+So I said 8888.
+
+Ah for my VM instance should be mapped to the container port which is 8080.
+
+My application inside the container is running on 8080.
+
+So that's the container port 8080.
+
+And this is my host port which is my VM instance port.
+
+And then run it in the detach mode hyphen D.
+
+And in addition to that we said that our complete Docker image, whatever we have downloaded.
+
+Right.
+
+So it's a path stack simplify slash retail store sample UI colon 100.
+
+So that's a complete path we need to provide.
+
+So we can type the command here Docker run hyphen hyphen name.
+
+And I will say my app one and we'll provide the port okay.
+
+So first is host port I'll try to use 8888 and colon container port 8080 and run it in detached mode.
+
+And this is the Docker image.
+
+So let me copy this.
+
+And its tag is 1.0.01.0.0.
+
+Right.
+
+And let's run it.
+
+Okay.
+
+And if you run the command docker PS.
+
+Right.
+
+So you should see your my app.
+
+One container should be running.
+
+So this is the My app one container.
+
+And you can see all the information just five seconds before it started.
+
+And it's port mapping and everything.
+
+You can see it.
+
+So if something is not clear here from port mapping perspective I have given a detailed application
+
+access flow diagram here.
+
+So from browser you are going to access EC2 public IP port 8888 which will be your Docker host port
+
+which will transform to your container port 8080.
+
+So you can see the EC2 instance here.
+
+And you have the retail store app container running on port 8080.
+
+And this is mapped to 8888 of your EC2 instance public IP.
+
+So now a very important thing here.
+
+If you remember, if you try to access with your public IP of your EC2 instance.
+
+So if I refresh here.
+
+So this is the VM instance running.
+
+Let me go here and see.
+
+This is the public IP.
+
+And if I try to access that in browser right.
+
+So if I say http colon slash slash and if I say colon 8888, it should fail because the security group
+
+associated with this EC2 instance.
+
+So if you go to security here and this is the security group associated with it.
+
+See it is a security group is not open.
+
+So only it is trying to rotate here continuously.
+
+It will not open.
+
+So we'll go to that security group and in the inbound rules.
+
+So where how we need to go to this security group we'll go to the instance.
+
+And in this instance in the security tab you will find the security group.
+
+And here we will try to add a rule here.
+
+Edit here let's click on add rule.
+
+And we can say custom TCP.
+
+And even we can say all traffic, whatever it is or only allow port 8888.
+
+And from where?
+
+From anywhere IPv4.
+
+And this should be sufficient for us.
+
+Okay.
+
+8888 and this one.
+
+And click on rules.
+
+And now you can see IPv4 custom tcp TCP 8888 is allowed now.
+
+So let's try to refresh.
+
+And now we can see our application is accessible.
+
+Our retail store application is accessible.
+
+So whatever we have inside this retail store sample UI is a full blown application or entire application.
+
+All the microservices, everything packaged as a single application and then present inside this okay.
+
+So which means you will be able to access the entire application here okay.
+
+So you can click on this, click on checkout and continue.
+
+Continue purchase okay.
+
+So like this okay.
+
+But in our real world, we are going to have multiple containers and then all the persistent layers
+
+and everything.
+
+So there when we reach out to the Docker compose section, we are going to implement that.
+
+This is just for uh, learning the Docker commands.
+
+So there are various Docker commands available for us.
+
+All those things we are going to run now as part of this demo.
+
+So now you have successfully seen the browser from browser, you have used the EC2 public IP, your
+
+public IP of your EC2 instance.
+
+So this is the one.
+
+And using the port 8888.
+
+So you can see 8888, you are able to connect to your container which is running on port 8080.
+
+You have ensured that your EC2 security group allowed port 8888.
+
+So this we have successfully seen now in our series of steps, right?
+
+So we are going to learn about multiple other Docker commands.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+Let's go ahead and then learn multiple other Docker commands here.
+
+Right.
+
+So we'll go back here and start executing one after the other command.
+
+So we are in the cloud shell here.
+
+And now we need to connect to our EC2 instance.
+
+So this is our EC2 instance command to connect.
+
+And we are in our VM instance where our Docker image is Docker container is running right now.
+
+Let's start with the command Docker PS.
+
+So running container you can see it here.
+
+Okay so docker PS hyphen A will also provide stopped container list.
+
+Also in addition to running containers.
+
+And if you want to say hyphen q only the Docker container ID will be displayed.
+
+Okay.
+
+So instead of this complete data it will only display the container ID.
+
+So that's about docker PS command on a high level.
+
+Now the next thing is how to connect to Docker.
+
+Right.
+
+So using Docker exec command you can connect to that Docker container.
+
+So you you can see it here you have my app one container running.
+
+So what we can do is we can run the command docker exec hyphen it and provide your container name or
+
+container ID and say slash bin slash s.
+
+And this will take you to your container.
+
+Okay.
+
+So if you say you name hyphen A it will you name hyphen A.
+
+It should provide you a kernel version.
+
+You name hyphen a.
+
+So this is your Linux kernel version.
+
+And if you want you can also say cat etc. OS release.
+
+So this will provide you a your.
+
+It is a Amazon Linux 2023 and all the information about it.
+
+This is inside the container.
+
+We are running these commands okay.
+
+So we are inside the container okay.
+
+And the next command is who am I okay.
+
+So see currently you are using the app user and present working directory will provide you.
+
+You are in the slash app folder and in slash app folder.
+
+If you run the command ls you have the app dot jar.
+
+Okay.
+
+So that is the app dot jar.
+
+And additionally if you want you can run the command Java version also.
+
+So after Java version see uh let me enter.
+
+And this is the Java version.
+
+It is running.
+
+If you want you can say curl http colon slash slash and localhost colon 8080.
+
+Your container is running on 8080.
+
+So let's run the command internally.
+
+Curl localhost your entire, uh, landing page.
+
+Whatever you are seeing here, this demo store page.
+
+Right.
+
+So that is, uh, displayed here means, like it is able to get that entire page here.
+
+Okay, so it's content.
+
+All the HTML of that is provided here.
+
+And you can run the command exit and you are out of the container and you are in your, uh, EC2 VM
+
+instance.
+
+Okay.
+
+In addition to going inside the container and running the commands, you can also run commands directly
+
+using Docker exec and hyphen it.
+
+My app one is the container name and here you can run whatever you want LS command.
+
+So inside the container it will go inside and in the current directory what is the files present.
+
+It is showing in the same line.
+
+We can also run the command like uh.
+
+You can also run the command like curl command.
+
+Whatever you have run right against this.
+
+My app one container so you can run, uh, curl http colon slash slash localhost colon 8080.
+
+And that entire page will be displayed here.
+
+So you can connect to the container, go inside and run the commands.
+
+Or you can pass the commands here itself.
+
+So you can also run the command E and V if you want okay E and V it will list all the environmental
+
+variables.
+
+So host name you can see this is the host name.
+
+You can run the command docker PS and you can see its container ID is the host name of this respective
+
+container okay.
+
+And app user all the information.
+
+You can see it here when you run the env command.
+
+Also.
+
+And another important thing here is you can stop and start containers using docker stop and docker Start.
+
+So let's also run those things okay.
+
+So Docker PS and you have the My app one container running.
+
+So we'll say docker stop.
+
+And my app one.
+
+And this should stop the my app one container.
+
+So if I run the command docker PS nothing is running.
+
+So if I say PS hyphen hey it will also display not only the running containers but also the stopped
+
+containers.
+
+So you can see the status here exited.
+
+So this my app one container is in the exited status.
+
+Now the same container again.
+
+You can start it back also Docker start my app one okay.
+
+And if you run the command docker PS now it should be in the running state up just three seconds a just
+
+three seconds before it is in the running state.
+
+And if you want we can also access our application.
+
+It is running right so we can try to refresh it.
+
+And our application should be accessible.
+
+Right.
+
+And if you click on any of these things it should work.
+
+And when we stop it it should be our application should not be accessible.
+
+So we can say Docker stop my app one.
+
+And.
+
+It should be stopped.
+
+And when we access our application also it should not be accessible.
+
+See remove the cart here and it is not accessible.
+
+So I have successfully stopped the application.
+
+Now we can remove the container and also remove the docker image and everything.
+
+So how do we remove this container.
+
+So you can say docker rm.
+
+You can provide the name of the container here.
+
+Or you can provide the container ID you can provide or you can provide dollar docker PS hyphen q, so
+
+that all container IDs which are in the stopped state will be sent to this.
+
+Okay.
+
+So docker rm my app one.
+
+So it is removed okay.
+
+Now the next thing is docker hyphen q.
+
+Nothing is present okay.
+
+Now you can also see the Docker images here.
+
+And this is the Docker image.
+
+If you want to remove docker rmi and you can directly provide the image ID also.
+
+So I'll copy this and provide it.
+
+And the command is r m I okay.
+
+And now if you see Docker images nothing is present.
+
+So this completes the demo about uh pulling the Docker image and running it.
+
+And during the process we have learned multiple things like uh, multiple commands of Docker.
+
+We have learned in detail.
+
+So I'll see you in the next demo.
+
+Until then bye bye.
+
+Thank you
+
+In this demo, we are going to focus on building the Docker image and push the Docker image to Docker
+
+Hub.
+
+So here we are going to use the our application source and also docker file right to build it.
+
+But one important thing.
+
+So which service we are going to use we are going to use UI service right.
+
+And UI service source we are going to use and then its equivalent Docker file also we are going to use.
+
+But what is present inside this docker file, the docker file instructions and also multi-stage Docker
+
+builds.
+
+Right.
+
+So those concepts we are going to discuss in our next demo here we will focus on building a Docker image
+
+and pushing the Docker image to Docker Hub.
+
+So what we are going to do is we are going to take this source and then docker file.
+
+And using Docker build command, we are going to build a new Docker image 2.0.0 version.
+
+And then we will run that Docker image here as a container, and then access it via browser and test
+
+it.
+
+Whatever the changes we have made in this UI source got reflected or not.
+
+And once we run it as a container and we test it, we are good, then we will push this Docker image
+
+to Docker Hub with 2.0.0 version.
+
+So this is what we are going to do.
+
+And whatever inside this docker file, the instructions, those things we will discuss in detail in
+
+our next demo.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+We are in demo 0203 and here we are going to build a Docker image and push to Docker Hub.
+
+So let's go back to our GitHub repository.
+
+And we are in zero two docker command section.
+
+And inside that we are in 0203 build docker image and push to Docker Hub.
+
+So here we are going to first create a Docker Hub account.
+
+So let's go back here and run the command Run hub dot docker.com.
+
+And this should take us to the Docker Hub.
+
+And here you can click on sign up to sign up and create a Docker Hub account.
+
+Again it is a free account and you can create it by providing your email address and username and desired
+
+password.
+
+Or you can also use your Gmail account or GitHub account.
+
+Anything is fine.
+
+Now Important thing here is we already have our discussed in our previous demo where we have used the
+
+retail store UI related, uh, Docker image.
+
+It's a public image.
+
+So if you search for stack Simplify and here you will find the stack simplify retail store sample UI
+
+docker image.
+
+So earlier in the previous demo you have seen both 1.0.0 and 2.0.0 tags.
+
+And here I have removed or deleted the 2.0.0 tag because as part of this demo, we are going to build
+
+that by making some changes to the UI.
+
+We are going to do that.
+
+So now here you can see it's a public Docker image and you will be able to access it.
+
+Now I am going to sign into my Docker Hub right.
+
+So I have my own Docker ID here.
+
+And I'll also provide my password.
+
+And once I log into the Docker Hub so you can do a lot of things inside it.
+
+But our core focus is going to be mainly on this retail store sample UI.
+
+And currently here in the tags section you can see you have only 1.0.0 tag.
+
+And now we are going to build a new Docker image and push it with 2.0.0 tag.
+
+So that's what we are going to do as part of this demo.
+
+So that's about signing up to Docker Hub account.
+
+And another thing is if you want to push the Docker images from your Docker machine, either it may
+
+be a local desktop or our EC2 VM instance anything it is right.
+
+So you need to do a Docker login.
+
+So now we'll go to our EC2 instance which is Docker VM.
+
+And we will connect to that EC2 instance.
+
+Right.
+
+So now how do you connect it.
+
+So we have already seen it.
+
+We'll go to the connect section and go to SSH client and you need to have your EC2 key pair present
+
+here.
+
+Okay.
+
+So this is the cloud shell.
+
+And here I have my EC2 key pair which is DevOps demo 101. PEM.
+
+So I can copy that command ssh hyphen I and completely login to my ec2 VM.
+
+So this is my EC2 VM.
+
+And in this EC2 VM we are going to say Docker login.
+
+And we'll provide the user ID and password.
+
+And it is succeeded.
+
+Now the next thing is we will go back here and move to the next steps.
+
+Okay.
+
+So what we are going to do is again a real world approach.
+
+So which means like we are going to take the code whatever is present for UI.
+
+And from there we are going to build the Docker image and push it to Docker Hub.
+
+So first we will create a folder in our EC2 machine which is mkdir demo docker build.
+
+And we'll go inside that folder and we will download the code from our GitHub repository.
+
+So if you go to this GitHub repository right.
+
+So as of today 1.2.4 is the version which we are baselining for this course.
+
+So this is the latest 1.3.0 came in now.
+
+So I'll try to use 1.3.0.
+
+So we can click on this 1.3.0.
+
+And we can take this 1.3.0.
+
+Or we can go to releases and we can go to the one previous version which we have Baselined.
+
+Okay.
+
+So we'll try to use 1.2.4 so we can click that 1.2.4 and one second.
+
+So we'll go to releases.
+
+Click on releases here press 22 releases.
+
+And here we have the v 1.2.4.
+
+And here you can see in the assets section you will have this source code.
+
+So we'll right click and we can say copy link address.
+
+Or you can directly run this command okay.
+
+So anything is fine okay.
+
+So we'll go back here and say wget and download this source code version.
+
+And after that you can see you have the 1.2.4 code here.
+
+And we will unzip this code right.
+
+And you will find the retail store folder here.
+
+So this is the retail store sample app 1.2.4.
+
+And here this is the core source section.
+
+And inside that source section you will find app card catalog checkout E2E everything.
+
+So we are going inside UI and inside UI.
+
+You find the Docker file here.
+
+Right.
+
+So this is important.
+
+And your core application source means like where the Java spring boot related Java code is written
+
+is inside this source folder.
+
+You can also browse this using Visual Studio Code.
+
+And in the zero one projects folder you have the code backup for one two, four.
+
+And here you can unzip and even browse it from here also.
+
+Right.
+
+So I have put a backup here for reference okay.
+
+So if something happens to that repository and we don't have the code base for that purpose, also we
+
+have the backup in zero one project files code backup 1.2.4.
+
+Now you have the source here.
+
+If you go inside this source folder you will have all the spring boot related code.
+
+So if you go to main and everything you can find Java resources, everything.
+
+But we need to be present here where the Docker file is present, which means current directory where
+
+Docker file is present, so that is nothing but present working directory which is in retail store sample
+
+1.2.4 in source section UI.
+
+So that's the important thing.
+
+And we have the complete uh uh, location okay.
+
+Right here.
+
+And now this is about when you want to build the Docker image from here.
+
+And another important thing here is we are going to change a file which is home dot HTML one second.
+
+We will go back here and we will browse those files here one so that we get a idea.
+
+So we'll go to zero one project files in DevOps real world this is my local desktop.
+
+So we'll go to unzip.
+
+And here you have the code backup.
+
+And inside that you have unzip raw store sample.
+
+Right.
+
+And now if you go back here and open this.
+
+So this is the primary source folder.
+
+and inside that you are going into UI and inside UI, right?
+
+So you will go to the Java Spring boot source.
+
+And inside that main and in Java you have the code here and where we need to go.
+
+So we need to go to the location where resources and templates.
+
+In main you have something called resources.
+
+And in templates you have the home dot HTML.
+
+So inside this home dot HTML we are going to make a minor change.
+
+So when you search for the secret shop right.
+
+So you can search for secret shop.
+
+So this is the thing okay.
+
+So here we are going to add some additional content here stating something like uh see Secret Shop V2
+
+version.
+
+So whenever you are landing page home dot HTML opens earlier in the V1 version 1.0.0 tag.
+
+It is going to be Secret Shop and in 2.0.0 tag it is going to be some V2 version.
+
+We are going to do so that directly by command.
+
+Also you can do or go to this home dot HTML search for secret shop and write it directly.
+
+So what we will do is for easy purpose, we will go ahead and then run these commands here.
+
+Okay.
+
+So we'll go to our cloud shell here.
+
+And we will directly come here.
+
+We will go to this location which is templates okay.
+
+So we'll run templates.
+
+And now you are in template section and you will have the home dot HTML here.
+
+This is the home dot HTML.
+
+And here we are going to run the command.
+
+So when we run this command so it is going to change.
+
+So let me run this command here paste it.
+
+And now if we run the command grep hyphen.
+
+So or we can directly copy and paste the command.
+
+It is easy for us, right?
+
+Now let's run this command and see.
+
+Now we have added the V2 version here, so that is good.
+
+So so far we have successfully made some changes to the code base which is UI.
+
+Now what we are going to do is we are going to review the docker file on a high level before moving
+
+on.
+
+So let's come back here right.
+
+So this is the Docker file.
+
+So we'll come back here out of templates out of resources out of main and out of source.
+
+And here in the UI you will find the Docker file.
+
+So this is the Docker file.
+
+So we'll say cat docker file.
+
+And you have a lot of things present here.
+
+So you can review here.
+
+Or we'll go back and we can go to our section here which is 0203.
+
+And here I have put the Docker file for reference Okay.
+
+So this is the base Docker file very high level.
+
+We are going to review because in the next demo okay which is zero three Docker files there we are going
+
+to play with it effectively okay.
+
+Now the base thing what we are going to do in this Docker file is using this Docker file.
+
+We are going to build the Docker image.
+
+So here you are going to take a base image which is Amazon Linux 2023.
+
+And you are going to have both build stage and package stage, which we are going to discuss when we
+
+are, uh, understand when we are going to do in detail about Docker files.
+
+But all these are the Docker file instructions which are going to run when you are building the Docker
+
+image.
+
+And it is going to take this as the base Docker image.
+
+And on top of that it is going to build the Docker image.
+
+So what it is going to do, it is going to install some tools inside this Docker image.
+
+And it's going to run some commands here.
+
+And finally it is going to build a Docker image for us.
+
+That's the key thing we need to remember for this demo.
+
+Our focus is on building Docker image.
+
+And what is present in this file.
+
+Key two key we will discuss in our next demo.
+
+So now the key thing here is we have Dockerfile instructions.
+
+And we have lot of things written inside this.
+
+And these things will build a Docker image for us.
+
+Now let's go back and move on to the next step here.
+
+Right.
+
+So the next step here is we will go ahead and then build the Docker image.
+
+So we have reviewed the Docker file.
+
+Now the next thing here is if we go back this is the one.
+
+So you have a Docker file with instructions inside it to build a Docker image.
+
+And you are going to use the docker build command to build that Docker image.
+
+So let's do that now.
+
+So the docker build command is.
+
+It looks this way.
+
+Docker build hyphen t retail store sample UI with tag as 2.0.0.
+
+And where is your docker file present in the current directory.
+
+So you will say dot and it should build a Docker image for us.
+
+So let's do that okay.
+
+So you are in the UI folder.
+
+And here you have your Docker file in the current directory.
+
+So you will say docker build hyphen t.
+
+And your name should be this way.
+
+Where is it.
+
+This is the one.
+
+Later we will do the tagging also with stack simplify retail store UI colon 2.0.0.
+
+Right.
+
+And your Docker file is in the current directory.
+
+So we'll say dot.
+
+And this should start building your Docker image.
+
+So you can see it is building the Docker image, which means it is in the build environment and it is
+
+in the stage one and it is executing one after the other.
+
+All the instructions you have provided in your Docker file like it, will take base as this docker image,
+
+and it will install all these packages and execute all these instructions.
+
+So it's going to do all those things.
+
+So it is in the first stage where it is building the base Docker image means like inside this it is
+
+going to install all the things related to Java like Maven and everything.
+
+And it is going to compile the code and generate all the things required for us see in the build environment.
+
+So first it has run the command which is run DNF.
+
+So this is the one it has run.
+
+And after that all the three commands for installing everything it has run.
+
+Then it is running the copy commands.
+
+And after that it is also running Useradd command Workdir command and attributions Licenses.
+
+So everything, whatever is present inside this, it is running all those commands now, so let's wait
+
+for it to build.
+
+Finally, it has generated a jar and that jar it is also renaming it.
+
+So UI 001 snapshot jar.
+
+It has renamed it to app.
+
+So it took close to.
+
+For running this build you can see 9798 multiple means like close to more than a minute it took.
+
+But finally it has built a Docker image.
+
+So let's see what happened here.
+
+So we'll say Docker images command right.
+
+And we should see a Docker image created which is retail store sample UI with tag as 2.0.0 just 16 seconds
+
+ago.
+
+So that's the thing.
+
+So in our next lecture we will focus on implementing other steps.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+In the previous lecture we have created a Docker image and which is using Docker build command.
+
+Now we are going to focus on running that Docker image and accessing it via browser and seeing whatever
+
+the changes we have made is visible on the browser.
+
+And after that, we are going to tag that Docker image and push it to Docker Hub.
+
+So let's do all those things now.
+
+So we'll go back here.
+
+And now we have completed till here.
+
+Next is running this Docker image.
+
+So the command here is docker run and hyphen hyphen name name of your container.
+
+So I'm going to say my app one v2.
+
+And I am also going to use the host port as 8889.
+
+And this is the container port which is 8080 which is my application port which is running on that port
+
+and hyphen D, run it in detached mode and also provide your Docker image name and then tag.
+
+So that's the command.
+
+So you can go back here and run that command docker run and hyphen hyphen.
+
+Name my app one, hyphen v two and hyphen p port and provide your host port.
+
+Host port means this EC2 instance, one port to access it via browser and 8080 is your container port
+
+and hyphen.
+
+D run it in detached mode and this is the repository.
+
+So let me copy this repository.
+
+And this is the docker image colon 2.0.0.
+
+And let's run it.
+
+So now if you say docker PS it should be running.
+
+Also run the 1.0.0 version.
+
+So when you run the 1.0.0 version, both you can access in browser and compare them.
+
+So let's do that also.
+
+Right.
+
+So now what we will do is we'll also run the 1.0.0 version.
+
+For that the command is docker run hyphen hyphen.
+
+Name my app one hyphen v1.
+
+You can give if you want or just say my app one.
+
+Anything is fine and port will give one number less.
+
+8888 is the host port and 8080 right and hyphen D and this is the one right.
+
+So this is the Docker image which we are talking about which is present in our Docker hub okay.
+
+So we will go here this one and stack simplify slash retail store sample UI colon 1.0.0.
+
+What happens now?
+
+It will download the Docker image and run that as a container from stack Simplify public repository.
+
+So it is now downloading it.
+
+And after that it is also going to run.
+
+Now we'll go to this instance here.
+
+And this is the public IP address.
+
+We are having.
+
+So now we will come back here whether it is running or not.
+
+We are going to see.
+
+Yes.
+
+So we will clear this and we'll say Docker PS and we have two containers running.
+
+One is my app one and the other is my app one v2.
+
+So we'll go back here and access 8888 which is my app, one which is the V1 version.
+
+Okay.
+
+So you can see the most public secret shop.
+
+So this is the 1.0.0 version.
+
+And you can see it here in the same line.
+
+We'll try to use 8889 version and see what happens okay.
+
+Right.
+
+And it should provide us V2 version so you can see it here it is rotating which means security group
+
+rule is not present for 8889.
+
+So we'll go to our EC2 instances and go to the security tab.
+
+And here we will find the security group.
+
+Try to open that security group in the new tab here.
+
+And we'll try to add the inbound rule.
+
+So you have only for 8888.
+
+So edit inbound rules.
+
+And we'll also add one more rule custom TCP 8889 and 0.0.0/0 from internet complete internet.
+
+So now let's come back here and try to access it again okay.
+
+And see what happens.
+
+It should be accessible right.
+
+It is accessible now the most public secret shop.
+
+And whatever the V2 version you have added you are able to see that now.
+
+So that's the thing okay.
+
+So what we have done.
+
+So we have built the Docker image right using this Docker file from the complete source with v2 version,
+
+and we have run it and verified it.
+
+Now we will move to the next step here, which is tag and push the Docker image to Docker Hub.
+
+And why do you need to tag.
+
+So let's talk about that.
+
+So let's come back here.
+
+Where is that.
+
+So this is the one right.
+
+So here Docker images.
+
+So you need to tag this one with your ID.
+
+Whatever the Docker ID is there means like that's the repository ID your Docker Hub repository ID your
+
+Docker hub as a repository.
+
+So if it is a private account you will have a you can give different repositories, but if it is a free
+
+account in Docker Hub you will have your username as your repository.
+
+So my username is tag simplify and that is my repository ID here.
+
+Okay.
+
+So in the same line in your case you need to use your own ID here.
+
+So your Docker username you need to use when doing that.
+
+So docker tag and provide your current Docker image whatever is present there.
+
+And with your Docker username slash again the complete Docker image and then tag you need to provide.
+
+So let's come back here and do that.
+
+So Docker tag and this is the Docker image you are going to tag now colon 2.0.0.
+
+And which will be with your Docker username minus stack.
+
+Simplify slash again same name colon 2.0.0.
+
+Now if you say docker images you should find another docker image.
+
+Now which is stack simplify retail store UI 2000.
+
+So with the same image ID it's just you are adding another name here for that.
+
+Okay.
+
+Now what you will do is you will run the command docker push and copy this right.
+
+Copy this.
+
+And colon 2.0.0.
+
+And this should push to our Docker Hub.
+
+So it is pushing currently.
+
+Let's wait for it to push.
+
+We can see here all the uh this Docker image is pushed successfully to Docker Hub.
+
+Now we'll go to Docker Hub here and we'll try to refresh this page right.
+
+So we'll try to refresh earlier.
+
+It has only 1.0.0.
+
+Now you can see you have the 2.0.0.
+
+So that's about uh building a Docker image and pushing it to Docker Hub.
+
+So we have successfully implemented this demo.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you
+

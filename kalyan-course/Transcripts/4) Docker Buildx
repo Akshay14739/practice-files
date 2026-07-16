@@ -1,0 +1,1274 @@
+All right.
+
+Let's talk about a very common problem when building Docker images.
+
+Here on the left I have a Docker VM, right.
+
+It's an EC2 instance running on amd64 architecture with Docker installed.
+
+So now when I do a simple docker build and then push right.
+
+So what happens.
+
+That image gets pushed to the Docker hub here right.
+
+And now but notice it's only a amd64 docker image.
+
+Now imagine we spin up another EC2 instance, this time on a 64 hardware.
+
+If we pull that same image, what happens?
+
+It fails.
+
+Why?
+
+Because an amd64 docker image cannot run on Arm64 hardware.
+
+That's the core issue right here.
+
+So that's the problem.
+
+So now let's go to the solution.
+
+Now how do we fix this.
+
+The solution is to use the Docker build with Qemu emulator right in a single shot.
+
+So here here is what it happens when we use this.
+
+So we run a docker build command.
+
+So earlier it is a build command.
+
+Now it is a build x command.
+
+Right.
+
+So with Docker build command and you push right.
+
+Push that Docker image to Docker Hub.
+
+Right.
+
+So inside the Docker Hub right.
+
+What happens is you don't just see one Amd64 image, you will also see a rm64 image also all under the
+
+same version tag.
+
+So under 1.0.0 version tag you will see amd64 docker image and arm64 docker image.
+
+Because using this docker build you have built the multi-platform docker images.
+
+So when an ah 64 machine does docker pull.
+
+So when this one tries to pull the docker pull it gets the arm64 image automatically.
+
+So and when amd64 docker mission tries to pull the docker image, it will get the amd64 docker image
+
+automatically.
+
+So with one build right.
+
+So with one build means like docker build command and with one tag right.
+
+So we can generate Docker images for multiple architectures like Amd64 64 like that.
+
+So this is the power of Docker build with Qemu emulator.
+
+So but this Qemu emulator is slow for our demo, we are using it in absolute real world.
+
+Instead of using the emulator, you can use another arm64 docker image here and you can enable ssh between
+
+them.
+
+And then for arm64 related build you can run on that Arm64 machine.
+
+And for Amd64 build you can run on Amd64.
+
+And then finally that will only for the build process.
+
+It will go and then run on that respective hardware.
+
+But that's a complicated setup here.
+
+The idea we are going to understand is what is the importance of using Docker build and how easily we
+
+can build the multi-platform Docker images.
+
+So we'll see that concept here in a simple way.
+
+Following this lecture we will focus on implementing this demo multi-platform Docker image generation
+
+in a practical way.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+We are entering into the demo zero five docker build x, and here we are going to install the bin bin
+
+fmt or qemu emulator to create the multi-platform docker images using our amd64 build VM.
+
+And then once we build those Docker images, we are going to push them to our Docker Hub.
+
+And after that we are going to verify those Docker images whatever we have created.
+
+Which means we are going to download them to both amd64 and arm64 EC2 instances and run those Docker
+
+images as containers and verify our application.
+
+So here we are going to use our retail store UI application to do that.
+
+So let's go ahead and then implement it.
+
+First we will verify what is our current VM.
+
+What is our current build VM we are using, which is Amd64 only.
+
+We are going to just verify that.
+
+So we'll go here and we'll come out of demo compose and we'll say Uname hyphen M will provide the x86
+
+64 which is amd64.
+
+And if you also want to see the OS version OS related information.
+
+So we can say OS release.
+
+And this is the one which we are using currently.
+
+Right.
+
+And now we will go ahead with other steps here which is already Docker is installed on our VM.
+
+We don't need to worry.
+
+So we are going to run the command docker build kit equal to one.
+
+So we are going to and verify build x is present or not.
+
+So we'll first run the export docker build kit equal to one.
+
+And we will run the command docker build x and then version.
+
+So now if we go back here, we have successfully verified the Docker build.
+
+Now we also need to install the qemu bin fmt emulator.
+
+So let's do that.
+
+Now the command here for running it is.
+
+This is the one docker run privileged.
+
+And this is the docker image and hyphen hyphen install and all.
+
+So this will install all the platforms it supports.
+
+Or if you want only for arm64 and amd64.
+
+Also you can specify those things.
+
+So we will use the all thing to have everything okay here.
+
+So we'll go back and run that now.
+
+And it will download the Docker image.
+
+And you can see it here.
+
+These are the things it supported it supports.
+
+So if you see downloaded and it has installed Arm64 and then ARM 32 bit and some other hardware types
+
+also it has downloaded and these are the emulators it has downloaded.
+
+Okay, now qemu a 64.
+
+This is nothing but 64 related emulator.
+
+That's the thing which is going to generate the build for our ARM 64.
+
+Okay.
+
+Now let's come back here.
+
+And another important note here is if the host reboots means our EC2 VM reboots and this cross architecture
+
+stops working.
+
+You can run this command again.
+
+That's all.
+
+To install those things now we will go ahead and then create a containerized build builder for multi
+
+are capable.
+
+So which means we are going to create a new builder.
+
+So if you run the command docker build ls.
+
+So first let's run that okay.
+
+You will have a.
+
+Docker build older.
+
+Sorry.
+
+It should be docker build x okay so build X unless it should have a default builder currently.
+
+So this is the default builder.
+
+And it supports the following platforms.
+
+Linux amd64 all Linux uh three 8632 bit.
+
+And it also supports Arm64 and all these things it supports okay.
+
+So now we can use this default or we can create our own thing okay.
+
+So which is new Multiarch related one we can create using Docker build create and name of the builder
+
+is Multiarch and driver is Docker container.
+
+And we can run this command.
+
+So we can go here and run it.
+
+And now if I run the command docker build x and RLS.
+
+So you have the multiarch thing created okay.
+
+But it is currently inactive.
+
+So we are going to activate it.
+
+So for that you need to run the command.
+
+You need to bootstrap that build inspect, bootstrap.
+
+So let's do that now.
+
+So then it will get activated.
+
+So we are going to bootstrap that.
+
+So now let's wait for a bit and it will get created.
+
+So this is the one.
+
+Now you can see Multiarch is created with all these things okay Linux amd64 arm64 everything.
+
+So now if you say docker build x and then LLS.
+
+So you can see our Multiarch builder got created and you can see the star.
+
+This is the default builder now.
+
+So this is the one we are going to use.
+
+We are not using the default one.
+
+Now this is in the active state.
+
+You can see the star.
+
+So whenever you run any docker build x builds then this multiarch will be used.
+
+So here you can see more amount of things specified amd64 and E 64.
+
+Like this.
+
+There are many because it is using the latest emulator, whatever we have provided.
+
+Okay, now the next thing is we sometimes you will not see Arm64.
+
+All those things here, sometimes it might not show.
+
+So this is these things you might not see here in this command when you run it.
+
+But don't worry, when you run the build it is going to generate the Docker images.
+
+This is because of your Amazon Linux some internal issues okay, so we really don't need to worry about
+
+it.
+
+I have written the note here, but key thing is it is going to generate the Docker images for us.
+
+That's the key thing.
+
+Sometimes it might show these things here.
+
+Sometimes it might not show.
+
+That's related plainly to plainly related to that respective OS.
+
+Okay.
+
+Now we are going to then set some environment variables.
+
+One is your Docker Hub username mini stack simplify.
+
+In your case you need to change this.
+
+You need to provide your Docker Hub username.
+
+So let me set that here.
+
+One is this one.
+
+And the second is my Docker hub repo I am going to use means like my docker image name.
+
+What I want to use that is retail UI.
+
+Multiarch is the thing I am planning to use the name of my docker image, so I will provide that.
+
+Okay.
+
+And next is what is the tag I'm going to use.
+
+I'm going to say 1.0.0.
+
+That is good and total.
+
+If you say docker image is nothing but docker hub user slash dh repo colon tag.
+
+So this is the format right?
+
+Usually.
+
+So when you run this you will understand and then echo dollar.
+
+And when you say image you will understand that.
+
+So finally our Docker image is going to look like this tag simplify slash retail UI Multiarch 1000.
+
+That's what you will see in our Docker Hub.
+
+So now you need to log in to your Docker Hub.
+
+So let's do that now.
+
+I will do that now and it will provide I need to provide my Docker Hub password.
+
+And it's login is successful.
+
+Now the next thing is we will create a folder for us mkdir demo Multiarch okay.
+
+And we'll go inside that demo multiarch.
+
+And we will download the code for us so we can go here and v 1.3.0 zip how this link came.
+
+So we can go here.
+
+So this is the retail store sample app and go to all the releases here.
+
+And I am using the latest release available today.
+
+So you can and baselining this code to our demo to this version.
+
+Okay.
+
+So now you can see source code zip.
+
+So I will copy link address.
+
+And it is the same address here.
+
+So this is the same thing.
+
+So we'll go here and download that source code.
+
+And now you can see we 1.3.0 is present I'll say unzip.
+
+And now you can see you will have this retail store sample app 1.3.0.
+
+So we'll say retail store sample app 1.3.0.
+
+And inside source you will find the folders.
+
+And we are going to generate the UI Docker image.
+
+So we will say UI.
+
+So I recommend using the same version for you okay.
+
+So there might be when you are testing it, it might be 1.3. 0 or 2 .5.0, whatever the thing okay.
+
+So if we use this the results will be same for us.
+
+What we have seen in this demo, that's the important thing.
+
+Now we we can also see our Docker file here.
+
+So we are in the UI.
+
+And if I say you can see the Docker file present here.
+
+This is related to UI.
+
+We already reviewed this docker file.
+
+Spring boot docker image.
+
+How you are going to generate multi-platform Docker images.
+
+So first it will uh it will do the build and later it will do the uh it will do the packaging.
+
+Okay.
+
+So all those things we have seen earlier.
+
+So that's the same thing okay.
+
+So now we will go ahead and then build and push multi-platform Docker image.
+
+So one important thing you need to know here is the first build can take long time.
+
+It might take 37 minutes to close to 50 minutes also okay.
+
+This is mainly because Arm64 built build on an x86 host using Qemu or bin FMT emulation, which is 5
+
+to 10 slower than native amd64.
+
+So don't worry.
+
+Build x Cassius layer, build x Cassius layers, so all the subsequent builds with minor code changes,
+
+it is going to be quicker, but for the first time it is going to take more than 30 to 40 minutes or
+
+50 minutes.
+
+Also, it might take.
+
+So the command here is Docker build, build and on which platforms you want the build.
+
+Linux amd64 and Linux arm64 and hyphen t.
+
+And what should be my docker image.
+
+So we already built the Docker image here right.
+
+So the environment variable.
+
+So you'll say Docker image and hyphen hyphen push will push directly this to the Docker hub.
+
+And dot is the current directory where we are having the Docker file.
+
+So we will run this command now.
+
+So let me copy this and we will go here and we will run that.
+
+And remember this is going to take close to 40 to 45 minutes okay.
+
+So uh run this and you can observe this so you can see it here.
+
+Mainly.
+
+What will take more time is these DNF installs are there right.
+
+So Java Maven and all those things.
+
+So you can see this is amd64 amd64.
+
+This is build environment.
+
+And this is a package environment in uh our Amd64 in the same way for Arm64.
+
+Also you can see build and package.
+
+Both are running currently 38 seconds but it will take close to 40 minutes.
+
+So I'll pause the video.
+
+Until then we can see here my terminal got disconnected, but Docker images got generated.
+
+So we'll go back to our Docker Hub and then verify them.
+
+So we'll go to the Docker Hub.
+
+So we need to sign into our Docker Hub.
+
+And in the repositories section we can see Stack Simplify Retail UI Multiarch.
+
+And here in the tags section.
+
+So if we go to the tags section here we can see Two Docker images.
+
+One is with Linux amd64 and the other is with Linux arm64.
+
+So we have two Docker images generated, so the usual output looks this way.
+
+So when we run the Docker build build with multiple platforms to build it.
+
+So here in this build it took close to 2 to 3 six seconds which is close to 37 minutes.
+
+So here you can see these are the things for Amd64 the commands it has run.
+
+And here these are for Arm64.
+
+So all the things has run for 37 minutes and generated the Docker images.
+
+And those Docker images were directly pushed to the Docker Hub which we have configured.
+
+So we can see both the Docker images.
+
+Here.
+
+We can also verify the Docker image manifest with Docker, build image tools, inspect and provide our
+
+Docker image.
+
+So let me copy this and go to our this one.
+
+Clear our build VM and get the Docker image name here directly.
+
+So this is the one right.
+
+I will copy this and we will go back here and inspect that.
+
+And you can see it here in the manifest we have the Linux Amd64 and Linux arm64.
+
+These two are the things generated for us.
+
+Now let's go ahead and then run this on Amd64 machine and then verify it right.
+
+So this is the the current one.
+
+Whatever we are using right.
+
+Our build VM is a Amd64 mission so we can Docker run and my app one amd64 hyphen p port.
+
+We are going to use 8888 as the public port and 8080 as the container port and run it in detached mode
+
+and your Docker image with tag.
+
+So we are going to run this okay.
+
+So we'll go back here and I will say clear docker run hyphen hyphen.
+
+Name my app one app one hyphen AMD 64 and hyphen P88888080 hyphen d.
+
+And we have the docker image.
+
+So this should push the.
+
+This should pull the amd64 docker image so we can directly run it so that it can bring it.
+
+It can pull and then run it.
+
+Or we can first verify Docker images here.
+
+And we can see we don't have anything related to retail UI I multiarch.
+
+Currently here, these are public images and there is no retail UI.
+
+Multiarch here.
+
+Okay, so you can also run just docker pull and this name if you want.
+
+And it can download the Amd64 automatically.
+
+Anything is fine.
+
+So we can first we will try to pull that Docker image.
+
+And then after that run it.
+
+So let's wait for it to download.
+
+So if we run the Docker images right.
+
+We can see it should be downloaded.
+
+Retail UI Multiarch is downloaded.
+
+Now we'll go here and copy this command which we have not done yet.
+
+So we will copy this command and run it.
+
+And now clear and docker PS and our container is running.
+
+Now if you want Docker logs hyphen f my app 1AD 64.
+
+If you want to verify the logs of this, you can verify this way.
+
+Now what we will do is we'll go here and we will get our application public IP address.
+
+So this is the amd64 VM.
+
+Now we will go back here and access it here http colon slash slash and 8888.
+
+And our application should be accessible.
+
+This is a D 64.
+
+Now if you want to run on Arm64 then we need to create that instance okay.
+
+So we will go here and we will go ahead and then create a new instance.
+
+Okay.
+
+So we'll go to.
+
+Launch instance.
+
+This is Docker VM amd64.
+
+So this we will do in our next lecture I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+In this lecture we are going to create a arm64 VM and run and test the container.
+
+Test the container.
+
+So whatever the Docker image we have built here.
+
+So here already we have tested the Amd64.
+
+Right now we will test the ARM 64.
+
+So let's come back here and start creating a arm64 doc VM and install Docker on that okay.
+
+So let's go here and launch the instance now.
+
+And this is optional okay.
+
+So we have built and how to build it using Docker build X is already completed.
+
+But this is like if you want to test it thoroughly you can do that okay.
+
+So we will say Docker VM 64.
+
+And this is the Amazon Linux.
+
+And here we are going to say 64 bit ARM not x86.
+
+It, it is going to be a write.
+
+And here.
+
+Type is going to be T4 g large.
+
+Okay.
+
+So we'll select that and key pair.
+
+We'll select DevOps demo 101 and we'll select Security groups.
+
+And later we will also add additional settings here additional things.
+
+So we'll put the storage as 30 GB right.
+
+And we will launch the instance.
+
+Right.
+
+And when instance is launching right.
+
+So we'll go here and refresh it.
+
+Let's wait for the instance to get created.
+
+So we can see Docker VM arm64 is created.
+
+So here we'll go to the security and go to this security group right.
+
+And edit inbound rules and add rule.
+
+And we'll say all traffic and air will, or all TCP and allo from internet at 0000 and save rules.
+
+Okay, now security group is done.
+
+Now we will go to this VM instance.
+
+So this is the v docker VM arm64.
+
+So we will try to connect to that VM right.
+
+And this is the one we need to connect.
+
+And we'll go to Cloud Shell here.
+
+And in the new tab right here.
+
+This is the second tab.
+
+We are going to connect to the new VM instance which is Arm64.
+
+So I'll say yes.
+
+And here if I say cat etc. OS release.
+
+So these are the information about the OS it is using.
+
+And if you say uname minus M right it will say a rc h 64 which is Arm64.
+
+If you go to the AMD one and if you say you name hyphen m, it is x86 64.
+
+So both we can see the differences right.
+
+So this is 27 to 41.
+
+And this is 77 128.
+
+Just to remember.
+
+Okay.
+
+Now we need to quickly install the Docker here.
+
+So we will run all these commands.
+
+Now to install the docker.
+
+So these are standard things.
+
+So we'll go ahead and then do it quickly right.
+
+So paste and we'll go back and install Docker.
+
+We'll also install Docker now and also enable Docker after installation.
+
+So Docker is installed.
+
+So let's enable Docker and we'll also start Docker.
+
+We will start the Docker now and we'll also add the user mode related command.
+
+And after that we'll also run Docker version paste.
+
+And this is already done right.
+
+So now we will exit and we will log in one more time.
+
+Okay.
+
+So we need to exit and login.
+
+So this is the instance.
+
+And we will go inside that instance again and clear.
+
+And we will also say uname hyphen m.
+
+So it should be arm64.
+
+And now we will docker run hello world.
+
+We will also run docker version docker version.
+
+And we will also run docker run.
+
+Hello world to see Docker is working.
+
+So hello from Docker.
+
+So Docker is working here.
+
+Now what we are going to do here is here directly we have used the Arm64 machine and it worked.
+
+But what now.
+
+What we will do here is we will go to our repositories here.
+
+We didn't test this scenario.
+
+Actually we will do that okay.
+
+So this is the problem right.
+
+So when you pull the Amd64 image on Arm64 what will happen.
+
+We are going to see okay.
+
+So that we are going to do now first okay.
+
+So for that we will go to our Docker Hub.
+
+This is the Docker Hub.
+
+And you have the retail store sample UI.
+
+So this is the one retail store sample UI.
+
+And here in the tags you can see that you have only Amd64.
+
+So we will try to copy this and then use it only amd64.
+
+We have inside this okay.
+
+We do not have Arm64.
+
+So we will go here.
+
+We have copied that.
+
+So this is the Docker image.
+
+We are going to run on ARM 64.
+
+So let's come back here and we will run the command docker pull and stack simplify retail store sample
+
+UI 1.0.0 and we are downloading the Docker image here.
+
+Okay, so let's wait for it to download.
+
+Now if you run the command docker images so it is downloaded now I will say docker run hyphen hyphen
+
+name and I will say my app one amd64 test and hyphen p I will say 8899 colon 8080 hyphen d.
+
+And this is the docker image.
+
+And let's see what happens okay.
+
+The requested images platform amd64 does not match the detected host platform arm64, V8 and no specific
+
+platform was requested.
+
+So we have seen the error right.
+
+So we have seen the problem actually.
+
+So this problem point we have seen now.
+
+So now we will go ahead and then see the solution part Okay.
+
+So that is we will go back now to our stack simplify retail UI multi arc.
+
+And here in the 1.0.0 you also have the Arm64.
+
+So we will copy this.
+
+So it should 1.0.0.
+
+When you when you select the tag it should automatically download based on the platform you are running.
+
+So if your platform is arm64 it will download the arm64 docker image.
+
+If your platform is amd64, it will download the amd64 docker image.
+
+So clear and we will say docker pull and colon 1.0.0.
+
+And now it is downloading the docker image.
+
+And after that we are going to run the Docker image and then verify.
+
+Now docker run and hyphen hyphen name my app one.
+
+Hyphen 64 and hyphen P and 8889 will give the number here as nine earlier.
+
+For amd64, we have given double I, double eight just for our showing the difference on the browser.
+
+Other than that, nothing.
+
+Why?
+
+Because on this machine also 8888 port is free.
+
+We can use that also 8080 and hyphen D run it in detached mode.
+
+And this is the docker image say 1.0.0.
+
+And let's see what happens.
+
+It has run successfully.
+
+It didn't throw the error.
+
+Now we will say docker PS and we can see this is running without any issue.
+
+And if you want docker logs hyphen f and my app 164 and it should be running.
+
+So this is also no issue.
+
+Now we will go here.
+
+This is the arm64 VM instance.
+
+So we can go here.
+
+And this is the public IP for it.
+
+And we already gave the security group.
+
+You can see all traffic allowed here.
+
+Now we will go to our browser here.
+
+This is from our Amd64 mission here.
+
+Using 8889 we will get the Arm64.
+
+We can see Arm64 is also accessible.
+
+So we have successfully tested everything.
+
+So now we can go ahead and then delete the VM instance which is related to 64 which is not needed for
+
+us.
+
+So this Arm64 mission you can go ahead and then terminate it okay.
+
+So we don't need it.
+
+So we can go ahead and then directly terminate it.
+
+And this Docker vm amd64 will hold for a while okay.
+
+So this completes the demo about how to build multi-platform Docker images.
+
+So we have seen the problem and we have seen the solution how to implement it or how to build the Docker
+
+images.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+This is an optional lecture where we are going to build a 2.0.0 version of this Docker image by updating
+
+the home dot HTML.
+
+So if you remember as part of this demo right.
+
+So if you go to this here in zero to Docker commands and build Docker image and push to Docker Hub,
+
+right.
+
+So if you go down here right.
+
+So inside this.
+
+So we if I search for said right.
+
+So here as part of step 03I have changed.
+
+I have added something like V2 version added in our home dot HTML.
+
+So this is what we are going to do now.
+
+So we'll go back here right.
+
+So I'll show you how we are going to do that.
+
+So we will.
+
+Go back to the terminal here.
+
+And ours is Amd64 mission right.
+
+So this is our build VM.
+
+So here we will go to demo Multiarch.
+
+And here we have the code which is the V1 version.
+
+So we are going to say c p hyphen r retail store this one and we'll say v2.
+
+So here we are going to make the changes inside V2 folder.
+
+Okay.
+
+So I'll say copy and I'll put it this way.
+
+And I will go inside this V2 retail store.
+
+And here in the source directory we'll have the UI.
+
+And in UI again we will have the application source directory.
+
+And inside that we will have the main.
+
+And inside main we will have something called resources.
+
+And in resources we are going to have something called templates.
+
+And in so you can see the present working directory where we are now.
+
+Okay so here you have the home dot HTML.
+
+So I'll go here.
+
+And for that home dot HTML I'll run this command.
+
+So where I am 0 to 0 three build docker image push to Docker Hub.
+
+So here in step zero three we have used this command.
+
+So secret shop will be replaced with Secret shop V2 version.
+
+So I'm going to do that now.
+
+So let me copy this and let's, uh, go here and run that.
+
+And now, if I say grep hyphen I secret in home dot HTML, it should be replaced with v2 version.
+
+So now we are going we have made the changes.
+
+Now we'll come out of this right.
+
+So we'll come out of this.
+
+And now we are in V2 folder.
+
+We'll go to source.
+
+And in source we'll go to UI.
+
+And here you will find the Docker file.
+
+See our Docker file is present.
+
+So if you want you can see the present working directory.
+
+From here on we are going to run the build command okay.
+
+So let's go back.
+
+Go back here.
+
+And this is our current section which is build and push multi-platform images.
+
+So first thing is we need to set all these things okay.
+
+So one is why.
+
+Because our uh our terminal earlier it expired right.
+
+So we have re logged in.
+
+So we need to export these things again.
+
+So we will try to copy these things.
+
+This is the one.
+
+And.
+
+I will paste it.
+
+And here this is the multiarch.
+
+And another thing is this time we are going to use 2.0.0 tag.
+
+Okay
+
+2.0.0 okay.
+
+And now we will also run this one.
+
+We will paste it and we'll go back here and echo Doppler image.
+
+And we should see that now we are going to build this Docker image tag.
+
+Simplify retail UI Multiarch and 2.0.0 we are going to build.
+
+So let's come back here and we are in demo multiarch.
+
+All these things are there.
+
+Now this is the command we need to run okay.
+
+So we can directly run this command because we already have the 2.0.0 inside this dollar image.
+
+And now let's see how fast it will build it.
+
+Why?
+
+Because it is present in cache.
+
+Most of the stuff only you change it code in one file which is home dot HTML and that is also a static
+
+template.
+
+Okay.
+
+So let's see what happens.
+
+Okay so for these downloads anyway it is going to take time.
+
+But even then those also present in the cache okay.
+
+So let's see what happens.
+
+Okay.
+
+So you can see lots of things.
+
+It is taking from cache this DNF installations all these things.
+
+It is taking from cache only for building means like the jar building only now it is doing so rest all
+
+it took from cache.
+
+Which means if we go to our docker file here.
+
+Right?
+
+So if we go back to our, uh, we can go to our Visual Studio Code.
+
+Let me open that in meantime.
+
+Okay.
+
+So let me go to the Visual Studio Code.
+
+Let me open it.
+
+And if you go to the project files I'll try to change this.
+
+1.2.4 is fine.
+
+Okay.
+
+Anything is fine.
+
+Okay.
+
+So we'll go here and here in source.
+
+Right.
+
+And in UI you have the Docker file here.
+
+So in this Docker file, these installations these installations, it is directly taking it from the
+
+cache.
+
+Because a caching layer Docker image is present in the cache.
+
+With this.
+
+So it took directly from there.
+
+So if we come back here only it run the Mvn commands means like it is only just building the jar file
+
+in amd64 and arm64.
+
+Rest all commands it is trying to take from cache itself, so it is going to be faster.
+
+Now it is 82 seconds earlier.
+
+It took close to 40 minutes and now let's see.
+
+I am feeling like this will be done in a minute.
+
+In 2 to 3 minutes it should be completed.
+
+That is what I am feeling.
+
+Let's see what happens.
+
+So Arm64 building docker images is fivex to ten x slower on Qemu emulators, so it might even take a
+
+little bit of time only for this.
+
+Okay, only for this we can see building jar on amd64 is completed, but building jar on arm 64.
+
+It is taking a little bit of time, so let's wait for it to get completed so we can see it here.
+
+Jar building for ARM 64.
+
+It took close to three 44 seconds, which is close to six minutes.
+
+So this is the complete build time.
+
+Three 54 seconds.
+
+Everything is completed earlier.
+
+This is close to six minutes earlier.
+
+It took close to 40 minutes.
+
+Now let's go back to our.
+
+We'll go back to our here and we will verify the retail UI Multiarch.
+
+Right.
+
+So this is the repository.
+
+So we'll go to repositories.
+
+And in repositories we'll go to retail UI Multiarch.
+
+And here in the tags section you can see 2.0.0 tag.
+
+And you have Linux Amd64 and 64.
+
+So one thing you need to understand here is when you have changes to your code, only building the jar
+
+file that that 5 minutes or 6 minutes.
+
+It it takes time, but rest all everything is coming from the cash.
+
+So we really don't need to worry.
+
+So it is going to be speed.
+
+Only 5 to 6 minutes for build is fine.
+
+Now let's go ahead and run this 2.0.0 amd64 docker image and access it on browser.
+
+So let me copy this and let's come back here and we will say docker run hyphen hyphen.
+
+Name my app 1V2 amd64 app.
+
+And we are also going to give hyphen p.
+
+And we will say 80 890 and 8080 is the container port.
+
+And we are going to run it in detached mode.
+
+And this is the Docker image with 2.0.0.
+
+And let's run it.
+
+And if I run the command docker It should be in the running state so we can see it here.
+
+2.0.0.
+
+So this is running 889028080.
+
+Now we can go here.
+
+And this is the V1 version which is running okay.
+
+So this if you go back here and see the IP address of our EC2 instance also 381 3072.
+
+So it should be the same thing here.
+
+Three 8130, 72 8888 is the thing which is currently running and which you can see it here.
+
+8888 this is the V1 version.
+
+Now we have also built the V2 version amd64 docker image downloaded and which is on 8890 port.
+
+So let's access it now and we can see V2 version is also accessible.
+
+So we have successfully seen the caching stuff here how it is going to cache and build the version two
+
+of our application.
+
+So this completes the demo about multi-platform Docker images.
+
+I'll see you in the next demo
+

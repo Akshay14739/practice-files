@@ -1,0 +1,1869 @@
+Welcome back.
+
+We are entering into the demo 0605 remote backend S3 bucket.
+
+So all right, before we jump into the actual remote backend demo, which is nothing but 0606 VPC with
+
+remote backend.
+
+We will go inside 0605 remote backend S3 bucket.
+
+And in my previous course many students like I have multiple Terraform courses available and from them
+
+many students asked about.
+
+When I'm talking about this remote backend concept, they said that hey, why are you creating the S3
+
+bucket manually for Terraform state storage?
+
+Can't we do that using Terraform itself?
+
+So that made me think of adding this additional section here before going to the remote backend section.
+
+So for remote backend section we need to have the S3 bucket to store only our Terraform state files.
+
+So that can we do it using Terraform.
+
+We can do that right.
+
+So instead of going manually and creating a S3 bucket and then versioning that bucket and removing public
+
+access for that bucket instead of doing all those things manually.
+
+So let's also do that using Terraform in that line.
+
+I have added this small Terraform project in 0605, whose only job is to provision the S3 bucket required
+
+for Terraform backend section.
+
+So first let's see what this project does.
+
+So it just creates a S3 bucket where we store our terraform state file.
+
+So if we go back to our Visual Studio Code here, you can go to our 0605 remote backend S3 bucket in
+
+Terraform manifest folder you have the C1 versions and you can see the standard Terraform and provider
+
+block.
+
+And in Variables.tf you have the environment and AWS region.
+
+And in S3 bucket you have some resources here.
+
+One is random string and the other is AWS S3 bucket.
+
+These two things when you are learning about the Terraform Foundation 0602.
+
+You have already created a S3 bucket with random string and then S3 bucket resource.
+
+So here we are going to provide the bucket name.
+
+So this is the random string.
+
+So that your AWS S3 bucket can be globally unique.
+
+For that purpose we have added this random string resource.
+
+And here is the AWS S3 bucket resource wherein whose local name in Terraform is going to be TF state
+
+bucket.
+
+And the bucket name starts with TF state hyphen.
+
+And you will provide your environment name, and you will also provide your region name.
+
+And after that you will provide the random string, whatever it is generating as part of this resource.
+
+And you also added these tags okay.
+
+Life cycle, prevent destroy.
+
+Ideally you should put true for this.
+
+Why?
+
+Because this contains all your infrastructure related Terraform state files okay.
+
+In our case we are in the learning mode.
+
+I just put it as false.
+
+But in production grid you need to define life cycle meta argument and say prevent, destroy.
+
+True so that accidentally this S3 bucket cannot be deleted using Terraform.
+
+Now let's come back here.
+
+We have also enabled the versioning for the bucket.
+
+So next is we have also enabled the server side encryption for this bucket.
+
+And we have also blocked all the public access for this bucket.
+
+Standard S3 bucket resources.
+
+So you can go to these respective resources and review the arguments whatever it is present.
+
+Pretty stranded okay.
+
+And we have also defined couple of outputs.
+
+One is bucket A and the other is bucket ID which is nothing but the bucket name.
+
+So let's go back to the terminal here and go ahead and then implement.
+
+This means like create that bucket.
+
+Okay.
+
+So we'll go to zero six Terraform basics.
+
+And we'll also go to 060605 remote backend S3 bucket.
+
+And inside that we'll go to Terraform manifest.
+
+And we will run the commands init validate plan and then apply.
+
+So initialization is completed.
+
+So we'll run the command terraform validate.
+
+Now our validate is successful.
+
+So I'll run the command Terraform plan.
+
+We can see here plan is going to create five resources for us.
+
+And those information is present here.
+
+And region it is saying is us East two.
+
+Why.
+
+Because in our environment variables as part of previous demo.
+
+Right.
+
+So we might have set something here okay.
+
+See this is the one because of it.
+
+It is doing that.
+
+But we need to create this in US east one.
+
+So let's unset these two things.
+
+So we'll just say unset copy unset and this one and unset and also copy this one.
+
+And now if I run env grep tfr nothing is there.
+
+And we'll run the Terraform plan again okay.
+
+Or you can take the new terminal.
+
+And in that new terminal it will anyway be unset, so I manually unset it.
+
+Okay, now let's come back here and you can see the bucket versioning and region is us East one.
+
+Let's go to the bucket name here.
+
+Where is the bucket.
+
+This is the S3 bucket.
+
+And if we go here name of the bucket is tf state hyphen dev hyphen US East one region.
+
+So that means like in the tags okay so we got the environment name as tag.
+
+That is good okay.
+
+Now if we go to the name section here right.
+
+So that will be pre-populated or where is it.
+
+See ID known after apply.
+
+Why.
+
+Because it also need to generate that random suffix.
+
+And using that it need to create the bucket.
+
+So we'll go ahead and run the command Terraform apply.
+
+And I will also provide auto approve.
+
+So for everything is good right.
+
+It is going to create in US East one.
+
+So I have no issues on that.
+
+So I'll go ahead and then run the command Terraform apply auto approve.
+
+So we can see five resources added.
+
+And my bucket name is TF dev.
+
+Us East 1JPJ tof.
+
+So if I say aws s3 ls grep tf state, I might have couple of other buckets also in this naming line.
+
+So we can see this is the one which just now created east one JP j tof.
+
+So like this, which is the random string it generated.
+
+Now for this respective project terraform tf state file will be here only in the local.
+
+So when you are doing all other Terraform demos, ensure that this is safe.
+
+You don't delete it so that you can under-provision your S3 bucket.
+
+After learning about all the Terraform demos, including this S3 bucket, you can unprovisioned using
+
+Terraform itself.
+
+If not, again, you need to manually go to AWS console and go to S3 buckets and delete the bucket whatever
+
+you have created.
+
+So this completes the demo about creating a S3 bucket which is required for remote back end demo.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+We are entering into the demo 0606 VPC with a remote backend.
+
+So here we are going to discuss about what are all the local state file changes and how Terraform remote
+
+state file solves them.
+
+So let's start with understanding that in a detailed manner.
+
+Let's imagine we have admin one and then admin two.
+
+So both are working on the same Terraform project.
+
+But the state file is being stored locally on Admin One's desktop.
+
+So here is the challenge we are going to have.
+
+How will admin to get the latest state file before making the changes.
+
+So that's the key problem here when we are using the local state files.
+
+So he as he cannot access the local state file.
+
+So whenever he runs terraform plan or terraform apply.
+
+So because he doesn't have a state file information right.
+
+Actual infra information is not with him, so this might cause issues for him.
+
+Okay.
+
+So that is one problem with Terraform state file.
+
+And what if each admin keeps the their own local copy of Terraform state file.
+
+So when that is the case we will end up with conflicts and and duplicate infra.
+
+And also we might face complete terraform state file corruption.
+
+And also out of sync infrastructure will get created and there will be lot of problems.
+
+So with local state file it's a big problem.
+
+So that's one challenge.
+
+Okay.
+
+So that's one very important challenge mainly related to collaboration.
+
+So the question here is where should the state file be stored.
+
+If multiple team members need to work together whether it is local or remote.
+
+So that's one important thing to be solved.
+
+When we are using local state file it becomes a problem for us.
+
+And the other thing is, how do we make sure the state is recoverable if it gets corrupted or deleted?
+
+So in that case for local state file, we don't have the versioning thing.
+
+So we don't have collaboration.
+
+We don't have versioning when we are using the local state file.
+
+And we also have another problem.
+
+What if two admins apply changes at the same time.
+
+Will terraform override these things right.
+
+So there is no state locking mechanism.
+
+So it will allow changes from both sides.
+
+So that's another problem wherein it might lead to duplicate infra or out of sync infra and also corrupt
+
+the state file.
+
+So this mechanism also not there in our Terraform local state and in addition to that state file often
+
+contain sensitive information, sometimes like passwords or keys.
+
+And also we might have our complete infrastructure resource information in those things.
+
+So it is always good to secure those state files.
+
+Is it secure on our local desktops?
+
+It's not the case.
+
+So which means collaboration, versioning, state locking, security.
+
+All these features are missing when we are using the local state file.
+
+So now what is the solution for this.
+
+The solution for this is we need to use the Terraform remote state file so we can see it here.
+
+Terraform remote state file is nothing.
+
+But instead of storing the state file locally, we configure Terraform to store it in a remote location.
+
+So this is the remote location.
+
+So for example in our case which is AWS S3 bucket.
+
+So now both admin one and admin two can safely share the same terraform.tf state file.
+
+They can even access it accordingly.
+
+So now let's understand one after the other versioning, collaboration, state locking and security
+
+how it solves the problem when we are using the remote state.
+
+So first thing is let's start with the versioning.
+
+So we have the state history is tracked and recoverable.
+
+Why.
+
+Because we enable versioning in our S3 bucket.
+
+So what happens is any change happened to your Terraform state file.
+
+You have a backup of means like it will take a backup and a new file will get created with new changes.
+
+So versioning problem is solved.
+
+Now next is collaboration.
+
+So because AWS S3 bucket is a shared resource for both, anyone can access that resource.
+
+Multiple team members can work together without stepping on each other's toes.
+
+So because it's in a shared location, your Terraform state file is present in a shared location.
+
+So from collaboration standpoint, we don't have any issue.
+
+And there is something called.
+
+when two people try to do the changes at same time, what will happen?
+
+So when you have the AWS, when you store your Terraform state files in AWS S3 bucket and there is a
+
+flag called use log file.
+
+Okay.
+
+So use log file equal to true.
+
+So when you use this argument right.
+
+So what happens is state locking will be enabled.
+
+So it prevents two applies from happening at the same time.
+
+Which means at any point of time when you are trying to initialize your project and then trying to plan
+
+your project, when you run the Terraform plan itself, a lock will be enabled on this Terraform state
+
+file.
+
+So when admin one trying to do that.
+
+So at the same time if admin two tries to access it then he will not be able to access.
+
+So once that state file lock is released then only admin two can access it.
+
+So an additional check is available here.
+
+Use log file equal to true.
+
+So state locking is a success thing.
+
+And finally security because the file is protected with IAM permissions and you have some IAM permissions
+
+and it is not exposed externally.
+
+And also you have the encryption.
+
+Also you can enable in in your AWS S3 buckets.
+
+So which means all these things gives you higher security.
+
+So in very simple terms we can say local state works for single user experiments.
+
+But for real team projects and real world projects always go with the remote backend.
+
+The the word here is remote backend.
+
+Okay.
+
+So we are going to define that now in our C1 versions.
+
+There you will understand more.
+
+So this remote backend keeps your infrastructure safe, consistent and production ready.
+
+So let's go ahead and then practically implement this in our next lecture.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+Let's go back to our GitHub repository.
+
+And we need to ensure that our AWS S3 bucket is created.
+
+So as part of.
+
+So let me refresh this.
+
+And as part of uh 0605 remote backend S3 bucket, we already created that S3 bucket.
+
+So if we go back here.
+
+Right.
+
+So if we go back to our terminal and go to, uh, we can go to zero six Terraform basics and 0605 remote
+
+backend S3 bucket.
+
+And in Terraform manifest, if I run the Terraform output command.
+
+So we can get that bucket name which we have already done as part of 0605.
+
+So this is the bucket name.
+
+So now let's remember this bucket name or let it be that way.
+
+That is the prerequisite.
+
+We should have the S3 bucket created so that we can point our current project, which is our VPC project
+
+back end from local to remote.
+
+So that's what we are going to do.
+
+So what we will do is so we will go back here.
+
+And so this is our S3 bucket.
+
+So let's come back to our Visual Studio Code.
+
+And in 0606 VPC with remote backend you have the Terraform manifest folder where you have your complete
+
+VPC related projects which you have implemented earlier, which is in your 0603 VPC or 0604 vpc tf vars,
+
+whatever the VPC project is there.
+
+It's the same thing okay.
+
+So only thing is.
+
+Additionally, we have added Terraform vars because we learned that concept in 0604 vpc tf vars so that
+
+you don't need to always go to Variables.tf and edit the default values directly in Terraform tf.
+
+Which environment?
+
+Which which variable you want to change the values, you can change it here.
+
+For that purpose we added terraform.tf.
+
+That's all.
+
+Now the core focus here is on the remote backend what we need to define.
+
+So if you inside your Terraform block.
+
+So when you run control space you can see the back end block here okay.
+
+So default is local state file.
+
+So here this backend block we are going to select.
+
+And these are the supported things.
+
+Immediately it is showing right.
+
+Azure RM console cos GCS http Kubernetes.
+
+Default is local OS PG means like remote and S3.
+
+So we are going to select S3 here.
+
+And inside that we will start with the first thing which is bucket name.
+
+So we'll start with the bucket name here.
+
+So we know the bucket name.
+
+So if I go back to.
+
+So if I go back to our terminal here this is the bucket name.
+
+So we got it using Terraform output from our 0605 remote backend S3 in your case.
+
+Also, you will have a bucket name created and it should be something like this.
+
+So this value might change for you.
+
+Okay, now the next thing is we also need to define the key right.
+
+So you can again say here and search for key.
+
+And here where you are in this respective bucket in which path you want to store your Terraform state
+
+file and what should be your state file name.
+
+So I'll say let's create a folder VPC.
+
+And this is for dev environment.
+
+And my file name should be terraform.tf state.
+
+So that's the thing.
+
+So inside this bucket in VPC folder in dev folder this file will get created.
+
+It's your desired style.
+
+How you want to manage your state files in your S3 bucket in your organization.
+
+Any folder naming patterns are there.
+
+Accordingly you can store.
+
+So some people say from dev and it is dev VPC like some people might store like you can say like dev
+
+slash VPC slash, terraform dot it like it's it's it's our design how we want okay.
+
+Right.
+
+So and TF state okay.
+
+All these are desired names.
+
+Whatever we want we can put it I want this way.
+
+So I have put it this way.
+
+Now here another important thing here is in which region.
+
+Right.
+
+So this is another important thing optional one.
+
+But we will provide that us east one.
+
+And one important thing you need to remember is we have defined variables here.
+
+And you have added that var dot aws region in your provider.
+
+But why are you not adding this in Terraform block.
+
+So you can directly add var dot AWS region here.
+
+Right.
+
+So it's not possible for Terraform block variables are not allowed okay.
+
+So it's it's a fundamental rule.
+
+So you cannot use var dot aws region here as on today.
+
+So future if they change we don't know.
+
+But as on today okay.
+
+Now the next is we'll also provide encrypt equal to true.
+
+And one very very important thing which is which we have discussed also here.
+
+Where is that use lock file equal to true.
+
+So this is what we have talked about.
+
+So what this use lock file equal to true will do.
+
+It will enable the state locking.
+
+So state locking will be enabled when you use the use lock file equal to true.
+
+So that's what we are going to do now.
+
+So we will say and that is use lock file and we will say true.
+
+So that's what is the thing.
+
+So this way you can define your remote backend and rest.
+
+All code is as is.
+
+So now if I create a terraform init plan apply and plan init validate apply plan and then apply.
+
+So after the apply, my terraform state should be present in this S3 bucket.
+
+So if you go to this JP of S3 bucket currently nothing is there.
+
+Okay.
+
+So what we will do is we will go back here and go to the terminal and we'll come back of 0605.
+
+We'll go to 0606 VPC with remote backend.
+
+And here we will go to Terraform manifest.
+
+And here we will run the command terraform init validate plan and then apply.
+
+Now we will run the command validate.
+
+So we can also run the command terraform plan.
+
+Before that you can also here when you have run the command terraform init it is saying initializing
+
+the backend successfully configure the backend S3.
+
+So Terraform will automatically use this backend unless the backend configuration changes.
+
+So that's what it is trying to tell us.
+
+We'll try to refresh here also.
+
+And nothing is added here so far.
+
+So now we will come back here and we will also say Terraform plan.
+
+And after that we'll run, apply approve or to approve commands.
+
+Also we will run.
+
+So our Terraform plan is successful.
+
+18 resources.
+
+It is going to get created.
+
+So we'll say Terraform apply auto approve.
+
+And let's wait for all the resources to get created.
+
+So here the resources are getting created.
+
+So if we refresh here.
+
+So VPC folder is created inside the dev folder is created.
+
+And terraform dot state dot.
+
+You can see the TF lock.
+
+So whatever we talked about whenever some changes are happening it will put your state file in the lock
+
+mode which means another admin cannot access it so that you are practically seeing it now.
+
+So admin one is trying to access your S3 bucket and making some changes.
+
+And now it is in the.tf log mode, and admin two cannot access your state file at that point of time,
+
+which means till all these resources are getting created.
+
+So your terraform state file will be in the lock mode.
+
+So let me come back here and try to refresh it.
+
+And it is still in the lock mode.
+
+And you can see the TF state file is also present.
+
+So once all the resources are created this log file will be released.
+
+You will not have any lock file here.
+
+So let's wait for all these resources to get created.
+
+And after that when you see this log file should not be present.
+
+We can see here all 18 resources created successfully.
+
+Now let's come back here and then refresh.
+
+So now log file is released.
+
+So Terraform tf state file got created.
+
+And you can try to open this file here.
+
+Will it open?
+
+Let me click on this.
+
+And this is your complete Terraform state file.
+
+Okay.
+
+So this complete state file you can see it here.
+
+Now let me close this and go to dev here.
+
+And we will click on this Terraform state file.
+
+And we can also click on the versions okay.
+
+So it started with the base file.
+
+And then it is the current version.
+
+You can see latest version available.
+
+So it means like versioning is also successfully working.
+
+If we want we can also still one more time if we want to make any change and then try it.
+
+So we can also try that.
+
+So we can go to Visual Studio Code here.
+
+And we can go to Terraform Mars demo.
+
+And then here you can say some something like V1 zero one something you have added here for uh tags.
+
+Okay.
+
+For tags, which means all the resources will get impacted whoever are using tags.
+
+So if you run the command Terraform plan here and you can we can go back here and go to the state file
+
+here.
+
+And if you try to refresh see when you are running plan.
+
+Also it will be in the log state only after successful completion of plan, then only this log will
+
+be released.
+
+So let's see now plan is successful.
+
+It is saying 12 to change and let's come back here and refresh.
+
+Your log file is released now so another admin can access this state file now.
+
+So we'll try to also apply these changes apply to approve.
+
+And let's wait for it so that again the log file will get generated when the changes are getting applied.
+
+See the log file is generated.
+
+So other any other admins cannot access this.
+
+And once these changes are applied.
+
+So we'll go ahead and also verify it worsened or not.
+
+So your Terraform state file versioning is also happening or not.
+
+We can verify.
+
+So all the problems like versioning we can see it is happening.
+
+Collaboration.
+
+So we can see we can do because collaboration and state locking goes hand in hand.
+
+So anyone can access your S3 bucket related Terraform state file.
+
+If you have those equivalent.
+
+All the information means like your TF configs, so that anyone can make changes who are authorized
+
+to do so.
+
+Collaboration is there and at any point of time only one resource can make changes.
+
+State locking is working and it is encrypted and which is present in AWS S3 bucket.
+
+All public access is disabled.
+
+And still, if you want to increase security, you can add IAM permissions and stuff.
+
+So it is highly secure.
+
+So all these things we have seen now.
+
+So let me refresh it.
+
+If changes are completed so we can see it here.
+
+Changes are completed.
+
+So now let's come back here and click on Terraform state and go to versions.
+
+And you have one more version currently now with 1538.
+
+At this point of time you have one more version available.
+
+So that's about uh, using the remote backend.
+
+Now in our next demo, we are going to focus on learning about one more Terraform concept called Terraform
+
+modules.
+
+So which means we need to destroy whatever all the resources created here.
+
+So I'll try to destroy these things.
+
+In our next demo, we will convert our current VPC Terraform project into a reusable Terraform module.
+
+So we'll see how to do that in our next demo.
+
+Now this is getting destroyed in in parallel we will also ensure that this change, whatever we have
+
+done in the config file I will roll back.
+
+So this completes the demo about Terraform remote backends.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+In this demo we are going to learn about Terraform modules concept.
+
+So we are entering into the demo 0607 VPC module.
+
+So let's understand what are these Terraform modules.
+
+So a module in Terraform is basically a reusable container of resources.
+
+Instead of writing the same code again and again, we can group related resources into a module and
+
+call it whenever needed.
+
+So you can see here we have grouped all the VPC related module VPC related resources into a single module.
+
+So all these things.
+
+So let's understand first what is root module and what is child module so that we get more clarity about
+
+it.
+
+So let's talk about the root module here.
+
+So every Terraform configuration always starts with a root module.
+
+So, so far in all the previous demos, whatever we have seen.
+
+Right.
+
+So if you see this VS code.
+
+So in Terraform Foundation you have the Terraform manifest folder with three Terraform config files
+
+are in VPC.
+
+You have Terraform manifest folder with these five Terraform config files.
+
+So like this.
+
+Everywhere you have seen these config files in the working directory terraform manifest.
+
+So this part whatever you are seeing is called the root module.
+
+So terraform manifest folder with all these main configuration config files.
+
+This come under the root module.
+
+So we can call anything other than these things as we can call other modules inside these root modules.
+
+So those calling modules are called child modules.
+
+So let's understand.
+
+So let's go back here and understand a little bit more about it.
+
+So so far whatever we have defined inside Terraform manifest all those commander root module.
+
+So when the root module calls another module, that becomes the child module.
+
+So this is a root module.
+
+And here you are calling this module which is a VPC module.
+
+You call it as and this is called.
+
+Now this is called the child module.
+
+So a child module here in this demo we have created we have a group of resources in this child module
+
+one is VPC Internet gateway subnets elastic ip nat gateway route table and route table association.
+
+So all these resources together is called the child module.
+
+And the same child module can be reused multiple times within the same configuration and even across
+
+multiple configurations.
+
+So which means in your root module you can call this child module as VPC one and access it once and
+
+again as VPC two one more time.
+
+Also, you can call so you can reuse your child module any number of times, any number of times in
+
+your current route module or any other modules, wherever you want.
+
+Which means, like any other configurations, any other Terraform projects, wherever you want, you
+
+can call these modules.
+
+That means we write once and reuse everywhere, wherever we need.
+
+So that's the advantage of using these modules or modules.
+
+Concept is primarily built for that.
+
+Now here comes so we said that you can call these modules wherever you want in your current route module
+
+or wherever, whatever the project, if you want you can call it, which means this code should be whatever
+
+the child module code should be globally accessible so that you will be able to access it from there
+
+and then use it in your projects.
+
+Right.
+
+So for that purpose, the important concept here comes is the module storage.
+
+So where do these modules come from.
+
+So where do you store them actually.
+
+So the first important thing here is you can store them in your local file system or your shared file
+
+system in your organization.
+
+So either in your local directory or shared file system.
+
+So this is when single person is operating you can use in your local directory.
+
+But in your organization it is recommended to use shared file.
+
+Directory is one option so that all the admins A1, A2, a3 will have access to these respective modules
+
+whatever you have created.
+
+But another thing, right?
+
+So if you if you don't want to use this file system approach so you can you can publish these modules
+
+on your GitHub repository.
+
+Okay.
+
+Private GitHub repository.
+
+Also you can publish them or Terraform also provides a private registry option for hosting the modules.
+
+Terraform also provides a private registry option so where you can host them if you want.
+
+Okay.
+
+So you call it as Terraform okay let's keep terraform there.
+
+You have the private register option there.
+
+You can also host them.
+
+Or you can also have which is terraform cloud.
+
+And you can also have Terraform enterprise where you can host them or your GitHub.
+
+The other option is in your organization if you have GitHub or GitLab okay something whatever is there.
+
+So those things also you can use GitLab, git, GitLab or GitHub or whatever it is so you can use those
+
+also.
+
+Now whatever you store in these registries, you call them as published modules.
+
+Now in addition to private registries and local file systems and shared file systems, there will be
+
+something we also need to discuss which is public registries, okay.
+
+And publicly public registries.
+
+Also you can store in your GitHub.com or Terraform registry, which means you can publish to your Terraform
+
+registry.
+
+Also you have you have developed a module.
+
+And if you want to publish publicly as a open source contributor, you can publish that to your Terraform
+
+register or in your own GitHub account as a public repository.
+
+You can expose even those options also available for us.
+
+So now if you go here right.
+
+So where is this this this is the Terraform registry.
+
+And you can see browse modules.
+
+And here you see the line.
+
+This is the important thing.
+
+As of today, 5560 providers and 20,719 modules are there if you go to Terraform.
+
+So as on today 20,000 plus modules are created which we can use in the.
+
+And these all are open source.
+
+So you can see it here.
+
+So these for all these providers you have the modules created reusable code which you can directly use
+
+it.
+
+So for AWS provider you have a IAM module S3 bucket VPC module ECS module.
+
+So like this you have and their downloads.
+
+Also you can see two 87.4 million in a month.
+
+Okay.
+
+One 47.6 million a month ago.
+
+So like this.
+
+You can see all these, uh, download information also.
+
+So see downloads.
+
+Overall time is 287 million times this module is downloaded.
+
+And only for this year, 1.3 million times it is downloaded.
+
+This is a simple IAM module and you can see here you can provide the Readme how to use this module.
+
+So like this they can provide those things.
+
+And you have inputs outputs.
+
+If you have any defined you can define those also.
+
+So what we'll do is we'll go to another better module so we can see some important information.
+
+So let me go back here and we will try to open some S3 bucket module.
+
+Right.
+
+So you can see it here.
+
+Inputs.
+
+You have 71 inputs and outputs 14 defined and any dependency.
+
+They have also provided the dependencies here which is provided dependency.
+
+You need to have AWS provider and total resources you can create using this module related to S3 bucket
+
+is these many resources.
+
+31 resources can be created.
+
+So in our case for our case we are creating these many resources.
+
+Okay one.
+
+So we will take here something like.
+
+Okay so we are creating 123456 and close to seven resources we are creating.
+
+And again in turn like these will run in loops and create multiple resources right.
+
+Again these might come into many resources like route table for three subnets.
+
+It will create.
+
+It will create three subnets public subnets private and a route table.
+
+Associations.
+
+All those things multiple resource will happen internally with looping.
+
+But on a route level means like seven resources, seven type of resources.
+
+We can see inside this child module in the same way for S3 bucket.
+
+Here you can see close to 31 resources.
+
+And here if you have in in modules itself, you can even create again submodules this way and examples.
+
+Also they will provide here how to use it.
+
+But one important thing here is using these modules in your production grade implementations.
+
+Right is not recommended.
+
+You need to download the copy of this and change as per your organization and then use it.
+
+That is a recommended option because these are open source and doesn't have any support.
+
+And very frequently they keep updating these modules.
+
+The last update happened so and so date.
+
+So if you go to this GitHub repository right you will understand.
+
+So if this is the case and if you doesn't use your uh uh, your version numbers correctly when defining
+
+C version equal to 5.7.0, your application will not break.
+
+For example, you have integrated with this version.
+
+But if you say greater than or equal to symbol here version, then as these modules are continuously
+
+updating.
+
+So when you run the next terraform apply you are infrastructure might break.
+
+So there are multiple issues you might face when you try to use as is again, and then plan to upgrade
+
+in the future.
+
+So all those things need to take into consideration.
+
+These are open source and are available freely for us and you can use accordingly.
+
+So if you go to the releases here you can see 71 releases.
+
+So on 27th August there is one release, 25th August 1st release okay, 20th August 1st release.
+
+So if if you are having this frequent releases adding right, so you can't have these things in your
+
+production for implementation, that's what I feel you need to download and change as per your organization
+
+needs and then use this module.
+
+So now let's come back here.
+
+And we have discussed about the Terraform modules and also module storage in detail.
+
+Now we will go ahead and then convert our current Terraform VPC VPC route module to a child module and
+
+call it in another route module and then test it.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+In this lecture we are going to refactor the VPC.
+
+So we are going to convert the current VPC.
+
+What we have built using 0606 project.
+
+We are going to transform it into a Terraform module.
+
+And after the transformation or after the refactoring it is going to look this way.
+
+So let's understand that in a practical way right.
+
+So we are going to see what all we are going to do as part of this VPC refactoring to convert the current
+
+VPC project to a VPC module.
+
+Let's start with what is the child module it is going to look like and what is the root module after
+
+transformation.
+
+Right.
+
+So this whatever you see here right.
+
+So whatever we see these things come under root module.
+
+So these are root module stuff.
+
+And whatever we see inside this VPC folder.
+
+Right.
+
+So this part we call it as child module.
+
+So these are the things we are going to define now.
+
+So this is already present which is 0606 is already present.
+
+And we are going to refactor it to 0607.
+
+So here in the Terraform manifest you have something called C1.
+
+So which is going to be same in both the root modules of the projects okay.
+
+And next is C2 Variables.tf.
+
+Again it is going to be same which means same.
+
+We are going to copy as is.
+
+So no changes.
+
+Now the next thing comes is C3 data sources and locals.
+
+So this C3 data sources and locals we are going to.
+
+This is the core code of your respective VPC.
+
+Right.
+
+So you will copy that to the modules VPC folder.
+
+In the same way C4, VPC, whatever.
+
+You have all the VPC resources, right?
+
+Even that you are going to copy to your modules folder Main.tf.
+
+Inside VPC, you call it as Main.tf.
+
+And in the same way you have something called VPC outputs.
+
+And even this you are going to copy to your VPC output inside modules VPC outputs.tf.
+
+So again these as is we are going to copy same and then copy.
+
+Now one more thing which we need to know here is.
+
+So we will try to take that as a different color right.
+
+And that is in your VPC module.
+
+Also you need the variables.
+
+So which is C2 Variables.tf should convert to your Variables.tf in your child module.
+
+But one important thing you need to know here is minus region in our Variables.tf.
+
+Here you have the region also defined because it's a root module, you can define it right.
+
+So in which region you want to create your resources but in your module level.
+
+So this is a module which is a reusable module.
+
+Child module is a reusable module.
+
+So using that reusable module you can create your resources in any region right.
+
+So for that purpose you don't need to define a region at the module level.
+
+So minus region.
+
+So it's the same C2 variables.tf converted to Variables.tf.
+
+But we will remove the region and region variable there.
+
+So that's about this one.
+
+And in addition to that we see the Terraform TF pass.
+
+Right.
+
+So it is again the same copy.
+
+So it's also a same copy, right?
+
+So now what is pending?
+
+So everything whatever we are supposed to discuss here related to our 0606 transformation to 0607 is
+
+completed.
+
+So which means these files are completed but in your VPC module.
+
+Right.
+
+So here in the VPC module you have two more things to discuss this one and this one.
+
+So let's discuss those things also here right.
+
+So we will try to take a different color for that right.
+
+So we'll take this color.
+
+And now let's come back.
+
+So this is the C3 VPC.
+
+So what we talk about it is here you will you will call your child module.
+
+So you will say module and VPC and call your child module here which is the child module.
+
+So this is the child module.
+
+So that's what you do in this route module C3 VPC.
+
+And you have something called C4 outputs.
+
+So here you will define the outputs by having the whatever you have defined here.
+
+Right.
+
+The same outputs you will define here.
+
+But your actual outputs are present in child module.
+
+So you will say module VPC dot vpc id.
+
+So this looks something new for us.
+
+But when we are writing the code there or when we are reviewing the code there, it will we will understand
+
+in detail.
+
+So the whole thing is clear right.
+
+So everything how we are refactoring our current VPC code to a child module and again from child module
+
+means like how we are calling from this route module, how we are calling this okay.
+
+So for this entire uh child module, how we are calling in this route module, we are also going to
+
+do that.
+
+So let's go ahead and then practically implement it.
+
+So we will understand this in detail.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+We are in 0607 VPC module.
+
+You have a Terraform manifest storage folder, which is a backup of what we are going to build.
+
+After we are building the Terraform manifest folder, we will delete this.
+
+So now we will go to 0606.
+
+We'll copy this Terraform manifest folder to our 0607.
+
+Right.
+
+So let's come back here and paste it.
+
+Now we will create a folder which is modules inside that.
+
+So modules and inside modules you will create a folder VPC.
+
+And now inside that the first thing is like we are going to copy data sources and locals and C4 and
+
+C5 outputs.
+
+So three things we are going to copy.
+
+So this this and this we are going to copy now to VPC folder paste.
+
+And here we will change the naming.
+
+Just we will remove this configurations name c5 c4, C3 outputs and C4 VPC, right?
+
+In addition to that, we'll also copy the C2 variables.
+
+So all these things we have discussed in the picture also right.
+
+So we have copied the C2 variables.
+
+And in Variables.tf we already discussed we are going to say minus region right.
+
+So this is the one we talked about.
+
+Okay.
+
+So we will come back here and inside the child module we will remove the region.
+
+So that's about the module.
+
+So data sources and locals outputs Variables.tf and VPC.
+
+So you can see data sources and main.tf outputs and Variables.tf.
+
+So all those things we have seen now.
+
+Now the next thing is this is the now child module is over.
+
+Now we will talk about the root module here.
+
+So root module is C1.
+
+So this is going to be as is no changes right.
+
+And C2 variables no changes from our previous project.
+
+And here we will not.
+
+We are not going to have any data sources here.
+
+So we will try to delete this.
+
+Okay.
+
+So we will delete this in the root module.
+
+So we will change the file name to C3 and C4 right outputs.
+
+And we have the terraform.tf.
+
+Now let's talk about c3 VPC.
+
+So whatever we are seeing here right.
+
+So this entire code we are going to remove.
+
+So we don't need all this code now.
+
+So this code is already present in module VPC and Main.tf.
+
+So this VPC you can just name it to Main.tf if you want okay.
+
+So that's the standard way for naming your modules.
+
+So main.tf means entire main important code will be present there.
+
+So now you come back to C3 VPC and how you are going to call these child modules.
+
+So that's what we are going to see.
+
+So what we will do is so we will uh so we'll go to browser and search for Terraform modules and open
+
+any of the modules.
+
+Terraform modules aws VPC something.
+
+Okay, any module will try to open here and see how they are calling it okay.
+
+So provision instructions.
+
+You can see.
+
+So this is the way we are calling it.
+
+We are calling we are defining the module.
+
+So let me copy this.
+
+Come back here.
+
+And in our root module in our root module C3 VPC we are going to define that.
+
+So we are saying module VPC and source and version.
+
+So if your module is a published module on your GitHub repository or on your Terraform registry, public
+
+registry or even private registry accordingly, you can define this here as a source.
+
+Okay, so when you say Terraform AWS module slash VPC slash AWS, which means by default it will take
+
+this way, which is registry dot terraform, dot io slash.
+
+And from there it will get this module.
+
+So ours is a currently a local module.
+
+So which doesn't even have even the versioning.
+
+So from where we are going to specify our source, that's the important.
+
+So where is our source present our source code of our child module.
+
+So inside modules folder VPC.
+
+So we will say this.
+
+So in the current directory you have modules folder.
+
+And inside that you have the VPC.
+
+So there our source is present.
+
+So that is all that is all about your uh you will this will load your VPC now to your VPC.
+
+What all you want to pass the variables right.
+
+So arguments.
+
+So for this module so what all arguments you have.
+
+So so these are the arguments one is environment name.
+
+So you will provide from your current uh variables.
+
+So you have the variables defined here in C two variables.tf.
+
+So those things you are going to provide and again I'll say control space and it will show additional
+
+things.
+
+Whatever we can define one is VPC, Cidr.
+
+So you can say var dot tar dot vpc Sidr.
+
+And additionally you have something called subnet new bits.
+
+And you can say var dot subnet new bits.
+
+So like this you can define you have something called tags also.
+
+So you can say var dot tags.
+
+That's all.
+
+So you don't need to write all this code whatever you have written now.
+
+So just to pass what is pass values.
+
+What is required for this code to execute and create those resources.
+
+Example you need VPC cider.
+
+You need environment name.
+
+So you need subnet new bits.
+
+So like this whatever is needed for it.
+
+So if you go here you need the subnet new bits okay.
+
+So whatever is needed you just pass those things.
+
+And those will be listed here.
+
+Because as part of variables you have defined.
+
+And in the code also it is present.
+
+So when you say control space here right.
+
+So for this module what all things are needed it will be listed.
+
+So now if you go here right.
+
+So this is a count is a meta argument and depends on is a meta argument for each is a meta argument.
+
+And providers all these things are optional values from means like these are from our core.
+
+Terraform okay, not related to our module.
+
+Okay.
+
+So now that's about it.
+
+So this is our module what we have defined.
+
+And next is you need to define your outputs here.
+
+So your outputs you cannot say AWS vpc.id are for S in all these things are not valid.
+
+Now why.
+
+Because your VPC is module dot VPC.
+
+So from there you need to get the values.
+
+So let me remove them here.
+
+So these are not valid.
+
+So we will have a different way of accessing our outputs in the root module from child module.
+
+So that's what we need to learn now right.
+
+So we will go here.
+
+So this is the module module dot vpc module dot VPC dot.
+
+And if you go to the outputs in your module this is the name.
+
+So let me copy this and come back here to C4 outputs and just say module dot VPC dot.
+
+And it is already Pre-populating.
+
+You can see which is vpc ID and in the same way here.
+
+Module dot vpc dot v c dot.
+
+And this is public subnet ids.
+
+So that is the thing.
+
+And here module dot v VPC dot private subnet IDs.
+
+And in the same way you have module dot VPC dot public subnet map.
+
+So all these names whatever you are seeing here this name is not the case here.
+
+Whatever this name, whatever you are seeing is nothing but in your child module in the output section,
+
+whatever you see here, that is the thing you are accessing it.
+
+So this name can be anything.
+
+So VPC, id one or whatever it is.
+
+This doesn't matter for you inside C for outputs.tf.
+
+So that's the important thing.
+
+So this completes the refactoring.
+
+Now we can go ahead and then run this code and then verify.
+
+We will do that in our next lecture.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+Welcome back.
+
+In this demo, we have already successfully refactored our VPC code to our child module, and from there
+
+we have also ensured that the child module is called in the root module.
+
+Now we will go ahead and test that by running the commands.
+
+So let's go to zero six Terraform basics and 0607 VPC module.
+
+And inside Terraform manifest folder we will run the command terraform init validate plan apply okay.
+
+So before that you go to your Terraform code here right in your Terraform manifest folder.
+
+Right.
+
+You have the C one versions dot right in 0607C1 versions dot ensure that your bucket name whatever you
+
+have created as part of 0605 S3 bucket for remote backend.
+
+So that name is specified here, right?
+
+So that your state will be stored in that respective bucket.
+
+So mine is j p j of is my this one right.
+
+This is the bucket I have created as part of 0605.
+
+So that bucket name I have provided.
+
+Now we will run the command terraform init validate plan and then apply.
+
+So initialization is successful.
+
+Important command here is validate because we have made lot of changes.
+
+So we have completely refactored the code converted it into our child module.
+
+But there are no configuration issues.
+
+It is working as expected.
+
+We will also run the command Terraform plan now so we can see here Terraform plan.
+
+It is saying 18 resources.
+
+It is going to create all the resource information it is printing here.
+
+Okay.
+
+But the it is trying to say in a different way.
+
+So if you go here so it is saying module dot VPC dot AWS dot net.
+
+So this is the actual resource and you are calling it from your module dot VPC or from your module you
+
+are calling.
+
+Right.
+
+So that's the reason it has embedded that way.
+
+So like this for everything module dot vpc dot aws nat gateway dot net like this.
+
+All the resources uh it is going to create.
+
+So all these core resources are the are coming from the child module and in your root module you are
+
+calling them.
+
+So module dot VPC dot that core resource.
+
+It will be shown that way.
+
+So you can see it here.
+
+Module dot VPC dot aws vpc dot main.
+
+Now we'll run the command Terraform apply auto approve.
+
+And let's wait for it to get created.
+
+And once created we will go here and then verify those things okay.
+
+So we can go to our AWS console and then verify.
+
+We can see here all our resources are getting created.
+
+Let's wait for all of them to get created.
+
+So we can see here all 18 resources created successfully.
+
+So if you see the creation also modules, VPC, AWS, VPC, subnets and everything it got created and
+
+even the outputs successfully displayed.
+
+Okay.
+
+So private subnet ID is public subnet ID is public subnet map and VPC id.
+
+So now we will go to our AWS console go to VPCs.
+
+And this is the dev VPC.
+
+And here we can see all the things it has created.
+
+Resource map.
+
+Okay, so in US East one A it has created public and private subnets in the same way.
+
+One B and then one C it's equivalent route tables.
+
+And also it's equivalent uh internet gateway and Nat gateway.
+
+So everything created successfully.
+
+Now we can go ahead and then clean up whatever we have created.
+
+So the reason I am trying to clean up immediately after the demo is completed so that it doesn't, uh,
+
+incur a lot of charges for us in AWS.
+
+So auto approve.
+
+So we have successfully destroyed all the resources.
+
+I'll try to also remove the dot terraform folder right dot terraform where we have all the provider
+
+plugins downloaded, which will take close to 800 MB or something.
+
+So it is not good.
+
+So I have removed it.
+
+So this is good.
+
+Now let's come back here.
+
+And if you see zero six Terraform basics.
+
+So we have learned lots of Terraform concepts as part of this section zero six.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+So as part of Terraform Basics section.
+
+So we have learned Terraform provide a resource outputs input variables local blocks and data sources
+
+blocks.
+
+And also we have learned about advanced concepts of variables like Terraform vars auto tf product tf
+
+including env variables of Terraform variables.
+
+And in addition to that, we have also learned about local state file and remote state file.
+
+And we have also learned about Terraform modules.
+
+And in addition to that, all Terraform commands like this, we have learned them.
+
+In addition to that, you have learned Terraform show command and state command.
+
+So like this multiple other things also we have learned.
+
+So this completes the core understanding of using Terraform language.
+
+And what are the key concepts involved inside this.
+
+So from next demo onwards we will focus on our retail store application right.
+
+Retail store application.
+
+Right.
+
+And how to deploy that on EKS cluster.
+
+So you will create a EKS cluster using Terraform.
+
+And inside that you will deploy this retail store application using Kubernetes.
+
+So that's what we are going to do.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you

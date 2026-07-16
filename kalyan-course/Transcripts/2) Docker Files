@@ -1,0 +1,1227 @@
+Welcome back.
+
+We are entering into demo zero three, our section zero three.
+
+So where we are going to build a production grade Docker image for a Java based spring boot microservice
+
+using multi-stage builds.
+
+So here we are going to review our write a multi-stage Docker file.
+
+And in addition to that we are also going to build and package a Java Spring boot app using Maven.
+
+So we are going to build a Docker image using multi-stage builds.
+
+And in addition to that we are also going to use a our secure your container by using the Non-root user.
+
+In addition to that, we will also use the docker ignore file to keep the images clean and fast to build.
+
+And we will also use the Docker layer caching and understand how to structure the builds efficiently.
+
+And in addition to that, we'll also use Docker exec to validate your Docker image, what you have built
+
+by running it as a container and connecting to that container and verifying the files present inside
+
+it.
+
+And we will also rebuild our Docker image using no cache option.
+
+And we'll also learn about Docker system prune and builder prune.
+
+So prune things means like cleaning up our docker build artifacts and system cluster using prune command.
+
+All these things we are going to learn.
+
+So now total three things we are going to focus on.
+
+One is multi-stage build and second is caching.
+
+Importantly okay.
+
+And third is we are going to focus on prune cleanup.
+
+And one more we have something called which is securing using Non-root user and also Dockerignore.
+
+But key things are these three things we are going to do as part of this demo.
+
+I'll see you in the next lecture.
+
+Until then, bye bye
+
+Welcome back.
+
+Let's talk about the Docker file instructions on a high level.
+
+In this lecture let's start with our first Docker file instruction which is from.
+
+So this from Docker file instruction is used to pick a base image to build from.
+
+So here we are using the Amazon Linux.
+
+So this ensures AWS compatibility and keeps our environment consistent.
+
+So we are going to pick the base image as Amazon Linux.
+
+And for that we are going to use the from instruction.
+
+And the next thing is run instruction.
+
+So this run instruction executes a command during image build.
+
+So something like in your Linux virtual machines or Linux machines you run the commands to install the
+
+packages.
+
+So here the command here is DNF.
+
+All these things to install those things in in Amazon Linux DNF is the command to install the packages
+
+and it need to be prepended with a run command.
+
+So run is used to execute the commands in your Docker image.
+
+And when you are using this run command right.
+
+So it will install packages whatever you have specified.
+
+So that's about run command.
+
+So in addition to that we also need to look into something called volume command.
+
+So this creates a volume instruction.
+
+So it creates a mount point for persistent or shared data.
+
+So you specify it as volume slash temp example.
+
+So what happens here is this volume slash temp whatever inside your Docker image.
+
+Right.
+
+So will be stored inside.
+
+This last temp will be part of your host machine.
+
+So this tells Docker treat slash temp as a volume in your Docker image.
+
+Why.
+
+Because in our case in in this specific use case where for our Java Spring Boot app.
+
+So this is very important because during the build up phase, Java and Spring Boot often unpack files
+
+uploads our temp resources into slash temp directory.
+
+So by isolating it as a volume we avoid polluting our image layers.
+
+So for that purpose it is very important.
+
+So we are using in our Docker file.
+
+We are going to go through our Docker file in detail later.
+
+But here on a high level we are understanding about these instructions.
+
+Now the next instruction we are going to talk is Workdir.
+
+So which sets the working directory for following instructions.
+
+So which means this simply sets the working directory as root here.
+
+Okay.
+
+So which means any command after this example here copy pom.xml to dot this dot means this root directory.
+
+So example you have set Workdir as slash app.
+
+When you say copy pom.xml to and then say dot, which means it is going to be inside slash app.
+
+So like that.
+
+So all the subsequent commands after workdir, whatever the commands executed, it will be under the
+
+directory, whatever you have defined in Workdir.
+
+So that's the importance of this Workdir and copy command standard.
+
+Whatever you have in your local, you are trying to copy into your Docker image.
+
+So Pom.xml which is present in your local directory where you are running this, where you have the
+
+docker file and where you are running the docker build command.
+
+So that file from your local host machine you are trying to copy into docker image and in which location.
+
+So in the slash directory you said dot which means the current directory.
+
+So Workdir sets the current directory for subsequent commands.
+
+So that's about copy command.
+
+So in addition to that we also need to discuss about env command.
+
+So this env command defines the environmental variables inside the Docker image.
+
+And it's a simple we are setting environmental variables.
+
+That's all.
+
+And another thing here is user right.
+
+So this is the important one.
+
+So specifies the user to avoid running as root.
+
+So when you start the container the process inside the container which is a jar file which is a spring
+
+boot application.
+
+Right.
+
+It runs with app user.
+
+So when you specify it as user app user, it runs as app user.
+
+It doesn't run as root.
+
+So which improves security.
+
+So that's the important thing about using the user option.
+
+And when we talk about expose right.
+
+So we expose or we document the port.
+
+The container will listen on inside this Docker file.
+
+That's all okay.
+
+So it doesn't have any action means like this expose command doesn't do any action for us.
+
+We just document the port.
+
+the container will listen on.
+
+That's all.
+
+And entry point.
+
+This is another very important thing.
+
+So which sets the default command to run when the container starts.
+
+So which means when you start your container from the Docker image what command it need to run to initialize
+
+your application.
+
+So this is the command to start your jar file.
+
+So whatever the options provided as such.
+
+Hyphen c Java Java ops hyphen jar slash app app dot jar.
+
+So all these things happens right when you use the entry point means like, uh, starts your container
+
+by executing the command which is present in entry point.
+
+So these are a very high level Dockerfile instructions, which we understood right.
+
+In our next lecture we'll talk about multi-stage builds and also understand the Docker file for our
+
+UI microservice in detail by going line by line.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+In this lecture let's talk about multistage Docker builds.
+
+So on the left we have the build stage.
+
+And this is where all the heavy lifting happens.
+
+So we bring in our source code and install build tools like Maven and also add supporting packages like
+
+which tar and then zip.
+
+But here is the key point.
+
+These tools are temporary.
+
+They are only needed to compile the application.
+
+They are not required in the final Docker image.
+
+So we in the build stage have the source code and build tools and packages required for building the
+
+application.
+
+So we are building a spring boot application.
+
+So that's for that spring boot application.
+
+Whatever is required.
+
+Those will be present here.
+
+So now once the build stage is completed we will move to the package stage.
+
+So this is where our prod level image is built.
+
+So production grade image will be built in the package stage.
+
+So in the package stage we need to ensure that whatever is required for us only those things should
+
+be present.
+
+So once the build is completed we copy only the compiled app dot jar to the package stage.
+
+And now comes the package stage.
+
+And this is our production level implementation.
+
+For means like production level image we need to build here.
+
+So one thing important here is in package stage we don't need build tools.
+
+We don't need source code.
+
+We don't need any extra packages.
+
+What we need here is only the runtime environment JDK and also the app jar.
+
+So what happens here is it becomes all lightweight, secure and production ready image.
+
+It will also be very small in size so that your deployment becomes faster, faster to run the container
+
+and perfectly suited for our production workloads.
+
+So that's the real power of multi-stage Docker builds.
+
+Now these are the Dockerfile instructions in build stage.
+
+And these are in package stage.
+
+So let's go back here to our Visual Studio Code.
+
+And here in our zero three Docker files I have put the Docker file for our UI microservice.
+
+And here you can see it here.
+
+Okay so these are the complete commands.
+
+So till here it is a build stage.
+
+Okay.
+
+And below you can see the package stage.
+
+So these things I have put it here in the slide so that we can discuss them in detail.
+
+So let's understand each and every instruction again one more time in the intersection we already understood
+
+about the instructions okay.
+
+So like what is from and what is run.
+
+So there we learned about what that instruction does.
+
+But for our this specific use case what it is doing.
+
+Let's discuss now that in detail.
+
+Right.
+
+So on the left side we have the build stage.
+
+And here we start with a Amazon Linux 2023 as a base image and tag it as environment.
+
+So this is the base image we are taking and we are tagging it as build environment.
+
+Next we install everything needed for building.
+
+So here you will install the packages like Java 21 and tar, gzip and everything.
+
+And in addition to that we will.
+
+What we will also do is we clean up to keep this stage clean.
+
+Once the installation is completed, we will also run the DNF clean all.
+
+And once that is done, we will also run the command run.
+
+The instruction means like have the instruction volume slash temp right.
+
+So we then define a volume for temporary files.
+
+And this set the working directory to root using Workdir.
+
+And also copy the maven files using copy commands.
+
+Now let's talk about volume a little bit here.
+
+We already discussed it there but we will discuss one more.
+
+This volume tells Docker to treat slash temp as a volume.
+
+Why?
+
+Because Java and Spring Boot often unpacks files, uploads a temp, resources into slash temp by isolating
+
+it as a volume, we avoid polluting our image layer.
+
+So let's understand that on a very high level.
+
+So this is your host machine.
+
+So let's say that okay.
+
+And here you are trying to have a container.
+
+So some container.
+
+So inside this container you are mapping the slash temp volume.
+
+And this slash temp volume is from your host disk okay.
+
+So from your host disk you have the slash temp volume.
+
+Now when the when whatever the data stored inside this slash temp.
+
+Right.
+
+So whatever is present inside this slash temp inside the container.
+
+Right.
+
+It is temporary okay.
+
+So it is temporary.
+
+And because you are isolating it as a volume we avoid polluting our image layer.
+
+So whatever it is it is storing in your host machine, not in your direct Docker image thing.
+
+Okay, so that's the very important thing here.
+
+Mainly for Java type of applications.
+
+It is required to have this one necessarily means like it's a mandatory thing.
+
+Now the next thing is workdir.
+
+So we'll move to the workdir.
+
+So this simply sets our working directory to root.
+
+So that is what it is doing.
+
+So every command from here on runs relative to root.
+
+Which means if you say copy Pom.xml dot means it will be copied to the root directory in your Docker
+
+image.
+
+So that's what it is going to do.
+
+So it is going to copy these three things.
+
+Uh maven wrapper files.
+
+And pom.xml will be copied to the root directory.
+
+Then we will also run the command dependency go offline.
+
+So this is very important command from spring boot apps perspective.
+
+So this pre downloads dependencies.
+
+So future builds are much faster because of Docker build caching.
+
+So when we go to the caching concept there we will understand more.
+
+But here this pre downloads dependencies.
+
+So future builds are much faster.
+
+That's the important thing here.
+
+And next thing is we are also going to copy the source from our current directory which is in our host
+
+machine, to our Docker image also in the same source directory.
+
+And after that we are going to finally run the build command.
+
+So we are going to generate a jar here.
+
+So we will generate the jar with name app dot jar.
+
+So that's what we are going to do.
+
+So we'll first package it.
+
+It generates a jar with name UI 001 snapshot jar.
+
+And we will rename that to app dot jar.
+
+So that's what we are going to do here.
+
+So once this build stage is completed, we will move to the package stage.
+
+So we start fresh here.
+
+We'll take another Amazon Linux 2023.
+
+Related.
+
+Uh, Docker image as a base image.
+
+And this stage contains only what we need to run the app when we are running as a container from a Docker
+
+image.
+
+So that's the important thing.
+
+So here we install Java and shadow utils as part of this command.
+
+So here we install we need the JDK.
+
+So we install Java and some shadow utils which are required for user management.
+
+So for that purpose we'll install.
+
+And after that we'll also run the DNF clean.
+
+All okay.
+
+So once the run is completed we'll also move to something called.
+
+So we'll also install some kernel related packages also.
+
+Why.
+
+Because when we are troubleshooting right.
+
+So when you are running it as a container and inside when you want to troubleshoot whatever the app
+
+running inside the container, you definitely need telnet type of tools.
+
+Okay, so for that purpose you will try to install a curl here okay.
+
+Curl or telnet whatever is required.
+
+So for that purpose some utilities you will install which are very base utilities okay.
+
+And after that you will set the environmental variables.
+
+You will for a user app user is the user and whose GID and uid you are going to set here.
+
+And after that you will using the run command and user add command.
+
+In Linux, you will try to create a user.
+
+So you will create a user and the username is app user.
+
+Once you have done that, you will also set some more environmental variables in that.
+
+Important one.
+
+Is spring profiles active.
+
+We are going to use the prod profile and after that we will set the Workdir.
+
+So in the package stage you are setting the work dir as slash app.
+
+Okay, that's the important thing.
+
+And after that you will run everything as app user and not root.
+
+So you will say user app user.
+
+So that's the thing.
+
+And in addition to that, after that we will also do some copy commands to copy the attribution.md licenses,
+
+dot MD and also app dot jar file to current directory which means slash app.
+
+So that's the thing.
+
+So your app dot jar will be copied to slash app folder.
+
+That's we are going to do so in addition to that finally we will also have the expose 8080.
+
+We expose port 8080.
+
+So Docker and Kubernetes can route traffic to those things.
+
+So we are just documenting here.
+
+So in the Docker file okay.
+
+And finally we have the entry point where you run the spring boot jar.
+
+So the command to run the spring boot jar.
+
+When you start your container, this is the command.
+
+Whatever you defined in entry point that it's going to run.
+
+So these are the multistage Docker build related things build stage and package stage.
+
+So we used multi-stage builds to keep the final image small and isolated.
+
+Slash temp for temp files installed only.
+
+What's needed.
+
+Added a not non-root user for security and leveraged Docker caching for faster builds.
+
+Okay, and we also delivered a clean, production ready spring boot Docker image.
+
+So if you try to build a Docker image using this you will have a clean and prod ready okay prod ready
+
+build.
+
+Now let's go ahead and then play with all those things by running some commands and understanding more
+
+about it in detail.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+In previous lecture we have discussed about the multistage Docker file in detail.
+
+Build stage and package stage.
+
+Also discuss about Docker ignore now.
+
+So this docker ignore file ensures that large r unnecessary files don't get sent to Docker during image
+
+builds.
+
+So that's the advantage of using docker ignore same as dot git ignore right?
+
+So it will ignore the files.
+
+Whatever is not needed for to be packaged inside the docker image.
+
+So now let's go back here to our Visual Studio Code.
+
+And if you go to our zero one project files and in code backup right.
+
+So in code backup retail store sample app.
+
+And if you go to the UI and in UI you will find the dot Dockerignore.
+
+So this file you need to put in the directory where you have the docker file, so both should be in
+
+the same place.
+
+So in this docker ignore we have defined some things here okay.
+
+So you don't need the docker file to be packaged in your Docker image.
+
+So ignore that.
+
+And this dot dockerignore.
+
+Also, you don't need to be packaged in your Docker image, so you don't need that.
+
+So there is some other file which is docker compose file which is not needed.
+
+And there is one more file in this current directory which is dot git ignore which you don't need.
+
+And there is one more which is charts folder is present which you don't need.
+
+If it is present, you ignore that too.
+
+Okay.
+
+And if you have any scripts, folder, target folder, idea, anything, whatever you feel that should
+
+not be sent to your Docker image, you can add all those things here so that during the packaging process
+
+in your Docker image, those will not be sent.
+
+So this docker ignore right?
+
+So avoids accidental copying of source code, build artifacts or even configs.
+
+Okay.
+
+So it will avoid larger image layers.
+
+So those are the things it is important to use Docker ignore.
+
+Now let's go ahead and then build the Docker image now.
+
+Right.
+
+So we'll go here and this is our VM instance right.
+
+And here we'll click on connect.
+
+And this is the command to connect in the SSH client section we are in Cloud shell.
+
+So we'll try to connect to our Docker image.
+
+And we will go inside this demo Docker build.
+
+And we have the retail store sample app.
+
+And inside that we will go to the source folder.
+
+And inside source folder we'll go to our UI application right.
+
+So now you will find all the files here docker file, docker ignore and everything.
+
+So here we are going to do a simple build to understand.
+
+Okay, so what I have done is before doing everything, I have run one command.
+
+Okay?
+
+So which is earlier already?
+
+We have done one time build.
+
+Right.
+
+So for that purpose what I have done is I have run this command.
+
+So before running these things so that all the build cache is cleared.
+
+Okay.
+
+So now let's come back here and I have run the command Docker builder prune all.
+
+So this command I am running to clean any previous caches so that this demo is always fresh for us.
+
+Okay so Docker builder prune hyphen hyphen all.
+
+Now we will run the command docker build right.
+
+And we'll say hyphen t retail ui colon 9.0.0.
+
+That's all I think so right.
+
+Where is it?
+
+Docker build hyphen t retail UI 9.0.0.
+
+And where is your docker file?
+
+It is present in the current directory.
+
+So I'll say dot.
+
+And this should build a Docker image for us.
+
+And it is going to take some time.
+
+So this is a multi-stage Docker build.
+
+So build environment will be running.
+
+And in stage environment which means build is the build environment.
+
+And this is the second package stage.
+
+So wherever it can run in parallel also the commands okay.
+
+So wherever the dependency is there it will ensure those run one after the other.
+
+But in both the uh, things okay, it can run the default installation of packages, whatever we have
+
+defined.
+
+So in build environment and in stage environment which is the package environment, they are running
+
+in parallel okay.
+
+So that's the thing.
+
+And you can see it is taking 38 seconds.
+
+The reason we are monitoring the building phase here is because once it is cached one more time when
+
+you run it, how much time it is going to take, we are going to see.
+
+So for that purpose, we are monitoring the time it is taking for building the Docker image.
+
+So let's wait for it to build completely and see how much time it takes.
+
+So we can see it here.
+
+It took close to 95 seconds to complete the complete build process.
+
+Okay, so it has generated the apt jar.
+
+And that jar is used in the package stage and copy it here and everything.
+
+It has packaged the thing.
+
+So now what we will do is we'll run the command Docker images.
+
+And you should see retail UI with 9.0.0. created.
+
+Now what we can do is we can say docker run hyphen hyphen name and you can provide the name as my app
+
+1V9 right.
+
+And hyphen p.
+
+And you can provide the host port as 8080 and container port.
+
+We already know which is 8080.
+
+And then you need to run in the detach mode.
+
+And this is the retail UI okay.
+
+And we'll paste it colon 9.0.0.
+
+And now if you run the command docker PS we have the my app one v9 running now.
+
+So what we will do is we'll try to access our application in the instances section.
+
+This is the IP.
+
+And here we say 8080.
+
+And it is not going to work because you need to go to that security group.
+
+So this is the security group.
+
+So we'll go there and allow port 8080.
+
+So if this is becoming a lot then we can add a rule custom TCP.
+
+And we can say anywhere IPV six.
+
+And instead of this all TCP, we can say so that all ports are allowed for us.
+
+Okay, so multiple times we are doing the same thing.
+
+So we'll try to do that.
+
+So now we will try to give the IP address colon 8080.
+
+And our application is accessible.
+
+But this is not the important thing here okay.
+
+So the important thing here is source.
+
+Anyway we have changed it to V2 version.
+
+So that's the reason it is coming in our uh mission here.
+
+Okay.
+
+So we change it to V2 right.
+
+Earlier we went to the home dot HTML, so that's fine.
+
+But important things are if your application is up or not.
+
+So there are two things actuator health.
+
+So these are the spring boot endpoints to check the health of your Java application spring boot application.
+
+So you can see it here.
+
+It is up actuator health.
+
+So you can see it is in up state.
+
+In the same way there is one more endpoint for this application which is topology.
+
+So topology topology.
+
+These are inbuilt inside this application.
+
+So it says it is currently not connecting to catalogue or cards or checkout or orders.
+
+Just UI is up.
+
+And in the topology you don't see any other services only means like UI service connects to all these
+
+services, but these are not defined currently for us.
+
+So those are not available now.
+
+So these are the two things we have verified.
+
+Actuator health and then topology.
+
+Right.
+
+So that's the thing.
+
+Now we will try to when you build the image Docker clearly shows that it's using the multi-stage builds.
+
+All those things we have seen okay.
+
+Right now the thing here is you can go inside this retail inside this Docker image my app one v9 whatever
+
+we have created right.
+
+And verify in the root directory you have any source or MV MVPs and things.
+
+Why?
+
+Because if you go here to your Docker file.
+
+Right?
+
+So if you go to the Docker file here.
+
+So you set that in the root directory.
+
+Copy these things.
+
+Okay.
+
+And copy the source also.
+
+So after this you have done in the build stage.
+
+You didn't do that in the package stage.
+
+But we are trying to verify that whether it is present in your Docker image or not after running it
+
+as a container.
+
+So we are trying to verify that okay.
+
+So we will go here and docker exec hyphen I t.
+
+And this is the v9 one right.
+
+So my app one v9.
+
+So my app one v9 and run the command so that you will connect to that container.
+
+So you can run the command hostname.
+
+Hostname is not working.
+
+So that's fine okay.
+
+So now you are in present working directory slash app.
+
+So RLS and then root directory here.
+
+You don't have any source folder.
+
+So there are the two things you can verify.
+
+Our source and which mvn.
+
+So slash source and nothing is present okay.
+
+Um, and you can also say which mvn and nothing is present, which command itself is not present.
+
+Now we are in app directory.
+
+So we can say here app is present and License.md is present here.
+
+So this is the app dot jar which we have copied here.
+
+So that's the thing.
+
+So and the ID should be app user.
+
+It is running with app user PS command might not work.
+
+So not that this is a very lightweight.
+
+Uh so we'll not have all the commands working here.
+
+So we'll try to exit here.
+
+But you understood.
+
+Right.
+
+So the key thing is under root directory we don't have any source directory.
+
+So you can see it here.
+
+App bin boot dev, etc. home lib etc. etc. but there is no src directory.
+
+No source directory.
+
+So that's the thing.
+
+Now let's go ahead and then stop what we have built just now.
+
+So we will say docker PS and docker stop my app 1V9.
+
+And after that we'll also say docker rm my app 1V9.
+
+And we'll also say docker rmi and retail UI colon 9.0.0.
+
+Whatever the image we have built, also we have removed it.
+
+So now if you see the Docker images, you should see only the other things which we have built earlier.
+
+But now nothing is present which we have done about retail UI.
+
+Okay.
+
+So now we'll try to rebuild again and then see what happens.
+
+We are trying to see the caching how it works here.
+
+Okay, so let me paste that command and docker build hyphen t retail UI 9.0.0 earlier.
+
+You have seen it took 95 seconds to build the image.
+
+Now you see it.
+
+Okay, so it took 0.0. two seconds to build a docker image.
+
+If you say Docker images so it's coming from the cache.
+
+So for that purpose it took immediately.
+
+It has built it okay.
+
+So that's about caching.
+
+So the benefits of caching are only changed.
+
+Layers are rebuilt.
+
+In our case nothing is changed.
+
+So it immediately quickly built it.
+
+So it only recompiles the source code where the changes is present.
+
+And it also or only sends the newer layers to the Docker Hub docker registry.
+
+So it means like smaller image push pushes.
+
+Okay, so it's a lot of saving for us and it enforces logical cacheable Docker file layout.
+
+How do we rebuild from scratch and we need to ignore the cache.
+
+So for that purpose we have the option called hyphen.
+
+Hyphen no cache.
+
+So for the same command.
+
+So whatever we have seen here right.
+
+So it disconnected.
+
+Just a second.
+
+Yeah.
+
+Clear.
+
+Now this is the command we have run.
+
+So we'll try to say docker build and hyphen.
+
+Hyphen no cache.
+
+And we'll try to use a different tag here.
+
+And again it is going to build from scratch.
+
+And it is going to say take some time hyphen hyphen.
+
+No cache will be very useful when we are seeing some unexpected results.
+
+And at that point of time, we can rebuild our Docker image with no cache so that we can see what is
+
+happening because of cash.
+
+Also, we might face some issues.
+
+So for that purpose either.
+
+Go ahead and then clean all the build cash and run it.
+
+Or the best option is using hyphen hyphen no cash.
+
+And then building a, uh, build a Docker image and then verify that Docker image.
+
+So because of this cash there might be some issues also for that purpose.
+
+Learning about this no cash option to build a Docker images.
+
+One important thing here so you can see it here.
+
+Again, it took close to 95 seconds to complete the build.
+
+Now the next thing here is remove all build cash and remove all build cash including unused images and
+
+layers.
+
+So Docker Builder Prune will remove all the build cash.
+
+And if you want to remove all unused images and layers, also you can use hyphen, hyphen all, docker
+
+builder, prune hyphen, hyphen all.
+
+And in addition to that if you want to.
+
+Immediately when you run this command, it will ask for yes or no.
+
+Do you want to clean the cache or not?
+
+Okay, so then you can provide.
+
+Yes.
+
+To do that.
+
+Or if you want to forcefully clear you can say hyphen f.
+
+Okay.
+
+So add hyphen f to skip the prompt.
+
+So that's the thing.
+
+So I'll say clear and I'll say docker.
+
+And then prune.
+
+So it is asking for the confirmation.
+
+So I'll say no okay.
+
+And prune without confirmation is hyphen f okay.
+
+So now it is going to clear it okay.
+
+Anything is fine.
+
+Okay.
+
+So it has cleaned all the things okay.
+
+Uh current build cache.
+
+Now if you want to remove end to end complete build cache whatever is present.
+
+So you can say.
+
+Hyphen hyphen all.
+
+And do you want it is asking for the prompt.
+
+Yes I will say.
+
+and it will remove everything.
+
+So now if you try to run one more time Docker build prune hyphen f zero bytes.
+
+Nothing is present in the cache.
+
+So earlier it has a docker builder, prune has run and now prune all has run.
+
+And finally there is nothing present zero bytes present in the cache.
+
+So that's about Docker builder prune command.
+
+So there is one more command okay which is system prune okay.
+
+So this cleans everything which means like stopped containers volumes networks cache images everything
+
+okay.
+
+So now if I say the command docker system prune okay.
+
+Let's see what happens okay.
+
+Docker system prune.
+
+So this will remove all stopped containers, all networks not used, all dangling images and unused
+
+cache.
+
+So let it remove okay.
+
+Nothing is present.
+
+Nothing is reclaimed.
+
+So you will say Docker images.
+
+You have these images currently present and you will say Docker PS you have two containers running and
+
+docker PS hyphen.
+
+Hey, nothing in the stopped state.
+
+Two containers currently in the active state running okay.
+
+And if you want to prune some volumes so you can do hyphen hyphen volumes if you are running any volumes
+
+means like if you have created any volumes okay.
+
+Now the next thing is this is the disaster option okay.
+
+So Docker full cleanup.
+
+It will do Docker system prune hyphen a hyphen volumes and force it okay.
+
+So we will not force it but try to do that okay.
+
+So we'll copy this and run it now.
+
+And it is saying all stopped containers all networks not used.
+
+All anonymous volumes not used by at least one container.
+
+All images without at least one container associated to them and all build cache.
+
+So these things are going to go away.
+
+So we have uh if you see the Docker images.
+
+So these are the Docker images present and only for retail store UI 1.0 and retail store UI 2.0.
+
+You have the containers running, but for retail UI nine and then ten nothing is running, which means
+
+those Docker images also will be removed.
+
+All images without at least one container associated to them will be removed.
+
+So I'll try to say yes.
+
+Okay.
+
+And now if I run the command images, see only these things are present.
+
+Retail store UI 2.0 and then 1.0 remaining things are gone.
+
+And you can say Docker PS you have those two things running.
+
+So that's the thing.
+
+So these are the important commands Docker system prune and Docker builder prune.
+
+So that's about Docker files in detail with multi-stage builds caching and cleanup.
+
+I'll see you in the next demo.
+
+Until then bye bye.
+
+Thank you

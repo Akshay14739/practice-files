@@ -1,0 +1,6745 @@
+Welcome back.
+
+In this lecture we are going to learn about why do we need to use Terraform.
+
+So let's start with how infrastructure was traditionally managed.
+
+So in traditional ways we used to have something called manual provisioning.
+
+So we log into AWS console click around and create VPCs EC2 and then subnets.
+
+Everything we can do using AWS console.
+
+So when we are doing using AWS console it is going to be slow and it's repetitive for us.
+
+So we need to do everything again and again when we talk about multiple environments.
+
+So if you want to do in dev, QA, staging, so all the ways you need to keep repeating the same things.
+
+And when you are repeating these things it might prone to human error, so there are chances of human
+
+error.
+
+And we also need to repeat this setup across multiple environments.
+
+So it is time taking.
+
+So all these things are the problems with the manual provisioning.
+
+So it's a not a recommended option.
+
+So then we can also consider scripting languages.
+
+So we can use Python scripts or bash scripts or AWS CLI and bash scripts together.
+
+But they become super messy.
+
+So so they become messy hard to maintain.
+
+So these things write very hard to maintain them.
+
+All these scripts and one very, very important thing is it they will not have the desired state.
+
+So remember this thoroughly desired state means what we need means like what is expected to be created
+
+on our AWS, so that state we will not have when we are using with scripts.
+
+So this is a very, very important thing because the whole Terraform works on state.
+
+Okay.
+
+So we will understand that when we go inside state.
+
+But just remember that.
+
+And if something drifts which means something drifts, you don't really know what's correct anymore.
+
+What does exactly that means is you have written a script to create a EC2 instance and some other resource
+
+went in some other admin, went there and then changed the EC2 VM instance type from T3 to T3 large,
+
+but that change is not tracked anywhere.
+
+So that's the drift.
+
+We call it as drift.
+
+So as we are not tracking any changes here right.
+
+So the change whatever a resource went in and done manually, and we don't have a record of what we
+
+have created using script means like there is no state of what we have done.
+
+So obviously it is going to create a issue for us.
+
+So all these things are the problems when we use scripts.
+
+Now let's talk about something called AWS CloudFormation CF right.
+
+So we know manual provisioning is a problem.
+
+We don't need that.
+
+So AWS CLI scripting.
+
+So we don't need we will ignore that.
+
+Now we have something called AWS CloudFormation.
+
+So which is working well.
+
+So we can always use that AWS CF is a is a tool which is nothing but infrastructure as code.
+
+So you can declaratively write write the complete in the CloudFormation language.
+
+You can write what you need to be, get created on AWS and provision that and automatically your AWS
+
+resources will get created, but we need to understand it is AWS only.
+
+If tomorrow you want to spin up resources in Azure or GCP or even in Kubernetes, CloudFormation cannot
+
+help.
+
+So it's AWS only tool and it keeps you locked into AWS only.
+
+And now still, if you want to use it, you can use it because it's the AWS only homegrown.
+
+But we will talk about how Terraform will differ and why we need to use Terraform as our IAC tool.
+
+So we already said AWS.
+
+It keeps you locked into AWS.
+
+Only AWS CloudFormation locks you to AWS only.
+
+But when we use Terraform, write Terraform is multi-cloud.
+
+It works with AWS, Azure, GCP, Kubernetes, GitHub.
+
+You name any of the infrastructure services more or less for those things, you have the Terraform automation
+
+available.
+
+I am not using the word.
+
+Ideally, I need to use the word Terraform provider, but we will discuss that in detail in our upcoming
+
+lectures.
+
+So Terraform automation is available for more or less every every infrastructure component as on today
+
+available more or less means like not that 100% I can say, but it's a it's available for most of the
+
+infrastructure components nowadays.
+
+So I can show you an example here.
+
+So this is a Terraform providers page.
+
+And here if you see a provider means for that respective cloud you have the automation.
+
+This is a AWS provider available for us.
+
+So which means you have automation available for AWS.
+
+Same for Azure.
+
+Same for Google Cloud Kubernetes.
+
+So like this we can keep seeing lots and lots of providers available provider means like Terraform automation
+
+is available for that respective infrastructure service.
+
+You can consider that way.
+
+So you can go down here and these are partner providers.
+
+And you can see close to 5530 as on today available.
+
+So this is the number as of today available now.
+
+Let's come back and discuss about the things Terraform is going to provide for us.
+
+One is consistency across environments.
+
+So you can write one config and reuse it in dev staging and production.
+
+So infra looks the same everywhere.
+
+So you can do that using Terraform.
+
+And we also have something called reusable code.
+
+Using Terraform modules teams avoid duplication and quick spin up standardization infrastructure.
+
+So we have a dedicated demo here available for Terraform modules.
+
+So we will discuss that how we can reuse the code in detail so teams can easily or quickly spin up standardized
+
+infrastructure, because you will be able to reuse the code using Terraform modules concept.
+
+So that's what reusable code means.
+
+And from collaboration perspective, we can store Terraform configs in git and review the changes like
+
+code and work as a team.
+
+So that's another advantage of using Terraform.
+
+And one very very very important advantage is predictability.
+
+So Terraform shows an execution plan before applying.
+
+So there are no surprises for us.
+
+So there will be a command called Terraform plan.
+
+So before executing before creating the infrastructure so we can see what all resources it is going
+
+to get created and that using that, we can predict the entire changes and accordingly we can apply
+
+them.
+
+So that's under predictability.
+
+And we have something called scalability.
+
+So whether you are managing ten resources or 10,000 resources Terraform handles it smoothly.
+
+We really don't need to worry about it.
+
+And another important thing is portability.
+
+So start with AWS today.
+
+And you already learned the Terraform language when you are implementing on AWS.
+
+So you have the foundation knowledge of Terraform now.
+
+So how to use Terraform, how to use the Terraform language to provision the infrastructure.
+
+And you learned that when you are doing it on AWS.
+
+Right.
+
+So you have the knowledge now.
+
+So that's a time saving if you want to implement multi-cloud architectures in your respective organization.
+
+So same Terraform team you can reuse for other things also here, which means like to provision resources
+
+in different clouds also in simple terms.
+
+So if you spend time on learning AWS CloudFormation so that knowledge again is specific to AWS only.
+
+But if you spend time on learning Terraform to provision the resources, it is because you know that
+
+Terraform you can implement across any cloud providers or any other providers.
+
+So like for example, helm is one provider.
+
+So Terraform automation using this helm for helm resources you can do that.
+
+So because you know the foundation of Terraform in detail.
+
+So in short Terraform is the natural evolution of infrastructure management.
+
+It keeps infrastructure reliable, reusable and repeatable across any environment any cloud and for
+
+teams of any size.
+
+So that's about Terraform.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Alright, let's continue with installing our Terraform tools.
+
+So the tools we need for running the Terraform commands and everything right on AWS is one is Terraform
+
+CLI and the we need to install the Terraform CLI.
+
+With that we'll be able to run the Terraform commands from our uh mission.
+
+And we also need the aws CLI and also access keys we need to generate so that we when we are running
+
+the Terraform commands, it need to communicate with AWS cloud to create the resources inside AWS cloud.
+
+So for that you need the access keys generated which have access to which will have permissions to create
+
+resources in AWS.
+
+So those things we need to generate.
+
+In addition to that, we also need to install VS code and VS code Terraform extension with which will
+
+provide the autocomplete feature.
+
+So when we have the VS code, we will be able to go ahead and then write the Terraform code in VSCode,
+
+and this extension will provide the Terraform arguments when we are typing so it can provide the autocompletes.
+
+That's about the tools we need and operating systems we can install on any of the desired operating
+
+systems.
+
+So we already have a build VM.
+
+We have a build VM which is a EC2 VM.
+
+And if you want to install that on that VM, whatever the Terraform cli and aws cli, I have provided
+
+the steps for those things.
+
+So mine is a mac OS, my local desktop.
+
+So I am going to install everything on this local desktop.
+
+So let's understand few things here okay.
+
+So this is not a recommended option.
+
+Using an EC2 VM for running the Terraform commands or everything is not a recommended option either.
+
+You can use your local desktop, Mac OS or windows OS, which is again your local desktop, right?
+
+Or something.
+
+Again, if you have your own Linux OS, right?
+
+So your own Linux OS related local desktop you can use.
+
+So why.
+
+Because.
+
+Right.
+
+So you can install terraform cli and aws cli on this EC2 VM.
+
+But.
+
+Right.
+
+You cannot install vs code where you want to write the code.
+
+So you need to install vs code in your local desktop.
+
+And then once your code is ready, you need to upload that code to this EC2 VM and then run it.
+
+So which is a tedious process.
+
+And when we are writing our code, we already know, right?
+
+So for every change we usually test right.
+
+So multiple changes will do and then test them.
+
+So this process takes time.
+
+So this is not a recommended option.
+
+But still I have given steps for you if you want to use the Docker build VM which we have created right.
+
+So if you want to use you can use.
+
+But the recommended things are macOS or Linux OS or windows OS, which are your local desktops where
+
+you can parallely code and then run Terraform commands to review how the code is performing.
+
+So that's the recommended option.
+
+So I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+In this lecture you can configure your Amazon Linux EC2 instance to install the Terraform CLI and also
+
+AWS cli.
+
+So let's go to our EC2 instance here.
+
+So this is our Docker VM which we have used in all our Docker demos.
+
+You can call it as your own build VM.
+
+So if you want to run a Terraform from this VM then these are the commands we need to execute.
+
+So I already said that is not a recommended option.
+
+But just if you want to feel like platform independent and if your local desktops are very slow, then
+
+you can try and use it, but still VSCode.
+
+And then you need to install VS code and write the code on your local desktops only.
+
+So we'll try to go here and click on connect.
+
+And here is the SSH client.
+
+And this we will copy and we'll try to open this Cloud shell.
+
+And in Cloud shell we'll go inside.
+
+And provide the.
+
+Connection information here.
+
+So let's wait for it.
+
+So we are in Cloud Shell now.
+
+So I'll try to provide this.
+
+And we are in our VM instance our Docker VM.
+
+Right.
+
+So that is the VM we have used for all the Docker demos.
+
+Now we will go back here and first we can run the command install DNF plugins core.
+
+So this is the Amazon 2023 mission right.
+
+So these are the commands for Amazon Linux 2023.
+
+And now we have added the repo related to HashiCorp.
+
+And we are installing the Terraform CLI now.
+
+And this should install the Terraform CLI.
+
+And if I run the command terraform and version.
+
+So we can see latest version is installed.
+
+And in the same line.
+
+If you want to upgrade sudo DNF upgrade terraform option, you need to use and for installing AWS CLI.
+
+So before I am just checking it if it is present or not and it is already present.
+
+So we really don't need.
+
+Okay, so.
+
+But if it is not there then you need to run this command.
+
+If not install then you need it okay.
+
+But this is the Amazon Linux 2023 mission.
+
+By default Amazon CLI is installed on this thing, so we really don't need to worry.
+
+So these two are the things.
+
+And another thing is AWS configure which we already know, and we need to provide the access key ID
+
+and secret access key.
+
+So how we are going to generate it.
+
+We need to go to our IAM service.
+
+Go to users and go to user which has the administrative privileges the administrator access.
+
+And we need to go to the Security credentials tab and go ahead and then go to this Access key section
+
+and click on Create Access Key.
+
+Select Command Line Interface and add the confirmation here.
+
+And click on next.
+
+And just say Terraform CLI dim usage.
+
+So we are going to use from Terraform CLI.
+
+And we'll click on Create Access key.
+
+And this is the access key.
+
+And this is the secret access key.
+
+So those details we need to provide it here.
+
+So if we go back here.
+
+So that is the thing.
+
+So you need to provide your access key ID secret access key and your default region and also default
+
+output format.
+
+So this completes the lecture about installing the Terraform and AWS CLI on our build VM or EC2 Linux
+
+VM.
+
+I'll see you in the next lecture or demo.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+In this demo we are going to learn about four important blocks of Terraform language.
+
+So we are going to learn about Terraform block provider block, resource blocks and output blocks.
+
+So these four things we are going to use and implement one simple demo.
+
+And then during the process we are also going to learn about Terraform init, validate, plan apply,
+
+destroy and also terraform output commands.
+
+So this is a very foundation demo.
+
+So we are not going to go to our real world use case here.
+
+We are going to create a simple S3 bucket using Terraform, wherein during the process we are going
+
+to learn about all these things before going and implementing a practical demo for writing and creating
+
+the Terraform code, we need to understand the Terraform Execution flow.
+
+Here in this picture we have three things.
+
+One is terraform CLI, second is terraform provider and third is AWS cloud.
+
+So let's understand one after the other.
+
+So in our previous demo we already installed Terraform CLI in our local desktop.
+
+Now in addition to that we are also going to go ahead and also write the Terraform code.
+
+So our demo number is 0602.
+
+And here we are going to write the Terraform code.
+
+So these Terraform code are configs will be written in files whose end with dot.
+
+So that's the important thing here.
+
+So where do we write the terraform configs in files ending with.tf.
+
+So now if we want to create something like a S3 bucket we can create a file name as S3.
+
+Our VPC.
+
+If you want to create you can say VPC.
+
+So like this.
+
+The file ending should be.tf.
+
+That's the important thing.
+
+So once you write something if you want to create a S3 bucket, you created that S3 dot PDF file in
+
+your local desktop.
+
+And another important thing you need to understand when writing Terraform configs or code is working
+
+directory.
+
+So this is very very important thing.
+
+So all your Terraform code should be present in a specific folder.
+
+And the folder name can be anything.
+
+So if you see here I have created the name of the folder is Terraform manifest.
+
+And then I have put some configurations here.
+
+So we will talk about all these things when we are practically implementing that means about the code.
+
+But here focus on the working directory.
+
+So this is the working directory Terraform hyphen manifest.
+
+So it can be your desired name.
+
+So you can just say something like S3 bucket or whatever you want, you can say that's not an issue.
+
+So in our in our course we will focus on always everywhere.
+
+Wherever you see you will find Terraform manifests as your working directory and all Terraform config
+
+files will be present inside that directory.
+
+So working directory is one very important thing where you need to store your Terraform configuration
+
+files.
+
+So that's the second thing.
+
+Now you have your.tf files in your working directory.
+
+And another thing here is terraform provider.
+
+Now when you run the terraform init command right.
+
+So when you run the terraform init command it will download this provider plugin to your local desktop.
+
+So now what this AWS provider plugin will do example any provider.
+
+Right.
+
+So currently we are using AWS.
+
+It will download the AWS provider plugin.
+
+So let's go ahead and also see this plugin once.
+
+So before.
+
+So let's go to the HashiCorp site.
+
+And you can search for Terraform AWS provider on Google.
+
+And it will take you to this AWS provider.
+
+So here is the place where if you click on the source code, here is the place where you have the entire
+
+source code for this respective provider.
+
+Now what does this provider do?
+
+It translates Terraform configs into AWS API calls.
+
+So whatever the S3 or VPC we have created right.
+
+So these things right.
+
+So these things will be converted means like translated to API calls.
+
+So VPC at our end goal is to create a VPC or S3 on AWS cloud.
+
+So how do you do that.
+
+This Terraform provider will call the AWS API to create these resources.
+
+And another important thing here we need to know is how does the code, whatever we have written, can
+
+be created as resources here without any authentication?
+
+That's the key thing, right?
+
+So in this respect to AWS cloud I need to create a S3 bucket.
+
+So how we are going to do that.
+
+You need to configure your AWS credentials in your Terraform.
+
+So in your local desktop.
+
+So already we have done that using AWS configure.
+
+When we are configuring our when we are installing all the CLI tools in the previous demo we have done
+
+that.
+
+So access key and secret access key.
+
+Both things we have successfully configured.
+
+So which means whenever we run the command Terraform apply.
+
+So we didn't discuss other two commands but we'll discuss them later when you run that command.
+
+So automatically it will go ahead and then create the resources in AWS cloud during the process.
+
+First, it will translate these TF files into API calls to create those resources in AWS cloud.
+
+In addition to that, it will also verify the authentication credentials configured in your local desktop
+
+to create those resources in AWS cloud.
+
+That is when when you run the command terraform apply or terraform plan.
+
+So the other command is validate.
+
+So it will validate.
+
+The Terraform configuration is as per syntax or not.
+
+So when you run the Terraform plan it will show you the execution plan.
+
+So whatever the resources you have configured in your respective TF files, it will go ahead and then
+
+print the execution plan and show you that these are the resources I am going to create, and these
+
+are the values for these resources.
+
+S3 bucket name is this one.
+
+So and so our settings are this one.
+
+So everything it is going to print and show us that execution plan.
+
+We can review and go ahead and then create them.
+
+After that you can run the apply command.
+
+And if you want to destroy these resources in AWS cloud using Terraform, again, you will have the
+
+fourth command called destroy.
+
+So using that you can destroy those resources or there will be something called with Terraform apply
+
+hyphen hyphen destroy.
+
+Also you can delete them.
+
+So everywhere in front you can add the terraform.
+
+When we are executing you will understand in detail.
+
+So three things here.
+
+One is terraform CLI your local environment where you will also have your TF files, your code present
+
+and using that code will be translated to AWS API calls using this Terraform provider.
+
+And once that is translated those resources will get created on AWS cloud.
+
+This is the key Terraform execution flow.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+We are in zero six Terraform basics and we are in 0602 Terraform Foundation demo.
+
+So here we are going to learn about the following Terraform blocks and also following Terraform commands.
+
+So let's go ahead and then practically understand and then implement this.
+
+So we will go to our Visual Studio Code.
+
+And we are in 060 to Terraform Foundation folder.
+
+And we have the working directory name for Terraform configs which is Terraform hyphen manifest.
+
+And here we have the three files c1, c2 hyphen s3 bucket and C3 outputs.
+
+So here why we have provided the naming as c1, hyphen c2, hyphen c3, hyphen C is nothing but terraform
+
+config okay.
+
+Or code or whatever we feel okay.
+
+So why I am arranging in order is when you are learning, it will be easy for you.
+
+Like first you will go ahead and then write Terraform block, provider block.
+
+Then you will write your random string resources S3 bucket.
+
+And then you will also write your output block.
+
+So we can directly say S3 bucket and outputs.tf.
+
+But what happens is those will not be in the order you might end up in going.
+
+Like which one will be the next one?
+
+It will not understand.
+
+So for that purpose I have organized it this way.
+
+Now here you will find the Terraform manifest orange folder where I have the backup here.
+
+Okay, so when the recording is completed, I will remove this orange folder and only Terraform manifest
+
+will be there in this Terraform foundation section.
+
+This is just only a backup.
+
+Now let's go to our C1 versions.
+
+And here we are going to learn about two things now.
+
+One is terraform block and provider block.
+
+So let's start by understanding the terraform block.
+
+First thing is here you need to say control space which is on your Mac machine.
+
+Okay.
+
+So that you can see all the Terraform.
+
+Top level blocks available.
+
+Now, why are these listing?
+
+Because for the VS code, we have installed the plugin.
+
+When when we are doing the installation phase of CLI, we have installed the plugin so that all these
+
+things will be auto populated.
+
+So now the first thing is we will start with the Terraform block.
+
+So I'll select that block.
+
+And now here we need to understand two important things inside this terraform block.
+
+So this terraform block is the foundation block of your terraform configuration.
+
+And inside that you will have two things.
+
+One is required Terraform version and required providers.
+
+And other things also will be there.
+
+So inside that you have the cursor.
+
+And when you say control space you can see you can define back end.
+
+You can define cloud experiments language provider meta.
+
+Required providers and required version.
+
+So we'll start with the first thing which is required version.
+
+And in this required version why do we need to define this.
+
+So that when we define this, anyone using this code will have at least the specified version as your
+
+Terraform CLI installed.
+
+This prevents compatibility issues.
+
+So what I'll do is I'll say greater than or equal to 1.0.0, which means in my local desktop.
+
+So if I go to my local desktop here, right.
+
+And if I say Terraform version right here, I have the 1.3.2 as on today, right?
+
+I have installed the CLI in my local desktop here.
+
+I said greater than or equal to 1.0.0, which means it is compatible.
+
+But the thing here is if I say 1.3.3, the latest version available as on today, but I have 1.3.2,
+
+which means it will fail.
+
+It is not compatible because I need 13.3 to execute the code I have defined in my required version,
+
+but in my local desktop I have installed only 13 .21.3.2, so it is going to fail.
+
+Compatibility check is going to fail.
+
+So we need to define this so that we are telling uh telling that this code is compatible only from so
+
+and so version.
+
+So as a standard I am giving greater than or equal to greater than or equal to 1.0.0.
+
+This code will be supported.
+
+So in very simple terms from 1.0.0 onwards whatever the latest is available, this is supported.
+
+But less than 1.0.0 is your Terraform CLI installed on your local desktop.
+
+Then it is going to fail.
+
+It will not go to the next step.
+
+So that's about required version.
+
+So we'll go down here again I'll say control space.
+
+And I will define control required providers here.
+
+So you can see it here.
+
+Required providers is a block.
+
+So we will open that block.
+
+One very important thing you need to understand here.
+
+So this is a argument required version is a argument you have given equal to.
+
+So for arguments it is equal to.
+
+So for blocks it is flower brackets.
+
+Please remember this.
+
+I'll try to reiterate wherever it is possible for next few blocks, so that you will understand that
+
+in detail.
+
+Now in required providers block again you will have the arguments.
+
+So again I will say control space.
+
+And you can say he's saying we need to define the name of this provider.
+
+We can directly get this information okay.
+
+So we can define inside name.
+
+You can you can provide the name of this provider.
+
+And inside that you can define source and version.
+
+Or you can directly go and then get the values from your provider directly.
+
+So we can go here to our provider here.
+
+So this is our AWS provider.
+
+And here use provider.
+
+So you can see this is the thing.
+
+So name is AWS is my provider name.
+
+And I have the source and version source I'm going to get this provider from HashiCorp slash AWS.
+
+And this is the version I am going to use.
+
+This is my provider version.
+
+So we can get that and paste it here.
+
+So let me come back here.
+
+Is it here.
+
+And so this is my AWS provider.
+
+And I can directly say greater than or equal to 6.0.0.
+
+Or you can say greater than 6.0.
+
+So anything above 6.0 is supported.
+
+You are saying.
+
+Okay.
+
+Required provider.
+
+You need at least 6.0 to make your subsequent code working.
+
+So you can also use here right.
+
+Tilde greater than.
+
+So what happens when you use tilde greater than is it allows 6.0 means like all six dot x it will allow.
+
+But when you try to use seven dot x or uh when you when seven dot x is your provider.
+
+Right.
+
+Version currently running currently running.
+
+And you are you said tilde greater than 6.0 means it can only go from 6.126. x, whatever the version.
+
+So whenever you run the command terraform init, it will download the provider plugins you have defined
+
+based on whatever you have defined here.
+
+So it will always download only up to six dot x.
+
+Whatever the latest version is there it might be 6.99.1 something like that, but it cannot download
+
+seven dot x, which means it cannot use seven dot x provider.
+
+So or if you say something like when you use tilde greater than this is the story.
+
+So when you say tilde greater than this is a story.
+
+But when you try to use greater than or equal to 6.0, right.
+
+So when you say tilde greater than 6.0 this is the story.
+
+But when you say greater than or equal to 6.0, so in future any six dot x or seven dot x or eight dot
+
+x anything, right.
+
+So anything is means like whatever the latest is available on that day that will be taken means like
+
+that will be downloaded as your provider plugin.
+
+So if you go here.
+
+So if we go here right.
+
+So here the provider plugin it downloads, we said that it downloads.
+
+Right.
+
+So based on whatever we define here in the required providers section that is the important thing.
+
+So why I am doing a provider lock only for six dot x in production grade.
+
+So when you are implementing in production grade right.
+
+So the best recommended option here is best recommended option is major version upgrades.
+
+We should not do major version upgrades.
+
+We should not do so.
+
+Major version upgrades not recommended.
+
+So if you use greater than or equal to 6.0, then next time you are running Terraform commands, then
+
+automatically it will take the latest version on that day and it might break your entire infrastructure.
+
+So for that purpose tilde greater than is the recommended option okay.
+
+And if you want uh you can also use dot zero here.
+
+So which means it will allow only
+
+6.0.16.0.126.0. x.
+
+This is still more restricted way of doing it.
+
+When you say tilde greater than 6.0.0.
+
+So when you do that it will only allow 6.0. x things means like one to any x number it will allow.
+
+It will not even go to even 6.1 is not allowed here.
+
+So like this you can restrict means like you can write a better code from foundation itself.
+
+So there its importance starts required version means like this is nothing but your terraform CLI stuff
+
+you are defining right.
+
+So this Terraform CLI support it and this provider version only will be allowed.
+
+So all these things we can define here as a fundamental blocks.
+
+Now next for our S3 bucket creation right.
+
+One important thing we need to know that is nothing but a random provider.
+
+So why this random provider is required?
+
+Is your S3 bucket name should be globally unique across the AWS cloud, so it can generate some random
+
+text that can be suffixed for your respective bucket name so that our prefix or suffix as a thing.
+
+You can add that so that your bucket name will be unique across the AWS cloud.
+
+So for that purpose you need something called random provider.
+
+And here is the you can search for AWS Terraform random provider.
+
+And you can find this here you can click on Use Provider and take this as the thing.
+
+And here is the random provider we are going to define.
+
+Instead of 3.7.2 I'll say tilde greater than 3.0.
+
+Anything three dot x is supported three dot x.
+
+Everything is supported for this provider.
+
+So that is about defining the required providers and required versions.
+
+In our next lecture we'll also learn about defining the defining the provider block.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+Before going to understand about the provider block, one more thing from Terraform core language perspective.
+
+We need to understand that is we already said after this, when we give equal to it will be a argument.
+
+And when you provide this with a flower background, which is nothing but a block example, like if
+
+you say ABC and this one, this is a block, and when you say ABC equal to something, then this is
+
+a argument and this is a argument value.
+
+Or you can say that is the thing now important thing here.
+
+So you you have seen here ABC can be a string here or ABC can be a uh what you call list here.
+
+Right.
+
+So something like uh.
+
+Okay.
+
+Comma.
+
+Ready.
+
+So this is a list.
+
+And in addition to that, ABC can be a something called map here.
+
+Map of values like a name key value pairs.
+
+Okay, okay.
+
+And uh, class equal to something like fifth grade.
+
+Something like this.
+
+So this is a you can say this as a map and this as a list.
+
+Okay.
+
+And this list and this as a string directly string.
+
+And always you can say this, uh, I can just, uh, we can say this as d and l m and something like
+
+this.
+
+Okay.
+
+So how to define a map, how to define a list, how to define a string value.
+
+So and this is the argument whatever you are seeing okay.
+
+Now important thing here.
+
+So required providers is a block.
+
+You can see that and AWS again it's a argument and its value is a map of values.
+
+So to explain that I am showing all these things.
+
+So random is a argument and these are the map of values inside that.
+
+So that's the key thing to remember.
+
+Now let's go and then discuss about the provider block.
+
+Provider block tells Terraform which cloud platform or service we want to work with.
+
+Example.
+
+Let's define something here okay.
+
+So again I'll say control space.
+
+And the block we are talking about here is provider.
+
+And what is the name of this.
+
+So you have defined two providers here okay.
+
+So one is AWS and another one is random.
+
+So it is listing here directly.
+
+So we will select AWS provider okay.
+
+So the very important note here is it must exactly match the name we used in required providers.
+
+So if you have used here something like client then definitely you need to change here to client.
+
+This can be any name okay.
+
+Not that it should be AWS okay.
+
+Right.
+
+So it's our desired name.
+
+That's not an issue here.
+
+So this is AWS for for giving the better naming convention we have given here.
+
+This is a AWS provider we have given AWS.
+
+So here you need to provide AWS.
+
+That's the important thing here.
+
+And next inside provider block.
+
+Again if you say control space all these are the arguments inside provider block.
+
+There are many arguments available.
+
+Our one important thing is region.
+
+We are going to define and we are going to say us East one.
+
+Now when we define region as US East one, which means you are going to whatever the resources you define
+
+here, S3 bucket and whatever, right.
+
+Any other resources, those resources will be created in AWS cloud, in this specific region, that
+
+configuration you will do in the provider.
+
+In addition to that, you can also define more things inside this example like access key.
+
+So something xk6 okay.
+
+And secret secret key right.
+
+And why why why.
+
+So you can hard code your You can hard code your credentials so that Terraform can authenticate to AWS
+
+to create the resources inside the AWS cloud.
+
+So those are the things you can do, but we really don't need to do.
+
+Why?
+
+Because when we are installing the Terraform tools itself using AWS configure, we have created a default
+
+CLI profile with our access key and secret access key from our previous demo.
+
+So we really don't need to worry.
+
+But one thing we need to learn here is a little bit more about provider block, which by browsing the
+
+documentation we will understand so we can go to this provider block.
+
+This is the overview right.
+
+So if you click on this provider block the downloads how it happens.
+
+Okay.
+
+This week the downloads are 34.7.
+
+And this whole month one 26.7 million.
+
+And downloads this year 1.2 billion and downloads overall 5 billion.
+
+So how popular Terraform is becoming.
+
+And in that again, AWS cloud is becoming.
+
+You can understand by reviewing these things okay, provider downloads.
+
+And you know, provider is the middleman which transforms the Terraform code to call the APIs from AWS.
+
+So it's a very important you can call it as a heart for Terraform provider.
+
+Okay.
+
+Now we will go to the documentation tab here.
+
+This is the AWS provider documentation.
+
+In that first thing is we will focus on authentication and configuration.
+
+So parameters in the provider configuration.
+
+So this is one thing you can define.
+
+So which means like this hard coding access key and then secret access key.
+
+So that way also you can authenticate to AWS cloud to create resources.
+
+Or you can define environment variables.
+
+So you can secret access key and then access key and region.
+
+You can define them and give a empty provider in your C1, and you can define these environmental variables
+
+and also run the things okay.
+
+That's second thing.
+
+Okay.
+
+Like this.
+
+You have multiple other options.
+
+Shared credential files shared configuration files container credentials and instance profile credentials.
+
+So there are multiple options available based on your requirement and security settings in your organization.
+
+Whatever suits for your thing, and based on where you are running this Terraform code, you are running
+
+via CI, CD pipelines, or you are running via some scripts.
+
+So based on those things, you need to ensure what best suits for your respective environment.
+
+In our case, we are going to run this directly now because using AWS configure, we already create.
+
+We already created a default AWS credential profile.
+
+In my local desktop you will do.
+
+You can also do the same thing when you follow the Terraform, when you follow the install tools section,
+
+which is 0601, so that when we don't need to define anything inside this provider block.
+
+So from these things you can choose based on what you need.
+
+That's one thing.
+
+And second is this is the argument reference.
+
+So for every block in Terraform you will have the argument reference documentation.
+
+So here what all arguments are there whether they are optional or mandatory will be listed.
+
+And in addition to that how to define them.
+
+Assume role.
+
+And is it a list or a map.
+
+Also it will be shown.
+
+See this assume role is a list of configuration blocks.
+
+It is saying so.
+
+It's a custom CI bundle file containing custom rules.
+
+So like this.
+
+What type of argument is it also will be defined in the documentation.
+
+Accordingly you can define those things.
+
+So that's about provider block and a high level.
+
+In next lecture we will focus on S3 bucket creation.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+We have completed our C1.
+
+We are entering into c2, S3 bucket.
+
+So how to get this documentation for this S3 bucket right.
+
+So a sample reference.
+
+Okay.
+
+So you can go to your Terraform section here.
+
+Right.
+
+So you can search for the S3 bucket.
+
+So you can see when you say S3 aws S3 bucket.
+
+So you have something called resources and AWS S3 bucket.
+
+And here you will find the example usage of this S3 bucket.
+
+So you can copy and paste it here and change as per your need.
+
+So from documentation you can get that resource directly.
+
+Now important thing here is so far whatever you have seen this provider block has only one thing here
+
+one.
+
+One uh label.
+
+You call these as labels.
+
+Okay.
+
+So now if you see here you have two labels AWS S3 bucket and example.
+
+So what exactly this means right.
+
+So a resource block this is the resource block declares a resource of a given type.
+
+So this is the resource type AWS S3 type with a given local name.
+
+So first label is the resource type and second label is the local name you call.
+
+Okay.
+
+So why you call?
+
+Why you need this local name.
+
+The name.
+
+Whatever you define here, the name is used to refer to this resource from elsewhere in the same Terraform
+
+module, but has no significance outside the scope of that module.
+
+So that's the important thing, which means whatever the name you reference here, provide here this
+
+resource you can reference in another resource.
+
+So you have defined some resource here Xk6 resource something resource.
+
+And inside this resource you can call this resource ABC equal to something called AWS S3 bucket dot
+
+example dot some ID something like this.
+
+So that's the importance of this local name whatever you are defining.
+
+So but you need to define it in a right way means like a good naming convention is always good.
+
+So this is the resource type which is AWS S3 bucket and local name for that is going to be demo underscore
+
+bucket.
+
+Okay.
+
+And now you have the tags here.
+
+So I will say the tag as something like DevOps demo bucket and environment I'm going to say dev.
+
+That's fine.
+
+These are the tags we have defined here.
+
+Now the bucket name okay.
+
+So I can say something like DevOps demo right.
+
+So when you try to create this right, ideally for all the S3 buckets name should be globally unique
+
+in AWS cloud.
+
+So if you it might already be there and it might throw an error.
+
+So we need to append something unique here.
+
+So for that purpose we can define a random string here.
+
+So for that you can go ahead and then search for a random string resource okay.
+
+So we can go here and you can search for random string terraform okay.
+
+And it will take us to that random string resource.
+
+And you can copy the sample from here.
+
+Okay.
+
+So I'll copy this random string resource and I will provide that here.
+
+And now I will give the local name for that random as something like suffix.
+
+Any desired name is fine length.
+
+I'll try to put it as some six and any special characters I'll try to say false.
+
+Okay, I'll try to say special characters as false and any uppercase characters.
+
+It's not recommended.
+
+So I will say uppercase characters also false.
+
+Okay, and no specials is needed.
+
+I'll try to remove these things okay.
+
+And these are the things.
+
+So length is going to be six here.
+
+And special characters false and upper is also false.
+
+So these are the things we are going to define a simple six character something.
+
+It is random string.
+
+It is going to generate for us.
+
+Now how are you going to reference this random string inside this.
+
+So we said write random string dot local name of that resource dot and whatever the attribute references
+
+available.
+
+So now let's go to that rock documentation of this resource okay.
+
+You will have something called.
+
+So this is the length and these are the keepers okay.
+
+Additional information additional arguments about this respective resource.
+
+And now you can find it here.
+
+The generated random string ID the generated random string I can use id or result so that the output
+
+when when this resource is run it will generate an ID or a result.
+
+So you need to reference that here how you are going to reference it.
+
+So you need to say dollar and close and open brackets flower brackets.
+
+And you can say random string and dot.
+
+And you have the suffix and dot.
+
+Either you can use ID or you can give result.
+
+So whatever all the argument and attribute references you can find them here.
+
+Auto populated.
+
+Whatever you are seeing here all these things okay.
+
+In that you just need the result.
+
+So we will say dot end result and you can take that result.
+
+So now DevOps demo Hyphen.
+
+Six unique characters.
+
+With that, it is going to generate a bucket for us.
+
+So that's about resource block and in AWS S3 bucket also.
+
+So let's go to the documentation of AWS S3 bucket.
+
+So where is it.
+
+So here is the AWS S3 bucket.
+
+The documentation is the key thing for Terraform how you are going to reference it.
+
+So you have took the example usage of it from here.
+
+In addition to that you will have argument reference and attribute references.
+
+So first talk about argument references which means all the all the configuration information for that
+
+resource you define when you are creating it.
+
+So everywhere you can see these are optional.
+
+Optional.
+
+Optional.
+
+You can see.
+
+But when you see the bucket okay.
+
+So if you go here and search for bucket okay or it's only be right so we can quickly find it okay.
+
+So you can see but optional forces new resource name of the bucket you can provide.
+
+So like this all these things are optional.
+
+See few things are deprecated in documentation.
+
+It will say very clearly, these are the arguments.
+
+What you provide before creating your resource and attribute.
+
+References are nothing, but after the resource is created, what all metadata of your resource you
+
+can access.
+
+So when a S3 bucket is created, all this metadata for that resource is available ID of that bucket,
+
+Arn of that bucket, and that bucket's domain name where that bucket is created, that bucket's region,
+
+that bucket's regional domain name.
+
+So those are called attribute references.
+
+So two things important.
+
+One is argument reference which is before creating the resource you provide the configuration information
+
+for your respective resource attribute reference.
+
+After the resource is created, metadata of that resource you can access and use wherever it is required
+
+in other resources in Terraform those that is nothing but attribute references.
+
+Now that's about resource block.
+
+In our next lecture we will focus on understanding about output block.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+Let's go ahead and also define the output block.
+
+Now the output block in Terraform is used to print values after successful terraform apply.
+
+So this is super helpful when you want to quickly see the important information like resource IDs or
+
+in our case bucket name on the Terraform output on the Terraform screens itself on the command line
+
+itself.
+
+So you don't need to go to directly to AWS console to find that information.
+
+So after the successful Terraform apply, this output block result will be printed.
+
+So now let's go ahead and define that now.
+
+So we will define output block.
+
+So we can say control space.
+
+And we will come back here control space.
+
+And here is the output block for this.
+
+It just needs one name.
+
+So what is your output name.
+
+So any desired name.
+
+So I'll say I want to print the bucket name.
+
+So I'll say S3 bucket name.
+
+And here you will have something called value.
+
+So there are other arguments.
+
+We just need the value.
+
+And if you want to define description what is this output about.
+
+You can even define that.
+
+I will just define the value.
+
+And in value you can use different functions.
+
+Also whatever available in Terraform to transform that whatever you want.
+
+We really don't need all those things.
+
+We just need the bucket bucket information okay.
+
+So what we can do here is we will go to our documentation.
+
+And here you can find different things.
+
+So here you can add get the values means like after the bucket is created you can get IDR and bucket
+
+domain name bucket region whatever is there.
+
+Here you can get all those information in addition to that, whatever is present in argument also you
+
+can get as a output or you can reference them in your other resources also.
+
+So both arguments and attributes, both you can access after the resource is created in your resource
+
+metadata.
+
+So I'll get the bucket name where I can get this is the thing I need to get.
+
+So I'll say AWS S3 bucket dot demo bucket dot bucket will give me the bucket name.
+
+So let me copy this AWS S3 bucket, dot and demo bucket and dot all these things you can get.
+
+Okay, so I just need the bucket name.
+
+So bucket that's all.
+
+And if you want to define more example ID of your bucket if you want to define.
+
+So S3 bucket.
+
+And then if you want to define something like ID so you can go ahead and then write the ID here.
+
+Why.
+
+Because it is present in our documentation here bucket ID.
+
+And if you want something like Arn right.
+
+So simply say okay.
+
+And here this is just the label okay.
+
+But here you need to also provide a that's all.
+
+And if you want to add some description for it okay.
+
+You can add that this is S3 bucket here.
+
+Something like this.
+
+If you want you can add.
+
+So these are the things you can define this way.
+
+So that's about outputs block.
+
+In our next lecture we'll go ahead and then create these resources and then verify.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+Let's go back to our terminal now and we will go to zero six Terraform basics.
+
+And inside that 0602 Terraform Foundation.
+
+So here we have the Terraform manifest folder.
+
+We will go inside that always you need to go inside your working directory to execute the Terraform
+
+commands.
+
+And now if we go here if we go here.
+
+So these are the Terraform commands we are going to execute now which is init validate plan apply destroy
+
+and then output all these things we are going to learn now.
+
+So let's come back right and come to the terminal here.
+
+Clear.
+
+And you can see our three things C1, c2, s3, bucket, TF and C3 outputs.
+
+So I'll run the command first terraform init and see what is happening.
+
+Right.
+
+So it says Initializing the backend and initializing the provider plugins.
+
+So it is trying to find HashiCorp AWS matching 6.0.0 and it will download those things we said today.
+
+Greater than right and also tilde greater than 3.0.0.
+
+Also we have specified in our c 1.tf right.
+
+See these two are the things.
+
+So whatever the latest available as part of those things it will download.
+
+So we said 6.0.0.
+
+But we just need to say now if you go here let's wait for it okay.
+
+So it uh now it downloaded 3.7.2.
+
+That is fine.
+
+Okay.
+
+When we say 3.0.
+
+But we'll also see here 6.0.0 means what happens.
+
+Okay.
+
+So we will see here less hyphen LRT.
+
+And you can see dot terraform folder is created.
+
+And inside the dot terraform.
+
+If you go here you will find the provider's folder and inside that provider's folder from registry terraform.io.
+
+These were downloaded.
+
+So we'll go inside that and you'll find something called HashiCorp.
+
+And inside HashiCorp you will find AWS and random.
+
+So you can go inside this AWS.
+
+And it downloaded only 6.0.0.
+
+Why?
+
+Because there is no latest exe version here.
+
+So we would have told 6.0 only.
+
+So when that is the case what happens is it will download the latest version on six dot x okay.
+
+Which means like as on today in six dot x the latest version for AWS provider if you come back here.
+
+Right.
+
+So let's go up here and this is the overview 6.4.1 is the latest.
+
+So for that you need to give tilde greater than 6.0 which means 6.16.26. 13.
+
+It is allowed.
+
+So earlier when you said dot zero, there is nothing other than 6.0. 1 or 6 16.0.2.
+
+So that's the reason 6.0.0 only it downloaded.
+
+So for this we'll give 6.0 and we'll come back here.
+
+So this is another learning opportunity for us.
+
+So I'll try to.
+
+This is our Terraform manifest folder.
+
+I'll try to remove whatever is there with Terraform and Terraform log dot HTML.
+
+Both will be removed now.
+
+So now again we have only three things okay.
+
+And we have ensured that our version is 6.0 here.
+
+Now let's run the Terraform init again okay.
+
+Now when we run it it is saying Tilda greater than 3.0, which means 3.7.2 it downloaded.
+
+And when you are saying Tilda greater than 6.0, it is saying 6.4.1.
+
+It is trying to download in our directory.
+
+So as per the picture also you can see we said that we said that uh, if we go here, right.
+
+Uh, we said that Terraform provider will be downloaded and it downloaded to our local.
+
+Now when we have run the Terraform init command.
+
+So let's come back here to the terminal.
+
+And if you go back again and then verify in the terraform folder.
+
+So you can see in providers again in registry in HashiCorp you will find AWS and random in AWS.
+
+Inside this is the 6.4.1.
+
+And inside this this is the thing it has downloaded.
+
+So these are the provider versions and information everything.
+
+It will be present inside this okay.
+
+So this is the provider file okay.
+
+This is the file with this much size okay.
+
+Due hyphen.
+
+And this is the file 818 MB is there as on today.
+
+So that will that will uh transform your Terraform code to call the AWS API calls.
+
+So now let's come back out of it.
+
+Right.
+
+And now we are in dot terraform folder is over LZ LR to you have something called dot terraform log
+
+dot h.
+
+So this is another thing dot terraform dot log dot h.
+
+So let's understand this file in very detail.
+
+Right.
+
+So this is the terraform dot dot dot dot log.
+
+The word itself says means like log file.
+
+So this is a log file.
+
+So when we run terraform init Terraform creates a file called terraform dot log dot.
+
+So this is like a log file that records the exact versions of providers Terraform installed along with
+
+their checksums also.
+
+So for example here we see the AWS provider printed a version 6.4.1, even though in our configuration
+
+when it is downloading, it said in our configuration we said greater than or equal to 6.0.
+
+So if you go here right, we said this is the thing right?
+
+In our configuration.
+
+We defined this.
+
+And whatever latest available today it downloaded with its equivalent all the hashes or checksums.
+
+Similarly happened for the random provider.
+
+Also you just said your constraint is 3.0 and it gave 3.7.2.
+
+So now why is this that important for us?
+
+Because it ensures consistency.
+
+So if someone else on your team runs the same configuration, they will get the exact same provider
+
+versions.
+
+Avoiding surprises in production even though you have defined these constraints, right?
+
+But it might even behave differently if it downloads 3.7. 3 or 16 .5. something.
+
+Okay.
+
+It might even break something.
+
+So for that purpose this is a additional security, this log file.
+
+So this will avoid surprises.
+
+Exactly.
+
+If you have this log file in your in your this folder right.
+
+Then automatically it will always download only this 6.4.1 and this 3.7.2.
+
+Always it will try to do that only the file.
+
+Also a lists all the hashes for those specific versions.
+
+These are cryptographic checksums that Terraform uses to verify the provider binary hasn't been tampered
+
+with.
+
+So this is all about security and reliability.
+
+So this is a very very important file.
+
+So one key point you should remember is when you are checking in your code you should commit this dot
+
+terraform dot log dot HTML file into version control just like your other config files.
+
+That way every environment dev test production runs with the same provider versions, so there are no
+
+surprises for us.
+
+So think of dot terraform dot log dot as terraform way of saying log these provider versions and keep
+
+everything predictable.
+
+So that's about Terraform log file.
+
+So we have talked about Terraform init which will download the provider plugins to Terraform.
+
+And we have also talked about log dot HTML.
+
+Now let's go ahead and then run the command terraform validate.
+
+So we'll go here clear.
+
+And I'll run the command Terraform validate.
+
+And what this command checks is whether your Terraform configuration is syntactically valid and internally
+
+consistent.
+
+In simple terms, it makes sure your code is written correctly and that all references make sense.
+
+For example, if you forget a curly brace or misspell, a resource name or reference an output that
+
+doesn't exist, Terraform validate will catch it.
+
+So let's try that a little bit.
+
+Okay.
+
+So let's go to the code here and go to some S3 bucket here and try to comment this out.
+
+Okay.
+
+So you can comment this brace.
+
+And in the output write a R and one something like this.
+
+You write it.
+
+And now let's run the command terraform validate.
+
+So it says that unclosed configuration block.
+
+Okay.
+
+So there is no something like that.
+
+It is not there.
+
+It is saying okay so we will come back here and try to remove that okay.
+
+And now we'll try to validate it okay.
+
+It might say successful.
+
+We will see what happens.
+
+No, it didn't say why?
+
+Because it said that AR and one after that.
+
+Again it said unsupported attribute the.
+
+This object has no argument nested block or exported attribute a one.
+
+So it has captured both the issues.
+
+Okay so one is curly braces and other one is invalid attribute you have defined in your output and both
+
+things it has captured.
+
+So we'll try to roll back whatever we try to play.
+
+Okay.
+
+So now let's come back here and say Terraform validate.
+
+And this should be successful.
+
+So one thing we need to remember here very important here is when you are running Terraform validate.
+
+It does not connect to AWS or any other provider.
+
+So it doesn't check if you are whatever the resource is present in AWS or not.
+
+All those things it is not going to do.
+
+It only validates your configuration, logic and syntax locally, which means whatever you are writing
+
+here.
+
+C1, C2, C3, whatever.
+
+Only these configurations.
+
+It is going to verify, but it is not going to connect to AWS cloud or some other provider and verify
+
+agnostic.
+
+That part of thing it doesn't do validate is completely a local.
+
+Uh, it checks only locally.
+
+So in simple terms write your Terraform code, run terraform, validate to check for mistakes, then
+
+move on to Terraform.
+
+Plan to see what all will be created.
+
+In very, very simple terms.
+
+You can say think of Terraform.
+
+Validate as your first line of defense catching errors early before Terraform even tries to talk to
+
+the cloud.
+
+So that's about Terraform validate command.
+
+In our next lecture we will focus on Terraform plan and apply commands.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+Let's run the Terraform plan command.
+
+Plan command shows us what Terraform intends to do.
+
+The output is like a preview or a dry run.
+
+It tells us what resources will be created, or what resources will be changed, or what resources will
+
+be destroyed.
+
+So all those things it is going to show as example here it is saying that plan two to add.
+
+So let's see the complete plan here.
+
+So we can see Terraform used the selected providers to generate the following execution plan.
+
+Resource actions are indicated with the following symbols.
+
+It is going to create resources now so it can create, update or even destroy resources.
+
+So here we are running the Terraform plan wherein currently there are no resources related to this Terraform
+
+project, this AWS S3 bucket or anything.
+
+So it is saying only it is going to create and what it is going to do.
+
+It is going to create this resource, right.
+
+And it also going to also run create a random string suffix resource.
+
+So this will be to the Terraform local okay.
+
+But this is the real resource which will get created in our AWS S3 bucket.
+
+And you can also see all the ID.
+
+It will be known only after it is applied and even the bucket name, it will be known only after it
+
+is created.
+
+So it says known after apply and few things whatever like tags already there.
+
+So it is showing them as is okay right.
+
+And remaining things it says known after apply.
+
+So now what we will do is we will move on to the next thing which is terraform apply before that.
+
+You can also see in the plan it is saying two resources.
+
+It is going to add zero to change and zero to destroy.
+
+And also three outputs we have defined here and id and name.
+
+So those also will be known after apply is successfully completed.
+
+So now let's understand validate checks.
+
+Your code plan shows you the impact what it is going to do and apply Terraform apply actually makes
+
+it real.
+
+So now let's go ahead and then run the command Terraform apply.
+
+And let's see what happens.
+
+It is going to go ahead and then create these resources.
+
+Whatever we have defined in our Terraform configuration file c1 c2 and then C3.
+
+So when you say terraform apply again the same plan will be printed.
+
+You can see it here I have run Terraform apply.
+
+So the same plan will be printed.
+
+And after reviewing that plan you can say do you want to perform these actions?
+
+Terraform will perform the actions described above only when you say S.
+
+So I am fine with creating those resources.
+
+So immediately it created a random suffix resource and this is the random suffix it generated and using
+
+this random suffix, it is trying to create the S3 bucket.
+
+So this S3 bucket is creating and creation is completed.
+
+Apply.
+
+Complete.
+
+It added two resources, zero changed and zero destroyed.
+
+And here you can see the bucket and bucket ID and bucket name.
+
+So all the information we can see it here.
+
+So whatever you have defined here right.
+
+So DevOps demo hyphen random string suffix result.
+
+So this is the random string it created.
+
+This is the one.
+
+And you can see that here.
+
+So this resource whatever it created random string.
+
+This is the ID you can see.
+
+Right.
+
+So that string it has provided it here successfully.
+
+So this is the one you can say AWS, S3, LRS and grip with DevOps demo.
+
+Just say that and our bucket should be present okay.
+
+So we can see it here.
+
+This bucket is created.
+
+We can also go to AWS console and verify.
+
+But AWS, S3, RLS is the same command right.
+
+So we have listed that thing.
+
+Now the next thing is if we want we can also run the command.
+
+So if we go to our commands here.
+
+So here right.
+
+So if we go to our commands here so we have completed the following things.
+
+One is terraform init validate plan and then apply.
+
+Now next is output command.
+
+So what it will show you.
+
+So already this is when it has run successful.
+
+Apply.
+
+All the outputs were displayed here.
+
+But you have went somewhere and then you have done some other things etc. etc. etc. you have done and
+
+now you want to see the outputs.
+
+You have cleared everything the previous thing.
+
+So you can just say terraform output command.
+
+And in that project whatever is there, those outputs will be displayed.
+
+So this is a very helpful command.
+
+See all the three outputs displayed here successfully.
+
+And now the next thing is like.
+
+So we have completed following things.
+
+One is init, validate, plan, apply and then output.
+
+And if you want you can destroy the project whatever we have created.
+
+But before going and then destroying the project, let's do some update.
+
+So that will give us some additional things okay.
+
+To understand.
+
+So we'll go here and in the S3 bucket right.
+
+So here instead of environment dev I am going to say or I can say write uh owner some additional thing
+
+I am adding.
+
+And I am saying Kalyan Reddy.
+
+Right.
+
+And let's see what happens okay.
+
+So we'll go here and as usual our things are initialized already.
+
+This project is initialized and you already have the provider plugins downloaded and then present.
+
+Right.
+
+We don't need to run terraform init now just if we run Terraform validate.
+
+So whatever you have made the config change is it is it syntactically right or not?
+
+You can verify.
+
+So what you have done here owner you have added.
+
+Now what we will do is we will run the command.
+
+Next is Terraform plan.
+
+Let's see what it does okay.
+
+Right.
+
+So now it is going to go ahead and then review the changes.
+
+And it is going to compare it with whatever the resource present on AWS cloud.
+
+So now if you go here so Terraform uses the selector provider to generate this plan.
+
+It says update in-place update.
+
+It is doing so this is very important.
+
+Update in-place means it is not going to delete the resource and recreate for the same resource.
+
+It is making a change.
+
+But in some cases there will be like it will delete the resource and recreate the resource based on
+
+the argument you are changing.
+
+Here only you are changing the tag.
+
+It said that.
+
+So this is the symbol plus C is the symbol for addition.
+
+This is the symbol for update.
+
+So it is updating this resource AWS S3 bucket.
+
+It is updating it and in that owner is the field it is trying to add, so zero to add, one to change
+
+one resource it is changing and zero to destroy.
+
+So we will say terraform apply.
+
+And if you enter again it will ask for confirmation.
+
+Instead of that you can say hyphen auto approve.
+
+So what it does is it will not ask for the confirmation.
+
+So little dangerous command, but it is just for knowing.
+
+I am trying to tell you always run terraform, apply and review the plan one more time and then provide
+
+s.
+
+That is the recommended thing.
+
+So now you can see it is modifying the bucket now.
+
+And once it has modified now you will see that zero added, one changed, zero destroyed.
+
+Now we have seen the something called.
+
+We have seen the update in place also we have seen now you can run the command Terraform, destroy and
+
+see what happens.
+
+Okay, this is the command.
+
+We are not going to say yes.
+
+Just say terraform, destroy and then see what happens.
+
+So it is going to go ahead and then review the things.
+
+And then it is again going to print a plan for us saying that these are the resources it is going to
+
+delete.
+
+So you can see it here.
+
+So.
+
+It has generated the destroy plan here.
+
+And this resource will get destroyed.
+
+So this S3 bucket will be destroyed.
+
+And this random string resource will be destroyed.
+
+And if you say yes these will be destroyed I am going to say no, I don't want it destroy canceled.
+
+It is saying so there is one more terraform.
+
+Apply and hyphen destroy as a flag.
+
+Even this does the same thing.
+
+Let's see what happens.
+
+Okay.
+
+Terraform apply and then hyphen destroy.
+
+And this also will generate the destroy plan.
+
+And if you say yes those will get deleted.
+
+So let's wait for the plan to get generated.
+
+So you can see it is saying this is the destroy and these are the things it is going to destroy.
+
+So we don't need that okay.
+
+Now let's go and add one more change here okay.
+
+And we will say something like uh owner.
+
+Last name or something like that.
+
+Okay.
+
+Or we can try to say that environment is there and we can say organization something like that okay.
+
+And we will add something.
+
+Stack simplify.
+
+Okay.
+
+So I added one more thing and what we are trying to learn here.
+
+Terraform plan with a output file that we are going to learn.
+
+So let's come back here and understand that in details.
+
+So we already seen the regular flow like plan apply output and even destroy.
+
+We didn't destroy the resource.
+
+So now let's look at an important variation in Terraform plan Okay.
+
+So let's come back.
+
+We added something called organization.
+
+So let's come back here and we will say Terraform plan.
+
+And it will generate the plan here on the terminal.
+
+But you can also save the plan into a file.
+
+That is very important.
+
+So we will run that command and then see what happens.
+
+First we have run the basic plan.
+
+And it is saying that it is going to add additional thing which is organization stack simplify.
+
+So let's run the command Terraform plan.
+
+So I'll try to clear this Terraform plan and hyphen out is the flag.
+
+And you can say you can say S3 plan V1 something like that.
+
+Name name of the file.
+
+And you can provide this file in any path I'm providing in the current directory.
+
+But you can provide the path of the file where you want to save it, something like dot dot slash or
+
+somewhere.
+
+Okay.
+
+So I'm providing it.
+
+It will generate in the current directory.
+
+So now what happens is uh this plan will be saved in this S3 plan v1.
+
+So why do we do this?
+
+Because, uh, this plan.
+
+Right.
+
+So now I can hand this exact plan file to someone else or even pass it to a CI CD pipeline.
+
+And when they run this Terraform, apply S3 plan v1, then automatically Terraform will apply.
+
+Exactly what was planned earlier.
+
+What was I have seen in that plan?
+
+So no recalculation, no surprises.
+
+Total.
+
+Consistency.
+
+So that's another important thing.
+
+So I can say here Terraform.
+
+This is the same plan.
+
+The whole plan is saved to the S3 plan V1.
+
+So if you say cat S3 plan v1 it is a binary file.
+
+You.
+
+Can't read that okay.
+
+Directly using Cat or something.
+
+But we will do that okay.
+
+How to read that also I'm.
+
+Going to show you but now you have the plan file created.
+
+Here you can see S3 plan V1 is created here.
+
+So now what you are going to do is, uh, you can go ahead and then run the command Terraform, apply
+
+S3 plan V1, and that will be applied so that whatever the plan you have seen on your local, you have
+
+checked in the same thing or shared it with someone who who are in the execution area.
+
+So they will execute that plan.
+
+So now that one changed and then that plan is executed now.
+
+So no recalculation, no surprises.
+
+This is going to be totally consistent.
+
+But this this plan file is not binary.
+
+This is a binary file, not a human readable file.
+
+Then how to inspect that plan.
+
+Right.
+
+So there is some command called terraform show.
+
+So using that show this S3 plan v1, you can review that.
+
+The command you need to use to review the binary encoded plans is using Terraform show command.
+
+So you can see what are the changes.
+
+Everything in detail.
+
+In addition to that, if you want to go one step further, maybe for automation or some policy checks,
+
+you can convert this into a JSON file also.
+
+So you can run the command terraform, show S3 plan v1 and you can say hyphen JSON right.
+
+So hyphen JSON.
+
+And again.
+
+We need to run the command like this Terraform show and hyphen JSON.
+
+You are providing for show an argument and S3 plan v1.
+
+And you can say S3 plan v1 dot JSON.
+
+Okay.
+
+And let's see what happens.
+
+Okay.
+
+So it is going to generate a JSON version of this plan.
+
+Okay.
+
+So that's about you can see here you can see you can go here and you can see here S3 plan.
+
+This is the JSON version.
+
+And you can format this file if you want.
+
+Okay so cat and S3 plan v1 dot JSON so that complete JSON file is generated for us.
+
+So these are the things some additional things which you need to know about Terraform plan with hyphen
+
+out as a flag.
+
+Now whatever we have created so far right.
+
+So these are the things we have created.
+
+So resources we will go ahead and then destroy them.
+
+So I'll say terraform apply hyphen destroy.
+
+And when it comes there I'll try to say yes.
+
+And then it should be destroyed.
+
+So let's wait for it to get generated.
+
+So I will say yes.
+
+And whatever the S3 bucket we have created and random string resource we have created both got destroyed.
+
+So I'll say aws, s3 ls and grep dev ops.
+
+And then we should not find any bucket.
+
+So that's about all these commands.
+
+So we have successfully learned about Terraform block provider block a resource blocks outputs block
+
+and also init, validate, plan, apply, destroy and then output commands.
+
+So this is the core foundation of Terraform, which we have learned in our next series of demos.
+
+We will focus on going into more real world, which means we'll go ahead and then create a VPC.
+
+After that, we'll go ahead and then create an ECS cluster, all these things using Terraform.
+
+And when we are doing those things, we'll also learn about something called input variables.
+
+And in that different different variations terraform dot are dev dot auto dot product tf all those things.
+
+Also we will learn about local block data sources, block and terraform modules and state files, all
+
+those things.
+
+Also we are going to learn.
+
+So in this lecture we didn't introduce state in later sections.
+
+We will discuss that in detail.
+
+I'll see you in the next demo.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back!
+
+As part of Terraform Basics section, we are entering into the demo 0603 VPC.
+
+So initially we have installed all Terraform tools required for us and then also learned very important
+
+concepts as part of Terraform Foundation demo.
+
+Now we are entering into the real world demos, which means we will create a VPC now.
+
+And in that VPC we are going to go ahead and then create the EKS cluster.
+
+So EKS cluster stuff it will start from demo zero seven onwards.
+
+But here we will now focus on creating a VPC in a production grade implementation or a real world approach.
+
+So how we are going to design it we are going to see as part of this demo.
+
+So here we are going to focus on adding some additional concepts.
+
+So terraform block and provider block.
+
+We already know here we are going to introduce some more concepts of Terraform, which is input variables,
+
+local values, data sources, and some additional Terraform functions.
+
+Also we are going to use.
+
+So this demo is going to be very interesting.
+
+So we are going to go in a advanced mode here means like use different uh Terraform functions.
+
+And how to use those.
+
+Use Terraform console command to test those functions.
+
+So all those things we are going to do here before going and implementing this demo using Terraform,
+
+creating a VPC, let's understand the architecture VPC architecture which we are going to build now
+
+in detail.
+
+So here we have a VPC and that VPC.
+
+Whatever we are seeing here we have defined a Cidr block for that is ten 000 slash 16.
+
+And we can see the picture here.
+
+We are going to have three availability zones.
+
+And in each availability zone we are going to have a public subnet and also private subnet.
+
+So we are also going to have private subnets here.
+
+So and in addition to that these public subnets that has direct access to the internet through Internet
+
+Gateway.
+
+So they can communicate to internet via internet gateway and a private subnet which cannot talk to the
+
+internet directly.
+
+So this thing okay.
+
+So the flow outbound flow is not possible for these private subnets.
+
+Now notice something important here.
+
+Each public subnet has a Nat gateway.
+
+So you can see here Nat gateway is present in each public subnet.
+
+Right.
+
+So this is the bridge that allows private subnets to go outbound to the internet, which means you will
+
+go in this way.
+
+So this is the flow.
+
+So any service which is present in private subnets.
+
+Example you have some EC2 instance here.
+
+And that if it need to communicate to internet outbound then it goes via this Nat gateway and goes to
+
+Internet Gateway.
+
+And via that it will go to the internet.
+
+So this will prevent any inbound internet access to these resources running in this private subnet,
+
+which means you cannot go outbound via internet.
+
+And in addition to that, you cannot directly access applications hosted in private subnet via internet.
+
+So that's the key thing here.
+
+So we are doing a secure design.
+
+So effectively public subnet host resources that need to be accessed from the internet, while private
+
+subnets host internal workloads that only make outbound requests.
+
+So that's the high level architecture we are going to build.
+
+Another important thing which we need to understand here is if we want to build this mass scale architecture,
+
+it is going to cost us a lot.
+
+So what we have done here is so we are not going to give the Nat gateway high availability across availability
+
+zones, which means I will create only one Nat gateway by putting cost in consideration.
+
+So when you are creating it, it is like no use of creating multiple things for testing and learning
+
+purpose.
+
+So we'll create one Nat gateway and ensure that all private subnets go via that Nat gateway only, which
+
+means we are not giving any high availability for that Nat gateway.
+
+If we want, we can build also, but that is the key thing in our architecture, which we are building
+
+just for cost perspective.
+
+That should not cost you a lot.
+
+Why?
+
+Because Nat gateway is costly and it also need a public elastic IP.
+
+So three means again we need to create three elastic IPS three Nat gateways.
+
+And it is going to cost us.
+
+So for that purpose in our course we have designed to have only one Nat gateway.
+
+Now let's move on to the next slide.
+
+Almost I try to explain the flow here, but for you to understand in detail.
+
+I have also drawn the flow here.
+
+So we can see here on the left hand side we have the internet.
+
+When inbound traffic comes in, it passes through the internet gateway and goes to any applications
+
+hosted in public subnet.
+
+Let's say here you have an EC2 instance in public subnet.
+
+So the inbound traffic from internet can access this EC2 instance, provided it has a public IP associated
+
+with it right now.
+
+For outbound traffic for this same public subnet.
+
+Right.
+
+So for outbound traffic.
+
+So you can see the flow.
+
+So it is going this way and via internet gateway you can see it here.
+
+So whatever we have specified here, whatever we have discussed here see this line that is the same
+
+thing here okay.
+
+So for any resources hosted in public subnet like EC2 instances or ex worker nodes we don't have any
+
+issue.
+
+But for the private subnet the flow is different private instances.
+
+These instances don't talk to the internet directly.
+
+So which we already discussed also.
+
+So which means so these instances cannot talk to internet directly.
+
+Instead they send outbound requests to the Nat gateway.
+
+And via internet gateway it will go to the internet.
+
+So via public subnet you route the traffic.
+
+So this way private subnet instances can download updates.
+
+So why means like why this private subnet resources need to access the internet.
+
+What is the use case here.
+
+Use case is like so this EC2 instance it need to download some updates related to its operating system.
+
+Then it can do that.
+
+Or you have installed some Docker inside this EC2 instance and you want to download some Docker, uh,
+
+some Docker image which is present in the Docker Hub.
+
+So in internet you have a Docker Hub.
+
+So for those things via this Nat gateway.
+
+Via Internet Gateway you go to Internet Docker Hub and download those Docker images.
+
+Or you have some application in the internet like some ABC application is present in the internet.
+
+And if you want to have those ABC API calls, Right?
+
+So ABC has some APIs and those APIs, if you want to access from this EC2 instance, right then in whichever
+
+is hosted in private subnets, then it will goes via a Nat gateway, internet gateway, and to the internet
+
+where this ABC API is present and it will try and access those things.
+
+So that's the thing now.
+
+And no one from the internet can directly access these EC2 instances which are present in private subnet.
+
+That's the security advantage of this setup.
+
+So now let's also talk about how you are going to design the routes for these things.
+
+So in our VPC so far you have seen following things.
+
+One is uh you talked about VPC and you talked about public subnets.
+
+You talked about private subnets.
+
+Right.
+
+So how this whole routing works how this routing works is so let's talk about them here.
+
+So I have also put the sample here for reference.
+
+So let's talk about only public subnet and private subnet.
+
+One common route in both of them.
+
+That is this one okay.
+
+So whatever you are seeing ten 000 16 which is the destination and target is local which means in private
+
+subnet or in public subnet.
+
+Whatever the instances are there, they can communicate to each other without any issues, any number
+
+of instances.
+
+Whatever is there, there are no issues.
+
+They are always good to communicate.
+
+Okay.
+
+So that's the rule here.
+
+Ten 000 16 means inside the VPC.
+
+So inside this VPC any instance can talk to any instance.
+
+And now let's come to the public subnet.
+
+So now in the public subnet right if it need to destination is 0.0.00 means entire internet.
+
+Internet range.
+
+Is this one okay 0.0/0.
+
+So this is the complete internet range.
+
+So if it need to the whatever the resources present in public subnet.
+
+If they want to talk to the internet then they go via this igw which means this internet gateway.
+
+So that's about the public subnet route.
+
+Now let's talk about the routes in private subnet.
+
+So here also if this EC2 instance which is hosted in private subnet if it need to talk to the internet
+
+which is this range then it goes via Nat gateway.
+
+And this is the Nat gateway.
+
+So these are the things which means for this Nat gateway is the target.
+
+And Nat gateway will have a elastic IP which is a public IP.
+
+So it can route via internet gateway to the internet.
+
+So that's the concept here.
+
+Now let's go ahead and then step by step implement this whole architecture using Terraform.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Let's go ahead and understand the project structure which we are going to implement for VPC.
+
+Right.
+
+So the Terraform project structure is going to be this way.
+
+So we are going to have C one versions dot f where we are going to define terraform block and provider
+
+block.
+
+And in C two variables we are going to define some input variables.
+
+And in C three data sources and locals.
+
+So we are going to define some data sources for this respective project.
+
+And also some locals block.
+
+We are going to define.
+
+So we'll understand that when we are implementing and in C4 VPC we are going to create our VPC related
+
+resources.
+
+And in C5 outputs we are going to define outputs related to VPC.
+
+So we are going to use for loops and understand them in detail.
+
+We are going to use Terraform lists and understand them in detail.
+
+And we are going to also use different different Terraform functions here.
+
+Now let's go ahead and then practically implement them.
+
+So we'll go here.
+
+And in 0603 VPC right in Terraform manifest folder we are going to write the code.
+
+And whatever you are seeing here Terraform manifest storage is a backup okay.
+
+So when this, uh writing the code is completed, this folder will go away and you will have only Terraform
+
+manifest folder where you will have your code.
+
+So C1 standard terraform block which we have already implemented this okay.
+
+So we really don't need to worry about this.
+
+We have already learned in the Terraform Foundation section and even the provider block.
+
+We have learned in the Terraform Foundation section.
+
+So it's the same thing you have defined required version greater than or equal to 1.0, which is terraform
+
+CLI version.
+
+And you also said that provider should be greater than or equal to 6.0.
+
+And you also define the provider with region US East one.
+
+But you see one problem here.
+
+So what exactly is that problem?
+
+You have defined us East one.
+
+So for region you have hard coded the values here.
+
+So when you hard code the values right.
+
+You can't use this code.
+
+Whatever you are defining for multiple environments or for different regions always you need to go here
+
+and then change directly the code files instead.
+
+If you define this region as a variable only in your variables file, if you change, that is sufficient.
+
+So if it is only one of this argument, then that is fine.
+
+But in the entire there are 100 Terraform config files, and if you define multiple values hard coded,
+
+then that becomes problem for us when we are, uh, when we want to change it or make that code reusable
+
+for different environments or different regions or whatever, right?
+
+So for that purpose, using variables solves lot of problems for us.
+
+So for that purpose we'll start with defining input variables in Terraform.
+
+So how we need to define them we are going to learn here.
+
+So I'll go here and start with saying control space.
+
+And in my Mac machine.
+
+And I'm going to say we'll go down here and we'll find the variable as the top level block.
+
+And variable will have only one label for us.
+
+And we are going to define that which is AWS underscore region is the variable name.
+
+And inside variable we'll have multiple arguments.
+
+So we'll say control space again.
+
+So we will start with the first thing.
+
+So you have default description ephemeral nullable sensitive type and then validation.
+
+So we'll start with the description and we can write this here.
+
+AWS region to deploy resources.
+
+And next is we'll go ahead and define the variable type.
+
+So this is AWS region.
+
+So it's we have the option types here.
+
+And you can see here bool or list or map or number or object or us East one is a string.
+
+So we'll say string.
+
+And next is we can also this variable definition is completed actually when you define this way.
+
+But you can also define a default value for this variable also.
+
+So this is us East one.
+
+We are going to define this here.
+
+And now if we come back to C one you can remove this one.
+
+And variables that with var dot aws region.
+
+So that is the thing.
+
+So you have defined a variable and you have accessed that variable here and associated it with the argument
+
+region.
+
+So this is successful.
+
+Now we are going to define multiple other multiple other variables here.
+
+And those variables we are not going to write it like this okay.
+
+So already those are present.
+
+So we will uncomment and then discuss them.
+
+So we have already know how to write a variable.
+
+So if we just discuss that will be sufficient.
+
+We don't need to write all these variables and repeat them.
+
+So now let's start with the environment name.
+
+So this is super useful when you have multiple environments like dev stage and prod.
+
+So here we set the default to dev.
+
+And we will reuse this value in naming and tagging our resources also wherever it is required.
+
+And another important thing here is this environment is also of type string.
+
+So that's what we need to remember.
+
+Then we will go back to the next thing which is vpc Cidr block.
+
+So this defines the overall IP address range.
+
+So you can see it here ten .0.0.0 slash 16 is our VPC Cidr block and of type string.
+
+And that gives us 65,000 addresses to work with when you are dealing with slash 16.
+
+After that we have defined a variable which is tags.
+
+Tags are very important in real world projects.
+
+So they help with cost allocation, searchability and even governance.
+
+So here we have defined a simple tag inside this which is terraform equal to true.
+
+But you can define more and more here.
+
+Like you can define the project name.
+
+You can define the owner details.
+
+You can define the organization information, all those things.
+
+But here you need to understand one important thing.
+
+Here you can see the type is map of string.
+
+So you can see we already said this is the argument is default equal to.
+
+And you open curly brace and closed curly brace.
+
+So these are nothing.
+
+But you are defining the map.
+
+And here you have the key value pairs.
+
+You said terraform is the key and value is true.
+
+So this way you can define the maps also.
+
+And finally we have the subnet new bits.
+
+So number of new bits we need to add to VPC Cidr to generate subnets.
+
+It tells Terraform how to split the VPC Cidr block.
+
+So you have ten 000 16.
+
+Is the VPC Cidr block inside that how we need to create the subnets inside them.
+
+So we said default is eight bits.
+
+We have said and type is number.
+
+You can see it here okay.
+
+So which means what happens here is uh if we add eight new bits to a slash 16.
+
+So here you have slash 16 and add 816 plus eight is 24.
+
+Which means when you are defining the subnets right, you will define the slash 24 subnets.
+
+So slash 24 each subnet will have 256 IP addresses.
+
+So example if you say ten .0.0.0 24 means it will have 256 IP's in the same way.
+
+Ten .0.1.0 24 which means this will have another 256 IP's.
+
+And here you can see ten .0.0.0 16 which is going to have.
+
+This is the VPC Cidr block and which is going to have 65,000 IP addresses okay.
+
+Out of which for one subnet you have took 256.
+
+Another subnet you have took 256 like this.
+
+So you need to create three public subnets and three private subnets.
+
+So for all these things we need the IP's to be allocated.
+
+So we have given something called subnet new bits.
+
+And when we learn about the locals block, they're how we are using this new bits using functions slice,
+
+cidrs, subnet and all those things you are going to understand in detail.
+
+But that's about the variables.
+
+So these variables we are going to use when we are implementing the C3 VPC dot.
+
+So I'll see you in the next lecture before that.
+
+To summarize these variables make our configuration reusable, flexible and environment agnostic.
+
+So instead of hard coding values inside resource blocks we keep them here.
+
+And that makes it much easier to scale and maintain across multiple environments.
+
+Alright, with variables in place now, we are ready to move on to data sources and locals where we
+
+actually make use of these values.
+
+So I'll see you in the next lecture
+
+Welcome back.
+
+In previous lectures we have completed C1 and C2 Variables.tf.
+
+Now we are going to focus on data sources and locals data block and locals block.
+
+We are going to implement now.
+
+So let's go back to our Visual Studio Code here.
+
+And we will click on Control Space and we will select the data block.
+
+So this data block requests that Terraform read from a given data source and export the result under
+
+the given local name.
+
+So it will go ahead and then access data from our data sources.
+
+Data sources can be anything your AWS cloud and in AWS cloud lot of information is there to read and
+
+use that information in our Terraform code and those data.
+
+Whatever you are getting from AWS cloud, you can store it under the local name.
+
+Same as our resource blocks.
+
+Like you provide something here.
+
+Okay, so I'll just say AWS ACM certificate and you provide your local name for this.
+
+Okay.
+
+ACM something like this.
+
+And then you define its equivalent data source properties.
+
+So we are not going to define now we'll go ahead and then search for the data block we are creating.
+
+Here is AWS Availability Zones.
+
+So we'll go here and search for that respective documentation.
+
+So we are searching for availability zones in AWS provider documentation.
+
+So you can see when I say availability you have resources and data sources.
+
+So in data sources we are going to select this AWS Availability Zone data source.
+
+So the Availability zone data source allows access to the list of AWS Availability zones, which can
+
+be accessed by an AWS account within the region configured in the Terraform provider.
+
+So we have configured in our Terraform provider US East one region.
+
+So in US East one region, what all availability zones are present?
+
+Those will be, uh, listed for us using this AWS Availability Zones data source.
+
+Now another important thing is instead of only getting all the list only from, there might be ten availability
+
+zones, but two might be down.
+
+Currently only we need what is available now, not everything.
+
+So if you go to the argument reference also you have these things.
+
+State allows to filter list of availability zones based on their current state.
+
+So when you say available so whatever is available it is going to provide us.
+
+You have information impaired and unavailable other options also available.
+
+So these are additional arguments present inside this.
+
+And in addition to that you can also see here it has a attribute references.
+
+Also in attribute references you can get the ID names of your availability zones and zone IDs, group
+
+names, everything you can get using this attribute.
+
+References.
+
+So what we are going to do is we are going to simply, uh, use the basic one.
+
+Very basic.
+
+This is data AWS Availability Zones, which are available and state equal to available.
+
+So this is what we are going to use now.
+
+So let's come back here and define that.
+
+So that's the data source we have defined here.
+
+So now why we are defining it.
+
+Because instead of hard coding zone instead of hard coding these availability zones like US East one,
+
+US East one or US East one, see we will let terraform dynamically fetch what's available.
+
+So that makes our configuration more flexible and portable across regions.
+
+So now if you go ahead and then go to your C one versions, you can go to your variables.
+
+And instead of this default US East one region you can say US West.
+
+Something to write.
+
+So here you don't have anything hard coded related to means like the availability zones of US East.
+
+One is not hard coded in my, uh, Terraform code, which means we are writing a reusable, flexible,
+
+and portable code useful across regions.
+
+So that's the reason we are using this data source.
+
+Okay, now we have completed the data source part.
+
+Now we will go to something called Locals Block okay.
+
+So let's go here.
+
+And again we'll say control space.
+
+And we'll go here and click on Locals Block.
+
+Now let's understand what is this.
+
+Locals block local values assigning names to expressions.
+
+So you can use these multiple times without repetition in your code.
+
+So you have some complex expression from which uh, you want some output.
+
+So that output you can do here and then assign it to a name.
+
+Example I can say ABC equal to you use some x, y, z function and then do some a plus b and some value.
+
+Everything you can do here and something, something, etc..
+
+Right.
+
+So you can do all the calculations here and assign that to this respective ABC.
+
+The value will be assigned to this ABC.
+
+So in the code wherever you are referencing.
+
+Right.
+
+So you can just say local dot ABC.
+
+So that's what local blocks mean when we are using it with real examples you will understand more.
+
+So we'll start with those things okay.
+
+First thing is we'll start with our first thing here which is AZS okay.
+
+So we'll start with AZS as the first local block okay.
+
+So what we are going to get using that.
+
+So before defining the AZS here.
+
+So we are going to get the availability zones which are available in this US East one region.
+
+We are going to get it here.
+
+So region also we should have defined here okay.
+
+So here region also you can define and then provide AWS region.
+
+But why we are not defining is if you don't define it will take the provider default whatever you have
+
+defined.
+
+So you don't need to specifically define it in the data block.
+
+So first thing is we are going to get the AZS here.
+
+So how we are going to get it.
+
+So we are going to learn about something called slice function.
+
+So let's understand this slice function.
+
+So this slice function extracts some consecutive elements from within a list.
+
+So if you come back here so it will provide a list of availability zones.
+
+What are available in US East one region.
+
+So from them whatever you want you can take it.
+
+So for that purpose we are using something called slice function.
+
+So I'll show you what exactly we are doing here okay.
+
+So we will go ahead and then use the slice function to take the first three availability zones from
+
+the list that AWS gave us.
+
+So this Ensures we spread our subnets evenly across these availability zones.
+
+So what we will do is we will first learn this slice function.
+
+So slice and provide some list here and start index and end index you will provide.
+
+So start index is inclusive and end index is exclusive.
+
+So let's understand that.
+
+So let's test this slice function whatever is provided here okay.
+
+So we will copy this okay.
+
+This is the slice.
+
+And they have provided a list of a b C d.
+
+You can see it in the square brackets.
+
+They have provided four items A, b, C, d and they said start index is one and end index is three.
+
+So any list starts with 0012 and then three.
+
+So one comma three.
+
+It said start index is one and end index is three.
+
+So start index is inclusive.
+
+So one is inclusive.
+
+So you will get B here okay.
+
+And next you have two.
+
+That is C we will get it.
+
+Three is exclusive.
+
+We don't get it.
+
+So let's practice this so we get a nice idea about it.
+
+So we'll go here and I'll try to open my terminal.
+
+Okay.
+
+So it might be.
+
+Yeah.
+
+So let me clear this.
+
+And here we will go back to zero six Terraform basics.
+
+And we are in 0603 VPC.
+
+Right.
+
+And anywhere you can be.
+
+But I just want to ensure that this is smaller this part okay.
+
+Whatever before the command.
+
+So now you have one command called terraform console.
+
+So where you can test your functions.
+
+Now you can go back here right.
+
+So you can go back here and get your slice function.
+
+So this is the slice function.
+
+So we'll copy this and paste it here.
+
+And you can see b and then c are the list items.
+
+We will get it in the same way.
+
+So if we try to provide here zero comma three.
+
+So which means zero is inclusive okay.
+
+Start index is inclusive.
+
+So you should get a b and then c c a b and then c is provided.
+
+So that's the thing.
+
+So here for slice function we are going to provide the list as availability zones.
+
+And we will provide the start index as zero and end index as three so that we get three availability
+
+zones.
+
+So that's what we are going to do now.
+
+So we will go to our VS code here.
+
+And we will write the function slice.
+
+And we'll provide the list here.
+
+So if you go back to the documentation here right.
+
+So for the AWS Availability zones in the attribute reference you have something called names as the
+
+output which is list of availability zones names available to that respective account.
+
+So we are going to get the list of availability zones.
+
+So how we are going to get that we are going to say data dot AWS availability zones dot available dot
+
+names.
+
+So when you say that you will get the list part is completed and next is start index.
+
+So what is the start index?
+
+We are going to provide zero comma and index is three.
+
+So now what this slice function will do.
+
+It will get a it will get a list of three availability zones which are available in US East one region
+
+whatever we have defined in our variable.
+
+So whatever you have defined here from that, the first three availability zones which are in the available
+
+state will be saved in this age thing.
+
+So a list of things will be saved in this ages local variable.
+
+So that's about ages.
+
+Now in our next lecture we will also focus on defining local variables public subnets and private subnets.
+
+But you understood right.
+
+So we are doing some amount of processing here.
+
+And those values you are saving here.
+
+So local blocks you can do lot of expression related work and save the output in some local variables.
+
+That's about locals block.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Now let's focus on defining public and private subnets here.
+
+So we will say public subnets.
+
+Related local value and private underscore subnet.
+
+So these things we are going to define now.
+
+So before defining this we need to understand something which is a Cidr subnet function okay.
+
+So we'll go here and understand about that.
+
+So this is the Sidr subnet function which calculates the subnet addresses within the given IP network
+
+address prefix.
+
+So Sidr sub is the function and prefix we need to provide which is our VPC network range.
+
+Whatever we have provided which is ten 000, 16 and new bits.
+
+So what type of subnets you want to generate slash 24 or 20 whatever it is.
+
+So those bits you need to provide here.
+
+So we need to if you want to provide slash 20 then you provide four bits.
+
+So 16 plus four it becomes 20.
+
+Or if you want to provide slash 24 related subnets okay.
+
+So if that is the case then you provide eight as the new bits.
+
+And you will also have net num is a old number you provide here which that will be represented as a
+
+binary integer no more than new bits.
+
+So whatever you provide here should not exceed the new bits you provide here.
+
+So let's understand this okay.
+
+Now we will go ahead and then take a simple example here.
+
+So our example these things will exclude.
+
+So what subnets we are going to generate.
+
+We'll try to run exactly those things in our Terraform console.
+
+So let's come back here and we will say Terraform console.
+
+And we will run C I'd I r subnet E is our Terraform function.
+
+And first thing what we need to provide we need to provide our VPC IP address block, which is ten .0.0.0
+
+slash 16.
+
+That is the one.
+
+And next thing is how many bits we are going to.
+
+We are expecting slash 24 related uh uh subnets.
+
+Okay.
+
+So for our public and private.
+
+So we will say eight bits.
+
+So when we say eight bits here so which is 16 plus eight which is 24.
+
+And net we will try to provide it to zero first.
+
+Okay.
+
+And what IP what subnet it is going to generate.
+
+We see the subnet is going to.
+
+This function is going to generate a subnet for us.
+
+And what exactly it is.
+
+So this is one subnet ten 000 24 is one subnet for one availability zone.
+
+So let's uh feel that way.
+
+Now.
+
+The next thing is we will change the net number to one.
+
+And then you have ten 010 slash 24 one more.
+
+And we'll also add two here okay.
+
+So which means ten 020 slash 24.
+
+So we have three subnets available here.
+
+So let's say these are public subnets three availability zones.
+
+So if you go back here right so you have three availability zones and three subnets here for public
+
+ten zero zero slash 2410 010 24 and ten 020 24.
+
+So this part we know how to write the code.
+
+And next is we will go back here and focus on getting private subnets also same function.
+
+But we will add here ten okay.
+
+So how we are going to do so zero plus ten we are going to do so.
+
+Remember this is the zero zero plus ten which is nothing but ten only.
+
+So you got ten zero ten zero 24.
+
+So to not to overlap both public subnets and private subnets.
+
+So we are giving ten plus.
+
+So we have given another uh eight subnet leave a space another nine another seven subnet leave a space
+
+for future expansion.
+
+And from ten zero ten zero onwards we are taking it for private subnets.
+
+So till here these are public subnets.
+
+And still you have ten zero 310 zero 410 zero 510 .0.5.
+
+All those also we have left it for public subnets.
+
+And we are using here from ten zero ten.
+
+Okay.
+
+If yours is a larger infrastructure you can use here 2030 whatever you want okay.
+
+So this is fine.
+
+Now the next is uh here we will change this to one.
+
+So this is this one okay.
+
+So one plus ten again which is 11.
+
+So you will understand this when we are writing the functions okay.
+
+But here next is two okay.
+
+So ten plus 212.
+
+So now if you enter these are the things.
+
+So these three are the private subnets ten zero 1010 zero 11 and then ten zero 12.
+
+So if you come back here and then see you will find the same thing ten zero 1010 zero 11 and ten zero
+
+12.
+
+So you, you, you have you are able to generate these things using CI.
+
+Siddur subnet okay using Terraform console.
+
+So you learned it right.
+
+So now what we are going to do is we are going to use for loops in Terraform to loop means like we are
+
+going to loop through each availability zone.
+
+And we are going to with the help of the subnet function, we carve out new subnet ranges from our main
+
+VPC Cidr block.
+
+So each subnet gets its own Cidr block automatically.
+
+So using for loops we are going to do that.
+
+So let's understand that how we are going to implement that we are going to see now.
+
+So we will go here right.
+
+So we will go to our VS code here and start with defining those things.
+
+So public subnets again it's a list item we are going to get.
+
+So I'll add the square bracket.
+
+So for list it is square bracket.
+
+And for maps it is uh curly braces.
+
+Or you can call it as flower brackets okay.
+
+So now it need to it will provide a list of subnets for us.
+
+Okay three subnets.
+
+For public subnets it is going to provide.
+
+And it is going to provide for each availability zone one subnet.
+
+So we need to loop it okay.
+
+So we will say for and then space k comma is int local dot azs okay right.
+
+And colon and we will say c I'd I are subnet okay.
+
+This is the Sidr subnet function.
+
+And here we are going to provide the prefixes.
+
+Our var dot vpc Cidr where you have the ten 000 slash 16 which you have defined here.
+
+This is the one where is it where dot VPC Sidr.
+
+And next is you also need to provide your bits okay.
+
+So var dot and you have something called var dot subnet new bits which is eight you have here And now
+
+here comes the important thing, which is k you provide.
+
+Okay.
+
+So what exactly is this k that we need to understand.
+
+Right.
+
+K is nothing but index in your for loop.
+
+It starts with zero and it will go till how many AZS are available.
+
+So for K and AZ in local AZS so in local edges.
+
+And then you are going to provide this.
+
+So this whatever the local dot ages you are accessing in this ages you already have three availability
+
+zones based on this slice function.
+
+In this ages you have three availability zones.
+
+So for all the three availability zones k means zero comma, one comma two will be the index for you.
+
+So for k comma AZ for each AZ get a get a subnet.
+
+So this subnet will we will we have provided the VPC Cidr right where dot vpc Cidr you have provided
+
+subnet bits you have provided and K as the index you have provided.
+
+So which means this it is going to generate this one if you go to the console.
+
+So this is the one you have provided now.
+
+So slash 16 eight and then zero you have provided.
+
+So it will generate this one.
+
+This is first one but it is running in a for loop right.
+
+So for zero and for one and then for two.
+
+Why.
+
+Because all three availability zones.
+
+So you have three AZS.
+
+So which is nothing but zero comma one comma two.
+
+So for all these three things it is going to generate three public subnets in the same line if you want
+
+to do it for private subnets.
+
+So that's the interesting part here.
+
+So the code is going to be more or less same for private subnets also.
+
+But what you are going to do here is just you are going to say here plus ten.
+
+That is all.
+
+So we will go here and we will say K plus ten and you are going to have it is going to generate these
+
+three subnets which is k plus ten is index is zero plus ten which is ten, ten, 24 and one plus ten
+
+which is ten, zero, 11 and two plus ten which is ten, zero, 12.
+
+So these things it is going to generate.
+
+So that's about public subnets and private subnets we are going to generate.
+
+So wherever we want to have the public subnets provided or where we need to provide these values, there
+
+you are going to say local dot public subnets or local dot private subnet.
+
+So those things we are going to do local dot private subnets.
+
+You are going to access it wherever it is required in the things where we are going to define in C4
+
+VPC.
+
+So that's about locals block and a high level.
+
+We do a lot of processing here.
+
+Lot of expressions you define and then assign it to a local variable or a value.
+
+you can call it.
+
+So you all the processing will happen and those values will be assigned to these respective local values.
+
+So this way k and then k plus ten.
+
+So our public and private subnets don't overlap.
+
+And each gets a unique range.
+
+So to summarize the data source fetches dynamic availability zones.
+
+And using slice function we have got the three available.
+
+Three available zones from our US East one region.
+
+And from there you have used the local block help with the Sidr subnets to calculate the subnets for
+
+public and private in a neat and reusable way.
+
+So this combination makes our Terraform code clean, scalable and region agnostic.
+
+In the next step, we will actually put these locals to use when defining our subnets in C3 VPC.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+In previous lecture we have successfully completed data sources and local blocks.
+
+Now we will focus on the main VPC related code what we need to write.
+
+So we'll go here and go to c4 VPC.
+
+And here we need to create these many resources.
+
+So we need to create a VPC.
+
+We need to create a internet gateway.
+
+We need to create public subnets private subnets elastic IP for Nat gateway and Nat gateway and public
+
+route table and associate that route table to public subnets and private route table and associate that
+
+route table to private subnets.
+
+So these ten resources we need to create now.
+
+So let's do one after the other one is the first one is VPC.
+
+We are going to right now.
+
+So the thing here is so all these things.
+
+So if you see you need to create these public private subnets and then VPC all those things we need
+
+to define including the Nat gateway in one public subnet.
+
+So which also needs the elastic IP.
+
+And you also need to define these routes also.
+
+We need to define which is a private subnets route via Nat gateway and public subnets route via internet
+
+gateway.
+
+So all those things we need to define even the internet gateway we need to create in that respective
+
+VPC.
+
+Right.
+
+So for that purpose we will go back and first go ahead and then search for the VPC documentation.
+
+So when I say VPC uh it lists lots of 163 items.
+
+Actually the resource name is uh a we will try to say VPC and go down.
+
+So I'll take you down here and you will find actual VPC, VPC virtual Private Cloud and its resources.
+
+So you can see here these are the VPC resources.
+
+We will go to AWS underscore VPC as the resource.
+
+So this is the one.
+
+So this VPC you can see all the basic usage of this.
+
+This will create a VPC for us okay.
+
+And it has its own equivalent argument.
+
+References.
+
+Region CDR block instance.
+
+So there are huge number of things available here, but whatever is required for us, we will take first
+
+the base one and then change it as per our need.
+
+So we will try to copy this, and we will go back to our Visual Studio Code and copy here.
+
+And resource is AWS VPC.
+
+And this is the main.
+
+And here what we are going to do is we are going to say var dot vpc Cidr.
+
+So that's what we are going to provide.
+
+So what happens here is instead of hard coding it the Cidr block we reference it from variable.
+
+So which is declared earlier earlier in our variables file which is C two variables.
+
+And you can see where dot VPC cider.
+
+So this makes the configuration flexible.
+
+If you want a different network range later we just change the variable.
+
+We don't need to go and then change the core code which is present in C4 VPC.
+
+So in addition to that there are two important arguments you need to add here.
+
+You can also refer to the documentation in argument reference.
+
+So you can search for uh enable underscore DNS support, a Boolean flag to enable or disable DNS support
+
+and also enable DNS host names.
+
+Okay.
+
+So this is a Boolean flag to enable DNS host names in the VPC.
+
+So these two things we are going to add now.
+
+So we will say enable DNS.
+
+Uh uh enable DNS host names and value is going to be true.
+
+It's only a Boolean flag and enable DNS support.
+
+And then true.
+
+So these two things we are going to add.
+
+So this ensures that any resource launched inside the VPC like EC2 instances can get proper DNS resolution
+
+and host names.
+
+So without these it becomes harder for services to talk to each other using DNS names.
+
+So we will also define one more here, which is uh tags we are going to define.
+
+So tags equal to var dot tags you can directly use it right.
+
+So in var dot tags in our variables you have only simply terraform equal to true.
+
+So only those tags will be there.
+
+But you can make it a little bit advanced here.
+
+So what exactly is that.
+
+So we can go here and search for something called terraform merge function.
+
+Right.
+
+So merge function.
+
+And this Terraform merge function will takes an arbitrary number of maps or object and returns a single
+
+map for us.
+
+So we already have var dot tags is a this var dot tags.
+
+Whatever you see is a map here okay.
+
+So this is one map you have.
+
+And you can define one more map.
+
+So wherein you can define your VPC name actually.
+
+So that's what we are going to do.
+
+So let's do that now.
+
+So merge.
+
+And then uh we will have var dot tags as one map.
+
+And we'll also define one more map.
+
+Maps are nothing, but you need to provide your curly braces or flower braces.
+
+And then you say here something called name equal to right.
+
+And you can just say something like dev V right.
+
+And what happens now.
+
+So this will give us right.
+
+So this will give us a name of our VPC as dev VPC.
+
+So that's the thing.
+
+But you can little more advanced.
+
+You can do that which is instead of hard coding the dev here right.
+
+So you can say dollar.
+
+And here var dot uh where dot you have something called uh you can go here to the variables and you
+
+have environment name.
+
+So var dot environment name.
+
+So now what it does is merge var dot tags and var dot environment name hyphen vpc.
+
+So it will give two Two tags for you.
+
+One is, uh, one tag you have defined is this one, which is, uh.
+
+Where is it?
+
+Terraform equal to true.
+
+So you will have terraform equal to true is one tag and name, and another one is name equal to dev
+
+VPC.
+
+It will create this way.
+
+And then these two are the tags.
+
+It will be associated when in the tags section of your VPC.
+
+So merge will merge multiple maps into a single map all the values into a single map.
+
+That is what merge function will do.
+
+Arbitrary number of maps or objects, and returns a single map or object that contains a merged set.
+
+So that is what it is going to do.
+
+So that is about VPC.
+
+Now that we have created our VPC, the next step is to attach an internet gateway so our resources in
+
+public subnets can reach the outside world.
+
+So now what you are going to define you are going to define a internet gateway.
+
+So this is the resource block and AWS underscore.
+
+Internet gateway is the thing.
+
+And you can provide a name of local name for this respective internet gateway.
+
+I'll provide it as Igw.
+
+Simply this is a Terraform local local name okay.
+
+So you can give your desired I gave it as IG and now this internet gateway should be associated with
+
+this VPC.
+
+So when I say control space so you can go and then search for this resource and search for its documentation
+
+and even take that documentation and add all the things whatever is there sample and also argument references.
+
+You can do everything you can do.
+
+So this is the sample you can see.
+
+So we will write it okay.
+
+Now we'll come back here and we'll say control space.
+
+And we will associate this internet gateway to our VPC.
+
+So how we are going to do that.
+
+This is the this is the AWS VPC.
+
+So I'll copy this and paste it here.
+
+Dot id.
+
+So now you have associated this internet gateway with this respective VPC.
+
+And you also need to have the tags and tags.
+
+You are going to use the same thing.
+
+So this whole thing right.
+
+And we instead of VPC here we are going to say it IG w.
+
+So that's what we are going to do.
+
+So that's about internet gateway.
+
+So let's also define the public subnets and private subnets.
+
+Now going to public subnets.
+
+So there is one thing which we have forgot about here in the in this resource which is a meta argument
+
+okay.
+
+So life cycle is one meta argument.
+
+So let's understand a little bit about meta arguments okay.
+
+So I'll say here.
+
+So I'll try to go here and we will try to say terraform meta arguments.
+
+So terraform meta arguments.
+
+This is one concept meta arguments in addition to arguments related to that resource.
+
+Right.
+
+So we have different meta arguments available in our Terraform.
+
+Okay, so one is depends on and the other is count.
+
+So you can see depends on count for each and then provider providers and then life cycle.
+
+So these are the meta arguments available for us.
+
+Depends on count for each provider providers and life cycle.
+
+So currently we are dealing with the life cycle meta argument.
+
+So what are these meta arguments.
+
+These are a class of arguments built into the Terraform configuration language that controls how Terraform
+
+creates your infrastructure.
+
+And now we are focusing on the meta argument life cycle here.
+
+So in this life cycle meta argument you have these are the values available here.
+
+Create before destroy is one value.
+
+So Terraform creates a replacement resource before destroying the current resource.
+
+So in your resource if you add this create before destroy equal to true then it will create a replacement
+
+resource, and then after that it will destroy the existing resource.
+
+And this is one more prevent, destroy.
+
+So Terraform rejects operations to destroy the resource and returns an error.
+
+When you say prevent, destroy equal to true.
+
+This is very important in production.
+
+Accidentally, if someone tries to run a command, terraform destroy, and that resource is destroyed
+
+and it might cause a mass outage for your infrastructure.
+
+For such type of critical resources, you need to have this lifecycle item prevent.
+
+Destroy.
+
+True.
+
+So like this.
+
+There are many other things available for us, but our core focus is on prevent, destroy.
+
+So here in the lifecycle item.
+
+So you can see here prevent destroy.
+
+And you should say true.
+
+Why.
+
+Because VPC is the key networking element in your entire infrastructure.
+
+So it is always recommended to use prevent destroy equal to true.
+
+You should not delete your VPC resource.
+
+So that's the key thing.
+
+But what we will do is we'll put it to false.
+
+Because we are in our learning mode.
+
+We really don't need to create a problem for us.
+
+We'll be creating VPC multiple times and deleting it.
+
+So for that purpose we don't need to make it true.
+
+But we need to learn that.
+
+So how you can accidentally avoid deleting your resources is using lifecycle meta argument and inside
+
+that prevent destroy equal to true.
+
+That is the answer.
+
+So now we have learned about one meta argument.
+
+So when we are going to deal with public subnets we are going to deal with one more meta argument which
+
+is for each we are going to learn.
+
+So let's now go to this subnets here.
+
+And first let's go to that respective resource if you want okay.
+
+So if you go here and here is the base documentation.
+
+And this is the AWS subnet resource.
+
+And here you have these information basic information.
+
+We'll try to copy this, and then we will go back here and then write that here.
+
+Okay.
+
+So basic or you can directly write it whatever is there.
+
+Right.
+
+So you can say resource and AWS underscore subnet.
+
+And here you are defining the public subnet okay.
+
+So you will say cancel here.
+
+And we will say public.
+
+And then here we will define our uh first is VPC id.
+
+So VPC ID is here you know right.
+
+This is the VPC id.
+
+So we will get that.
+
+So this subnet will be associated to this VPC.
+
+That's the first thing.
+
+And next is you also need to define the Cidr block.
+
+So example you take uh var dot vpc Cidr.
+
+And next is you also uh know it is a subnet.
+
+So how you can define VPC cider you need to provide a subnet not the complete VPC related Cidr block
+
+ten 000 16.
+
+Right.
+
+Let's put it empty.
+
+And we'll also need to provide our availability zone.
+
+So let's put it empty for now okay.
+
+And we'll also have one more which is one more argument right.
+
+Map public IP on launch okay.
+
+So this is one more thing okay.
+
+So we will make it to true.
+
+This is a public subnet.
+
+So you need to map public IP on launch.
+
+You are making it a default thing.
+
+And you also need to define the tags here.
+
+So tags.
+
+So standard tags you have here.
+
+So we will define them.
+
+So these are the tags you have right.
+
+So we will define them okay.
+
+And here uh these comes this is a public right and public subnet.
+
+So we'll say public var dot environment hyphen public.
+
+We are going to say that way.
+
+Now the question here is you need to define these subnets.
+
+So Cidr block you can say ten 0.0.0.
+
+Slash 24 is one subnet and the other is availability zone US East one a something like this.
+
+Okay.
+
+And if you want to create one more subnet so you will create one and you will say ten 010 24 and US
+
+East one B.
+
+And something like if you want to create and it's name also public two and this might be public one
+
+okay.
+
+And in the same way you will create one more resource and you can say public three.
+
+Right.
+
+And this is a two and it will be created in C.
+
+So like this you can create any subnets.
+
+But how does this look right.
+
+For three subnets.
+
+You have done this way if you have ten subnets what you will do.
+
+So this is not a right option right.
+
+So we will remove these things.
+
+We don't need these things.
+
+So we will write some effective code now here.
+
+So how we are going to write it.
+
+We are going to see now in our next lecture I am going to explain that in detail.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+In previous lecture we have seen the problem.
+
+Like if we want to create multiple multiple subnets we need to create multiple resources which is a
+
+complex thing.
+
+So which is not a recommended option right.
+
+So what we are going to do now.
+
+So using a single resource this AWS subnet resource can we create multiple subnet objects like one subnet
+
+in one availability zone can be created.
+
+So in Terraform it is possible using two meta arguments.
+
+One is count and another one is for each.
+
+Okay.
+
+So now here we are going to use for each.
+
+So why we need to choose for each.
+
+We have the detailed thing here.
+
+The count meta argument performs a similar similar operation to for each so use for each.
+
+When some instance arguments must have distinct values that can't be directly derived from an integer.
+
+So when you use count, it is simple zero, one and then two.
+
+But here you have different availability zones, and in each availability zone you need to create different
+
+subnets.
+
+So in that case count is not possible.
+
+You need to use this for each meta argument.
+
+So what is this for each meta argument.
+
+So this for each meta argument deals with means like the uh, you can pass a map or a set for this.
+
+For each meta argument means like if we go and then practically implement, we will understand it.
+
+So let's say right.
+
+So this resource is going to create multiple subnet objects.
+
+So we'll say control space.
+
+And we will go here and select for each here okay.
+
+And then define the things here.
+
+So what we are going to define.
+
+So we said that for each for for this meta argument will accept a map or a set of strings, and creates
+
+an instance for each item in the map or a set.
+
+So for AWS subnet, it will create one instance of subnet in each availability zone.
+
+That is our respective requirement.
+
+So what we are going to do is we are going to pass a map to this for each.
+
+And what is going to be present in that map.
+
+So that's what we are going to discuss okay.
+
+So we will define a for loop here.
+
+And we will define the index comma.
+
+We will also say availability zone.
+
+So for each availability zone with index as the thing in local dot AZS.
+
+So you have three availability zones in local dot JS.
+
+So you are saying for each availability zone in local dot JS so I want AG what is that AZ I want and
+
+I also want the local dot public subnets local dot.
+
+So I'll try to remove this part.
+
+Okay so local dot public subnets of id x.
+
+Okay.
+
+So id x is index.
+
+So which means zero one and then two.
+
+So local dot public subnets of zero.
+
+So you can go here right.
+
+So local dot public subnets of zero will give you ten 000.
+
+So which we have seen okay.
+
+So where is it.
+
+So where is our terminal.
+
+Okay.
+
+So what happened.
+
+So I'll go to our terminal.
+
+And here you can see local dot public subnets of zero will give you this one.
+
+And one will give you this one.
+
+And two will give you this one.
+
+And local dot public private subnets of zero will give you this one.
+
+Private subnets of one will give you this one.
+
+Private subnets of two will give you this one.
+
+So all these things we have defined already in our locals block.
+
+So we are going to access them here.
+
+So what we said we are going to pass for for each it accepts map or set of strings.
+
+So for each.
+
+You said I am going to provide a map.
+
+In that map I am going to have availability zone and the public subnet value.
+
+So both I am going to have.
+
+So what is the map it is going to create.
+
+So I'll show you here okay.
+
+So it will create a map with example like us east one and equal to.
+
+And it will provide a ten .0.0.0 24.
+
+So this is for the first iteration it will do.
+
+And next US East one B and ten .0.1.0 slash 24 in the second iteration.
+
+So here it iterates for this.
+
+For each will iterate for three times and it will generate a map for a sample map.
+
+What it is going to generate I'm showing you here okay sample map.
+
+And it will also generate us for the third iteration.
+
+It will say ten .0.2.0 slash 24.
+
+So these three, it is the map it is going to generate.
+
+And that map is being saved in this for each and in this for each this map is generated.
+
+Then how to access these values.
+
+So that's another important thing.
+
+So this is a key and this is a value.
+
+So in for each you can access them using for each iteration.
+
+You can access them using each dot key and each dot value.
+
+So using those things you can access.
+
+So for the first iteration when you say each dot key this will be provided each dot value.
+
+This will be provided because it is going to run in this for each loop for three times.
+
+And each dot key is this one for the first iteration and values this one.
+
+So which means.
+
+So you can see it here availability zone.
+
+This is the availability zone.
+
+This is the first one in the map.
+
+So you can say that is each dot key.
+
+And what is the value.
+
+Value is this one which is public subnets of ID.
+
+So you will say each dot value.
+
+So that's the key thing here.
+
+And also your public subnet name.
+
+Also you need to provide means like for which availability zone.
+
+This subnet is there.
+
+You can also provide here dollar.
+
+And you can say uh each dot key.
+
+So you understood.
+
+Right.
+
+So this is the key.
+
+This maps to this value here.
+
+And this is the value.
+
+This maps to this value here after this symbol.
+
+So availability zone is each dot key and sidr block is each dot value.
+
+So that's about public subnets.
+
+So in the same line you can also have the private subnets also.
+
+So you can define the private subnet code also in the same line.
+
+So we will go here and define.
+
+This is going to be quick.
+
+Now public subnets is over.
+
+How to define you know using for each meta argument.
+
+Now we'll also define for private subnets.
+
+So here we are going to select this as private private and for IDF as in local AZS and here instead
+
+of public.
+
+So we are going to say dot private okay.
+
+Private subnets.
+
+And in private subnets we are going to say idcs index.
+
+We are going to provide id x.
+
+And here we are going to have vpc id Cidr block availability zone.
+
+And for for private you do not need the map public IP on launch by.
+
+Why.
+
+Because it's private subnet.
+
+And here you will provide private.
+
+So that's all.
+
+So that's about public and private subnets.
+
+So this will generate three subnets for us.
+
+And this will generate three subnets for us.
+
+What we have seen using Terraform console.
+
+So that's about subnets which we are going to generate.
+
+In our next lecture we will focus on the other resources.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+So let's go ahead and then define elastic IP for Nat gateway and also Nat gateway.
+
+Now so to do so we can go here go to the documentation and search for AWS IP in the provider configuration.
+
+So this is the IP resource.
+
+So AWS EE.
+
+So it will come under VPC actually.
+
+Where is it.
+
+So it should come under either EC2 resources or VPC.
+
+You can see it here.
+
+This is the AWS IP resource.
+
+So this is the sample IP resource.
+
+So we can copy this and come back here and provide it here.
+
+And this is the AWS IP.
+
+And we will just say this as we are creating it for a Nat gateway.
+
+So we'll rename that it to Nat here.
+
+Local name of this respective resource in Terraform is going to be Nat.
+
+And inside that we are just going to define simply.
+
+We are going to define, uh, uh, tags.
+
+Okay.
+
+So how we are going to define so these are the tags.
+
+We will take these tags here for any of these things.
+
+Right.
+
+So I'll take these tags and I'll paste them here.
+
+And uh I will just say var dot environment name.
+
+And I will also provide something called at hyphen IP.
+
+That's all.
+
+This will create a elastic IP for us.
+
+And we will also create a Nat gateway now and this Nat gateway so we can go ahead and search for AWS
+
+Nat gateway related resource in the documentation.
+
+So here AWS underscore Nat underscore gateway right.
+
+So if we go down here right.
+
+So if you search that Nat gateway.
+
+So we should find that here Nat gateway.
+
+So this is the Nat gateway related data source.
+
+And we need the resource.
+
+So how to find that this is the one resource okay.
+
+And you should not use Nat gateway with secondary allocation.
+
+That's fine.
+
+Okay.
+
+So we'll take this sample public Nat gateway and paste it here and change it as per our need.
+
+So I'll name this as Nat and allocation ID.
+
+So we will say aws ip.nat.id.
+
+So you are going to associate a public IP for this Nat gateway.
+
+And in which subnet.
+
+We are going to create this Nat gateway.
+
+That's important.
+
+Okay.
+
+So AWS subnet we are going to use is from our public subnet.
+
+So this is another interesting part here.
+
+Okay.
+
+So we can say how to get that okay.
+
+So from AWS subnet you have this AWS subnet and AWS subnet dot public.
+
+And then how you are going to get the how you are going to print your subnet IDs here.
+
+So that's the important.
+
+So how we are going to do that is we are going to use the values function okay.
+
+So that is what we are going to do.
+
+So let's understand that.
+
+So let's understand this thoroughly.
+
+So here these subnets whatever you have creating you are using the for each which means it's like something
+
+like a map.
+
+It is going to generate means like it will generate subnets.
+
+All three subnets means like it's not a single resource right now.
+
+So this resource have three instances of subnets 1 in 1 in each availability zone.
+
+So it's not like simply you can say AWS subnet.public.id and you will get that respective uh ID of that
+
+subnet you are going to get.
+
+So that's not the case here anymore.
+
+So because you have used for these things for each you have used.
+
+So for that purpose we need to carefully retrieve that value.
+
+Now the subnet ID of one subnet from three public subnets we need to retrieve.
+
+So for that purpose we will use the values function.
+
+So let's understand what is this values function.
+
+So values function takes a map and returns a list containing the values of the elements in that map.
+
+So you have seen earlier right.
+
+So values a equal to three c equal to two and then d equal to one.
+
+So this is a map with three values okay.
+
+So three uh three key value pairs.
+
+And it will convert this map into a list with values inside that which means three two and then one.
+
+So from this 3 to 1 you can pick one subnet example if you consider it as subnets.
+
+So let's understand that.
+
+So first run this okay.
+
+So we can go here and first run this in our Terraform console.
+
+So when you say value a equal to three c equal to two d equal to one.
+
+So it will convert it into a square bracket.
+
+You can see into a list and it will only get the values.
+
+So in our case let's let's say like this is us East one.
+
+So I will say something like us East one A and you can say here ten .0.0.0 slash 24 is first item and
+
+second item is uh US east one B right.
+
+And a value here is uh ten .0.1.0 slash 24.
+
+So this is second key value pair in our subnet map.
+
+And third one you can see it here.
+
+So we'll write here.
+
+Third one which is us east one C.
+
+And the value here is going to be ten .0.2.0 slash 24.
+
+So let's see what happens okay.
+
+So when these are the value these are the subnet availability zones and subnet values.
+
+Uh example let's say.
+
+So it will get all the values here okay.
+
+So let me try and then enter.
+
+See all the values are there in the same way.
+
+Right.
+
+So if you have something like, uh, something here like, uh, US East one or this, uh, East one,
+
+a right.
+
+These are some examples I am trying to say, and it's a subnet ID is, uh, sub hyphen x x x something
+
+like this.
+
+Okay then like this others also you have then it will convert them.
+
+Right.
+
+So it will convert them into only the values for that key value pairs.
+
+It is going to provide us.
+
+So in the same line for us we need to also have that thing here, implement that thing here.
+
+So we are going to say values and we will say AWS subnet right and dot public.
+
+And in that which one we need we need the first subnet 0.id.
+
+So we will get the first subnet ID when we do this.
+
+So that's about it.
+
+And in addition to that we also need to have one very important thing, which is, as usual, our tags.
+
+So we will define our tags.
+
+And here merge var tags and name is var dot environment name and hyphen.
+
+We can say nat as the thing or nat gw whatever you want.
+
+And next thing is this Nat gateway right.
+
+So this to ensure proper order, it is recommended to add an explicit dependency on internet gateway
+
+for the VPC, which means after internet gateway in the VPC is created, then only you create this Nat
+
+gateway, which means first this VPC is created, then next internet gateway is created.
+
+But it can also in parallel create the Nat gateway which might fail.
+
+So you need to define a explicit dependency here, saying that after creating this internet gateway,
+
+then only create this Nat gateway.
+
+How you can do that?
+
+There is one more meta argument we said, right.
+
+That is depends on meta argument.
+
+So if you go to the documentation here.
+
+And if you go to that meta arguments here, you can see that depends on meta argument that depends on
+
+meta argument establishes dependencies between resources that do not directly reference one another.
+
+So use that depends on argument to explicitly set the order in which Terraform creates the resources.
+
+So that's the important thing here.
+
+So what we have defined here.
+
+So we are going to define here.
+
+And we don't need all these things all the note here.
+
+So we will go here.
+
+And this is the AWS Internet Gateway Igw is its local name in Terraform.
+
+So we'll say that.
+
+So what exactly that means after creating this internet gateway then only this Nat gateway will be created.
+
+So that's what depends on meta argument is going to do.
+
+So that's about AWS IP and AWS Nat gateway with values function.
+
+And also depends on meta argument.
+
+In our next lecture we will focus on creating the route tables.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+So we are going to create a public route table and associate that route table to all three subnets.
+
+So that's what we are going to do now.
+
+So we have something called AWS Route Table Resource.
+
+So we can go to the documentation here.
+
+And we can say AWS underscore route underscore table.
+
+So where is it.
+
+This is the route table.
+
+This is the one.
+
+And here we can go here and take a simple route table related basic example.
+
+And paste it here and change it as per our need.
+
+So this is the AWS route table.
+
+And we are going to say the local name for this resource as public underscore RT and vpc id.
+
+So this is main.id aws vpc main.id.
+
+If you want to associate this route table to VPC, then this is the one aws VPC main ID.
+
+We don't have any IPv6.
+
+We will remove that tags.
+
+We will add our standard thing.
+
+So this is the way we need to define our route.
+
+So we will say route and cinder block.
+
+We need to get that cinder block.
+
+So let's do that now.
+
+So cinder block here is if you remember we have defined these routes in our picture here.
+
+Okay.
+
+So for the public subnet Cidr block is 0000 to the entire internet range right.
+
+That is the destination.
+
+And target is going to be igw.
+
+So that's what we need to define now.
+
+So let's come back here.
+
+So Cidr block is going to be entire internet.
+
+And here we need to give our gateway ID.
+
+So internet gateway ID.
+
+So here internet gateway local name.
+
+You can find it here which is IG.
+
+So let's come back here and then provide it.
+
+So that's about this one.
+
+And in addition to that we also need to add our tags here.
+
+So let me also put the tags here.
+
+And here we will say public hyphen dt.
+
+So we also have the tags now.
+
+So that's the route table we have created.
+
+Now we also need to do the public route Table Association.
+
+So how we are going to do that?
+
+Here is the route table association related resource.
+
+So we will copy this and then put it okay subnet ID and then route table ID.
+
+We need to do.
+
+So let me copy this and then put it here.
+
+And now uh we can say here this is the public art.
+
+The local name for this resource is public art associate.
+
+So also we can say right.
+
+And you need the subnet ID and also route table ID.
+
+So route table ID you know this is the route table.
+
+So AWS route table.public.id.
+
+But you need to associate this route table for three subnets not one subnet.
+
+So how we are going to do that.
+
+So we need to again add our for each block here okay.
+
+For each meta argument.
+
+So we will say for each for each subnet okay.
+
+So for underscore so sorry.
+
+So we'll come back here and we'll say control space.
+
+And this is the for each and we are going to say AWS subnet underscore subnet dot public.
+
+So you have three subnets inside this in this map.
+
+So you are passing a map to this for each.
+
+And here in the sub you need to get the ID for that.
+
+So you can say each.value.id.
+
+And so that this whatever it generates right.
+
+So it will run for three times.
+
+This association resource will run for three times and associate to three public subnets.
+
+So that's what it is going to do.
+
+So that's the public route table association.
+
+Now we will also copy paste this same public RT here.
+
+Right.
+
+So come back and create a private route table for us.
+
+So when we are creating the private route table, the name of the resource here is going to be private
+
+RT and VPC id.
+
+It's going to be same Cidr block.
+
+It is going to be same.
+
+But here instead of gateway ID.
+
+So we are going to say Nat gateway ID we are going to provide.
+
+And where is your Nat gateway.
+
+So here we have the Nat gateway aws nat gateway dot way.nat.id.
+
+So that's what is the thing nat.id.
+
+So private route table will go via.
+
+So this private private subnet will go away a Nat gateway to the internet.
+
+So for that purpose you will define aws nat gateway.nat.id in this route for private route table.
+
+And here we will say private and its association.
+
+Also we need to define right.
+
+So again the same type of association.
+
+We will copy paste it here.
+
+And instead of local name is going to be private.
+
+And here it is for each private subnet each.value.id is going to be same.
+
+And route table.
+
+Also this is going to be this one.
+
+This is the route table private.id.
+
+So that's the things means like defining the private and public route table and route table associations.
+
+In our next lecture we will define the output section for a VPC.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+In this lecture we are going to go ahead and then create the outputs.
+
+So I have pre-written all the things here but actual values.
+
+We are going to write it now.
+
+So this templating I have written output vpc id output public subnet ids.
+
+Output private subnet IDs.
+
+These things we have done and we including their descriptions but value we are going to right now.
+
+So I need the VPC id so I can go here AWS id.
+
+When I say that is nothing but we'll get the VPC ID.
+
+So I'll try to put that here.
+
+I need the public subnets and how I need all the list of public subnets I need in a list mode.
+
+So when there is a concept of list which is a square brackets.
+
+So I'm going to use the for loop here and say for s in AWS underscore subnet dot AWS underscore subnet
+
+dot public okay.
+
+So where is that AWS underscore subnet dot public.
+
+So why these things populate again.
+
+So in AWS public subnets I am going to get s.id which will get all three public subnet IDs for me using
+
+this.
+
+Right.
+
+And now, in the same way, if you want private subnet IDs as a list, then you need to say here, just
+
+private.
+
+That's all.
+
+And if you want both availability zone and subnet ID as a map for public subnets.
+
+So what you need to do when you have a concept of map, we discussed that which is going to be flower
+
+or flower brackets.
+
+Or you can say curly braces.
+
+Okay.
+
+Now uh for A-Z comma subnet in AWS underscore subnet dot public colon AZ to subnet.id will give me the
+
+map whatever is needed for me.
+
+Public subnet with AZ availability zones.
+
+And then their equivalent subnet is it is going to provide for us.
+
+So this completes the output section.
+
+In our next lecture we'll go ahead and then create the VPC and then test it.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+We have successfully created the outputs in our previous section.
+
+Now we are going to go ahead and then run the Terraform commands and verify whatever the resources we
+
+have created which is VPC subnets, Nat gateway, internet Gateway and then route table.
+
+So let's go back to the terminal.
+
+So here is our terminal in 0603 VPC.
+
+We will go inside Terraform manifest.
+
+And here we have all our files here.
+
+So we'll run the command terraform init.
+
+First let it download all the provider plugins and initialize the backend.
+
+And once all the provider plugins are downloaded we'll go ahead and run the other commands.
+
+So we can see it here we have successfully run the initialization.
+
+We'll run the command Terraform validate if there are any issues.
+
+It will be known here syntactical issues nothing.
+
+So we'll run the command Terraform plan now.
+
+And let's see the execution plan once it generates how many resources we are going to create as part
+
+of this, right?
+
+So we can see it here.
+
+It has generated the execution plan for us.
+
+Right.
+
+And uh, here is the thing.
+
+It is saying that plan 18 resources, it is going to add.
+
+So you can see the outputs here, private subnet IDs list, public subnet IDs list and subnet map.
+
+Also you can see us East one.
+
+Yay.
+
+What should be the subnet ID one be.
+
+What is the subnet ID one.
+
+See what is the subnet ID and VPC id.
+
+And here you can see all the resources uh related plan printed.
+
+So this is the IP nat gateway.
+
+And in region US East one we are going to create it.
+
+And it is going to have environment dev nat IP.
+
+And uh this is the one it is going to create.
+
+Right.
+
+You said aws ip nat.
+
+So which is an elastic IP it is going to create for us.
+
+And this is internet gateway.
+
+It is going to create for us.
+
+And this is the Nat gateway.
+
+It is going to create for us.
+
+And this is the route table Association.
+
+Uh you can see it here.
+
+This is the private route table it is going to create for us.
+
+This is the public route table it is going to create for us.
+
+And these are the route table associations for each availability zone because we have used the for each.
+
+So private association for 1B1A and then also one C in the same way public art association for each
+
+availability zone 1A1B and then one C.
+
+And you can see private US east one.
+
+So this is the subnet we are going to create AWS subnet east in US east 1A1 subnet.
+
+We are going to create US east 1B1 more private subnet.
+
+And in US east one C also one more subnet.
+
+In the same way for public also you will have 1A1B and then one c.
+
+So like this.
+
+And also this is the aws VPC main which we are creating.
+
+So total 18 resources we are going to create.
+
+So I will say terraform apply.
+
+And again it will try and print the entire plan for us.
+
+If we say s it can go ahead and then create the resources for us.
+
+I'll say yes here also in the plan in the apply.
+
+Also you can see 18 resources it is going to create.
+
+I'll click on enter.
+
+So let's wait for all these resources to get created.
+
+So we can see here all the 18 resources created successfully.
+
+And in the output section these are the private subnet IDs which is a list and public subnet IDs which
+
+is a list and public subnet map.
+
+You can see us East one and it's a what is the subnet ID us east one B what is the subnet ID us east
+
+one C and then it's equivalent subnet ID.
+
+And here is the VPC id.
+
+So everything displayed in detail.
+
+Now we can go here to our AWS console.
+
+Right.
+
+So we can go to our AWS console here and go to VPC section right.
+
+So we'll go to the VPC section and we will see the all the resources whether it created or not successfully.
+
+So here first in our VPC.
+
+So we'll go to the VPCs.
+
+And you can see dev VPC is created.
+
+And this is the one with ten 000.
+
+16 and if I open that VPC right.
+
+So this is the resource map for that.
+
+Okay.
+
+So it is having dev public US east one and dev public private US east one a which means it has a in
+
+US east one A it has both public and private subnet in one B also both public and private subnet in
+
+one.
+
+See also the same thing.
+
+So if you go to the picture here.
+
+So this is the one.
+
+So you have both public and private subnets public and private subnets in each availability zone.
+
+And for these things for public subnets we have the public route table.
+
+And for private subnets we have the private route table.
+
+And you can see the public route table is associated to dev Igw.
+
+And private route table is associated to dev nat gateway.
+
+So you can see all the details in.
+
+It means like everything in detail.
+
+So you can also read them here.
+
+Okay so what is the IP address for these things.
+
+So you can minimize this.
+
+And you can see for public subnet ten zero zero slash 24.
+
+And another public subnet ten 010 24 and one C ten 020 24.
+
+So whatever we have said in the pictures and then in the in the previous lectures, everything created
+
+as expected.
+
+So you can see the entire architecture created as usual.
+
+And if you want you can also browse through the subnets in the subnets section.
+
+Right.
+
+So by name you can see all the subnets are created.
+
+And in the route table section.
+
+Also you can see both route tables created and inside them.
+
+If you want you can go and then see those respective destination.
+
+And then targets.
+
+You can see the internet gateway it created, dev Igw and elastic IP created.
+
+You can see even that one also here.
+
+And also you can see the Nat gateway, whatever it has created.
+
+So whatever we have written the code, everything we are able to see now.
+
+So I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back as part of Terraform Basics.
+
+In our previous lectures, we have learned about Terraform block resource blocks, provider blocks,
+
+output block and input variables, and locals block and data sources are data block.
+
+Now in this lecture we are going to focus on another Terraform concept called local state File.
+
+In addition to that, in the next demo, which is 0604, we are going to focus on little bit advanced
+
+concepts for input variables.
+
+And in 0605 we will focus on remote state file.
+
+Now let's go ahead and then understand about this local state file.
+
+What exactly is this concept and why do we need it and why we need to understand it in detail.
+
+Alright.
+
+Now let's talk about something very important in Terraform which is terraform state file.
+
+So whenever we run Terraform commands like terraform apply.
+
+Terraform doesn't just blindly create resources.
+
+Instead, it keeps track of what resources it has created and their current configuration information
+
+and their resource IDs, whatever it has created in the cloud or wherever, whatever the provider we
+
+are using in that line, whatever the resources it is creating.
+
+It keeps track of all those things and all that information about those resources, resource IDs, configuration
+
+information, everything will be stored in this Terraform state file.
+
+So when coming to Terraform state files we have two things very importantly which is local state file
+
+and remote state file.
+
+So in this lecture we are going to focus on only local state file.
+
+And we have a dedicated demo to understand about remote state file and also implement that practically.
+
+So now let's focus on this local state file.
+
+So this local state file generally by default will be stored in our working directory.
+
+So which means if we go to our terminal here and here if I say after successful Terraform apply and
+
+all our resources got created in AWS cloud.
+
+So if you see here there is a file called terraform.tf state file got created.
+
+So if we go back here and then try to open the Terraform tf state file right in 0603 VPC and Terraform
+
+manifest.
+
+So using these manifests we already run the Terraform apply command init validate plan and then apply
+
+and terraform.tf state file got created.
+
+And here you will find all the information about what all resources it has created on AWS cloud with
+
+their resource IDs.
+
+Also example it has created uh these are the outputs okay.
+
+So let's minimize outputs.
+
+Now come to the resources here in this we can see this is the AWS Availability Zone related resource
+
+which is data source okay.
+
+So let me minimize that.
+
+And this is AWS IP.
+
+It has created a AWS IP resource and its information okay.
+
+So the complete information about that is present here in same line.
+
+So I will try to minimize this.
+
+Resource.
+
+And you can see the Internet Gateway resource and its complete schema information.
+
+All the details about it will be present here.
+
+I'll also try to minimize that.
+
+And we have the Nat gateway here.
+
+So all the resources got created and those resource information whatever it has created in AWS cloud.
+
+Right.
+
+So if we come back here, whatever the resources Terraform apply created in AWS cloud, that resource
+
+information is present in this Terraform state file including their IDs.
+
+So if we come back here so you can see this is the route table.
+
+And this is the route table ID you can see complete information complete Arn of that resource.
+
+Everything will be present here in the state file.
+
+So you can go down and see all other resources in the same line.
+
+Now we need to understand why is this state file so important.
+
+Right.
+
+So it is so important because it acts like the single source of truth for Terraform.
+
+So we already discussed about desired state earlier means like we don't have a state for Python scripts
+
+or bash scripts, but for Terraform we will have the state of our infrastructure always maintained in
+
+terraform.tf state file.
+
+So that's the key important thing.
+
+So it knows what's in your infrastructure.
+
+So Terraform can calculate the difference between your code and the actual resources.
+
+So these are actual resources whatever created now and whatever you are planning to add another resource
+
+here some C6, some s3.tf some S3 bucket or in in VPC itself.
+
+You are planning to add or modify some subnet modify subnet something you are planning to do.
+
+So now what it does actually is it will go ahead and then because you have the your current actual Infrastructure
+
+information is already present in the Terraform state file.
+
+So whenever you run the Terraform plan right.
+
+So it will compare what is present in your file currently and what is the actual infrastructure we have
+
+built.
+
+Agnes means like which is present in Terraform state.
+
+Accordingly, it will say whether we need to create new resource or update existing resource.
+
+So like that it will calculate everything.
+
+So without the state file, Terraform wouldn't know whether a resource already exists or whether it
+
+need to be created, updated or even destroyed.
+
+So in very, very simple terms we can say we can say like this, whatever that, whatever this Terraform
+
+as.
+
+Heart of entire operations.
+
+So means we need to guard this state file very carefully.
+
+If not, nothing is going to work.
+
+So now let's come back here and we will go back and then understand a little bit more about it.
+
+So think of like this state file as a terraform's memory or terraform's underlying database.
+
+So whatever we feel we can say whatever it is, but it is the heart for the whole operations to run
+
+effectively.
+
+So if you delete what happens if you delete this Terraform state file.
+
+So what happens is Terraform forgets everything about what already deployed.
+
+So let's say like this file is not there now.
+
+So which means whatever these resources we have created.
+
+Right.
+
+So whatever these configs created as resources here.
+
+So those information means like the uh, what we can say is like here we don't have the Reference to
+
+the actual infrastructure, what we have created.
+
+So that's why it is very important that you should never manually edit the state file, or even delete
+
+the state file when we already have actual resources running here or actual resources created here.
+
+So always try to maintain the changes via Terraform only.
+
+So which means you have some resources created here VPC subnets, route tables Igw nat gateway, everything
+
+via Terraform.
+
+Now if you plan to go and change something inside this subnet, okay.
+
+Or if you go and then change something in this route table directly from AWS console, right.
+
+If you try to do that via console.
+
+So these things we should not go via AWS console and make the changes directly in the cloud.
+
+So in fact instead we always need to go via Terraform.
+
+So tf cli and make configuration changes inside your TF files wherever it is needed.
+
+And from there, using Terraform plan apply validate validate and apply.
+
+So in that line we need to always move for making changes.
+
+So in larger projects or in teams we don't keep state files locally.
+
+So what we do is we use the remote state backend.
+
+So we call that as remote state backends.
+
+So we have a dedicated demo there and we will understand about it later.
+
+So the remote state backends which we are going to use here are Amazon S3 bucket.
+
+So which will also have a state locking available inside that.
+
+So we'll understand that when we go to that concepts.
+
+So there it will be very helpful in you.
+
+How about reusing remote state backends?
+
+How we need to use remote state backends?
+
+In addition to that, what are the disadvantages?
+
+Okay.
+
+Disadvantages of using local state files.
+
+And what are the advantages of using remote state backend.
+
+So all those things we are going to learn when we go to that respective demo.
+
+But here in this demo we will totally focus on implementing Teraform local state file.
+
+Right.
+
+So the Terraform to summarize Terraform state file is the backbone of Terraform.
+
+It holds the mapping between your code and the real world infrastructure.
+
+So if we lose the Terraform state file we lose the track of the infrastructure.
+
+What we have built using Terraform config files.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Now let's understand the concept called Terraform drift concept.
+
+What exactly this means, right.
+
+So now you have these, uh, Terraform manifests using which you already have created, these, uh,
+
+resources, actual resources in your cloud, and you already have your Terraform state or TF state created,
+
+and everything is good.
+
+Now, what happened is you want to make one change, and then the process is to go to your respective
+
+Terraform configs and make the changes and run plan, validate, plan, apply.
+
+So all those things in the order using TF commands okay TF commands.
+
+So that's the process.
+
+Any change you want to make in this actual infrastructure, you need to first make those equivalent
+
+changes in your Terraform configs and apply them.
+
+So always it should be one way only.
+
+But there is some x x admin or y y admin who is who don't know that these resources are getting managed
+
+via Terraform.
+
+So this guy goes and then makes a change to the VPC, right by directly going via AWS console.
+
+So what happens.
+
+So that's what we need to understand.
+
+So what happens is there is no functional impact immediately right.
+
+But what happens is there will be another admin who is sitting here.
+
+And he has added some more configuration here, like three more subnets added and he will do the Terraform
+
+apply.
+
+So he will again do the terraform apply.
+
+So during this Terraform apply whatever this admin created.
+
+So this a this admin whatever he has created the changes in this VPC will be gone.
+
+Only the configurations.
+
+Whatever you are applying via TF configs only will be present.
+
+So it will be overwritten.
+
+So the recommendation is never go ahead and then directly change these resources.
+
+So we should not do that.
+
+Always come via Terraform config files only.
+
+So if you are maintaining your infrastructure via Terraform, always do those things.
+
+Any changes, updates, new resources, everything you need to go via your Terraform manifest only.
+
+So let's see practically so that we will understand that in detail.
+
+So we'll go here.
+
+And we already have the VPC created.
+
+So this is our dev VPC.
+
+And here what we do is in the tags section.
+
+So we can go to dev VPC.
+
+And in the tag section we can click on Manage Tags.
+
+And we'll say owner.
+
+And I'll add a new tag here and say Kalyan Reddy and Save.
+
+I have added a change via.
+
+We have added the change via AWS console and this is the one.
+
+So let's see what happens when we run the command Terraform plan here okay.
+
+So we'll go here to Terraform manifest.
+
+We are in 0603 VPC Terraform manifest and we'll run the command Terraform validate.
+
+And after that we'll also run the command Terraform plan.
+
+And let's see what happens.
+
+See it is saying that there is a new thing added here okay.
+
+Owner is added in your VPC but ideally the expected should be null.
+
+There should not be anything.
+
+So it is added and it need to be removed.
+
+So in our next terraform apply.
+
+So if we run the terraform apply it is saying one to change and it is going to remove that.
+
+So let's run that and then see what happens.
+
+So if we run the terraform apply auto approve now.
+
+So whatever is present here, the additional tag which we added by AWS console will be gone.
+
+Let's wait for that to be successful.
+
+Once this is successful, we can go ahead and then verify.
+
+So we can see one change completed.
+
+So we'll go back here and we'll go to the VPCs dev VPC and in the tags and we need to refresh it.
+
+So we'll try to refresh it again.
+
+And we can see in the tags nav game dev VPC and Terraform is true.
+
+And that is gone.
+
+So that's the key thing here.
+
+In the next Terraform apply whatever the manual changes you have done in your resources on AWS cloud,
+
+using your console will be gone.
+
+So always it is recommended to go in a forward flow.
+
+You make the changes in your config files and from there you are going to push those changes using Terraform
+
+apply.
+
+So that's about it.
+
+Now we also going to learn something called Terraform show command.
+
+So the Terraform show command lets you inspect the Terraform state in a human readable or machine readable
+
+format.
+
+So let's come back here and you have the terraform.tf state file.
+
+So if you say terraform.tf state file cat, or if you go to your VS code and open so you can see all
+
+these resources are there.
+
+And those are in the JSON format.
+
+But when you run the command If you go to those Terraform manifest folder and where you have the terraform
+
+state file.
+
+So if you run the command terraform show.
+
+Right.
+
+So it will show you in a human readable or machine readable format the entire actual resource information.
+
+So if you go up here on the top little bit and we'll come from the top here.
+
+So these are the AWS Availability zones resource and ID is US East one.
+
+All the information.
+
+So these are the names of the availability zones available and zone ID information.
+
+Everything you will have.
+
+This is the AWS IP nat.
+
+So you will have all the resource IDs and everything of your actual resource information in your Terraform
+
+TF state file, but it is in the JSON format if you directly view it.
+
+But when you run Terraform show command, it will be showing in the Terraform.
+
+It will be showing in Terraform language format, which means you can see resource.
+
+And this is the name of your resource.
+
+And this is the local name of your resource.
+
+And here you can see all the arguments of your resource, including the attributes.
+
+What means, like all the arguments with which what actual values means?
+
+Like when you run Terraform plan, it used to show that allocation ID known after apply.
+
+So once that resource is created I will know about that.
+
+Something like that.
+
+It is it used to display when you run Terraform plan, but when you run Terraform show actual ID of
+
+that resource Arn of that resource.
+
+So for all the arguments values will be displayed.
+
+Example like this is the private IP and this is the public IP of this respective IP.
+
+So everything you can see in detail.
+
+So that's about Terraform show command.
+
+So what does Terraform show command doesn't do.
+
+It doesn't show future changes like future changes will be shown.
+
+Only you make the config changes.
+
+And then when you run Terraform plan that's the job of Terraform plan.
+
+Terraform show is whatever you have currently in your Terraform state file.
+
+Those will be shown in the Terraform language instead of a plain JSON file.
+
+So that's about Terraform show command.
+
+There is one more very important command which is Terraform state command.
+
+So why is this important?
+
+After you run Terraform apply Terraform stores metadata about every resource it creates in Terraform
+
+state file.
+
+To see a summary of what's being managed using Terraform from these configs.
+
+Whatever you have created TF configs, you can run the command Terraform state list and it will give
+
+a list of resources that are managed using Terraform.
+
+So this is one resource AWS IP net is another resource AWS Internet gateway.org.
+
+And this is AWS Nat gateway private route table.
+
+Public route table.
+
+And these are those route table associations for all six subnets.
+
+And these are six subnets.
+
+And this is the VPC main.
+
+So these all are the resources which are managed by Terraform on AWS cloud using this Terraform project
+
+present inside this Terraform manifest folder.
+
+So each line represents a resource tracked by Terraform.
+
+Each line is a one resource okay.
+
+So that's we need to understand.
+
+So when is this useful actually.
+
+So to quickly confirm all resources created and also helps debug or verify these Terraform module outputs.
+
+And also understand how Terraform names internally are reference even those things.
+
+Also you can see example.
+
+You can see AWS subnet private US East one a private US East one B.
+
+So like this how the names are internally referenced.
+
+So all those things also we can see.
+
+So that's about Terraform local state file on a very high level.
+
+In our next lecture we will focus on learning more about Terraform input variables with additional advanced
+
+concepts.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you
+
+Welcome back.
+
+We have successfully learned a lot of concepts in this 0603 VPC.
+
+Now let's go ahead and then clean up whatever we have created as part of this 0603 VPC demo.
+
+So we will go back to our terminal here and ensure that we are in our 0603 VPC Terraform manifest.
+
+And here we have already set that Terraform state list, which means these resources are managed using
+
+Terraform in AWS cloud.
+
+So now all these resources we are going to destroy.
+
+So we can say terraform apply hyphen hyphen destroy.
+
+And or we can directly run the command Terraform destroy command.
+
+And let's wait for the entire execution plan to be printed.
+
+After that, we will give the confirmation that these resources should be deleted from AWS cloud.
+
+So it is saying that do really want to destroy all these 18 resources.
+
+So I am okay with it.
+
+So I'll say yes and all these resources will be destroyed.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+We are entering into the demo 0604 vpc t of vars.
+
+So here we are going to focus on precedence of Terraform variables.
+
+So earlier in previous demos we have learned about local state file.
+
+So this is completed.
+
+Now we are moving into something called.
+
+We already said that as part of 0604 there will be a little bit advanced concepts related to input variables.
+
+We are going to learn, which is not just basically defining the variables dot, t, f and giving the
+
+default values right.
+
+But we are going to also define a different ways how we can define input variables.
+
+Like you can define input variables in a file called Terraform vars, or any file with naming ending
+
+with auto dot, or just with tf vars with additional argument var file.
+
+Or you can define with just another hyphen var argument when running the terraform apply command.
+
+Or you can also do something with environment variables okay.
+
+Which is nothing but tf underscore var underscore and your variable name.
+
+So all these things we are going to see.
+
+And in addition to that we are also going to see what is the precedence of those variables when we define
+
+it in multiple ways.
+
+Right.
+
+So we are going to learn how Terraform handles variable values from different sources and more importantly,
+
+how the override precedence works.
+
+So Terraform lets us define variables in multiple ways.
+
+So by default we have seen this one which is default values specified inside variables.tf.
+
+So this is one thing.
+
+And in addition to that you have something called.
+
+You can define them using environment variables.
+
+So using tf underscore var underscore and you need to provide your variable name with value.
+
+And in addition to that you can also define using TF files.
+
+So which will be auto loaded if present in working directory which means in your Terraform initialized
+
+directory.
+
+Or you can also define them using starred means like file name dot auto tf first.
+
+So this is another way of defining it in addition to terraform.tf.
+
+So finally you can also define them using var file and also var arguments.
+
+So these are the ways you can define.
+
+And now how the precedence works is from high to low.
+
+So which means whatever you have defined in variables.tf can be overrided by environment variables.
+
+Whatever you define and whatever you define as environment variables can be overrided by values defined
+
+in your terraform.tf vars.
+
+And again, if you have defined something in terraform.tf, and if you want to override that, you can
+
+use again something called star dot auto dot TFR star in the sense names of your files like dev dot
+
+auto, dot vars like for different environments or q dot dot vars.
+
+Right.
+
+Or you can have something called these are for env specific if you want environment specific I mean
+
+okay.
+
+Or you can say vpc.auto.tf vars like application specific or S3 .2. tfr.
+
+So something like this you can define here.
+
+So which means if you have already defined terraform.tf and you have defined on top of that some VPC
+
+auto tf values from VPC dot will be picked up because which has the higher precedence.
+
+And on top of all these things you have something called, uh, you can define something in some prod.tf
+
+vars.
+
+Okay.
+
+There is no auto here or vpc.tf vars.
+
+Okay.
+
+You can define them.
+
+And what you can do is you can, uh, prepend it with a argument file.
+
+Okay.
+
+So something like var hyphen file equal to.
+
+So this is the flag.
+
+Okay.
+
+So you can say var hyphen file equal to vpc dot first.
+
+And automatically it takes the highest precedence.
+
+So highest precedence.
+
+So now what happens here is based on our requirement how we want to pass our Terraform input variable
+
+values is our choice.
+
+But Terraform provides these many ways.
+
+So you can see 12345 different ways.
+
+It is providing.
+
+And based on that how you want to apply accordingly you can use.
+
+But why does precedence matter?
+
+Because when the same variable is defined in more than one place, Terraform needs to know which one
+
+wins.
+
+Understanding this order gives us flexibility and makes our code reusable and environment specific.
+
+So you have seen here multiple ways you can define.
+
+So let's start with our basic stuff and understand in a practical way in our next lecture.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you
+
+Welcome back.
+
+Let's go ahead and then implement one after the other starting with default values.
+
+So we need to understand the simple simplest case is using the default values when defining the variables.tf.
+
+So when you run terraform init validate and terraform plan, terraform will fall back to default values
+
+defined in variables.tf if nothing else is supplied.
+
+So these defaults are your safety net, but they can be easily overridden by other sources.
+
+So now what we are going to do is we are going to review the project once.
+
+We'll go to the Visual Studio Code here.
+
+And you can see here this is 0604 vpc tf vars terraform manifest folder.
+
+And you have c1 tf, which is our same project from our VPC variables.
+
+It's the same data sources.
+
+It's the same C4, VPC and C5 outputs.
+
+It's a copy of our VPC project.
+
+So we know when we run the Terraform init validate and plan there it is going to show the default values
+
+defined in Variables.tf.
+
+So we are going to see what are the default values.
+
+Here.
+
+We'll check two environment variables.
+
+One is AWS region and another one is environment name.
+
+And in addition to that if you want we can also see VPC, Cidr which is US east.
+
+One environment name is dev and default value for VPC is ten 000 16.
+
+So we'll run those commands now.
+
+So we'll go to zero six Terraform basics.
+
+And in that zero four vpc tf vars.
+
+And here we'll go to Terraform manifest folder.
+
+And we will run the command terraform init validate and then plan.
+
+So this is the same copy project.
+
+So why we need to run Terraform validate.
+
+We'll go ahead and directly run the plan.
+
+We didn't make any changes right.
+
+So it's going to be the code is already perfectly all right.
+
+So I'm going to run the Terraform plan.
+
+Now we'll go here and see the AWS VPC resource.
+
+In that you can see the Cidr block which is ten 000 16 and region.
+
+You can see us East one and name of your VPC.
+
+You can see environment name hyphen VPC which is dev.
+
+So you can also see the code here.
+
+Name of your VPC is var dot environment name hyphen VPC and your variable.
+
+You can see which is dev.
+
+So all three we have verified this is getting created in so and so place.
+
+If we run it now what we will do is we will go ahead with the uh moving to the next step which is defining
+
+a environment variable.
+
+So how you define your environmental variable for Terraform variables which is tf underscore var underscore.
+
+And after that you need to provide your actual variable name.
+
+So here our variable name is environment name.
+
+So tf underscore var underscore environment name.
+
+And then value value is pre dev.
+
+We are giving and region we are giving us East two.
+
+So let's run these things.
+
+So this is on the Linux and Mac OS environments how you set your environment variables.
+
+So we'll copy this and go back to our terminal here and say pre dev and region.
+
+You are saying us two.
+
+And if you want to echo those things and review the values.
+
+So you can see pre dev and US East two for both the things we have set.
+
+And if you want you can also run env command and grep and then get the values okay.
+
+So in your respective terminal these are the things currently set.
+
+So now if I run the command terraform plan let's see what happens okay.
+
+So Terraform automatically picks these values during plan or apply.
+
+And you will notice how these environment variables override the defaults we had in Variables.tf.
+
+So let me run the Terraform plan.
+
+For Terraform plan is successful here and now.
+
+You can see it here right.
+
+So this is the VPC resource and your Cidr block.
+
+We didn't change.
+
+It is as is but region.
+
+You can see it is set to US East two.
+
+Now because we have said that using tf underscore var underscore AWS region and your environment name.
+
+Also you have set to Predo.
+
+And it Pickard it Pickard that so which means it has override the default values defined in C two Variables.tf
+
+from our variables what we have defined in our environment.
+
+So this is the thing we have defined.
+
+So that's about environment variables.
+
+So this default values we have seen just now.
+
+And we have also seen we have also seen environment variables.
+
+Now we will go ahead and then see the terraform dot vars.
+
+So let's go back there.
+
+So we'll go here.
+
+And next one is Environment.
+
+Terraform dot t f file.
+
+So.
+
+terraform.tf was is a very common way to pass values by using this standard file name.
+
+So this file is automatically loaded if it exists in your working directory.
+
+So instead of hard coding values in.tf files we define them here.
+
+Keeping our setup clean, reusable and dry.
+
+But remember terraform dot can itself be overridden by again auto.tf files which we are going to see
+
+a little later.
+
+So first let's see this one.
+
+So what we have done here is I have put this is the Terraform manifest folder.
+
+And in addition to that I have some var files folder.
+
+I have pre-created and put it for you.
+
+So what we will do is we'll copy this terraform dot file and paste it inside Terraform manifest folder.
+
+And what is present inside this terraform.tf I said environment name is dev one and AWS region.
+
+We are giving us East one.
+
+We are not changing the AWS region but Cidr block.
+
+You can see we are saying ten .1.0.0 slash 16.
+
+And in addition to that, we are also adding in the tags section demo terraform.tf vars demo.
+
+We have added some additional values here.
+
+Okay so these things should pick now.
+
+So we said that when we have Terraform dot TFR in picture, it need to take that as the precedence instead
+
+of overriding C2 variables.tf and also environment variables.
+
+Whatever we have defined environment variable you define us east two and environment name is pre dev.
+
+So these it should not take it should take dev one and region is us east one and VPC cider is these
+
+three things it need to pick.
+
+So now if you see here we have already copied the terraform.tf vars.
+
+Let me run the command terraform plan now and see what happens.
+
+Now let's go back.
+
+And here is the AWS VPC resource.
+
+And you can see the Cidr block.
+
+Whatever we have defined in Terraform ten zero 110 1.1.00 16.
+
+So the same is picked which means that these variable values are picking from terraform.tf file region
+
+is us east one and in tags.
+
+Also you can see here demo is terraform.tf vars demo.
+
+So when you run Terraform apply.
+
+Also these things will be applied to your environment.
+
+So that's about terraform.tf.
+
+And we already said terraform.tf can be can itself be overridden by auto.tf.
+
+So this is the part we need to look into.
+
+So we have successfully completed this one.
+
+Now we are moving here okay.
+
+So auto.tf vars.
+
+So these files are also auto loaded.
+
+No need to specify anything.
+
+If you have multiple auto TFR files, they are loaded in alphabetical order.
+
+And importantly again, these auto TFR also can be override or can be overridden by other CLI arguments
+
+in the precedence of Terraform variables.
+
+Case.
+
+Right.
+
+So now what we will do is we will come back here and we will go ahead and then copy the dev.auto.tf
+
+which we have.
+
+So we will go to Visual Studio Code.
+
+So where is it.
+
+So this is the one.
+
+So here you can see dev.auto.tf vars.
+
+So here you are saying dev two and vpc Cidr is ten 200 16.
+
+And you are saying the demo as dev.tf demo.
+
+Right.
+
+Now what we will do is we can also say this as.
+
+Let me copy this.
+
+Okay.
+
+This is the one we are talking.
+
+We will try to paste it okay.
+
+And here this value should be dev.auto.tf.
+
+So that we know this is the specific demo here.
+
+Also I'll write that okay.
+
+Now what we will do is we will go ahead and then run the plan.
+
+So your environment name should be dev two.
+
+And your VPC cider should be ten 200 16.
+
+So we know that this dev dot auto dot tfr is overrided by means like Terraform, dot tfr is overrided
+
+by this dev.auto.tf.
+
+So let's run the command terraform plan now.
+
+Now we can see our plan has run here.
+
+And this is the VPC resource.
+
+And you can see the Cidr block 10 to 0 zero 16.
+
+Whatever we have defined here okay in our dev dot auto TF and environment name.
+
+Also you can see dev two okay.
+
+And demo is also dev dot auto dot tfr demo.
+
+So we can clearly say that this whatever we are talking about Terraform vars, right.
+
+So this one is overrided by this one.
+
+So this demo is successful, which means auto tf has the higher precedence than this terraform.tf vars.
+
+So now we will move on to the super high precedence.
+
+Uh.
+
+Flags which are hyphen var file and then hyphen var.
+
+So this will override even defaults environment defaults environment variables terraform dot and also
+
+auto.tf.
+
+So this var file.
+
+What hyphen var hyphen file is the having the highest precedence.
+
+So this makes it very useful for managing separate environment configs like dev test or prod.
+
+So if we go back here in our Visual Studio Code if I go here.
+
+So here we have product TF.
+
+So we are saying the environment name as prod and VPC sidr.
+
+We are using ten 300 16 and we are saying prod.tf first demo.
+
+So we'll take this copy and then paste it here.
+
+Okay.
+
+Now what we are going to do is so we'll go here to our terminal.
+
+And then we will run the command Terraform plan.
+
+And the flag is hyphen var hyphen file equal to prod.tf pass.
+
+So now it will take the values from this specific file.
+
+So that's what we are trying to do here.
+
+So we should see that whatever is present in prod tf pass which is environment name prod and VPC addr
+
+is ten 300 16 that should be displayed here.
+
+Plan is successful here.
+
+So if we go to this VPC resource you can see the Cidr block ten 300 16.
+
+And also you can see the environment name prod VPC and demo.
+
+Also prod tfr demo.
+
+So that's about, uh.
+
+VAR file arguments.
+
+So you have seen this var file argument stuff.
+
+Now we also need to see this hyphen var argument.
+
+So how to define values here.
+
+Right.
+
+So let's do that okay.
+
+Now we know that everything is picking from dev dot auto dot provided.
+
+If you don't say anything for hyphen var file.
+
+So that's the case right.
+
+So now if you go here if you don't provide this hyphen var file argument for Terraform plan it picks
+
+values from this respective auto.tf vars.
+
+We have something called dev.auto.tf vars in that you are saying the region as us east one.
+
+So till here clear right now what we will do is we'll go to the terminal here and we will say Terraform
+
+plan and we will say hyphen var equal to right.
+
+We will say AWS underscore region is my variable name and its value.
+
+I'm going to say US East two.
+
+So only the region I am overriding and let's see what happens okay.
+
+Using hyphen var flag for Terraform plan.
+
+So now everything should come from this dev.auto.tf vars and only the region should be US east two.
+
+So let's see that plan is printed here.
+
+And you can go here AWS VPC.
+
+You can see Sidr ten 200 16 mapping with the next highest precedence one which is dev dot auto Fars.
+
+And if you come down here region is US East two.
+
+Because we said that you need to override only one variable which is AWS region.
+
+And we we passed that as a flag to our Terraform plan.
+
+So it took us east.
+
+Two rest all the demo is dev dot auto parts and environment name is dev two.
+
+All those things picked from dev.auto.tf vars.
+
+So using hyphen var flag, it is best for quick ad hoc overrides, but not ideal for long term maintainability.
+
+And there will be one more thing.
+
+So what happens when you use both var and hyphen var file both when running the Terraform plan or apply
+
+command.
+
+So Terraform plan.
+
+And after that these two comes okay.
+
+Which one takes the precedence.
+
+So whichever comes last on the command line will take the precedence.
+
+So after Terraform plan you are defining var and after that you have defined var high file.
+
+So this takes the precedence or after terraform plan you have defined var file.
+
+Right.
+
+After that you have defined var.
+
+Then var takes the precedence.
+
+So whichever comes last on the command line will take precedence.
+
+So order matters when you combine them.
+
+So to summarize Terraform variable precedence flows from lowest to highest.
+
+So.
+
+Defaults.
+
+Uh.
+
+Defaults in Variables.tf.
+
+Right.
+
+And then environment variables.
+
+Then Terraform vars and auto.tf vars and cli arguments var file and then var or.
+
+Simply put, the last and highest source wins.
+
+Last and highest source wins you can say, which means at any point of time this last and highest source
+
+wins.
+
+So this precedent system is what this present system is, what gives Terraform its power, letting us
+
+reuse the same code base across multiple environments with just a simple tf var files.
+
+Which we can swap based on environments.
+
+That's exactly how we keep things clean, flexible, and production ready.
+
+I will see you in the next demo with remote state file concept
