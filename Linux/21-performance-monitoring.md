@@ -207,6 +207,8 @@ Here is the connection that makes all of this matter to you:
 - **`vmstat`, `iostat`, `mpstat`, `sar` are one family** — all from the `sysstat`/procps lineage, all "read `/proc` counter, wait, read again, print the delta." Learn the pattern once.
 - **`dmesg` and `journalctl -k` are the same firehose** — both surface the kernel ring buffer; `journalctl -k` just persists and timestamps it via journald (see [systemd-services](16-systemd-services.md)).
 
+> **Check yourself before Rung 5:** Sort these six signals into the USE buckets — `%util`, `await`, load average, `vmstat`'s `si`/`so`, PSI `some`, and `dmesg` OOM lines. Which one measures *utilization*, which three are all really *saturation* wearing different names, and which is an *error* signal? And why does `%steal` belong to none of your local resources at all?
+
 ---
 
 ## 🔬 Rung 5 — The Trace

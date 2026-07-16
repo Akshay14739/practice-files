@@ -154,7 +154,7 @@ A Localhost profile is just a JSON file. Its skeleton is *the one idea made conc
 }
 ```
 
-- `defaultAction` = the verdict for everything you didn't name. `SCMP_ACT_ALLOW` here = a *blacklist* (allow all, then block a few); `SCMP_ACT_ERRNO`/`SCMP_ACT_KILL` here = a *whitelist* (block all, then allow a few). **The container runtime `RuntimeDefault` profile is a *blacklist*** — `defaultAction: SCMP_ACT_ALLOW` (technically `SCMP_ACT_ERRNO` in recent Docker/containerd builds with a big allow-list, but historically an allow-default that blocks ~44 dangerous syscalls like `mount`, `reboot`, `kexec_load`, `init_module`, `ptrace` under certain conditions).
+- `defaultAction` = the verdict for everything you didn't name. `SCMP_ACT_ALLOW` here = a *blacklist* (allow all, then block a few); `SCMP_ACT_ERRNO`/`SCMP_ACT_KILL` here = a *whitelist* (block all, then allow a few). **The container runtime `RuntimeDefault` profile is actually a *whitelist*** — its `defaultAction` is `SCMP_ACT_ERRNO`, paired with a large allow-list of ~300+ syscalls that normal apps need. The net effect is that ~44 notable dangerous syscalls (`mount`, `reboot`, `kexec_load`, `init_module`, `keyctl`, `bpf`, `ptrace` under most conditions, …) are simply *not on the allow-list* and therefore denied. People often call it a "blacklist" as a mental shortcut (they picture "the ~44 blocked ones"), but mechanically it is **default-deny**.
 - `architectures` = which CPU ABIs this applies to. You list them because syscall numbers differ per ABI, and an attacker on x86-64 could otherwise slip in via the 32-bit ABI.
 - `syscalls[]` = the override list. Each entry names one or more syscalls and the action to apply.
 
@@ -187,7 +187,7 @@ Two profile **types** you'll set in `seccompProfile.type`:
 - **`Localhost`** → use a **custom JSON file** you placed under `/var/lib/kubelet/seccomp/` on the node, named by `localhostProfile` (a path *relative* to that base dir). This is how you build a tighter, workload-specific profile.
 - (There's also `Unconfined` = no seccomp = `Seccomp: 0`. That's the pre-audit state you're eliminating.)
 
-**Why should `RuntimeDefault` be on by default?** Because it's a broad, battle-tested blacklist that blocks the historically dangerous syscalls (`mount`, `umount2`, `reboot`, `swapon`, `kexec_load`, `init_module`, `finit_module`, `delete_module`, `ptrace` in most cases, `keyctl`, etc.) while allowing the ~300+ syscalls normal apps need — so it almost never breaks a workload, yet it removes ~44 of the juiciest kernel-escape doorways. It's the highest security-per-risk ratio control you have. Since Kubernetes 1.27 you can even make it the cluster-wide default via the kubelet flag `--seccomp-default=true` (feature `SeccompDefault`, GA in 1.27) so every pod that doesn't specify a profile gets `RuntimeDefault` automatically.
+**Why should `RuntimeDefault` be on by default?** Because it's a broad, battle-tested default-deny profile (a whitelist with a generous allow-list) that keeps the historically dangerous syscalls (`mount`, `umount2`, `reboot`, `swapon`, `kexec_load`, `init_module`, `finit_module`, `delete_module`, `ptrace` in most cases, `keyctl`, etc.) *off* the allow-list while allowing the ~300+ syscalls normal apps need — so it almost never breaks a workload, yet it removes ~44 of the juiciest kernel-escape doorways. It's the highest security-per-risk ratio control you have. Since Kubernetes 1.27 you can even make it the cluster-wide default via the kubelet flag `--seccomp-default=true` (feature `SeccompDefault`, GA in 1.27) so every pod that doesn't specify a profile gets `RuntimeDefault` automatically.
 
 > **Check yourself before Rung 4:** Draw the syscall gate from memory. (1) Does seccomp fire before or after the capability check? (2) What are the exactly-four inputs the BPF filter gets, and which one can it *not* follow? (3) If `/proc/PID/status` shows `Seccomp: 0`, what does that tell your auditor about the container's kernel attack surface?
 
@@ -545,7 +545,7 @@ kubectl get pod seccomp-deny-mkdir   # STATUS: Running (ERRNO didn't kill it)
 ```
 Strict mode           → the 4-syscall preset (default=KILL, allow read/write/_exit/sigreturn)
 Filter mode           → you supply the default + the list  → Seccomp: 2
-RuntimeDefault        → a runtime-shipped blacklist (allow-default, deny ~44 dangerous syscalls)
+RuntimeDefault        → a runtime-shipped whitelist (default=ERRNO, allow ~300+ safe syscalls, deny ~44 dangerous ones)
 Localhost profile     → your custom JSON: defaultAction + syscalls[]
 SCMP_ACT_ALLOW/ERRNO  → the "verdict" half of the idea (permit vs graceful deny)
 SCMP_ACT_LOG          → verdict = "allow but tattle" → the safe profiling on-ramp

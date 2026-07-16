@@ -75,6 +75,8 @@ Derive the rest from it:
 
 If you internalize "root = a pile of bits; the kernel checks one bit at a time," you can read any pod's `securityContext` and any `/proc/PID/status` Cap line.
 
+> **Check yourself before Rung 3:** In one sentence, what does the kernel's `capable()` function actually inspect, and how is that different from the old `if (uid == 0)` test? What does it mean, in privilege terms, to be "UID 0 with zero capabilities"?
+
 ---
 
 ## ⚙️ Rung 3 — The Machinery (the important one — go slow)
@@ -172,6 +174,8 @@ securityContext:
 
 `runc` sets the container process's **bounding set** (and permitted/effective/ambient) to *exactly* `CAP_NET_BIND_SERVICE` and nothing else. Because bounding is a hard wall for all descendants, no child process inside that container can ever regain `CAP_SYS_ADMIN`, even by execing a file-cap binary. Conversely, `privileged: true` tells runc to leave the **full capability set** in place (all ~41 bits) *and* disables the device cgroup, seccomp, and AppArmor confinement — the container is essentially root on the host kernel. That is why, on a CKS review, `privileged: true` is the first thing you hunt for and delete.
 
+> **Check yourself before Rung 4:** Name the five capability sets and, in a few words each, say *when* the kernel consults each one. Which single set does `drop:[ALL]` shrink, and why does shrinking it also protect every child process inside the container?
+
 ---
 
 ## 🏷️ Rung 4 — The Vocabulary Map
@@ -203,6 +207,8 @@ securityContext:
 - **`CapPrm` in `/proc` and "Permitted set" and `p` in `+ep`** are three names for one mask.
 - **`privileged: true`, "all caps", and `CapBnd = 000001ffffffffff`** describe the same runtime state from three altitudes (pod spec, English, hex).
 
+> **Check yourself before Rung 5:** `CapPrm` in `/proc/PID/status`, "the permitted set," and the `p` in `cap_net_raw=ep` are three names for what one thing? And in your own words, why is `privileged: true` equivalent to leaving `CapBnd = 000001ffffffffff`?
+
 ---
 
 ## 🔬 Rung 5 — The Trace
@@ -228,6 +234,8 @@ Follow one concrete action end-to-end: **your hardened pod (`runAsUser: 1000`, `
 ```
 
 The whole security guarantee is one sentence: **the kernel checked a specific bit, and that bit wasn't set.**
+
+> **Check yourself before Rung 6:** When the hardened pod's nginx tries `mount()` and gets `EPERM`, name the exact capability bit the kernel checked and the two sets that guarantee it can never be raised. Why wouldn't a `setuid(0)` call inside the container rescue it?
 
 ---
 

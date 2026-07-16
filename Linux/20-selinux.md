@@ -204,6 +204,8 @@ Some access is *conditionally* allowed. A **boolean** is a runtime on/off toggle
 - **`chcon` vs `semanage fcontext`** — both "set a label," but one is a temporary xattr poke and the other is durable policy. Treat them as *different tools*, not synonyms.
 - **Boolean vs allow rule** — a boolean is just an `if` guard *around* a group of allow rules; conceptually the same TE engine, exposed as a switch.
 
+> **Check yourself before Rung 5:** Using only the map above, name the *field* of a context that carries a **domain**, the *tool* that changes a label durably (surviving `restorecon`), and the *file* `restorecon` consults to decide what a path's label *should* be.
+
 ---
 
 ## Rung 5 — 🔬 The Trace
@@ -301,7 +303,7 @@ Commit to each prediction **out loud before you run the command.** Being wrong h
 
 ### Example 1 — Normal case: see the modes and the labels
 
-**Prediction:** `getenforce` prints a single word (`Enforcing`). `sestatus` shows more detail including the loaded policy. `id -Z` shows *my shell's* context, `ps -Z` shows a process's domain, and `ls -Z` shows a *file's* type — and system files will carry types like `etc_t` / `kubernetes` files their own types, **not** the same label as my shell.
+**Prediction:** `getenforce` prints a single word (`Enforcing`). `sestatus` shows more detail including the loaded policy. `id -Z` shows *my shell's* context, `ps -Z` shows a process's domain, and `ls -Z` shows a *file's* type — and system files (including everything under `/etc/kubernetes`) will carry types like `etc_t`, **not** the same label as my shell.
 
 ```bash
 getenforce
@@ -327,7 +329,8 @@ ps -Z -p 1
 ls -Z /etc/kubernetes
 # system_u:object_r:etc_t:s0        admin.conf
 # system_u:object_r:etc_t:s0        kubelet.conf
-# system_u:object_r:cert_t:s0       pki           ← PKI dir often cert_t
+# system_u:object_r:etc_t:s0        pki           ← default kubeadm: plain etc_t
+#                                                   (no dedicated fcontext rule)
 ```
 
 **Verify:** `getenforce` says `Enforcing` and the four-field context appears everywhere. If `id -Z` says `unconfined_t`, that's expected for an interactive admin — *unconfined* means "policy loaded but this domain is deliberately unrestricted." If instead you see `command not found`/`Disabled`, you're on a non-SELinux distro (Ubuntu) — that itself teaches you *which* MAC this host runs.
