@@ -1,0 +1,2058 @@
+In this section, we look at
+
+some of the troubleshooting techniques for Kubernetes.
+
+We start with troubleshooting application failures,
+
+then move on to troubleshooting control plane failures,
+
+and then to worker node failures,
+
+and finally network related issues.
+
+This section is full of hands-on labs
+
+where you are given a broken cluster
+
+and are asked to troubleshoot and fix issues.
+
+Good luck.
+
+Throughout this course, we've actually worked on a number of troubleshooting exercises with respect
+
+to the topic we were going through at that point in time.
+
+So a lot of troubleshooting is already covered.
+
+We will go through an overview of troubleshooting techniques and procedures, and work on some more
+
+practice tests in this section.
+
+We'll start with application failures.
+
+Let's take a look at a two tier application that has a web and a database server.
+
+The database pod hosts a database application and serves the web servers through a database service.
+
+The web server is hosted on a web pod and serves users through the web service.
+
+It's good to write down or draw a map or chart of how your application is configured before you start.
+
+Depending on how much you know about the failure.
+
+You may choose to start from either end of this map.
+
+But remember to check every object and link in this map until you find the root cause of the issue.
+
+Say in our case, users report some issue with accessing the application.
+
+First, we start with the application front end.
+
+Use standard ways of testing if your application is accessible.
+
+If it's a web application, check if the web server is accessible on the IP of the node port using curl.
+
+Next, check the service as it discovered endpoints for the web pod.
+
+In this case, it did.
+
+But if it did not, then you might want to check the service to Pod Discovery.
+
+Compare the selectors configured on the service to the ones on the pod.
+
+Make sure that they match.
+
+Next, check the pod itself and make sure it is in a running state.
+
+The status of the pod, as well as the number of restarts, can give you an idea of whether the application
+
+on the pod is running or is getting restarted.
+
+Check the events related to the pod using the describe command.
+
+Check the logs of the application using the logs command.
+
+If the pod is restarting due to a failure, then the logs in the current version of the pod that's running
+
+the current version of the container may not reflect why it failed the last time.
+
+So you either have to watch these logs using the dash F option and wait for the application to fail
+
+again, or use the previous option to view the logs of a previous pod.
+
+Next, check the status of the DB service as before.
+
+And finally check the DB pod itself.
+
+Check the logs of the DB pod and look for any errors in the database.
+
+There are some more tips documented in the Kubernetes documentation page for troubleshooting applications.
+
+This will help in upcoming practice tests as well as in the exam.
+
+so let's go through this practice test on troubleshooting
+
+application failure.
+
+So the first question is,
+
+a simple two tier application is deployed in the alpha name
+
+space.
+
+It must display a green webpage on success.
+
+So click on the app tab at the top of your terminal to view
+
+your application.
+
+So I can click here to open the application,
+
+and I see that it is indeed in a failed state.
+
+So if I look at the error message here,
+
+we can see some of the environment variables, which,
+
+which we can use for while troubleshooting, but it says,
+
+Can't connect to MySQL server on MySQL service 3306.
+
+Name does not resolve.
+
+So basically it looks like this web application is unable to
+
+reach the MySQL service because the name, there's some,
+
+some issue with the name is not able to resolve it.
+
+So let's look at this architecture diagram.
+
+So here, so it's a two-tier application.
+
+So you have the web service here and you have the database
+
+service here, and then you have the user accessing it.
+
+So we know that this is most likely a deployment or a pod.
+
+The web application is on 8080,
+
+and then you have this web service which is on 8080.
+
+And then this is the node port that the users are accessing,
+
+which is 30081.
+
+And then you have the MySQL service,
+
+which is a,
+
+which is a service that the web application use tries to
+
+connect to.
+
+And this is the MySQL pod.
+
+Now looking at this state.
+
+So we know that the web application loads, it's,
+
+it's failed, the application is failed,
+
+but at least the interface loads.
+
+So looking at it,
+
+this area seems to be okay.
+
+Okay, because this port 30081,
+
+this is the port that we are on.
+
+So 3081, so that's good.
+
+So this patch looks okay.
+
+This web service has loaded the application.
+
+So this also looks okay.
+
+So there's some issue in this area.
+
+The application is unable to reach the MySQL service at this
+
+name or at this port.
+
+So let's first take a look at,
+
+at the application.
+
+So it's in the alpha name space.
+
+So we're gonna do a kubectl, we get pods, dash name,
+
+space alpha.
+
+And so we're gonna work,
+
+we're gonna run a lot of commands in the alpha name space.
+
+So it's best if we switch our context and,
+
+and set the alpha name space as the default name space,
+
+because we don't want to be typing in the name space for
+
+each command so let's do a kubectl config,
+
+and let's check the help find out the command.
+
+So we can use a set context.
+
+So we're going to do a set text,
+
+and then let's check the help.
+
+And what we want to do is we wanna set the name space,
+
+we're gonna use a set context, and then the current context.
+
+So we wanna set the name space of the current context to the
+
+name space equals alpha.
+
+Okay?
+
+So that's modified.
+
+So let's try,
+
+we've gotta just get pods now and we see that we can see the
+
+pods in the current name space.
+
+So as we suspected,
+
+the web application is a deployment.
+
+So let's do a deploy.
+
+So the web app is a deployment, and the SQL server is a,
+
+is a pod, and we also have services.
+
+And so the SQL server has a, the,
+
+MySQL service and the web application has the web
+
+service.
+
+Okay
+
+So one way to, another way to test the,
+
+if the web application is accessible or not,
+
+is basically at this level of test is to do a curl and then
+
+to gonna do a local host because it's accessible on the node
+
+port and the port is 3081. And we can see the kind of,
+
+you know, this in a,
+
+in a text format and we can see that database connection has
+
+failed and can't connect to MySQL server
+
+on MySQL service.
+
+So we're gonna look more into this area, right?
+
+So let's see, let's look at the deployment.
+
+We're gonna do a kubectl,
+
+we're gonna do a kubectl describe deployment web app
+
+about MySQL.
+
+So that's the deployment name.
+
+And here we see that we have the template,
+
+the image is simple web app.
+
+MySQL port is 8080.
+
+And these are some of the environment variables.
+
+So the database host is MySQL service, the user is root
+
+and the password is this password.
+
+So the host is MySQL service.
+
+So let's look at the service called MySQL service,
+
+Let's do a get service.
+
+And we see that the name of the service is not MySQL service
+
+It's instead MySQL, right?
+
+So that seems to be the problem here.
+
+So this,
+
+and this should match because from within this application
+
+is gonna try and reach a service by the name MySQL service.
+
+And this doesn't look like that.
+
+So that seems to be the problem.
+
+So what we're going to do is we're gonna fix that.
+
+So let's do, let's try and edit the service.
+
+And we can't edit the service name,
+
+but let's give it a shot.
+
+All we want to do is change this to MySQL service,
+
+right?
+
+So let's try and save that.
+
+Now, it's not going to allow you to save that,
+
+but the changes we made is in this temporary file.
+
+So this is what we need.
+
+So here you have the service and you have the,
+
+MySQL service and everything else seems to be as,
+
+as what we want.
+
+So the port numbers are there,
+
+selector is there,
+
+or another approach we could do is to just delete the
+
+service and export or expose the service,
+
+the MySQL service again.
+
+But for now,
+
+we could just go ahead with this.
+
+So we could do a kubectl
+
+delete as we see, and delete the MySQL service.
+
+Then we're going to create SVC.
+
+Nope, we're gonna create using this file.
+
+Okay, let's check service now.
+
+And we see that the MySQL service has now been created
+
+on port 23306.
+
+Okay?
+
+So let's go ahead and check this.
+
+Okay, when you check this application, it's now Success
+
+check our work.
+
+Okay, so that's successful,
+
+let's proceed to the next one.
+
+Okay, so in this one,
+
+the same two tier application is deployed in the beta name
+
+space and it must display a green web page on success.
+
+Click on the app.
+
+So let's click on this app to see
+
+the status.
+
+And as you can see, it's in a failed state.
+
+And if you look at this, you have the environment variables.
+
+So the database hosts MySQL service, user is root,
+
+password, and it says,
+
+Can't connect to MySQL server on MySQL service 3306.
+
+Now it says connection refused.
+
+So it's this connection refused.
+
+So let's take a look at it.
+
+So first we're going to switch context to beta.
+
+We're gonna do a set context config, set
+
+context command, and then we're going to,
+
+so the current context name space to beta
+
+okay?
+
+Now we're gonna do a get pods.
+
+Pods, and we see the MySQL pod and you have the,
+
+the web app pod.
+
+So that's fine.
+
+And then we also have services for the MySQL service and the
+
+web app service.
+
+If you look at this again, as before, the,
+
+the Port 30081 seems to be correct.
+
+So you can,
+
+as we can access that here and this whole application loads.
+
+So this whole thing should be good, right?
+
+And again,
+
+it looks like it's a connectivity issue with between
+
+the web application and the MySQL server.
+
+So this is what we have to verify.
+
+Now, last time the issue was with the name,
+
+but now looks like the name is correct,
+
+it is MySQL service, but we will anyway,
+
+also check the deployment on what is set,
+
+describe Deploy web app MySQL.
+
+And we see that the database host given here is MySQL
+
+service and this is MySQL service as well.
+
+So that's good.
+
+Now let's just look at the service.
+
+So this is good.
+
+Now let's just focus on this.
+
+So we're gonna do a describe service, MySQL service.
+
+And we see selector is right,
+
+the endpoints it has has detected the endpoint.
+
+So that's 10.42.0.12.
+
+Let's look at,
+
+let's make sure that this endpoint is the pod,
+
+which is the MySQL pod.
+
+So let's do a kubectl get pods -OY
+
+to see the IP of the pod.
+
+And we see that the MySQL pod has an IP address, 10.42.0.12.
+
+And this is 10.42.0.12.
+
+So that's right.
+
+But if you look at this right here, it says port 8080.
+
+And so the IP is, okay, so then we check the port.
+
+So it's port 8080, and 8080 is not
+
+the port for the database.
+
+So if you look at it here,
+
+the port here is 3306 and not 8080.
+
+So that seems to be the problem.
+
+So let's do an edit as we see MySQL service.
+
+And you can see the port here is 3306, which is right,
+
+the target port given is 8080, and that is not right.
+
+So that should be 3306 as well.
+
+So let's edit that.
+
+Let's make sure the changes took place.
+
+Okay, so now is 3306, and let's check the endpoints.
+
+And we see that the endpoint is now 10.42.0.12, 3306.
+
+Let's now check our application and yep, can see that it's,
+
+it's a success.
+
+Let's check our work.
+
+Okay, so we're two down.
+
+Okay,
+
+so the next question is the same two tier application is
+
+deployed in the Gamma name space.
+
+It must display green webpage and click on the app tab at
+
+the top to view, okay, so it,
+
+it looks like it's the same question.
+
+So let's go and open the application.
+
+Okay?
+
+So just keeps spinning
+
+and meanwhile we'll go here and here our work and switch
+
+context to,
+
+we'll switch to the gamma namespace, okay?
+
+And let's check status of pods and let's check services.
+
+So we have both the pods are running and the services are
+
+there, but this doesn't look like it's loading.
+
+So let's try and find out why.
+
+So it looks like the issue is somewhere here.
+
+The page itself isn't loading,
+
+the service itself isn't loading.
+
+So let's start looking at it right from here.
+
+So the first thing to look at is this Port 30081,
+
+because that is the,
+
+the port that we are trying to access 30081, okay?
+
+And it's now timed out.
+
+So 30081.
+
+So if you look at the service called web service,
+
+we see that it's set to node port,
+
+and the node port is 30081, so that's fine.
+
+So that looks good.
+
+Next thing is the service itself.
+
+So let's check if the service has a endpoints.
+
+So we're gonna do describe service, web service,
+
+and we see the name, web service, name space is gamma,
+
+has the right selectors and has
+
+the endpoints.
+
+10.42.0.14.
+
+And the ports are 8080 and 8080.
+
+So that looks right.
+
+Let's make sure the IP address,
+
+the endpoints are picked up correctly.
+
+So this endpoint is 10.42.0.14,
+
+and the web app is on 10.42.0.14 as well.
+
+So that checks out.
+
+So the next step is, so the web service is good,
+
+Let's check the deployment itself.
+
+So we do our kubectl get pods, we do
+
+describe deployment web app, MySQL,
+
+and we see that it has one desired and one available.
+
+So that's fine.
+
+The image is, looks correct,
+
+the database host is MySQL service, user is root
+
+password.
+
+All of that seems to be okay, but it's still,
+
+we're unable to do the deployment.
+
+So let's check out the logs because it looks like the,
+
+the web server isn't responding.
+
+So let's do a logs
+
+on the pod.
+
+And this seems to be, okay, so this,
+
+this application itself, it says it started,
+
+it's available on this port.
+
+And so that seems to be okay.
+
+So however,
+
+we are still not able to access the application.
+
+So let's anyway,
+
+go through and complete our checks because we assume that
+
+it's going to be somewhere here.
+
+But anyway, let's go down and complete our checks.
+
+So the MySQL service is supposed to be on 3306.
+
+So let's check that.
+
+So we have the MySQL service and it's on 3306.
+
+Let's check the endpoint,
+
+describe MySQL service.
+
+And here you have the endpoints,
+
+but it looks like there are no endpoints.
+
+So apparently the service hasn't detected MySQL pod as an
+
+endpoint, so let's take a look at why that is.
+
+So if you look at the selectors right here,
+
+it says name equals SQL 00001, and for the pod,
+
+so describe POD MySQL.
+
+And we know that the labels for this is,
+
+is name equals MySQL.
+
+So that should be the selector not name equals SQL 0001.
+
+And that's why it doesn't have any endpoints.
+
+So let's go ahead and edit that, not the pod.
+
+We're going to edit the service, MySQL service,
+
+and we're going to change the selector to MySQL
+
+then save that.
+
+Okay, now we're going to do a describe pod,
+
+no describe Service MySQL.
+
+And we see that we have, we have the service now protected.
+
+Let's go and check out our application.
+
+Okay, so that's connected successfully.
+
+So apparently,
+
+even though we were not ab able to access the web
+
+application,
+
+that's because the web application is trying to access the
+
+MySQL service and that service was not responding,
+
+which is why the web application was not responding either.
+
+So even though we thought that the issue was somewhere here,
+
+we went through and we made sure that everything's fine and
+
+we just went through the remaining
+
+just to check and just to be sure.
+
+And that's how we identified that the issue is somewhere
+
+here, so that's,
+
+that's another approach or technique that you should use.
+
+If you're not really sure, I mean,
+
+you start with an intuition on, you know,
+
+where the issue could be, but if you don't seem,
+
+you know, if you can't really figure out,
+
+you just keep looking at the,
+
+those things just to make sure that they're working as
+
+expected.
+
+Okay, so let's check our work
+
+and let's wait for the next one.
+
+Okay, so here the,
+
+the same two-tier application is deployed in the Delta name
+
+space, and it looks like it's the same setup.
+
+So here we have, and it's in a fail state.
+
+So let's first change our context to
+
+Delta.
+
+Okay?
+
+Then let's check the pods and let's check our services.
+
+So let's check the error message.
+
+So the host is MySQL service user is SQL user.
+
+Password is password.
+
+It says can't connect to MySQL server on MySQL service.
+
+3306 connection refused.
+
+Okay, I wanna try that out again, just refresh it.
+
+And it says Access denied for user SQL user
+
+at 10.42.0.16 using password.
+
+So it says Access denied for the user.
+
+So, and here you can see the user details.
+
+So the DB host has to be my service, the DB user is route.
+
+And the password is password.
+
+So let's check the,
+
+the settings for that.
+
+So the web application must access that.
+
+MySQL service,
+
+and this is where the credentials are stored.
+
+So let's do a describe on MySQL,
+
+describe deployment on MySQL.
+
+Let's look at the settings.
+
+So here you have the environment variables and you have the
+
+host, which is MySQL service.
+
+The user is, it says SQL user, but it's actually root.
+
+And the password is password.
+
+So this is, this seems to be the problem.
+
+So let's edit that
+
+and update the user to root.
+
+Okay, and let's wait for the bot to be running.
+
+So it's running already.
+
+It refers to the page.
+
+And that's success.
+
+So that was the issue here.
+
+Let's check that out.
+
+And while the new one loads, let's close this one,
+
+let's clear our screen.
+
+Okay,
+
+the next one is the same application is deployed in the
+
+Epsilon name set in space.
+
+It must do display a green web app webpage on success.
+
+So let's open the webpage and we have a similar error
+
+message.
+
+So it says the environment variables, DB host,
+
+MySQL service database.
+
+It's not set users, SQL user.
+
+And the password access denied for user SQL User, okay?
+
+So that's kind of the similar error.
+
+So let's take a look at it.
+
+But first let's change the context to,
+
+Epsilon, okay, and set the parts.
+
+And we know that,
+
+So it's a similar error message where it says Access denied
+
+for SQL user, and that's what we just solve.
+
+The user is not SQL user, it's
+
+a root user, so let's go ahead and fix that.
+
+Edit deployment, web app, SQL.
+
+And so here we see the user is SQL user.
+
+So let's change that to root.
+
+Okay, let's check the bot, if it's running.
+
+Let's refresh the page.
+
+Okay,
+
+so now the error message has changed and it says access
+
+denied for user root.
+
+Again, so the access is still denied.
+
+But the user has now been updated to root.
+
+Right?
+
+So.
+
+The user credentials are either set on the application
+
+that's trying to connect to the database or the database
+
+itself.
+
+Right?
+
+So we've already fixed it on the deployment here,
+
+but now the issue could be here.
+
+So let's check out the pod.
+
+Because that's the only other place where anything
+
+could be set.
+
+And here we see additional details.
+
+And here we have the environment variable and the MySQL root
+
+password is set to something other than password, which
+
+should be this.
+
+So that needs to be changed.
+
+So let's do a edit pod for MySQL
+
+and let's change this password to.
+
+BASWRD
+
+save that, it's not going to allow us 'cause it's a pod.
+
+So we're going to do a kubectl, replace,
+
+replace force and give the file.
+
+Okay, let's delete it.
+
+It's up, it's running.
+
+Let's try to refresh the page.
+
+Hmm.
+
+So now it'd says connection refused.
+
+No, okay.
+
+That was because we tried too early,
+
+the pod was just being initiated.
+
+So now at success.
+
+So that was the issue.
+
+Now another thing to note here is in this case, I mean,
+
+you know, these are, it's very simple,
+
+straightforward examples of setting environment variables,
+
+but these could also be part of config maps.
+
+So there could be another config map associated with the
+
+MySQL service, which is how it is usually configured.
+
+And so if that is the case,
+
+then you should inspect the config maps as well.
+
+Okay?
+
+All right, let's get ready for the final one.
+
+Okay,
+
+so the same two tier application is deployed in the Zeta
+
+name space.
+
+So let's first set the context to Zeta
+
+and let's check out the application.
+
+Okay, so it says bad gateway right up front.
+
+So let's start from here.
+
+So we're assuming,
+
+because it says we're not even able to access the web
+
+service, we're gonna start right from the top.
+
+So the,
+
+the node port is 30081 because that's what we are trying to
+
+access here.
+
+And let's see the status of the services.
+
+And we see that the web service is, has a node board,
+
+but here you see it's not on 30081, it's on 30088.
+
+So that's what we're gonna fix, edit service,
+
+web service.
+
+And the node board has to be 30081.
+
+We'll save that and let's make sure that it's updated.
+
+So it's 30081.
+
+Okay?
+
+So that's done.
+
+We're now able to access the application at least now it
+
+says access denied for user SQL, user using password.
+
+So that something we have seen already.
+
+So let's check out,
+
+okay, let's look at the deployment,
+
+describe deploy web app MySQL.
+
+And we see that there are environment variables.
+
+So MySQL service, SQL server, SQL user and password.
+
+So let's edit that
+
+to change it to root
+
+Okay, so the new pod has been deployed.
+
+Okay?
+
+So now the username is updated, so access,
+
+but it's still his access denied for user root.
+
+So we have to
+
+go down and check the,
+
+the password configured on the MySQL service.
+
+So let's do a describe pod MySQL.
+
+You see that we have the password issue here,
+
+the environment variables.
+
+So let's edit that.
+
+And this should be password, let's save that.
+
+That's not going to go through.
+
+So let's do a replace this.
+
+Okay, let's wait for the pod to run.
+
+Okay, so yep.
+
+Now that's successful.
+
+Check our work.
+
+Okay, so that's about it.
+
+I know that there's a little bit of repetition on the type
+
+of questions and,
+
+and that's really in case you didn't get it the first time
+
+for you to just get that practice again and,
+
+and get it the next time and build some confidence.
+
+So, yep,
+
+I hope that was a good troubleshooting session and we'll
+
+have more coming up in the upcoming labs.
+
+In this lecture we will see different ways of troubleshooting control plane failures.
+
+We start by checking the status of the nodes in the cluster, see if they are all healthy, then check
+
+the status of the pods running on the cluster.
+
+If we had control plane components deployed as pods in case of a cluster deployed with the kube ADM
+
+tool, then we can check to make sure that the pods in the kube system namespace are running, or else
+
+if the control plane components are deployed as services, as in our case, then check the status of
+
+the services such as the kube API server, the controller, manager and scheduler on the master nodes,
+
+and the Kubelet and kube proxy service on the worker nodes.
+
+Next, check the logs of the control plane components again, in case of kube adm, use the kube control
+
+logs command to view the logs of pods hosting the control plane components.
+
+In case of services configured natively on the master nodes, view the service logs using the host's
+
+logging solution.
+
+In our case, we could use the general control utility to view the kube API servers logs.
+
+This should be a good start.
+
+For more tips, refer to the Kubernetes documentation page for troubleshooting clusters.
+
+This will help in the upcoming practice test as well as in the exam.
+
+Okay, so in this video we're going to work
+
+on troubleshooting control plane failure.
+
+So the first question is, the cluster is broken.
+
+We tried deploying an application, but it's not working
+
+troubleshoot and fix the issue.
+
+So before we begin, a quick tip
+
+if you don't have the alias set already on your prompt
+
+so you could do a alias, k equals kubectl.
+
+And also if you don't have auto completion
+
+then one thing you could do is
+
+you could go to the Kubernetes documentation pages
+
+search for kubectl cheat sheet
+
+and then the first thing that comes here
+
+is the kubectl completion bash.
+
+So let's copy and let's run that.
+
+And this basically gives you auto completion.
+
+So you do a kubectl get
+
+and then it automatically gives you the options.
+
+The other thing is, so if you're setting an alias
+
+you should do this as well to get the alias for
+
+the short form for kubectl.
+
+So I'm gonna set this as well,
+
+that way I can just do kubectl get
+
+and then yeah, order completion for the short form.
+
+Okay, so we're gonna look at the status of the cluster.
+
+So let's do a kubectl, get nodes
+
+and we see that the nodes seems to be in a ready state.
+
+So that's good.
+
+There is, it says there are deployments.
+
+So let's take a look at the deployments.
+
+And we see that there is a app deployed, but it's not ready.
+
+So there is one container or one pod in the deployment
+
+but that pod is not ready.
+
+So let's take a look at it.
+
+Let's do a describe,
+
+so you describe deployment app
+
+and we see that it's one desired,
+
+zero available, so there's, that's one unavailable
+
+and there isn't anything here that's really helpful.
+
+So here it says scale that replica set to one.
+
+So let's take a look at the replica set,
+
+get rs, we have one replica set.
+
+Let's take a look at that.
+
+Describe replica set app.
+
+And we see that the desired is one,
+
+but it's still waiting.
+
+And here you have the events and it says creating pod.
+
+So let's take a look at the pod
+
+and we see that there is a pod created,
+
+but it's in a pending state.
+
+Let's take a closer look at that pod.
+
+And we see the events have not started yet
+
+but everything else seems okay
+
+but it's in a pending state.
+
+So when a pod is in a pending state, it's most likely,
+
+that indicates that it has not been assigned a node.
+
+So if you look at the node here, it's set to none.
+
+That means the pod has not been assigned
+
+to a node and the job
+
+of assigning a pod to a node is scheduler's job, right?
+
+So we have to look at the status of the scheduler.
+
+So let's do a, and we know that scheduler runs
+
+as a pod in the kube system name space.
+
+And here you have the scheduler
+
+and it has control plane at the end.
+
+So that means it's a static pod
+
+and its status is crash loop back off.
+
+So let's take a look at the pod
+
+in more detail in the kube system name space
+
+and we're looking at the kube-scheduler.
+
+Okay, so we see
+
+at the bottom here that seems to be restarting quite often.
+
+And then it says fail to start container
+
+kube-scheduler error response from daemon,
+
+OCI runtime create failed, starting container process
+
+kube-scheduler, executable file not found.
+
+So it says this executable is not found
+
+obviously it looks like it's not, right.
+
+So let's take a look at the options
+
+or the command that are used to run this pod.
+
+So here we can see that there is an incorrect command
+
+that's wrong and that's the reason.
+
+So we know that the kube-scheduler is a static pod.
+
+So the file is in
+
+TTC Kubernetes manifests
+
+and we have the kube-scheduler.yaml file here.
+
+So this is the manifest file for kube-scheduler
+
+and within that there's a wrong command.
+
+So let's go and edit that file
+
+and then remove the extra characters.
+
+And we're gonna save that and we'll see if we have
+
+we'll see the status of the pod
+
+and its in a creating container config error state.
+
+Yep, it's now in a running state
+
+and we'll just watch until, we just watch until it's ready.
+
+So let's give it a few seconds.
+
+Still not ready.
+
+Let's take a look at the logs.
+
+Okay, okay, so it's finally in ready state.
+
+And let's take a look at the pods.
+
+And we have the pod is now in ready stage.
+
+Let's take a look at the deployment
+
+and we have one of one ready.
+
+Okay, okay, so that's, that's good.
+
+Let's go to the next one.
+
+Now it says scale the deployment app to two parts.
+
+Let's do a kubectl.
+
+So let's get the deploy.
+
+And we have app with one pod, let's scale it up,
+
+kubectl scale deployment app
+
+and replicas is two, there's two pods.
+
+Okay, even though the deployment was scaled to two
+
+the number of pods does not seem to increase
+
+investigate and fix the issue.
+
+So let's check the status of pods and we see
+
+that it's still just one, but we have the deployment here.
+
+It says one of two, ready.
+
+So let's take a look at the deployment.
+
+Kubectl describe deploy app,
+
+and we see the image set
+
+we see scale that replica set to one, but we don't see it
+
+the deployment, scaling up the replica set to two.
+
+However, here we see the number of replicas to be two.
+
+Two is the desired state and only one is available.
+
+So the job of updating a deployment
+
+the job of updating a replica set
+
+or scaling up a replica set is the controller managers.
+
+So it's the deployment controller
+
+and all the controllers that as, as we know
+
+the deployment controller, the replica set controller
+
+they're all controlled by the controller manager.
+
+So let's take a look
+
+at the status of the controller manager.
+
+So we're gonna do a kube system
+
+and we see that the kube controller manager is
+
+in a crash loop back of state.
+
+So let's take a look at the kube controller manager.
+
+So within the new system
+
+we're going to describe this particular pod.
+
+And we see that says back off, restarting fill container.
+
+We don't see anything useful here in the events.
+
+Let's take a look at it.
+
+So here it says crash loop back off terminated error.
+
+The exit code is one
+
+and the command seems to be correct.
+
+There's isn't anything at there.
+
+So let's take a look at the logs.
+
+So let's do a kubectl logs
+
+this one in the kube system name space.
+
+Okay, so here it says this particular file
+
+there's no such file or directory.
+
+So this file is not found.
+
+Let's check if that file exists.
+
+Of course that file does not exist
+
+because there seems to be something wrong with it.
+
+So let's check, let's check where this file is specified
+
+in the kube controller manager.
+
+So we know that the cube controller manager
+
+is also a static pod.
+
+So that means it must be
+
+in the slash ADC Kubernetes manifests directory.
+
+And then we have controller manager there.
+
+So let's see, let's just grab for XXX
+
+cause that's what we saw.
+
+And here we have it specified.
+
+So the kube config file is configured to this location
+
+but let's see where the actual kube config file is, right?
+
+So the actual kube config file
+
+for the controller manager
+
+is at atckubernetescontrollermanager.com.
+
+Let's just verify the contents of that file,
+
+let's do controller manager
+
+and we see that this is indeed a keep config file.
+
+Okay so that's the problem.
+
+So we're going to edit the controller manager
+
+manifest file to fix that issue.
+
+So we're going to remove this XXXX that is not required.
+
+We're gonna save that and we'll check the pod system.
+
+It's in pending state.
+
+So we're going to watch that and we'll give you some time
+
+for the kube controller manager to be ready.
+
+Okay, so it's now in a running state and it's also ready.
+
+So let's take a look at the pods.
+
+And we see that there are now two pods indeed.
+
+Let's take a look at the deployments
+
+and we see that there are two deployments.
+
+Okay, let's check the status.
+
+Okay, so we're breaking something now.
+
+Okay, so something is wrong with scaling again,
+
+we just tried scaling the deployment
+
+to three replicas, but it's not happening.
+
+So let's take a look at that.
+
+Let's do a get pods.
+
+It's only two, let's do a get deployment.
+
+And it's two of three, so it looks like it's gone to three.
+
+So let's check,
+
+let's look at the deployment.
+
+And we see that here we have scale
+
+of the replica set to one, then two, which we did earlier
+
+but it has not been scaled up to three.
+
+So in the previous one we have learned that if
+
+the scaling up isn't happening,
+
+if the changes that we have applied on the deployment
+
+aren't, isn't going into effect
+
+then the culprit is usually the controller manager
+
+because it's the controller manager
+
+that is responsible for this.
+
+So let's take a look at the controller manager again.
+
+Okay, so we're going to look
+
+at the logs of this pod controller manager.
+
+So we're gonna do a kubectl logs, oh
+
+this is the control plane controller manager
+
+the kube system name space, and we see
+
+that it says unable to load client ca file.
+
+So the ATC Kubernetes PTICS cert is not available.
+
+So let's try and find this file locally
+
+and we see that we do have this file locally.
+
+So yes, this file seems to be here
+
+but it says it's not able to load it,
+
+there's no such file or directory within
+
+the kube controller manager.
+
+So we know that the way that the cube control manager
+
+or any other control plane component is set up
+
+is that the certificate files are
+
+on the control plane on the host.
+
+And then we use volumes to mount
+
+these directories within the same directory
+
+within the controller manager, right?
+
+So that's set up in the manifest file.
+
+So let's take a look at the manifest file
+
+and we're gonna look at your controller manager.
+
+And we see that all of these
+
+all of these that are configured here
+
+so ATC Kubernetes, ATC Kubernetes PKI
+
+these are all in fact on the host, but they're mapped
+
+as a volume through to these containers.
+
+And the way that's done is through volume mounts.
+
+So we look at volume mounts here
+
+and we can see there are multiple volume mounts.
+
+So you have the CSSL certs, the CS certs
+
+but what we want is the coordinate PKI volume.
+
+This is what we are concerned about
+
+because this is what it claims that is not available.
+
+So here the mounting looks good
+
+but the volume that is mounted is called K eight certs.
+
+So let's take a look at the K eight certs volume.
+
+So these are the volumes that are configured here.
+
+And here we have the K eight certs volume
+
+and this is the section for that.
+
+And within this we have the path which is given at the top.
+
+And here you can see that there's an incorrect path given.
+
+So it says wrong PKI directory.
+
+So we're gonna have to get rid of that
+
+and add the right PKI directory
+
+which is just PKI and just going to save that.
+
+Let's take a look at the pod status now.
+
+Okay, it seems to be in a running state
+
+and so let's watch it
+
+and wait until it is back up and running.
+
+Okay, so it's now in a running state.
+
+Let's take a look at the status of pods.
+
+And we see that we have three pods indeed.
+
+And if we take a look at the status of the deployment
+
+we see that we have three out of three ready.
+
+Okay, So that's the end of this lab.
+
+In this lecture we will see different ways of troubleshooting worker node failures.
+
+Again, we start by checking the status of the nodes in the cluster.
+
+Are they reported as ready or not ready?
+
+If they're reported as not ready, check details about the nodes using the cube control.
+
+Describe node command.
+
+Each node has a set of conditions that can point us in a direction as to why a node might have failed.
+
+Depending on the status, there are either set to true or false or unknown.
+
+When the node is out of disk space, the out of disk flag is set to true.
+
+When a node is out of memory, the memory pressure flag is set to true.
+
+When the disk capacity is low, the disk pressure flag is set to true.
+
+Similarly, when there are too many processes, the pressure flag is set to true.
+
+And finally, if the node as a whole is healthy, the ready flag is set to true.
+
+When a worker node stops communicating with the master, maybe due to a crash, these statuses are set
+
+to unknown.
+
+This can indicate a possible loss of a node.
+
+Check the last heartbeat time field to find out the time when the node might have crashed.
+
+In such cases, proceed to checking the status of the node itself.
+
+If the node is online at all or is crashed.
+
+If it's crashed, bring it back up.
+
+Check for possible CPU, memory and disk space on the nodes.
+
+Check the status of the kubelet.
+
+Check the Cubelet logs for possible issues.
+
+Check the Kubelet certificates, ensure they're not expired and they are part of the right group, and
+
+that the certificates are issued by the right CA.
+
+Well, that's it for this lecture.
+
+Head over to the practice test and practice fixing broken clusters.
+
+Okay, so in this lab we're going to
+
+practice troubleshooting worker node failures.
+
+So we'll wait for the lab environment to be ready
+
+and we'll get started.
+
+While we wait, I'm going to set
+
+the alias for kubectl.
+
+Okay, so the first question is to fix the broken cluster.
+
+So let's run up a get nodes
+
+and we see that indeed there is something broken.
+
+So node zero one is in a Not Ready State.
+
+So let's see why that is.
+
+Let's do a describe node, node zero one.
+
+And here we see a set of events.
+
+So all of these seem to be normal
+
+so they're starting the kubelet.
+
+All of these are good statuses
+
+and the node itself is ready.
+
+There's something missing.
+
+So let's go to that node.
+
+Let's just say node zero one, and we'll check the status.
+
+So the first thing that we wanna check
+
+on a worker node is the kubelet,
+
+because we know the kubelet is the controller of a node.
+
+And the kubelet is what helps in communication
+
+between a worker node and the master
+
+or the control plane node.
+
+So let's do a check the service of the kubelet.
+
+So service kubelet status.
+
+And we see that it's loaded, but it's in an inactive state
+
+so we don't know why it's in an inactive state.
+
+So we're going to just try and start it.
+
+So let's do a service kubelet start
+
+and let's check the status again.
+
+And we see that it's now in an active and running state.
+
+Let's go back to the control plane
+
+and let's do a quick kubelet get node.
+
+Okay. And we see that both are in a ready state.
+
+So I think that should fix that question.
+
+Okay, let's go to the next one.
+
+Okay, so the cluster is broken again.
+
+Investigate and fix the issue.
+
+So let's check the status again.
+
+And we see that it's again, in an not ready state.
+
+So let's check the status of the node.
+
+Oh, zero one and go to full screen.
+
+We see that all of these, all of these events are normal.
+
+So that's, that's okay and there's nothing here either.
+
+So let's go to the node
+
+and check the status of the kubelet again,
+
+service kubelets status.
+
+And we see that it's in an activating state
+
+and it looks like there is an exit code
+
+and it's exited.
+
+The status is 255.
+
+So that means it's not.
+
+There is something wrong in the process.
+
+It's is not able to start.
+
+So even if you do a service kubelet start,
+
+it's not actually going to start the service
+
+because there seems to be something wrong.
+
+So let's check the status of the service again
+
+and it's in an activating state.
+
+So to look at the logs of a service,
+
+do a journalctl-u and kubelet
+
+and let's check the status.
+
+So these are the logs, and let's look for
+
+the latest of the most recent logs.
+
+Okay, so we are here.
+
+Let's go up.
+
+So all of these seem to be an error from a previous error.
+
+All these seem to be an error message.
+
+And here you can see that there's an error that says
+
+unable to load clientcfile/etckubernetes
+
+picking wrong ca file.
+
+There seems to be a wrong file, so let's
+
+try and find that out.
+
+So the, the kubelet configuration files are one
+
+in the edc kubernetes
+
+kubelet.com.
+
+So that's one file.
+
+But this is basically the kube config file
+
+used by the kubelet.
+
+So here you have the certificate, the contacts
+
+and everything that the kubelet uses to
+
+connect to the kubelet pa server.
+
+So this is not the place where there's an issue.
+
+It's basically the kubelet service itself, right?
+
+So the kubelets service picks the options
+
+from a file located var/lib/kubelet.
+
+So there's something to remember.
+
+And here you have a file called config.yamo.
+
+So var/libkubeletconfig.yamo.
+
+And within this file there are some properties
+
+that are passed through to the kubelet.
+
+And here you can see
+
+there is this zero one C file right here
+
+and that's the client ca file.
+
+So it should be the correct file.
+
+So let's find what the correct file is.
+
+And there's the ca.cert file.
+
+So that's what it should be ca.cert
+
+instead of the wrong ca file.
+
+So let's edit that
+
+and put the correct ca cert,
+
+save that.
+
+And now we're going to restart the kubelet service.
+
+And let's just check the status of the service now.
+
+And we see that it's in an active running state.
+
+Let's go back,
+
+let's go back to the control plane node.
+
+And let's check the status of the nodes
+
+and we see that they're in a ready state.
+
+Okay, so let's go to the next one.
+
+Okay, so now the cluster is broken again.
+
+So let's check and we see that yes,
+
+it is indeed broken and node zero one is not ready.
+
+So let's go to node zero one
+
+and let's check the status of the kubelet.
+
+And we see that, we see that it's active
+
+and it's in a running state.
+
+Okay, so let's check the logs
+
+journalctc-ukubelet,
+
+and let's go all the way to the end
+
+and let's work our way backwards.
+
+Okay? And let's see if there's something useful here.
+
+So here you can see unable to register node
+
+and you can see the control plane and dial
+
+TCP 10 54, 132, 6553 connection refused.
+
+So this seems to be the error that's
+
+causing the remaining errors.
+
+And if you look at it, it says connection refused to this.
+
+And this is basically for the control plane that we have.
+
+And it looks like this port number is incorrect
+
+because we know that the control plane port number is
+
+6443 and not 6553.
+
+So that that could be the error.
+
+So let's take a look at the kube config file used
+
+by the kubelet.
+
+So we saw that the cube config file used by the kubelet
+
+is etc kubernetes and kubet.com.
+
+So let's take a look at the contents of the file.
+
+So here if you look at this, you see that right here
+
+the control plane port number is incorrect.
+
+So let's get that corrected.
+
+And we'll set to 6443,
+
+and we're going to do a service kubelet restart,
+
+and service kubelet status.
+
+You see that it's not in an active state.
+
+Let's check the logs as well.
+
+And we no longer see those errors
+
+and it seems to be good.
+
+Let's go back and
+
+let's check the status of the nodes
+
+and we see that it's now ready.
+
+Let's check our work.
+
+Okay, so that's the end of this lab.
+
+So when it comes to troubleshooting worker nodes
+
+always first check the status from here,
+
+from the control plane.
+
+And check whatever you can find from here.
+
+And then go to each of the worker node that has the issue
+
+and start with checking the kubelet service.
+
+If the kubelet service is good, check the logs
+
+of the kubelet service and continue your way from there.
+
+Well, that's all for this lab.
+
+Thank you.
+

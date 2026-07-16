@@ -1,0 +1,1570 @@
+In this lecture, we will look at the cube admin tool, which can be used to bootstrap a Kubernetes
+
+cluster.
+
+The cube admin tool helps us set up a multi-node cluster following the Kubernetes best practices.
+
+As we discussed, the Kubernetes cluster consists of various components such as the cube API server,
+
+etcd controllers, etc. and we have seen some of the requirements around security and certificates to
+
+enable communication between these components.
+
+Installing all of these various components individually on different nodes, and modifying the configuration
+
+files to make sure these components point to each other, and setting up certificates to make it work
+
+is a tedious task.
+
+The cube admin tool helps us by taking care of all of those tasks.
+
+Let's go through the steps to set up a Kubernetes cluster using the cube admin tool at a high level.
+
+First, you must have multiple systems or virtual machines provisioned for configuring a cluster.
+
+We will see how to set up your laptop to do just that.
+
+That's if you're not familiar with it.
+
+Once the systems are created, designate one node as master and others as worker nodes.
+
+The next step is to install a container runtime on the hosts.
+
+We will be using container D, so we must install container D on all the nodes.
+
+The next step is to install kube admin tool on all the nodes.
+
+The kube admin tool helps us bootstrap the Kubernetes solution by installing and configuring all the
+
+required components in the right nodes in the right order.
+
+The next step is to initialize the master server.
+
+During this process, all the required components are installed and configured on the master server.
+
+Once the master is initialized and before joining the worker nodes to the master, you must ensure that
+
+the network prerequisites are met.
+
+A normal network connectivity between the systems is not sufficient for this.
+
+Kubernetes requires a special networking solution between the master and worker nodes, which is called
+
+as the pod network.
+
+The last step is to join the worker nodes to the master node, where then all set to launch our application
+
+in the Kubernetes environment.
+
+We will now see a demo of setting up Kubernetes using the Kube admin tool in our local environment.
+
+Instructor: In this demo,
+
+we will see how to provision VMs for our Kubernetes cluster
+
+that will include a single master node and two worker nodes.
+
+And we're gonna accomplish this
+
+by using two different pieces of software.
+
+The first one is going to be VirtualBox.
+
+so this is our hypervisor
+
+which is ultimately responsible
+
+for running our virtual machines.
+
+And the other tool is going to be Vagrant,
+
+so this is like a automation tool
+
+that makes it really easy to spin up a whole bunch of VMs
+
+with a specific configuration.
+
+So we're gonna make use of Vagrant
+
+so that all of us can kind of follow along
+
+with the exact same configuration for our VMs
+
+and we can get those VMs up and running
+
+with just one single command.
+
+So the prerequisites, obviously, for this video
+
+is you have to install VirtualBox
+
+and you have to install Vagrant.
+
+So if you take a look at VirtualBox,
+
+you could just go to the virtualbox.org
+
+and there's going to be a downloads page,
+
+and you could just select
+
+the specific operating system you're using,
+
+and then you could just follow the steps.
+
+Pretty simple.
+
+And then Vagrant,
+
+if you go to the Vagrant documentation,
+
+they have a walkthrough on how to install Vagrant as well.
+
+Couple of different ways to do that
+
+depending on what your operating system is,
+
+just use whichever is most convenient for you.
+
+Now for Vagrant,
+
+we have a Vagrant file
+
+which is going to contain all of our configurations
+
+for our VMs.
+
+And this file
+
+has already been written out for all of you guys
+
+and you can find that at the repository for the course.
+
+So, go ahead and just clone this repository
+
+so that you can have access to the Vagrant file
+
+and you can use that to spin up the VMs.
+
+And to clone the repository,
+
+all we have to do is go to this code dropdown right here
+
+and just copy the URL of this specific repository.
+
+Then once you do that,
+
+go to your Terminal and run a git clone,
+
+and then pass in the URL,
+
+and that's going to clone the repository.
+
+All right, so I cleared out the Terminal
+
+but after we cloned the repository,
+
+it's going to create a folder with all of those files.
+
+And so, I'm going to cd into that folder.
+
+And within here, if I just do an ls,
+
+you should see the Vagrant file right here.
+
+So let's open up the Vagrant file
+
+and let's take a look at the configuration.
+
+All right, and so, in the configuration,
+
+you could see here we've set it up
+
+to have one master node
+
+and two worker nodes.
+
+The IP address is for the host,
+
+so this has nothing to do with Kubernetes yet.
+
+The IP addresses of the actual VMs or the nodes,
+
+they're going to make use of the 192.168.56 network.
+
+And if you'd like to, you can go ahead and poke around
+
+at the rest of the configuration
+
+but we don't need to worry too much about that.
+
+The great part about Vagrant
+
+is we could just run one command
+
+and get all of our VMs up with the same exact configuration.
+
+So I'm gonna close this out
+
+and I'm going to run a vagrant status.
+
+And so, what this is gonna do
+
+is it's gonna check the status of the VMs.
+
+And for these statuses for the VMs,
+
+we can see that they're all set to not created.
+
+And so, you could see
+
+that we've got the three different VMs here,
+
+kubemaster, which is going to be our master node,
+
+and then the two worker nodes.
+
+And they're all in a not created state
+
+because we actually haven't brought up the VMs.
+
+So let's go ahead and do that now
+
+and we can do that with a vagrant up.
+
+And this is going to provision all three of those VMs
+
+with the exact specifications from the Vagrant file.
+
+And so, what it's going to do
+
+is it's actually going
+
+to pull the Ubuntu Bionic 64 base image.
+
+And then once that image is pulled,
+
+it's able to then provision all of the different VMs.
+
+This part is going to take a decent amount of time
+
+to get all of those VMs up and running,
+
+so we're just gonna have to sit there and wait.
+
+Just understand that it's not a big deal
+
+if it takes a long time,
+
+it's kind of expected.
+
+Okay, so now that it's complete,
+
+if you just take a look at the logs,
+
+you can see it actually goes step by step
+
+and provision the different VMs.
+
+So it first started provisioning the kubemaster,
+
+after it provisioned that,
+
+it then moved down to the kubenode01,
+
+which is the first worker node,
+
+and then it wrapped up by provisioning the kubenode02.
+
+So we've got all three VMs provisioned.
+
+And now if I do a vagrant status,
+
+we could take a look at the status of the VMs now
+
+that they're provisioned.
+
+And we can see that all three nodes are in a running state,
+
+which is exactly what we want.
+
+So now that we've got the three nodes in a running state,
+
+how do we connect to it?
+
+Well, we do this by running the command vagrant ssh
+
+and then the name
+
+of the specific node we want to connect to.
+
+So if I want to connect to kubemaster,
+
+I'm just gonna copy that,
+
+and this is automatically going to connect us
+
+to the kubemaster node.
+
+And so, now you can see,
+
+based off of the command prompt,
+
+you can see we are now in the kubemaster.
+
+And if I just do an ls -la,
+
+we can see that I am in fact in the kubemaster.
+
+So to log out,
+
+or to exit out of the session,
+
+I can just do a logout
+
+and that's going to take me back to my local machine.
+
+And if I once again do a vagrant status,
+
+I can then do a vagrant ssh,
+
+and I'll connect to kubenode01.
+
+And connected to kubenode01,
+
+if I just run an uptime,
+
+we can see that it's been up for three minutes
+
+so we are, in fact, connected to kubenode01.
+
+And then I'll log out of this one
+
+and then we'll just quickly connect to kubenode02.
+
+So I'll do a vagrant ssh kubenode02
+
+and now we're successfully connected onto kubenode02.
+
+So that's how you access all of your VMs.
+
+So we've got all of our VMs provisioned
+
+and we're good to go.
+
+So in the next video,
+
+we're going to actually bootstrap the Kubernetes cluster
+
+using Kubeadm.
+
+Okay.
+
+So in this video we're going to be doing a demonstration of bootstrapping a Kubernetes cluster using
+
+the kube ADM tool.
+
+Now I've already provisioned three virtual machines using a tool called vagrant.
+
+And we've got three nodes.
+
+In this case I've got a master node here I've got a worker node which I'll call node one.
+
+Or you'll look for kube node one on the terminal or in the prompt.
+
+And then we've got node two which you'll see is kube node two here.
+
+So we've got one master node and two worker nodes.
+
+And the one thing I want to point out is if you take a look at the IP addresses we've got a couple of
+
+different interfaces.
+
+The main interface that we're going to be using for communication between the cluster is INP zero eight.
+
+So you can see the master node has an IP address of 192.168.56.11.
+
+Node one has 192.168.56.21, and node two has an IP address of 192.168.56.22.
+
+Okay, so that's the interface that we're going to use for all of the communications.
+
+So for deploying a Kubernetes cluster, there's going to be a couple of tabs that we want to get open,
+
+because you're going to see that for the most part the Kubernetes documentation is very good.
+
+So you want this installing kube ADM page right here which is under installing Kubernetes with deployment
+
+tools and then under bootstrapping clusters with kube ADM.
+
+And then you can see all of the different instructions for the different versions.
+
+I'm going to be using version 1.31 which is at the moment the latest version.
+
+And then you also want to open up this tab right here which is creating a cluster with Kube ADM.
+
+You can see it's in the same section.
+
+So you've got installing kube ADM and then two slots down you've got creating a cluster with kube ADM.
+
+And if you're going to be deploying a highly available Kubernetes cluster that's with multiple master
+
+nodes, then you want to select creating highly available clusters with kube ADM.
+
+Now we just have a single master node.
+
+So we're just going to follow this page here.
+
+But if you have more than one go ahead and follow that one.
+
+So let's go to the installing kube ADM.
+
+So this is going to be the tool that we use to actually bootstrap a cluster and it's going to give you
+
+some prerequisites.
+
+So it's just letting you know what are the requirements for your machine.
+
+All of my machines already match those requirements.
+
+So that's not a big deal.
+
+But if you are going to be deploying your own cluster, make sure that it's actually compatible.
+
+And then we're just going to keep scrolling down for a bit.
+
+And we want to see this section right here which is installing a container runtime.
+
+So before we can utilize the kube ADM tool you want to make sure that you install a container runtime.
+
+So we're going to have to do that.
+
+But we're going to come back to that in a second.
+
+Let's first go ahead and at least get the kube ADM tool installed on all of our machines.
+
+And so here if I just keep scrolling down you can see this is where the instructions begin.
+
+So the first thing that we're going to do is download the public signing keys for the Kubernetes package
+
+repositories.
+
+And you can see they've got a different one for each of the different versions.
+
+So if you're going to do version 1.31 you're going to select version one dot 31.
+
+If it's a version one dot 32, then you'll have to replace this with one dot 32.
+
+But I'm going to copy this command, and we're going to paste it on all of our, um, all of our nodes
+
+because we're going to need cube ADM installed on all three of them.
+
+So I'm just going to paste it on all three.
+
+And it looks like my copy broke.
+
+So let me just copy that again.
+
+Then down here we have to add the specific Kubernetes repository.
+
+So this is once again we're just going to copy and paste this.
+
+And I'm going to paste this in all three nodes.
+
+Then the last thing that we have to do is we're going to do a sudo apt update.
+
+And then we have to install the cube ADM package.
+
+You can see here in the command here we're installing Cubelet cube adm cube CTL.
+
+We don't technically need cube CTL and Cubelet at the moment.
+
+We just want cube ADM.
+
+But at some point we're going to need to download cube CTL as well.
+
+So let's go ahead and just install all of them right now.
+
+So I'm just going to copy these three commands.
+
+And then we're going to go ahead and run them on once again all three nodes.
+
+Okay.
+
+So it looks like it's done.
+
+Let's go ahead and take a look at the version of cube ADM that we installed.
+
+So we'll say cube ADM version.
+
+And we can see that we are running major version one minor version 31.
+
+And we can see version 1.31.1.
+
+All right.
+
+So now that we've got cube ADM installed, if we go to the bottom of this page we can see that the next
+
+step is to install our cluster using cube ADM.
+
+So you can go ahead and click on this link.
+
+But I've already got that tab open.
+
+It's the same one as creating a cluster with cube ADM.
+
+So I'm going to go to that page.
+
+And if you take a look at this page it's going to give us, you know, first of all, the prerequisites
+
+for system requirements for any Kubernetes node, which we've already verified.
+
+And then if we go down here, we want to start at the instructions page.
+
+And the first thing that we have to do is we have to install a container runtime.
+
+And we're going to have to install it on all of the nodes.
+
+That's going to be both master and worker nodes.
+
+The reason why is that, you know, obviously the worker nodes will need to have a container runtime
+
+so they can run the containers, but all of the control plane components on our master node will be
+
+run as pods or as containers.
+
+And so since we have containers running, we're going to need a container runtime.
+
+So let's open this tab.
+
+And here it's going to give you the directions on how to utilize one of these supported container runtimes.
+
+I'm going to be using container D for this demonstration.
+
+So if you're going to follow along go ahead and use container D.
+
+But feel free to use whichever one you'd like.
+
+And we can select container D.
+
+And this is going to give us some information onto as to some of the things that you'll need to configure
+
+for container D.
+
+So now let's install our container runtime.
+
+And for the directions on that, just go ahead and just search for install and then the name of the
+
+runtime.
+
+And then that's going to take you to the documentation for container D.
+
+And you can just follow these directions.
+
+We're just going to use use the app repository to install system D.
+
+So here I'm just going to do a sudo apt update and then a sudo apt install dash y container d.
+
+And that's going to install container d.
+
+And I'm going to do this on every node.
+
+Now after we install our container runtime the next thing that we have to do is take a look at this
+
+important section in the documentation, which is cgroup drivers.
+
+Now, if you guys aren't familiar with Cgroups.
+
+Cgroups is the Linux feature, the Linux primitive that allows whether you're working with Docker or
+
+Kubernetes, it allows you to specify resource limits on your containers.
+
+So if you want to say this container can only use 512MB of Ram, it's using the Cgroups under the hood.
+
+Now, when you configure the Kubelet process and when you configure the the runtime, which in our case
+
+is container D, there's two different drivers that are available.
+
+You have cgroup FS which is the default, and then you have system D.
+
+Now you can use whichever one you'd like, but you have to make sure that whichever one you select,
+
+both the Kubelet and your container runtime are configured to use the same Cgroup driver.
+
+So if the Kubelet is set to Cgroup fs, then the container runtime has to be set to the same thing.
+
+Now if we keep reading, you can see there's a section here that says when system D is chosen as the
+
+init system for your Linux distribution, you want to make sure that you set the Cgroup driver to be
+
+system D.
+
+So let's go ahead and verify what our init system is.
+
+If it's set to system D, then we're going to have to use the system D driver as per the instructions.
+
+So the way that you verify is you do PS dash P and then one.
+
+And if it says system D that means that's what our init system is.
+
+So we'll go ahead and use the system D Cgroup driver.
+
+So first things first let's make sure that we know how to set the cgroup driver to be systemd for the
+
+kubelet process.
+
+Now here it gives you an example on how to do that.
+
+You have to create a kubelet configuration file.
+
+And if you actually want to, you could scroll down a little bit further.
+
+And this will give you more detailed instructions on how to do that with kube adm.
+
+Now the first note is important for us, which is in version 1.22 and later.
+
+If the user does not set the Cgroup driver field under the Kubelet configuration, kube adm will default
+
+to systemd, which is perfect because we are going to be using the.
+
+We want systemd, and since we are using a version later than 1.22, it already defaults to that.
+
+But if you want to see how to actually set it, you're going to create this, um, cluster configuration.
+
+And then here you create the Kubelet configuration.
+
+And you want to set the Cgroup driver property to be systemd.
+
+And then when you run the kube adm init command, you pass the dash dash config flag so that you can
+
+pass in the kube adm config file, which is going to make sure that the kubelet process uses the systemd.
+
+Once again, it's the default for anything later than 1.22.
+
+So we're going to just not pass in that file because we don't need to change anything.
+
+So we don't have to worry about the kubelet process.
+
+But we do have to make sure that the container runtime is set to utilize the Cgroup driver.
+
+So by default it's not going to be using systemd.
+
+So if we go to the top of the container runtime page and we select container D and we scroll down,
+
+this is the directions on how to set the cgroup driver to be systemd.
+
+So we create a file which is going to be the config file for container D which is going to be stored
+
+in slash Etsy slash container D in a file called config.toml.
+
+And then you have to configure this.
+
+So you just got to make sure that this is in there.
+
+And that's going to make sure that the secret driver is set to version two.
+
+All right.
+
+So I'm going to go ahead and create this directory if it hasn't already been made.
+
+So and so I'll go to slash Etsy container D and it looks like I don't have a container d directory.
+
+So I'm going to manually create that.
+
+And so I'll say sudo mkdir p slash Etsy slash container d.
+
+And I'm going to copy this.
+
+And we're going to run this on all three of our nodes.
+
+And so then at this point we're going to have to generate the configs.
+
+Now the container D process allows us to generate default configuration.
+
+So if you don't specify a config file it's going to use these default configurations.
+
+And you can actually take a look at these configurations by running the command container D config default.
+
+And it's going to spit out the default configuration.
+
+So if we don't provide a file it's going to look like this.
+
+So I'm going to use this command to generate the configs.
+
+And then we're going to make the necessary changes as per the documentation.
+
+Now I've got this nice command right here.
+
+And I'm going to show you guys what this command does.
+
+But I'm going to paste this command here.
+
+And if we take a look at it it's going to run that same command.
+
+And then in the output it's going to pipe it into said.
+
+And what it's going to do is it's going to change where it says systemd group set to false, and it's
+
+going to change it to systemd group equals true.
+
+And then we're going to then send it to a file in slash Etsy slash containerd slash config.toml.
+
+And that's going to be as per the directions.
+
+Right.
+
+It's got to be in that file.
+
+And we got to have that config.
+
+And so all it's doing is it's going to change this from false which is the default configuration.
+
+It's going to change it to true.
+
+So I'll run that and I'm going to hit up and I'm going to take this and I'm going to pipe it I'm going
+
+to paste it in the other two nodes.
+
+And so now if I cat that file.
+
+So it's going to be containerd um slash config.toml.
+
+And I'm going to grep for.
+
+System D Cgroup just to see if that command actually said it.
+
+And I'm going to pass in one extra flag, which is, um, I'm printing out a whole bunch of lines before
+
+it just so I can make sure it's in the right section.
+
+And so you can see here systemd.
+
+Cgroup equals true.
+
+And we have it's under this config section which is the container runtimes dot run c dot options.
+
+And so if we take a look at the documentation right that's going to be this line right here.
+
+So that did properly set it.
+
+And so now the last thing that we need to do is after we make some config changes we have to make sure
+
+that we restart container D.
+
+And we can just run the systemctl command to restart container D.
+
+And that's not what I wanted.
+
+So restart container D restart on this one.
+
+And looks like I never ran this command on here.
+
+So let me run it real quick and then restart container D All right.
+
+Perfect.
+
+So now what we're going to do is we're going to go back to creating a cluster with cube ADM.
+
+That's this document here.
+
+And we're going to take a look at what are the next steps.
+
+So we've got the container runtime installed.
+
+We've made sure that the proper Cgroup driver has been set.
+
+And we want to just keep scrolling down and keep going.
+
+And here we want to look for initializing control plane node.
+
+So the the first instance, the first node in Kubernetes that we're going to actually initialize is
+
+going to be the control plane node.
+
+Now in this case once again we have just a single master node.
+
+And so we're just going to run the command on there.
+
+If you have multiple master nodes then you're going to have to pick one that you want to run the command
+
+first.
+
+Now there's going to be some important instructions that you want to follow here.
+
+And if you take a look at step one, is that if you have plans to upgrade a single control plane node
+
+to a high available cluster with multiple control plane nodes, you want to make sure you pass in the
+
+dash dash control plane dash endpoint and set it to be some virtual IP.
+
+So this could be some load balancer and then have it sent to your single instance.
+
+That way when you migrate over, you don't really have to change anything for the most part, and you've
+
+already got the load balancer set up to forward it.
+
+So if you have plans to do that, you want to make sure you set this to whatever IP you want to use
+
+for your API server.
+
+We're not going to do that.
+
+We're we're just going to run this as a single control plane.
+
+Note that we don't have to pass that flag in.
+
+The other thing they have to do is you have to choose a, um, you have to make sure you specify whatever
+
+pod subnet you're going to utilize.
+
+So the dash dash pod network Cidr is going to be the subnet that the IP addresses for your pods are
+
+actually going to pull from.
+
+So you set it to be 10.0.0.0 slash 16.
+
+Then all of your pods are going to get an IP address from that 10.0.0.0 slash 16 subnet.
+
+So we're going to pass in that flag.
+
+So and I'll show you guys what that looks like.
+
+Um and then on top of that kube ADM tries to detect the container runtimes by using a list of well-known
+
+endpoints.
+
+So if you actually go here under the container runtime page.
+
+This is going to just quickly show you, I think somewhere in this document, what are the default locations
+
+to look for?
+
+Uh, let me see if I can find it here.
+
+And I don't think it's here actually it might be under installing kube adm.
+
+And I'm going to just scroll down here.
+
+Here we go.
+
+So these are going to be the paths to um you know the, the way that, that each one of these container
+
+runtimes are set to be configured.
+
+And these are usually the default ones.
+
+This is just saying that if for some reason it was not one of the default ones, you have to pass in
+
+the dash dash CRE, dash socket and then pass in the path to that socket, but it automatically detects
+
+it.
+
+So we don't need to actually pass in that flag.
+
+Now, the last thing that we are going to cover when it comes to the flags for the kube ADM utility
+
+is the dash dash API server advertise address.
+
+So when you're working with a single control plane node cluster, we're going to use this one to tell
+
+the cluster what IP address is going to be for your cube API server.
+
+So this will set this to be the IP address of our master node.
+
+And if I go back and I go to my master node and I do an iPad, we're going to pass in that flag and
+
+we're going to set it to be the IP address of the master node, which is 192.168.56.11.
+
+So whatever IP address your other nodes will want to talk to your master node through.
+
+You can see I've got another interface.
+
+I don't want to use this one.
+
+This is this is like an internal interface used by vagrant which I use to spin up my cluster.
+
+So this is kind of like a irrelevant interface.
+
+So that's why I'm going to pass in that flag to make sure that it picks the right interface.
+
+So we're now officially ready to run the cube adm init command.
+
+And we're going to run it on the master node.
+
+And I'm going to show you the full command here.
+
+And so this is what the command is going to look like.
+
+We do pseudo cube ADM init.
+
+Then once again we're going to pass in the Dash Dash API server advertise address.
+
+It's going to be whatever the IP address of our master node is.
+
+Then we're going to specify the pod network Cidr.
+
+So remember this is going to be the subnet that all of your pods are going to pull an IP address from.
+
+So all of my pods are going to be in the 10.244.0.0 slash 16 subnet.
+
+And then we have the upload cert.
+
+So this is going to make sure that we upload all of the certificates to a secret, so that all of the
+
+other nodes will have access to the certificates.
+
+And at that point we can go ahead and hit run.
+
+And it's going to run all of the necessary checks beforehand.
+
+And then after it's done, then it's going to set up and initialize our control plane node.
+
+All right.
+
+So it finished initializing our master node.
+
+And I want to just kind of quickly go over some of the output.
+
+So if we take a look here we can see that it's generating the CA certificates.
+
+And then it's going to go ahead and generate the certificates for the API server.
+
+And then you can see it's configuring that.
+
+It also generated all the certificates for the etcd server and all of the other different components
+
+that you can see.
+
+just go one by one, creating all the necessary things for each of the different components.
+
+You could see the conf file for your cubelet.
+
+You could see the controller manager configuration, and then it went ahead and provisioned.
+
+The static pod manifests for the different components and you can see it then brought up the different
+
+components.
+
+And so that's really all it's doing under the hood.
+
+If you just take a look at the output, it just explains the step by step exactly what it's doing.
+
+And then after it's done, it's going to have provisioned a config file so that we can actually connect
+
+to our Kubernetes cluster.
+
+And then if we want to just take a look at it, we could just do a cat and then just go to that path
+
+of that file.
+
+So it's going to be Kubernetes admin conf.
+
+And I'll need a sudo.
+
+And you can see here it's got a kube config file so that we can actually talk to our master node.
+
+So here we're going to just copy it to the default home directory in this case.
+
+And I'm going to paste that in.
+
+And now I should be able to do a kubectl.
+
+And then here if I do get nodes, it should be able to connect and give back all of the nodes.
+
+You can see we've got one node and it's currently in a not ready state.
+
+That's not a problem.
+
+We expect it to be in a not ready state because we haven't set up the the network plugin that we're
+
+going to use.
+
+So we have to get the network plugin up and running.
+
+And then this will move into a ready status.
+
+Now if I go back up to the output of the cube adm init command, it's going to tell us what we have
+
+to do next.
+
+And so you know I already did this section right here.
+
+And then what we need to do is you need to deploy a pod network for your cluster.
+
+That's basically your network CNI, your network plugin or your CNI.
+
+And then afterwards it says you can then join any number of worker nodes by running the following command
+
+on the worker nodes.
+
+So setting up the worker nodes is very easy.
+
+You just run this command.
+
+So I'm going to copy this and save this to my notepad so that I have it for reference that we could
+
+use later on.
+
+Um, and then that's all we have to do.
+
+Now, if I go to the documentation and we take a look at, uh, creating a high availability cluster.
+
+And I'm going to just show you what the output would look like if we were using a setup with multiple
+
+master nodes.
+
+When we do a cube adm init, you're going to see an output that looks like this.
+
+So ours right.
+
+If you look at this and I wish it was a little bit wider, you can see you could join any number of
+
+worker nodes.
+
+So we saw the same thing.
+
+However when you're doing a multi master node you can also it'll print out the the command that you
+
+need to run with the proper token for setting up all of the other control plane nodes.
+
+So at this point, if you had multiple master nodes, you would run this command that it gave us right
+
+here, so that you can then bootstrap the other control plane nodes and connect them to the cluster.
+
+We only have one control plane node.
+
+So we didn't get that output.
+
+And that's exactly what we want.
+
+We only have to set up the worker nodes here.
+
+I just wanted to make sure you guys understand how to do it.
+
+If you did have multiple control plane nodes.
+
+All right.
+
+So I'm back at the creating a cluster with cube ADM documentation.
+
+We can see that we ran the cube adm init command.
+
+We saw this output.
+
+So we know how to get the worker node to join.
+
+If we take a look at the directions, it's going to tell us to install a pod network add on.
+
+So we have to install our CNI plugin.
+
+And we can refer to this documentation if we want to see the different add ons.
+
+And so here's a list of the different add ons that we can utilize.
+
+I'm going to use in this case flannel.
+
+So we're going to go to flannel.
+
+Select that one.
+
+And it's going to take us to the documentation page for flannel.
+
+I'm going to zoom in a little bit for you guys.
+
+And you're going to see that usually it's pretty easy to deploy a network plugin.
+
+Usually they give you a um, basically a Kubernetes manifest to actually deploy all of the necessary
+
+resources.
+
+And so in this case we have this command right here kubectl apply f and you just pass in that URL and
+
+it's going to deploy it.
+
+And that's really all you have to do.
+
+However if you are using a custom pod Cidr network, which is basically if you're not using the default
+
+ten 244 .0.0 16, you have to first download the above manifest and modify the network to match your
+
+own.
+
+So we are using the default one so we don't have to do that.
+
+But I want to show you guys where you would change this just so that you guys know exactly what to do.
+
+So we're going to go back.
+
+I'm going to go to my master node and I'm going to do just a curl.
+
+And I'm going to download that file.
+
+I'm going to open that file up.
+
+Let's see where is it.
+
+I'm sorry I didn't mean to do a curl.
+
+I wanted to do a double wget.
+
+So I actually download it.
+
+Okay so we've got the file.
+
+Let's open this up here.
+
+And we take a look at all of the resources it's going to create for us.
+
+We can see it's going to create a namespace a service account a cluster role.
+
+Don't worry too much about those cluster role binding and all of that.
+
+Now this is where we would configure our pod network.
+
+So here you can see it's set to 210 244 .0.0 slash 16.
+
+If you want to change that make sure it just matches up with whatever pod Cidr network you configured
+
+when you ran the Kube cube adm command.
+
+So we use ten 244 .0.0 slash 16.
+
+So we're just going to leave this as the default.
+
+All right.
+
+And so at this point I could just do a cube CTL apply dash f cube flannel.
+
+And it's going to go ahead and deploy the network plugin.
+
+So after it's been deployed we can go ahead and take a look at all the resources it created.
+
+So I'm going to do a kubectl get pods dash n.
+
+Let's check the kube system namespace.
+
+We can see that it didn't deploy anything there.
+
+But I believe it's going to use a namespace called I think it's flannel.
+
+And let's just do a kubectl get namespace because I cube flannel.
+
+So that's the namespace that's using.
+
+All right.
+
+We can see that we've got one pod running.
+
+And so at this point I would assume that everything is up and ready to go.
+
+So if I just do a kubectl get nodes now we can see that the cube Master moved into a ready state because
+
+we successfully deployed the network plugin.
+
+And so now the last thing that we have to do is just get the nodes to join the cluster.
+
+And the way we do that is by utilizing that command I saved, we just copy it and we just say sudo and
+
+then paste it in and then just run that.
+
+And it's going to make sure that this worker node joins the cluster.
+
+And I'll do the same thing here sudo then paste that command in and we can see that the first one already
+
+finished successfully joined the cluster.
+
+And it you know did a few checks.
+
+The Kubelet was informed of a new secure connection details.
+
+So it was able to connect to the API server and everything's good to go.
+
+So now if I go back to the master node and I do a kubectl get node, we can see that we've got our Kubernetes
+
+state and we've got node one and node two in a ready state.
+
+And if I check that kube flannel namespace again you're going to see that we'll have two more pods running.
+
+And so it's going to deploy a instance of the that the network plugin agent on every single one of the
+
+nodes so that it can actually handle network on all of them.
+
+So every time you add a new node it's going to deploy one of these pods onto there.
+
+So that's why you'll see three of them in that case.
+
+So at this point our cluster should be ready to go.
+
+Let's go ahead and test it out I'm going to just deploy a single pod.
+
+So I'll say kubectl run I'll give this pod a name of web and I'll say dash dash image equals.
+
+And I'll just say nginx in this case.
+
+So here we created the pod.
+
+We'll do a kubectl get pod.
+
+And let's take a look.
+
+We can see it's in a container creating state.
+
+And I'm going to do a dash w so we can watch.
+
+It's going to oh it looks like it already moved into a running state.
+
+So we've got in a running state.
+
+So it looks like everything's working.
+
+Everything's good to go.
+
+We could just go ahead and delete that now.
+
+And there you go.
+
+We have now successfully deployed a Kubernetes cluster using the kube adm CLI utility.
+
+ For the first question,
+
+it's asking us to install kubeadm and the kubelet package
+
+on the control plane, as well as node1.
+
+So we've got the terminal open here
+
+and we can see we're automatically connected to node1.
+
+So I'm gonna open up a second terminal.
+
+The first one's connected to the control plane.
+
+The second one, I'm gonna SSH into node1.
+
+And I've got the documentation right here
+
+for installing kubeadm.
+
+And so the first thing that we have to do
+
+is let's go to the container runtime
+
+and let's set up these forwarding rules first.
+
+So we always have to set these rules up first.
+
+So I'm gonna copy this and we're gonna go back
+
+and we're gonna paste this in both terminals.
+
+So we're gonna set this up on the control plane,
+
+as well as node1.
+
+Now, the next thing that we have to do is install kubeadm
+
+and the kubelet package.
+
+And it's telling us to install this specific version.
+
+So that's something to keep in mind.
+
+So let's go back to the documentation.
+
+And if we scroll down here,
+
+this is gonna give us instructions
+
+on how to set up the kubeadm tool.
+
+And there's gonna be different instructions
+
+based off of which distribution you're using.
+
+So let's verify what distribution we're actually using.
+
+And so we could do that by running, cat /etc/*-release.
+
+Okay, and we could see that this is using Ubuntu
+
+and I'm gonna run this on the control plane node, as well.
+
+Yep, and we could see that this is using Ubuntu as well.
+
+All right, so we're gonna leave this on Debian
+
+and we're gonna just copy this
+
+and I'm gonna paste this into both terminals.
+
+Then, we have to download
+
+the Google Cloud public signing key.
+
+So we'll copy this and we're gonna run this on both nodes.
+
+So when we paste this, we see that we get this error.
+
+It says, curl failed writing body.
+
+This error is a little misleading, but what's happening is,
+
+we're downloading the gpg key
+
+and we're downloading it to this folder /etc/apt/keyrings.
+
+And if we actually go back to the documentation, it says
+
+that in releases older than Debian 12 and Ubuntu 22.04,
+
+this folder doesn't exist.
+
+So you're gonna have to create this yourself.
+
+So let's go ahead and just do a mkdir to create the folder.
+
+So we'll do etc/apt/keyrings,
+
+and we'll run this on both to create that directory.
+
+And after we create it, if we run the same command,
+
+we should see that there's no issues when we run it now.
+
+And then, we'll run it on the node1.
+
+Then, we'll add the Kubernetes apt repository on both nodes.
+
+And then here, we're going to do an update.
+
+Then, we're going to install all of these.
+
+And we're gonna, instead of copying all of this all at once,
+
+I'm gonna do this one by one.
+
+And that's because
+
+this is going to install the latest version.
+
+We don't want the latest version.
+
+The instructions are specifically asking 1.26.0.
+
+So let's do this one by one.
+
+And then, I'm gonna copy this,
+
+but I don't actually wanna run the command.
+
+So we'll do, sudo apt install, we want kubeadm
+
+and then to specify a version, we'll say =,
+
+and then we'll copy this version.
+
+And I'm gonna do a -y here.
+
+So we'll do kubeadm, we want kubelet
+
+and we'll copy this same version.
+
+And then we want kubectl, as well.
+
+And I will copy this command
+
+and we will run this on the other node, as well.
+
+Okay, so that's set up
+
+and then, we'll just copy this last command, as well.
+
+All right, and so that should be everything we need to do
+
+for the first question.
+
+So we'll just validate that.
+
+Okay, so the next question is asking us,
+
+what version of the kubelet is installed.
+
+So we can just run a, kubelet --version
+
+and we already know it's gonna be version 1.26.0.
+
+The next question is asking,
+
+how many nodes are part of the Kubernetes cluster?
+
+So for that, we'll go to the control plane
+
+and run, kubectl get nodes.
+
+We can see that there's an error,
+
+couldn't get current server API group list.
+
+So this error is actually expected
+
+because we actually haven't initialized our cluster yet.
+
+We haven't run the kubeadm tool to actually initialize it.
+
+So that's to be expected.
+
+So go ahead and just select a zero.
+
+Okay, so now,
+
+we're going to bootstrap our Kubernetes cluster
+
+using the kubeadm tool.
+
+And so, we want to initialize the control plane node,
+
+the master node, and we're gonna pass in two flags.
+
+So here, we're gonna set the API server advertise IP address
+
+to be whatever the IP address of ethernet zero is.
+
+And then, we're also going to set the pod network CIDR flag
+
+to be 10.244.0.0/16.
+
+So let's go ahead and get the IP address.
+
+So if we run an, ip add, we can see that for eth0,
+
+the IP address is 192.7.220.6.
+
+So now, we can just do a, kubeadm init,
+
+and then we gotta do, --,
+
+and I'm gonna copy the name of this flag
+
+and we're gonna set it to this IP address.
+
+And then, we'll do a, --pod-network-cidr,
+
+which is gonna be set to 10.244.0.0/16.
+
+And that's going to initialize the control plane.
+
+And I realize there's a typo.
+
+This is just kubeadm, and we'll let that run.
+
+Okay, and once that's complete,
+
+the instructions does say, once done,
+
+set up the default kubeconfig file
+
+and wait for the node to be part of the cluster.
+
+So I'm going to, then,
+
+just copy these instructions right here, paste that,
+
+that's going to set up our kubeconfig.
+
+And so now, we can just do a, kubectl get nodes
+
+and we should see that we've got our one control plane node,
+
+which at the moment is in a NotReady state,
+
+but that's to be expected.
+
+And we'll go ahead and run the verification.
+
+The next question is asking us
+
+to generate a kubeadm join token.
+
+Or you can just copy the one we received
+
+from the kubeadm init command.
+
+And that's gonna be this one right here.
+
+So just go ahead and copy that.
+
+We'll hit OK.
+
+The next question is telling us
+
+to have node1 join the cluster using this join token.
+
+So make sure you copy that, go to node1
+
+and all you have to do is just paste the join token.
+
+We run the validation, we should see it should be good.
+
+And then, we'll go to the next question.
+
+And so for the final question,
+
+we want to install a network plugin.
+
+And in this case,
+
+the instructions are telling us to install flannel.
+
+So we're gonna have to go to the documentation
+
+to figure out how to do that.
+
+And if you go back to the output
+
+of the kubeadm init command,
+
+it's gonna give us a link where we can take a look
+
+at all of the network addons.
+
+So we'll just hit control and then click.
+
+That's gonna open up a tab.
+
+In here, there's gonna be all of the network addons.
+
+So look for, what was it, flannel.
+
+So we wanna select flannel
+
+and it's gonna take us to this link.
+
+And you'll see that deploying flannel is very easy.
+
+It's just one command.
+
+So we can just copy this,
+
+go to our control plane, hit paste
+
+and it's going to create
+
+all of the necessary configurations
+
+to get flannel up and running.
+
+We'll go ahead and hit Check
+
+and we'll probably need to give it a couple seconds
+
+to actually initialize.
+
+And so let's do, kubectl get pod -A
+
+and we can see that's up and running now.
+
+So let's go ahead and run the validation again
+
+and we can see it's succeeded.
+
+And so, that's going to wrap up this lab.
+

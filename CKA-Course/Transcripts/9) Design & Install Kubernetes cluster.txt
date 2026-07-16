@@ -1,0 +1,877 @@
+In this lecture we will discuss about designing a Kubernetes cluster.
+
+Before you head into designing a cluster, you must ask the following questions.
+
+What is the purpose of this cluster?
+
+Is it for learning or development or testing purpose or for hosting production grade applications?
+
+What is the cloud adoption at your organization?
+
+Do you prefer your platform to be managed by a cloud provider or a self-hosted?
+
+What kind of workloads are you going to run on this cluster?
+
+How many applications are to be hosted on the cluster?
+
+Few or many?
+
+What kind of applications are going to be hosted on the cluster?
+
+Web applications or big data or analytics?
+
+Depending on the kind of application, the resource requirements may vary.
+
+What type of network traffic are these applications expecting?
+
+Continuous heavy traffic or burst?
+
+Well, let's try and break down some of these.
+
+If you want to deploy a cluster for learning purposes, then a solution based on minikube or a single
+
+node cluster deployed using kube ADM on local VMs or cloud providers like GCP or AWS should do.
+
+We have deployed such a cluster in the beginner's course to deploy a cluster for development and testing
+
+purposes.
+
+A multi-node cluster with a single master and multiple worker nodes would help again.
+
+Kubeadm is an appropriate tool.
+
+Or if on managed cloud environments, then quickly provision a cluster using the Google Container Engine
+
+on GCP or AWS or AKS on Azure.
+
+Let's talk about production level clusters for hosting production grade applications.
+
+A highly available multi-node cluster with multiple master nodes is recommended.
+
+We look at more details about high availability setup with multiple master nodes later in this section.
+
+Again, this can be set up with Kube, ADM or GCP or using Kops on AWS or other supported platforms.
+
+You can have up to 5000 nodes in the cluster.
+
+A total of 150,000 pods in the cluster.
+
+300,000 containers in total and up to 100 pods per node.
+
+Now, depending on the size of your cluster, the resource requirement of your node varies.
+
+Cloud service providers like GCP and AWS automatically selects the right sized nodes for you based on
+
+the number of nodes in the cluster.
+
+This table shows the size of the instances and their resource specifications for specific number of
+
+nodes.
+
+If you're deploying on prem nodes, then you could probably start with these numbers as base.
+
+Cloud or on prem.
+
+We've already discussed that all of these deployment options are available in any environment for on
+
+prem.
+
+Kube admin is a very useful tool.
+
+Google Container Engine makes provisioning Kubernetes clusters on GCP very easy.
+
+It comes with a one click cluster upgrade feature that makes it very easy to maintain the cluster.
+
+Kops is a nice tool to deploy Kubernetes cluster on AWS, and the Azure Kubernetes Service, or AKS,
+
+helps in managing the hosted Kubernetes environment on Azure.
+
+Depending on the workloads configured, your node and disk configurations will differ.
+
+For high performance workloads, rely on SSD backed storage for multiple concurrent Current access.
+
+Consider network based storage for shared access to volumes across multiple pods.
+
+Consider persistent storage volumes that we discussed in the storage section.
+
+Consider defining different classes of storage and allocating the right class to the right applications.
+
+The nodes forming a Kubernetes cluster can be physical or virtual.
+
+In our case, we will be deploying virtual machines on VirtualBox environments as nodes of our cluster.
+
+You may choose to deploy on physical machines or virtual machines, or cloud environments like GCP,
+
+AWS, Azure, or any other platform of your choice.
+
+We will be building a cluster with three nodes, one master and two worker nodes.
+
+Now we know that master nodes are for hosting control plane components like the cube API server, etcd
+
+server and others, while worker nodes are for hosting workloads.
+
+However, this is not a strict requirement.
+
+The master nodes are also considered as nodes and can host workloads.
+
+As a best practice, it is recommended to dedicate master nodes for control plane components only,
+
+especially in a production environment.
+
+Deployment tools like kube ADM prevent workloads from being hosted on master nodes by adding a taint
+
+to the master node.
+
+You must use 64 bit Linux operating system for nodes.
+
+Another thing to note is that typically you have all the control plane components on the master nodes.
+
+However, in large clusters, you may choose to separate the etcd clusters from the master node to its
+
+own cluster nodes.
+
+We will discuss more about the different topologies for that in the upcoming lecture when we talk about
+
+high availability setup.
+
+Well, those are some of the considerations for designing a Kubernetes cluster.
+
+Refer to the links in the references section for more details and some interesting reads.
+
+Well, that's it for this lecture.
+
+Before you go from a certification exam standpoint, there's really nothing much you need to remember
+
+from this section.
+
+You don't have to memorize the numbers that we discussed as these are available in the documentation
+
+page.
+
+Well, we'll get into more interesting topics in the upcoming lectures in this section where we will
+
+provision an actual cluster from scratch by ourselves.
+
+Well that's it for this lecture.
+
+I'll see you in the next lecture.
+
+In the previous lecture, we discussed about the various options we have in deploying a Kubernetes cluster.
+
+Let's look at it in a bit more detail here.
+
+Kubernetes can be deployed on various systems in different ways, starting with your laptops to physical
+
+or virtual servers within your organization, as well as those in the cloud.
+
+Depending on your requirements, your cloud ecosystem, and the kind of applications you wish to deploy.
+
+You may choose one of these solutions on a laptop or a local machine.
+
+There are a number of ways to get started.
+
+First of all, on a supported Linux machine, you can get started with installing the binaries manually
+
+and setting up a local cluster.
+
+However, that is too tedious, especially if you are just getting started.
+
+So relying on a solution that automates all that will help in setting up a cluster in a matter of minutes.
+
+We will look at some of those solutions in a bit.
+
+On windows, on the other hand, you cannot set up Kubernetes natively as there are no windows binaries.
+
+You must rely on a virtualization software like Hyper-V or VMware workstation or VirtualBox to create
+
+Linux VMs on which you can run Kubernetes.
+
+There are also solutions available to run Kubernetes components as Docker containers on windows VMs.
+
+But remember, even then, the Docker images are Linux based and under the hoods they run on a Linux
+
+OS created by Hyper-V for running Linux Docker containers.
+
+So what are some of the solutions available to easily get started with Kubernetes on a local machine,
+
+minikube deploys a single node cluster easily.
+
+It relies on one of the virtualization software, like Oracle VirtualBox, to create virtual machines
+
+that run the Kubernetes cluster components.
+
+We have seen this in the beginner's course.
+
+The kube ADM tool can be used to deploy a single node or a multi-node cluster real quick.
+
+But for this you must provision the required hosts with supported configuration yourself.
+
+So the difference between the first two and kube adm is that the first two provisions of VM were supported
+
+configuration by itself, whereas kube ADM expects the VMs provisioned already.
+
+At the same time, it allows for deploying multi-node clusters, whereas the former doesn't.
+
+Again, deploying a Kubernetes cluster locally on a laptop is usually for learning, testing and development
+
+purposes.
+
+For production purposes.
+
+There are many ways to get started with a Kubernetes cluster, both in a private or a public cloud environment.
+
+I would categorize them as turnkey solutions or hosted or managed solutions.
+
+Turnkey solutions are where you provision the required VMs and use some kind of tools or scripts to
+
+configure Kubernetes cluster on them.
+
+At the end of the day, you are responsible for maintaining those VMs and patching them and upgrading
+
+them, etc. but cluster management and maintenance are mostly made easy using these tools and scripts.
+
+For example, deploying a Kubernetes cluster on AWS using the Cops tool.
+
+Hosted solutions are more like Kubernetes as a service solution where the cluster, along with the required
+
+VMs, are deployed by the provider and Kubernetes is configured by them by the provider.
+
+The VMs are maintained by the provider.
+
+For example, Google Kubernetes Engine lets you deploy a Kubernetes cluster in a matter of minutes without
+
+you having to perform any configuration by yourself.
+
+Let us look at some of the turnkey solutions.
+
+OpenShift is a popular on prem Kubernetes platform by Red hat.
+
+For those of you who may not be familiar, OpenShift is an open source container application platform
+
+and is built on top of Kubernetes.
+
+It provides a set of additional tools and a nice GUI to create and manage Kubernetes constructs, and
+
+easily integrate with CI, CD pipelines, etc..
+
+We have an OpenShift for beginners course in our catalog.
+
+Check it out if you're interested.
+
+Cloud Foundry Container Runtime is an open source project from Cloud Foundry that helps in deploying
+
+and managing highly available Kubernetes clusters using their open source tool called Bosh.
+
+If you wish to leverage your existing VMware environment for Kubernetes, then the VMware cloud PXE
+
+solution is one that should be evaluated.
+
+Vagrant provides a set of useful scripts to deploy a Kubernetes cluster on different cloud service providers.
+
+All of these solutions makes it easy to deploy and manage a Kubernetes cluster privately within your
+
+organization.
+
+You must have a few virtual machines with supported configurations in place.
+
+These are a few of the many Kubernetes certified solutions.
+
+Well, there are many more, so check them out in the Kubernetes documentation page.
+
+Let us look at some of the hosted solutions.
+
+Google Kubernetes Engine is a very popular Kubernetes as a service offering on Google Cloud Platform.
+
+OpenShift online is an offering from Red hat where you gain access to a fully functional Kubernetes
+
+cluster online.
+
+Azure has the Azure Kubernetes Service.
+
+And finally, Amazon Elastic Container Service for Kubernetes is Amazon's hosted Kubernetes offering.
+
+Again, these are just some of the solutions.
+
+There are many more.
+
+So what is our choice?
+
+In our case, since this is for learning purposes, and considering the fact that some of you may not
+
+have access to a public cloud account, and since most of you mentioned in the poll we sent out that
+
+you prefer a local setup with VirtualBox, we chose to deploy a local Kubernetes cluster from scratch
+
+on our local system by creating several virtual machines on VirtualBox.
+
+So our design now has three nodes one master, two worker to be deployed on a laptop with virtual machines
+
+provisioned on VirtualBox.
+
+Well, that's it for this lecture.
+
+Check out the reference page to read more about many more such solutions.
+
+We now look at high availability in Kubernetes.
+
+So what happens when you lose the master node in your cluster?
+
+As long as the workers are up and continuous are alive, your applications are still running.
+
+Users can access the application until things start to fail.
+
+For example, a container or pod on the worker node crashes.
+
+Now, if that pod was part of a replica set, then the replication controller on the master needs to
+
+instruct the worker to load a new pod.
+
+But the master is not available and so are the controllers and schedulers on the master.
+
+There is no one to recreate the pod and no one to schedule it on nodes.
+
+Similarly, since the kube API server is not available, you cannot access the cluster externally through
+
+kube control tool or through API for management purposes, which is why you must consider multiple master
+
+nodes in a high availability configuration in your production environment.
+
+A high availability configuration is where you have redundancy across every component in the cluster,
+
+so as to avoid a single point of failure.
+
+The master nodes.
+
+The worker nodes.
+
+The control plane components.
+
+The application, of course, which we already have multiple copies in the form of replica sets and
+
+services.
+
+So our focus in this lecture is going to be on the master and control plane components.
+
+Let's take a better look at how it works.
+
+We've been looking at a three node cluster with one master and two worker nodes throughout this course.
+
+In this lecture we will focus on just the master node.
+
+As we learned already, the master node hosts the control plane components, including the API controller,
+
+manager, scheduler and etcd server in a setup with an additional master node.
+
+You have the same components running on the new master as well.
+
+So how does that work?
+
+Running multiple instances of the same components?
+
+Are they going to do the same thing twice?
+
+How do they share the work among themselves?
+
+Well, that differs based on what they do.
+
+Now we know that the API server is responsible for receiving requests and processing them or providing
+
+information about the cluster.
+
+They work on one request at a time.
+
+So the API servers on all cluster nodes can be alive and running at the same time in an active active
+
+mode.
+
+So far in this course, we know that the kube control utility talks to the API server to get things
+
+done, and we point the kube control utility to reach the master node at port 643.
+
+That's where the API server listens.
+
+And this is configured in the kube config file.
+
+Well now with two masters where do we point the kube control to.
+
+We can send the request to either one of them.
+
+But we shouldn't be sending the same request to both of them.
+
+So it is better to have a load balancer of some kind configured in the front of the master nodes that
+
+split traffic between the API servers.
+
+So we then point the kube control utility to that load balancer.
+
+You may use nginx or HAProxy or any other load balancer for this purpose.
+
+What about the scheduler and the controller manager.
+
+These are controllers that watch the state of the cluster and take actions.
+
+For example, the controller manager consists of controllers like the replication controller that is
+
+constantly watching the state of pots and taking necessary actions like creating a new pot when one
+
+fails, etc..
+
+If multiple instances of these run in parallel, then they might duplicate actions resulting in more
+
+pots than actually needed.
+
+The same is true with scheduler.
+
+As such, they must not run in parallel.
+
+They run in an active standby mode.
+
+So then who decides which among the two is active and which is passive?
+
+This is achieved through a leader election process.
+
+So how does that work?
+
+Let's look at controller manager for instance.
+
+When a controller manager process is configured, you may specify the leader elect option, which is
+
+by default set to true.
+
+With this option, when the controller manager process starts, it tries to gain a lease or a lock on
+
+an endpoint object in Kubernetes named as Kube Controller Manager endpoint.
+
+Whichever process first updates the endpoint with its information, gains the lease, and becomes the
+
+active of the two.
+
+The other becomes passive.
+
+It holds the lock for the lease duration specified using the lease duration option, which is by default
+
+set to 15 seconds.
+
+The active process then renews the lease every 10s, which is the default value for the option.
+
+Leader elect.
+
+Renew deadline.
+
+Both the processes try to become the leader every two seconds set by the leader elect retry period option.
+
+That way, if one process fails, maybe because the first master crashes, then the second process can
+
+acquire the lock and become the leader.
+
+The scheduler follows a similar approach and has the same command line options.
+
+Next up etcd.
+
+We discussed about etcd earlier in this course.
+
+It's a good idea to go through that again.
+
+Now, just to quickly refresh your memory as we're going to discuss some more related topics to how
+
+etcd works.
+
+In this lecture with etcd, There are two topologies that you can configure in Kubernetes.
+
+One is as it looks here, and the same architecture that we've been following throughout this course
+
+where etcd is part of the Kubernetes master nodes.
+
+It's called as a stacked control plane nodes topology.
+
+This is easier to set up and easier to manage and requires fewer nodes.
+
+But if one node goes down, both an etcd member and the control plane instances are lost and redundancy
+
+is compromised.
+
+The other is where etcd is separated from the control plane nodes and run on its own set of servers.
+
+This is a topology with external etcd servers compared to the previous topology.
+
+This is less risky, as a failed control plane node does not impact the etcd cluster and the data it
+
+stores.
+
+However, it is harder to set up and requires twice the number of servers for the external etcd nodes.
+
+So remember, the API server is the only component that talks to the etcd server.
+
+And if you look into the API service configuration options, we have a set of options specifying where
+
+the etcd server is.
+
+So regardless of the topology we use and wherever we configure etcd servers, whether on the same server
+
+or on a separate server, ultimately we need to make sure that the API server is pointing to the right
+
+address of the etcd servers.
+
+Now remember etcd is a distributed system, so the API server or any other component that wishes to
+
+talk to it can reach etcd server at any of its instances.
+
+You can read and write data to any of the available etcd server instances.
+
+This is why we specify a list of etcd servers in the kube API server configuration.
+
+In the next lecture, we discuss more about how etcd server works in a cluster setup and the best practices
+
+around the number of recommended nodes in a cluster.
+
+So back to our design.
+
+We had originally planned for a single master node in our cluster.
+
+Now with Ha, we decided to configure multiple masters.
+
+We also mentioned about a load balancer for the API server, so we will have that as well.
+
+So we now have a total of five nodes in our cluster.
+
+In this lecture we will talk about etcd in a high availability setup.
+
+So this is really a prerequisite lecture for the next lecture where we talk about configuring Kubernetes
+
+in a highly available mode.
+
+Well one portion of that deals with configuring etcd in a Ha mode.
+
+So in this lecture we will discuss about etcd in Ha mode.
+
+So in the beginning of this course we took a quick look at etcd.
+
+We will now recap real quick and more importantly focus on the cluster configuration on etcd.
+
+So let's recap real quick and look at the number of nodes in the cluster, what raft protocol is, etc..
+
+So what is STD?
+
+It's a distributed, reliable key value store that is simple, secure and fast.
+
+So let's break it up.
+
+Traditionally, data was organized and stored in tables like this.
+
+For example, to store details about a number of individuals.
+
+A key value store stores information in the form of documents or pages.
+
+So each individual gets a document and all information about that individual is stored within that file.
+
+These files can be in any format or structure, and changes to one file does not affect the others.
+
+In this case, the working individuals can have their files with salary fields.
+
+While you could store and retrieve simple key and values.
+
+When your data gets complex, you typically end up transacting in data formats like JSON or YAML.
+
+So that's what etcd is and how you quickly get started with it.
+
+We also said that etcd is distributed.
+
+So what does that mean.
+
+And that is what we're going to focus in this lecture.
+
+We had etcd on a single server but it's a database and maybe storing critical data.
+
+So it is possible to have your data store across multiple servers.
+
+Now you have three servers, all running etcd and all maintaining an identical copy of the database.
+
+So if you lose one, you still have two copies of your data.
+
+Perfect.
+
+But how does it ensure the data on all the nodes are consistent?
+
+You can write to any instance and read your data from any instance.
+
+Etcd ensures that the same consistent copy of the data is available on all instances at the same time.
+
+So how does it do that with reads is easy since the same data is available across all nodes.
+
+You can easily read it from any node, but that is not the case with writes.
+
+What if two write requests come in on two different instances?
+
+Which one goes through?
+
+For example, I have writes coming in for the name set to John on one and with the name Joe on the other.
+
+Of course, we cannot have two different data on two different nodes.
+
+When I said SSHd can write through any instance, I wasn't 100% right.
+
+Etcd does not process the writes on each node.
+
+Instead, only one of the instances is responsible for processing the rights internally.
+
+The two nodes elect a leader among them.
+
+Of the total instances, one node becomes the leader and the other node becomes the followers.
+
+If the rights came in through the leader node, then the leader processes the right.
+
+The leader makes sure that the other nodes are sent a copy of the data.
+
+If the rights came in through any of the other follower nodes, then they forward the rights to the
+
+leader internally and then the leader processes the rights again.
+
+When the rights are processed, the leader ensures that copies of the rights are distributed to other
+
+instances in the cluster.
+
+Thus, a right is only considered complete if the leader gets consent from the other members in the
+
+cluster.
+
+So how do they elect the leader among themselves, and how do they ensure a right is propagated across
+
+all instances?
+
+Etcd implements distributed consensus using Raft protocol.
+
+Let's see how that works in a three node cluster.
+
+When the cluster is set up, we have three nodes that do not have a leader elected.
+
+Raft algorithm uses random timers for initiating requests.
+
+For example, a random timer is kicked off on the three managers.
+
+The first one to finish the timer sends out a request to the other nodes requesting permission to be
+
+the leader.
+
+The other managers, on receiving the request responds with their vote, and the node assumes the leader
+
+role.
+
+Now that it is elected the leader, it sends out notification at regular intervals to other masters,
+
+informing them that it is continuing to assume the role of the leader in case the other nodes do not
+
+receive a notification from the leader at some point in time, which could either be due to the leader
+
+going down or losing network connectivity, the nodes initiate a re-election process among themselves,
+
+and a new leader is identified.
+
+Going back to our previous example, where a right comes in, it is processed by the leader and is replicated
+
+to other nodes in the cluster.
+
+The right is considered to be complete only once it is replicated to the other instances in the cluster.
+
+We said that the etcd cluster is highly available, so even if we lose a node, it should still function.
+
+Say for example, a new raid comes in, but one of the node is not responding, and hence the leader
+
+is only able to write to two nodes in the cluster.
+
+Is the write considered to be complete?
+
+Does it wait for the third node to be up or does it fail?
+
+A write is considered to be complete if it can be written on the majority of the nodes in the cluster.
+
+For example, in this case of three nodes, the majority is two.
+
+So if the data can be written on two of the nodes, then the write is considered to be complete.
+
+If the third node was to come online, then the data is copied to that as well.
+
+So what is the majority?
+
+Well, a more appropriate term to use would be quorum.
+
+Quorum is the minimum number of nodes that must be available for the cluster to function properly,
+
+or make a successful write in case of three.
+
+We know is two for any given number of nodes, quorum is the total number of nodes divided by two plus
+
+one.
+
+So quorum of three nodes is three by two, which is 1.5 plus one equals 2.5.
+
+If there is a 0.5, consider the whole number only.
+
+So that's two.
+
+Similarly, quorum of five nodes is three.
+
+So here is a table that shows the quorum of clusters of size 1 to 7.
+
+Quorum of three and five are what we calculated.
+
+Quorum of one is one itself, meaning if you have a single node cluster, none of these really apply.
+
+If you lose that node, everything is gone.
+
+If you look at two and apply the same formula, the quorum is two itself, two by two is one and one
+
+plus one is two.
+
+So even if you have two instances in the cluster.
+
+The majority is still two.
+
+If one fails, there is no quorum, so rights won't be processed.
+
+So having two instances is like having one instance.
+
+It doesn't offer you any real value as quorum cannot be met, which is why it is recommended to have
+
+a minimum of three instances in an etcd cluster.
+
+That way it offers a fault tolerance of at least one node.
+
+If you lose one, you can still have quorum and the cluster will continue to function.
+
+So the first column minus the second column gives you the fault tolerance.
+
+The number of nodes that you can afford to lose while keeping the cluster alive.
+
+So we have 1 to 7 nodes here.
+
+One and two are out of consideration.
+
+So from 3 to 7 what do we consider.
+
+As you can see, three and four have the same fault.
+
+Tolerance of one five and six have the same fault tolerance of two.
+
+When deciding on the number of master nodes, it is recommended to select an odd number as highlighted
+
+in the table.
+
+Three or 5 or 7.
+
+Say we have a six node cluster.
+
+Say for example, due to a disruption in the network, it fails and causes the network to partition.
+
+We now have four nodes on one and two on the other.
+
+In this case, the group with four nodes have quorum and continues to operate normally.
+
+However, if the network got partitioned in a different way, resulting in nodes being distributed equally
+
+between the two, each group now has three nodes only, but since we originally had six nodes, the
+
+quorum for the cluster to stay alive is four.
+
+But if you look at the groups here, neither of these groups have four managers to meet the quorum,
+
+so it results in a failed cluster.
+
+So with even number of nodes, there is possibility of the cluster failing during a network segmentation.
+
+In case we had odd number of managers originally say seven, then after the network Segmentation.
+
+We have four on one segmented network and three on the other.
+
+And so our clusters still lives on the group with four managers as it meets the quorum of four.
+
+No matter how the network segments, there are better chances for your cluster to stay alive in case
+
+of network segmentation with odd number of nodes.
+
+So an odd number of nodes is preferred over even number.
+
+Having five is preferred over six, and having more than five nodes is really not necessary, as five
+
+gives you enough fault tolerance to install etcd on a server, download the latest supported binary,
+
+extract it, create the required directory structure, copy over the certificate files generated for
+
+etcd.
+
+We discussed how to generate these certificates in detail in the TLS certificate section.
+
+Then configure the etcd service.
+
+What's important here is to note that the initial cluster option where we pass in the peer's information.
+
+That's how each etcd service knows that it is part of a cluster and where its peers are.
+
+Once installed and configured, use the etcd cuddle utility to store and retrieve data.
+
+Run the etcd cuddle command and specify the key as name and value as John.
+
+To retrieve data, run the etcd cuddle git command with the key name and it returns the value.
+
+John to get all keys from the etcd cuddle.
+
+Get keys.
+
+Only command.
+
+Going back to our design, how many nodes should our cluster have in an Ha environment?
+
+As you can see, having 1 or 2 instances doesn't really make any sense, as losing one node in either
+
+case will leave you without quorum and thus render the cluster non-functional.
+
+Hence, the minimum required nodes in an Ha setup is three.
+
+We also discussed why we prefer odd number of instances over even number.
+
+Having even number of instances can leave the cluster without quorum in certain network partition Scenarios.
+
+So all the even number of nodes is out of scope.
+
+So we are left with three, five and seven or any odd number above that.
+
+Three is a good start, but if you prefer a higher level of fault tolerance, then five is better.
+
+But anything beyond that is just unnecessary.
+
+So considering your environment, the fault tolerance requirements, and the cost that you can bear,
+
+you should be able to choose one number from this list.
+
+In our case we go with three.
+
+So how does our design look now with the minimum required number of nodes for fault tolerance is three.
+
+Now, while it would be great to have three master nodes, we are limited by our capacity of our laptop,
+
+so we will just go with two.
+
+But if you're deploying this setup in another environment and have sufficient capacity, feel free to
+
+go with three.
+
+We also chose to go with the stacked topology, where we will have the etcd servers on the master nodes
+
+itself.
+
+Well, that's it for this lecture.
+
+Thank you for listening and I will see you in the next.
+
+Important Update: Kubernetes the Hard Way
+Installing Kubernetes the hard way can help you gain a better understanding of putting together the different components manually.
+
+An optional series on this is available at our youtube channel here:
+
+
+
+https://www.youtube.com/watch?v=uUupRagM7m0&list=PL2We04F3Y_41jYdadX55fdJplDvgNGENo
+
+
+
+The GIT Repo for this tutorial can be found here: https://github.com/mmumshad/kubernetes-the-hard-way
+

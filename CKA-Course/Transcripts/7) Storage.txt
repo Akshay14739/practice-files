@@ -1,0 +1,1937 @@
+Hello and welcome to this section
+
+on storage in Kubernetes.
+
+This is Mumshad Mannambeth, and we are going through
+
+the Certified Kubernetes Administrators course.
+
+In this section, we look at
+
+the various storage related concepts,
+
+such as persistent volumes, persistent volume claims,
+
+access modes, and how to configure applications
+
+with persistent storage.
+
+There are so many different storage options out there.
+
+And depending on your environment, the options may vary.
+
+However, looking at all of those options
+
+is out of scope for this course.
+
+In this course, our focus
+
+is on the Kubernetes side of storage.
+
+Once you get that,
+
+you should be able to relate that knowledge
+
+to implement any third party storage solutions out there.
+
+So let's get started.
+
+Let us now look at storage in Kubernetes to understand storage in container orchestration tools like
+
+Kubernetes.
+
+It is important to first understand how storage works with containers.
+
+Understanding how storage works with Docker first and getting all the basics right will later make it
+
+so much easier to understand how it works in Kubernetes.
+
+When it comes to storage in Docker, there are two concepts you must know about storage drivers and
+
+volume driver plugins.
+
+In the upcoming video, we will discuss about storage drivers.
+
+It's something that we've discussed in the Docker course, so if you have gone through that already,
+
+feel free to skip this video or you may choose to stay and refresh your memory.
+
+Once done, we will talk about volume drivers.
+
+In this lecture we are going to talk about Docker storage drivers and file systems.
+
+We're going to see where and how Docker stores data and how it manages file systems of the containers.
+
+Let us start with how Docker stores data on the local file system.
+
+When you install Docker on a system, it creates this folder structure.
+
+At var lib docker you have multiple folders under it called aufs, containers, image volumes, etc.
+
+this is where Docker stores all its data by default.
+
+When I say data, I mean files related to images and containers running on the Docker host.
+
+For example, all files related to containers are stored under the containers folder, and the files
+
+related to images are stored under the image folder.
+
+Any volumes created by the Docker containers are created under the volumes folder.
+
+Well, don't worry about that for now.
+
+We will come back to that in a bit.
+
+For now, let's just understand where Docker stores its files and in what format.
+
+So how exactly does Docker store the files of an image and a container?
+
+To understand that, we need to understand Dockers layered architecture.
+
+Let's quickly recap something we learned when Docker builds images, it builds these in a layered architecture.
+
+Each line of instruction in the Docker file creates a new layer in the Docker image, with just the
+
+changes from the previous layer.
+
+For example, the first layer is a base ubuntu distribution, followed by the second instruction that
+
+creates a second layer which installs all the apt packages, and then the third instruction creates
+
+a third layer, which with the Python packages, followed by the fourth layer that copies the source
+
+code over, and then finally the fifth layer that updates the entry point of the image.
+
+Since each layer only stores the changes from the previous layer, it is reflected in the size as well.
+
+If you look at the base ubuntu image, it is around 120MB in size.
+
+The APT packages that are installed is around 300 MB and then the remaining layers are small.
+
+To understand the advantages of this layered architecture, let's consider a second application.
+
+This application has a different Docker file, but is very similar to our first application.
+
+As in, it uses the same base image as ubuntu.
+
+Uses the same Python and Flask dependencies, but uses a different source code to create a different
+
+application.
+
+And so a different entry point as well.
+
+When I run the docker build command to build a new image for this application, since the first three
+
+layers of both the applications are the same, Docker is not going to build the first three layers.
+
+Instead, it reuses the same three layers it built for the first application from the cache, and only
+
+creates the last two layers with the new sources and the new entry point.
+
+This way Docker builds images faster and efficiently saves disk space.
+
+This is also applicable if you were to update your application code whenever you update your application
+
+code, such as the app dot Pi.
+
+In this case, Docker simply reuses all the previous layers from cache and rebuilds the application
+
+image by updating the latest source code, thus saving us a lot of time during rebuilds and updates.
+
+Let's rearrange the layers bottom up so we can understand it better.
+
+At the bottom we have the base ubuntu layer, then the packages, then the dependencies, and then the
+
+source code of the application and then the entry point.
+
+All of these layers are created when we run the docker build command to form the final Docker image.
+
+So all of these are the Docker image layers.
+
+Once the build is complete, you cannot modify the contents of these layers.
+
+And so they are read only.
+
+And you can only modify them by initiating a new build.
+
+When you run a container based off of this image using the docker run command, Docker creates a container
+
+based off of these layers and creates a new writable layer on top of the image layer.
+
+The writable layer is used to store data created by the container, such as log files written by the
+
+applications.
+
+Any temporary files generated by the container, or just any file modified by the user on that container.
+
+The life of this layer, though, is only as long as the container is alive.
+
+When the container is destroyed, this layer and all of the changes stored in it are also destroyed.
+
+Remember that the same image layer is shared by all containers created using this image.
+
+If I were to log in to the newly created container and say create a new file called temp dot txt, it
+
+will create that file in the container layer which is read and write.
+
+We just said that the files in the image layer are read only, meaning you cannot edit anything in those
+
+layers.
+
+Let's take an example of our application code.
+
+Since we bake our code into the image, the code is part of the image layer and as such is read only
+
+after running a container.
+
+What if I wish to modify the source code to say, test a change?
+
+Remember, the same image layer may be shared between multiple containers created from this image.
+
+So does it mean that I cannot modify this file inside the container.
+
+No, I can still modify this file, but before I save the modified file, Docker automatically creates
+
+a copy of the file in the read write layer, and I will then be modifying a different version of the
+
+file in the read write layer.
+
+All future modifications will be done on this copy of the file in the read write layer.
+
+This is called copy on write mechanism.
+
+The image layer being read only just means that the files in these layers will not be modified in the
+
+image itself.
+
+So the image will remain the same all the time until you rebuild the image using the docker build command.
+
+What happens when we get rid of the container?
+
+All of the data that was stored in the container layer also gets deleted.
+
+The change we made to the App.py and the new temp file we created will also get removed.
+
+So what if we wish to persist this data.
+
+For example, if we were working with a database and we would like to preserve the data created by the
+
+container, we could add a persistent volume to the container.
+
+To do this, first create a volume using the Docker volume create command.
+
+So when I run the Docker volume create data underscore volume command, it creates a folder called data
+
+underscore volume under the var lib docker volumes directory.
+
+Then when I run the docker container using the docker run command, I could mount this volume inside
+
+the Docker containers rewrite layer using the dash v option like this.
+
+So I would do a docker run dash v, then specify my newly created volume name, followed by a colon
+
+and the location inside my container, which is the default location where MySQL stores data.
+
+And that is var lib MySQL.
+
+And then the image name MySQL.
+
+This will create a new container and mount the data volume we created into var lib MySQL folder inside
+
+the container.
+
+So all data written by the database is in fact stored on the volume created on the docker host.
+
+Even if the container is destroyed, the data is still active.
+
+Now what if you didn't run the Docker volume?
+
+Create command to create the volume before the docker run command.
+
+For example, if I run the docker run command to create a new instance of MySQL container with the volume
+
+data underscore volume two, which I have not created yet, Docker will automatically create a volume
+
+named data, underscore volume two and mount it to the container.
+
+You should be able to see all these volumes if you list the contents of the var lib docker volumes folder.
+
+This is called volume mounting as we are mounting a volume created by Docker under the var lib docker
+
+volumes folder.
+
+But what if we had our data already at another location?
+
+For example, let's say we have some external storage on the docker host at forward slash data, and
+
+we would like to store database data on that volume and not in the default var lib docker volumes folder.
+
+In that case we would run a container using the command docker run dash v, but in this case we will
+
+provide the complete path to the folder we would like to mount that is forward slash data or slash MySQL.
+
+And so it will create a container and mount the folder to the container.
+
+This is called bind mounting.
+
+So there are two types of mounts a volume mounting and a bind mount.
+
+Volume mount mounts a volume from the volumes directory and bind mount mounts a directory from any location
+
+on the docker host.
+
+One final point to note before I let you go using the dash V is an old style.
+
+The new way is to use dash mount option.
+
+The dash dash mount is the preferred way, as it is more verbose, so you have to specify each parameter
+
+in a key equals value format.
+
+For example, the previous command can be written with the dash mount option as this using the type,
+
+source and target options.
+
+The type in this case is bind.
+
+The source is the location on my host, and target is the location on my container.
+
+So who is responsible for doing all of these operations?
+
+Maintaining the layered architecture, creating a writable layer, moving files across layers to enable
+
+copy and write, etc..
+
+It's the storage drivers.
+
+So Docker uses storage drivers to enable layered architecture.
+
+Some of the common storage drivers are UFS btrfs, DFS Device Mapper, Overlay and Overlay.
+
+Two.
+
+The selection of the storage driver depends on the underlying OS being used.
+
+For example, with ubuntu, the default storage driver is UFS, whereas the storage driver is not available
+
+on other operating systems like fedora or CentOS.
+
+In that case, Device Mapper may be a better option.
+
+Docker will choose the best storage driver available automatically based on the operating system.
+
+The different storage drivers also provide different performance and stability characteristics, so
+
+you may want to choose one that fits the needs of your application and your organization.
+
+If you would like to read more on any of these storage drivers, please refer to the links in the attached
+
+documentation.
+
+For now, that is all from the Docker architecture concepts.
+
+See you in the next lecture.
+
+Okay, so in the previous lecture we discussed about storage drivers.
+
+Storage drivers help manage storage on images and containers.
+
+We also briefly touched upon volumes in the previous lecture.
+
+We learned that if you want to persist storage, you must create volumes.
+
+Remember that volumes are not handled by storage drivers.
+
+Volumes are handled by volume driver plugins.
+
+The default volume driver plugin is local.
+
+The local volume plugin helps create a volume on the Docker host and store its data under the var lib
+
+docker volumes directory.
+
+There are many other volume driver plugins that allow you to create a volume on third party solutions
+
+like Azure File Storage, convoy, DigitalOcean, Block Storage Locker, Google Compute Persistent Disks,
+
+Glusterfs, NetApp X-ray Portworx, and VMware vSphere storage.
+
+These are just a few of the many.
+
+Some of these volume drivers support different storage providers.
+
+For instance, X-ray storage driver can be used to provision storage on AWS, EBS, S3, EMC storage
+
+arrays like Isilon and Scaleio, or Google Persistent Disk or OpenStack cinder.
+
+When you run a Docker container, you can choose to use a specific volume driver, such as the X-ray
+
+EBS, to provision a volume from Amazon EBS.
+
+This will create a container and attach a volume from the AWS cloud.
+
+When the container exits, your data is saved in the cloud.
+
+In the upcoming lectures, we will see more about volumes in Kubernetes.
+
+Let us now look at the container storage interface.
+
+In the past, Kubernetes used container D alone as the container runtime engine, and all the code to
+
+work with container D was embedded within the Kubernetes source code, with other container runtimes
+
+coming in, such as rocket and Cri-o.
+
+It was important to open up and extend support to work with different container runtimes, and not be
+
+dependent on the Kubernetes source code.
+
+And that's how Container Runtime Interface came to be.
+
+The container runtime interface is a standard that defines how an orchestration solution like Kubernetes
+
+would communicate with container runtimes like Docker.
+
+So in the future, if any new container runtime interface is developed, they can simply follow the
+
+CRI standards, and that new container runtime would work with Kubernetes without really having to work
+
+with Kubernetes team of developers, or touch the Kubernetes source code.
+
+Similarly, as we saw in the networking lectures to extend support for different networking solutions,
+
+the container networking interface was introduced now.
+
+Any new networking vendors could simply develop their plugin based on the CNI standards and make their
+
+solution work with Kubernetes.
+
+And as you can guess, the container storage interface was developed to support multiple storage solutions
+
+with CSI.
+
+You can now write your own drivers for your own storage to work with.
+
+Kubernetes.
+
+Portworx.
+
+Amazon EBS.
+
+Azure disk.
+
+Dell EMC Isilon Powermax.
+
+Unity.
+
+Xtremio NetApp.
+
+Nutanix HPE Hitachi.
+
+Pure Storage.
+
+Everyone's got their own CSI drivers.
+
+Note that CSI is not a Kubernetes specific standard.
+
+It is meant to be a universal standard and if implemented, allows any container orchestration tool
+
+to work with any storage vendor with a supported plugin.
+
+Currently, Kubernetes, Cloud Foundry, and Mesos are on board with CSI.
+
+So here's what the CSI kind of looks like.
+
+It defines a set of rpcs, or remote procedure calls that will be called by the container orchestrator,
+
+and these must be implemented by the storage drivers.
+
+For example, CSI says that when a pod is created and requires a volume, the container orchestrator
+
+in this case Kubernetes should call the create volume RPC and pass a set of details such as the volume
+
+name.
+
+The storage driver should implement this RPC and handle that request, and provision a new volume on
+
+the storage array and return the results of the operation.
+
+Similarly, container orchestrator should call the delete volume RPC when a volume is to be deleted,
+
+and the storage driver should implement the code to decommission the volume from the array when that
+
+call is made.
+
+And the specification details exactly what parameters should be sent by the caller, what should be
+
+received by the solution, and what error codes should be exchanged.
+
+If you're interested, you can view all these details in the CSI specification on GitHub at this URL.
+
+So that's about it for now.
+
+About container storage interface.
+
+I'll see you in the next lecture.
+
+Before we head into persistent volumes, let us start with volumes in Kubernetes.
+
+Let us look at volumes in Docker first.
+
+Docker containers are meant to be transient in nature, which means they are meant to last only for
+
+a short period of time.
+
+They are called upon when required to process data and destroyed once finished.
+
+The same is true for the data within the container.
+
+The data is destroyed along with the container.
+
+To persist data processed by the containers, we attach a volume to the containers.
+
+When they are created.
+
+The data processed by the container is now placed in this volume, thereby retaining it permanently.
+
+Even if the container is deleted, the data generated or processed by it remains.
+
+So how does that work in the Kubernetes world?
+
+Just as in Docker, the pods created in Kubernetes are transient in nature.
+
+When a pod is created to process data and then deleted the data processed by it gets deleted as well.
+
+For this, we attach a volume to the pod.
+
+The data generated by the pod is now stored in the volume, and even after the pod is deleted, the
+
+data remains.
+
+Let's look at a simple implementation of volumes.
+
+We have a single node Kubernetes cluster.
+
+We create a simple pod that generates a random number between 1 and 100, and writes that to a file
+
+at slash opt out.
+
+It then gets deleted along with the random number.
+
+To retain the number generated by the pod, we create a volume, and a volume needs a storage.
+
+When you create a volume, you can choose to configure its storage in different ways.
+
+We will look at the various options in a bit, but for now we will simply configure it to use a directory
+
+on the host.
+
+In this case, I specify a path forward slash data on the host.
+
+This way any files created in the volume would be stored in the directory data on my node.
+
+Once the volume is created to access it from a container, we mount the volume to a directory inside
+
+the container.
+
+We use the volume mounts field in each container to mount the data volume to the directory.
+
+Slash opt within the container.
+
+The random number will now be written to opt mount inside the container, which happens to be on the
+
+data volume, which is in fact the data directory on the host.
+
+When the pod gets deleted, the file with the random number still lives on the host.
+
+Let's take a step back and look at the volume storage options.
+
+We just used the host path option to configure a directory on the host as storage space for the volume.
+
+Now that works fine on a single node.
+
+However, it is not recommended for use in a multi node cluster.
+
+This is because the pods would use the slash data directory on all the nodes and expect all of them
+
+to be the same and have the same data.
+
+Since they are on different servers, they are in fact not the same.
+
+Unless you configure some kind of external replicated cluster storage solution.
+
+Kubernetes supports several types of different storage solutions such as NFS cluster, NFS, Flocker,
+
+Fibre Channel, Cephfs, Scaleio, or public cloud solutions like AWS, EBS, Azure Disk or File or
+
+Google's Persistent Disk.
+
+For example, to configure an AWS Elastic Block Store volume as the storage option for the volume,
+
+we replace Hostpath field of the volume with the AWS Elastic Block Store field, along with the volume,
+
+ID and filesystem type.
+
+The volume storage will now be on AWS EBS.
+
+Well, that's it about volumes in Kubernetes.
+
+We will now head over to discuss persistent volumes.
+
+Next.
+
+In the last lecture, we learned about volumes.
+
+Now we will discuss persistent volumes in Kubernetes.
+
+When we created volumes in the previous section, we configured volumes within the pod definition file.
+
+So every configuration information required to configure storage for the volume goes within the pod
+
+definition file.
+
+Now when you have a large environment with a lot of users deploying a lot of pods, the users would
+
+have to configure storage every time.
+
+For each pod, whatever storage solution is used, the users who deploys the pods would have to configure
+
+that on all pod definition files in his environment.
+
+Every time a change is to be made, the user would have to make them on all of his pods.
+
+Instead, you would like to manage storage more centrally.
+
+You would like it to be configured in a way that an administrator can create a large pool of storage,
+
+and then have users carve out pieces from it as required.
+
+That is where persistent volumes can help us.
+
+A persistent volume is a cluster wide pool of storage volumes configured by an administrator, to be
+
+used by users deploying applications on the cluster.
+
+The users can now select storage from this pool using persistent volume claims.
+
+Let us now create a persistent volume.
+
+We start with the base template and update the API version.
+
+Set the kind to persistent volume and name it PV Vol one.
+
+Under the specs section, specify the access modes.
+
+Access mode defines how a volume should be mounted on the hosts, whether in a read only mode or read
+
+write mode, etc. the supported values are read only.
+
+Many read write once or read write.
+
+Mini mode.
+
+Next is the capacity.
+
+Specify the amount of storage to be reserved for this persistent volume, which is set to one GB here.
+
+Next comes the volume type.
+
+We will start with the host path option that uses storage from the node's local directory.
+
+Remember, this option is not to be used in a production environment.
+
+To create the volume, run kube control, create command and to list the created volume from the kube
+
+control.
+
+Get persistent volume command.
+
+Replace the host path option with one of the supported storage solutions.
+
+As we saw in the previous lecture, like AWS Elastic Block Store, etc..
+
+Well, that's it on persistent volumes in this lecture.
+
+In the next lecture, we will look at how we use persistent volume claims to claim the volume configured
+
+with persistent volumes.
+
+In the previous lecture, we created a persistent volume.
+
+Now we will try to create a persistent volume claim to make storage available to a pod.
+
+Persistent volumes and persistent volume claims are two separate objects in the Kubernetes namespace.
+
+An administrator creates a set of persistent volumes, and a user creates persistent volume claims to
+
+use the storage.
+
+Once the persistent volume claims are created, Kubernetes binds the persistent volumes to claims based
+
+on the request and properties set on the volume.
+
+Every persistent volume claim is bound to a single persistent volume.
+
+During the binding process, Kubernetes tries to find a persistent volume that has sufficient capacity
+
+as requested by the claim and any other request.
+
+Properties such as access modes, volume modes, storage class, etc. However, if there are multiple
+
+possible matches for a single claim and you would like to specifically use a particular volume, you
+
+could still use labels and selectors to bind to the right volumes.
+
+Finally, note that a smaller claim may get bound to a larger volume if all the other criteria matches
+
+and there are no better options.
+
+There is a 1 to 1 relationship between claims and volumes, so no other claims can utilize the remaining
+
+capacity in the volume.
+
+If there are no volumes available, the persistent volume claim will remain in a pending state until
+
+newer volumes are made available to the cluster.
+
+Once newer volumes are available.
+
+The claim would automatically be bound to the newly available volume.
+
+Let us now create a persistent volume claim.
+
+We start with a blank template.
+
+Set the API version to v1 and kind to persistent volume claim.
+
+We will name it my claim.
+
+Under specification, set the access modes to read.
+
+Write once and set resources to request the storage of 500MB.
+
+Create the claim using cube control.
+
+Create command to view the created claim.
+
+Run the cube control.
+
+Get persistent volume claim command.
+
+We see the claim in a pending state.
+
+When the claim is created, Kubernetes looks at the volume created.
+
+Previously.
+
+The access modes match.
+
+The capacity requested is 500MB, but the volume is configured with one GB of storage.
+
+Since there are no other volumes available, the persistent volume claim is bound to the persistent
+
+volume.
+
+When we run the Get volumes command again, we see the claim is bound to the persistent volume we created.
+
+Perfect.
+
+To delete a PVC we run the kubectl delete persistent volume claim command.
+
+But what happens to the underlying persistent volume when the claim is deleted?
+
+You can choose what is to happen to the volume.
+
+By default, it is set to retain meaning the persistent volume will remain until it is manually deleted
+
+by the administrator.
+
+It is not available for reuse by any other claims.
+
+Or it can be deleted automatically this way, as soon as the claim is deleted, the volume will be deleted
+
+as well, or a third option is to recycle.
+
+In this case, the data in the volume will be scrubbed before making it available to other claims.
+
+However, note that this is an older option and is deprecated now because the Recycle controller originally
+
+did a best effort wipe by launching a tiny recycler pod that mounted the volume and ran a shell command
+
+like rm rf Scrub star to clear files.
+
+It basically tried to do the admins manual cleanup for you with a simple file level delete.
+
+But this isn't sufficient in practice.
+
+It didn't guarantee secure erasure, didn't handle snapshots, or provide provider metadata, and only
+
+worked for certain entry volume plugins on cloud or block backends like EBS, Google Cloud, Azure Disk,
+
+or network storage like NFS or Sis drivers.
+
+Proper cleanup can involve unmount, detach, file system, reformat, snapshot, retain policy handling,
+
+encryption, key rotation, or provider level delete calls.
+
+A plain rm rf leaves a inode metadata and may fail under permissions.
+
+Because of these portability and security gaps, Kubernetes moved to a newer model.
+
+The modern approach is dynamic provisioning with a storage class and CSI drivers, which we will discuss
+
+next.
+
+Well, that's it for this lecture.
+
+Head over to the labs and practice configuring and troubleshooting persistent volumes and volume claims
+
+in Kubernetes.
+
+Using PVCs in Pods
+Once you create a PVC use it in a POD definition file by specifying the PVC Claim name under persistentVolumeClaim section in the volumes section like this:
+
+
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+spec:
+  containers:
+    - name: myfrontend
+      image: nginx
+      volumeMounts:
+      - mountPath: "/var/www/html"
+        name: mypd
+  volumes:
+    - name: mypd
+      persistentVolumeClaim:
+        claimName: myclaim
+
+
+The same is true for ReplicaSets or Deployments. Add this to the pod template section of a Deployment on ReplicaSet.
+
+
+Okay, so let's go through the lab
+
+on persistent volumes and persistent volume claims.
+
+So we have deployed a pod
+
+inspect the pod and wait for it to start running.
+
+So let's do that.
+
+We have the web app pod and it's in running state.
+
+The application stores logs
+
+at location
+
+log app dot log slash log slash app dot log.
+
+So view the logs.
+
+So for this we can do ...
+
+so in order to view a file
+
+within the pod, we'll do a cubicle exec
+
+and... provide the pod name
+
+and then the command.
+
+So cat log app dot log.
+
+Okay, so we're able to view the logs
+
+and we see that it's it some
+
+of the events that are logged by the application.
+
+Now if the pod was to get deleted
+
+now would you be able to view the logs?
+
+So let's check out where those logs are.
+
+So should I describe pod web app?
+
+And... so there are no other volumes configured.
+
+So you have the Q A P I access
+
+which is the default volume, but there are no other volumes.
+
+So anything that's stored in the log app dot log is stored
+
+within the container within the pod.
+
+So if the pod gets deleted
+
+the logs get deleted as well, right?
+
+So we're able to view the logs, now
+
+we're not going to be able to view the logs
+
+now configure a volume to store these logs
+
+at this path on the host.
+
+So currently all the logs are stored
+
+at slash logs slash app dot log
+
+within the pod or within the container.
+
+Now we would like to store those.
+
+We, we'd like to use a volume to store those logs
+
+at wire log web app.
+
+So that's wire log web app.... on the host.
+
+So currently there's nothing here.
+
+So let's, let's try and set up a volumes.
+
+Okay, so we're going to edit the pod.
+
+So we'll do a cubicle edit pod, web app.
+
+And there are, there's a lot of information.
+
+So here we have the volume amount
+
+which is the default volume amount
+
+for accessing the the Cube API server.
+
+And below we have the volumes
+
+which is again the default volume used for that.
+
+So we're just gonna add our own volume here.
+
+So ... we'll add...
+
+we'll call the name
+
+we'll call the volume log volume
+
+because we're gonna use this to store the logs.
+
+And this is going to be a host path.
+
+And... the path is going to be...
+
+whatever path is given here to wire log app.
+
+Wire log app,
+
+Okay, so we have the volume.
+
+So basically what's happening, what's gonna happen is
+
+when this pod is recreated is going to mount this directory
+
+and we have to specify where it's gonna be mounted to.
+
+It's gonna create a volume out of that directory.
+
+And then we have to specify where it's going to mount it is
+
+we're gonna add a volume mount
+
+and we'll call... the mount path
+
+as it is above.
+
+And that would be a log.
+
+And then we will have a name...
+
+for the volume.
+
+And the name of the volume is log volume.
+
+Okay? So what's gonna happen is when the part is recreated
+
+it's going to create a volume.
+
+Which will store all data in this path on the host,
+
+and it will be called this log volume.
+
+And then we can mount this volume
+
+within any container on this pod.
+
+So here there's only one container.
+
+So under volume mounts we have the mount path
+
+we're gonna specify the name
+
+of the volume and it's gonna mount that here.
+
+So basically this is going to be mount
+
+to this path within the container.
+
+Okay? So...
+
+let's try and save that
+
+it's a pod, it's not gonna allow us to save that.
+
+So we're gonna do a cubicle...
+
+replace force,
+
+Okay.
+
+Support is now recreated.
+
+So now let's check the path at wire log app, okay?
+
+And we can see that the file
+
+the storage logs called app dot log is in this path.
+
+We're gonna do app dot log.
+
+See the logs of the pod are indeed here.
+
+So the, so the logs of the pod are now available on the host
+
+at this particular path that indicates that that's working.
+
+Okay? So the next task is to create a persistent volume
+
+with the given specification.
+
+Let's go to the coordinated documentation pages
+
+and find persistent ... volume
+
+and go to persistent volumes.
+
+And...
+
+so here we have a template for a pod,
+
+persistent volume claim,
+
+Persistent volume
+
+but this doesn't have enough information.
+
+So I'm just gonna keep looking.
+
+Okay, so this is a persistent volume.
+
+So I'm going to ...
+
+get copy this much
+
+and I'm gonna create a file called PV dot... yamo
+
+for persistent volume.
+
+Okay?
+
+Then here we have PPV dash log
+
+that's the persistent volume name.
+
+Then we have storage.
+
+So there's hundred
+
+maybe bytes.
+
+And then we have volume modes.
+
+We don't need volume mode,
+
+we have access mode.
+
+The access mode is read,
+
+write
+
+many
+
+and the persistent volume
+
+reclaim policy going to be...
+
+retained.
+
+Okay? And then...
+
+the type is going to be host path.
+
+So we're gonna host path
+
+and then... specify the path
+
+and that's going to be... slash PV slash log.
+
+So that's the path.
+
+Okay,
+
+so let's create the file.
+
+Okay, so let's create it, let's check it out.
+
+We have the PV law kind.
+
+My capacity rewrite many.
+
+So this indicates rewrite many.
+
+And the reclaim policy is retained.
+
+Let's check our work.
+
+Okay?
+
+Now let us claim some
+
+of that storage for our application.
+
+So create a persistent volume claim
+
+with a given specification.
+
+So let's find a persistent ...
+
+volume claim template.
+
+So we had one... here.
+
+Yeah, so right here you have persistent volume claims
+
+and we'll use this template.
+
+So we don't need the advanced selectors.
+
+Our use case is simple.
+
+So we are just going to copy this much.
+
+So let's do a PVC dot yamo
+
+person volume claim.
+
+The name is going to be claim dash log dash one
+
+and access mode
+
+is going to be
+
+read write
+
+once.
+
+We don't have, we don't need a volume mode
+
+and the storage is gonna be 50 mi.
+
+Okay, now we're gonna do a create
+
+minus f,
+
+ac
+
+let's check out the status.
+
+Okay, so that's created.
+
+So go next.
+
+So what is the state of the precision volume claim?
+
+So if you look at the state, it is in a pending state.
+
+So that's that.
+
+Now what is the state of the persistent volume?
+
+The state of the persistent volume, it is...
+
+available.
+
+So let's check, try it now again.
+
+So it's, it's in an available state.
+
+So why is the claim not bound
+
+to the available persistent volume?
+
+So we have a persistent volume, which is
+
+which has a hundred megabytes of capacity.
+
+And then we have the PVC, which requested about 50
+
+but it's still in a pending state.
+
+So why is that?
+
+So if you look at it
+
+it's not a capacity mismatch because we know
+
+that if when you create a persistent volume claim
+
+if there's a volume that has higher capacity it is gonna
+
+bind that volume to that precision volume claim.
+
+So that's not the case here.
+
+We have the reclaim policy set.
+
+The name of these policy is the PV
+
+and PVC does not really matter.
+
+The only other thing that it looks
+
+at is the access mode, right?
+
+So if you look at the PV
+
+that we created
+
+it had an access mode of rewrite many, and if you look
+
+at the PV PVC, it had rewrite,
+
+it has rewrite once.
+
+So we're going to, now that's the reason.
+
+So access mode mismatch is the reason.
+
+Now the next question is update the access mode
+
+on the claim to bind it to the PV.
+
+So we're going to, lets do an update
+
+on the, on the claim.
+
+So we wanna change it to, so we wanna change the access mode
+
+on the PVC to rewrite many, which is on the, on the PV.
+
+So that's what is requested here.
+
+Okay,
+
+so now
+
+we're going to do a replace
+
+force
+
+dash F ...
+
+PVC.
+
+Okay, now you, you requested for 50 megabytes how
+
+much capacity is now available to the PVC?
+
+So let's look at that.
+
+Let's do cubicle, get PV
+
+Cubicle... get PVC.
+
+Now if you look at the PVC
+
+the capacity that it has is a hundred, a hundred megabytes.
+
+Now update the web app part to use the persistent
+
+volume claim as its storage.
+
+So what we are gonna do now is we're gonna replace host path
+
+with the persistent volume claim to
+
+use the persistent volume claim.
+
+Okay? So but before that we've created the PV to
+
+store the logs
+
+to use the host path at PV slash log.
+
+So right now there is nothing in there.
+
+So let's go ahead and edit the pod web app.
+
+And what we're gonna do is, so this is, okay
+
+the mount path, we're gonna leave it as is.
+
+We're gonna go down
+
+and we're gonna change
+
+this... from host pad...
+
+to persistent.
+
+Let's see what that is.
+
+So if you look here,
+
+should be able to see how
+
+to use a persistent volume in a pod.
+
+So you have
+
+claim as volumes.
+
+So within volumes you have
+
+you use persistent volume claims.
+
+That's what we're looking for,
+
+okay?
+
+And
+
+we have claim name,
+
+so we don't need these lines.
+
+And then the claim name is going to be
+
+claim log one.
+
+So you have versus volume claim, Claim name and ...
+
+log one.
+
+That should be it.
+
+Let's replace the file.
+
+Let's replace the pod forcefully.
+
+Okay, so that is done.
+
+Let's check our work.
+
+All right, so now let's see
+
+if you look at slash PV slash log,
+
+you see the logs there
+
+and you look at log app dot log can see
+
+the logs of the application there.
+
+So now the PV is using a host path
+
+as ... um...
+
+the location for storing data.
+
+But then the PV is then claimed by the PVC
+
+and then the PVC is configured as a volume for the pod.
+
+And then that's how it is mounted to to the pod.
+
+So that's, that's how this is working right now.
+
+Okay, so the next question is what is the reclaim policy set
+
+on the persistent volume PV dash log?
+
+So let's see, you got, will get
+
+PV PV dash log
+
+and we can see that
+
+it is retained.
+
+So retain is the answer.
+
+Now what would happen to the PV if the PVC was destroyed?
+
+So we know that with the reclaim policy set to
+
+retain, the PV is going to be...
+
+retained.
+
+So it's not going to be deleted along with the PVC.
+
+So the PV is deleted as well.
+
+Now the PV is made available again
+
+now it's not made available.
+
+Again, that would be recycling the PV scrub.
+
+Now the PV is not deleted but not available.
+
+So it's not deleted, but it's not available either.
+
+So that's the status.
+
+Now try deleting the PVC and notice what happens.
+
+Let's do that.
+
+Get PVC,
+
+delete PVC
+
+claim log one.
+
+So let's wait for that to be deleted.
+
+Okay, so
+
+it's not going to get deleted
+
+because it's actually going to be stockless.
+
+Let's look at the status in a new terminal.
+
+So let's do a go get PVC
+
+and we see that it's in a terminating state
+
+so it's stuck in a terminating state.
+
+Let's do a describe
+
+and ...
+
+yeah,
+
+so you see it's stuck
+
+in a terminating state for the last 30 seconds or so.
+
+So why is the PVC stuck in a terminating state?
+
+So that's obviously because it is associated
+
+as a volume with a pod.
+
+So it is being used by a pod.
+
+That's the reason it's, it's stuck in a terminating state.
+
+Now let's now delete the web app pod
+
+and let's go ahead and do that.
+
+Do that.
+
+So let's delete pod, web app and let's see what happens.
+
+Okay, so that was deleted
+
+and we see we're now unstuck and the PV was
+
+deleted as well.
+
+Check that out.
+
+Yep. So the pod was deleted and the PV was
+
+PVC was deleted as well.
+
+So what is the state of the PVC now? It is deleted.
+
+And what is state of the PV now let's try that.
+
+We see that it is in a
+
+released state.
+
+Okay, So yeah, that's the end of this lab.
+
+In this lecture we will look at storage classes.
+
+In the previous lectures, we discussed about how to create PVS and then create PVCs to claim that storage
+
+and then use the PVCs in the Pod definition files as volumes.
+
+In this case, we create a PV from a Google Cloud Persistent disk.
+
+The problem here is that before this PV is created, you must have created the disk on Google Cloud.
+
+Every time an application requires storage, you have to first manually provision the disk on Google
+
+Cloud and then manually create a persistent volume definition file using the same name as that of the
+
+disk that you created.
+
+That's called static provisioning volumes.
+
+It would have been nice if the volume gets provisioned automatically when the application requires it.
+
+And that's where storage classes come in.
+
+With storage classes, you can define a provisioner, such as Google Storage, that can automatically
+
+provision storage on Google Cloud and attach that to pods when a claim is made.
+
+That's called dynamic provisioning of volumes.
+
+You do that by creating a storage class object with the API version set to storage.
+
+IO v1.
+
+Specify a name and use provisioner as Kubernetes.io slash GCE.
+
+So going back to our original state where we have a pod using a PVC for storage and the PVC is bound
+
+to a PV, we now have a storage class.
+
+So we no longer need the PVC definition because the PV and any associated storage is going to be created
+
+automatically when the storage class is created for the PVC to use the storage class we defined, we
+
+specify the storage class name in the PVC definition.
+
+That's how the PVC knows which storage class to use.
+
+Next time a PVC is created, the storage class associated with it uses the defined provisioner to provision
+
+a new disk with the required size on GCP, and then creates a persistent volume and then binds the PVC
+
+to that volume.
+
+So remember that it still creates a PVC.
+
+It's just that you don't have to manually create PVC anymore.
+
+It's created automatically by the storage class.
+
+We used the GCE provisioner to create a volume on GCP.
+
+There are many other provisioners as well, such as for AWS, EBS, Azure File, Azure Disk, CIFs,
+
+Portworx, Scaleio, and so on.
+
+With each of these provisioners, you can pass in additional parameters such as the type of disk to
+
+provision the replication type, etc. these parameters are very specific to the provisioner that you're
+
+using for Google Persistent Disk.
+
+You can specify the type which could be standard or SSD.
+
+You can specify the replication mode which could be none or regional PD.
+
+So you see you can create different storage classes, each using different types of disks.
+
+For example, a silver storage class with the standard disks, a gold class with SSD drives, and a
+
+platinum class with SSD drives and replication.
+
+And that's why it's called storage class.
+
+You can create different classes of service next time you create a PVC.
+
+You can simply specify the class of storage you need for your volumes.
+
+Let us now review the lab on storage class.
+
+So the first question is
+
+how many storage classes exist in the cluster?
+
+Let's do a queue code to get storage class.
+
+So we see one, we can also do a SC
+
+to the storage classes.
+
+So that's the short form.
+
+We see that there's just one storage class.
+
+So let's select one.
+
+How about now? How many storage classes
+
+exist in the cluster?
+
+We just created a few more.
+
+So let's try it again.
+
+And we see that there are three
+
+setting things up.
+
+So what is the name of the storage class
+
+that does not support dynamic volume provisioning?
+
+So we know that the provisionary is what defines
+
+how the storage class volumes are provisioned.
+
+So the no provisioner is one that does not
+
+support dynamic volume provisioning.
+
+So that's the provisioner.
+
+So that's the storage class that does
+
+not support dynamic volume provisioning.
+
+So that's local storage.
+
+Now what is the volume binding mode
+
+used for the storage class?
+
+The one identified in the previous question.
+
+So for this the volume binding mode
+
+is wait for first consumer.
+
+So this is the answer.
+
+So what is the provisioner used for?
+
+The storage class called WoodworksIO, priority high.
+
+So this is the stories class called
+
+WoodworksIO priority high
+
+and provisioner is port works volume.
+
+Now is there a persistent volume claim
+
+that is consuming the persistent volume
+
+called Local PV?
+
+So is there a persistent volume claim?
+
+So let's look at persistent volumes
+
+and persistent volume claims.
+
+And there are no persistent volume claims at all.
+
+So no is the answer.
+
+So create a persistent volume claim
+
+by the name of local PVC that should bind
+
+to the volume local PV.
+
+So we need to create a PVC with the name local PVC.
+
+And if it is to bind to the PV
+
+they must have capacity, which is, yeah, 500 megabytes.
+
+So that's correct.
+
+And then the access modes should match.
+
+So this is ReadWrite ones
+
+and the storage class should also match;
+
+so that's local storage.
+
+So we're gonna create PVC.YAML
+
+with all that information.
+
+So let's go and find persistent volume.
+
+Let's select persistent volume and let's look at PVC.
+
+And here you have PVC.
+
+So we'll copy until here.
+
+We don't need the the selectors.
+
+So let's paste that here.
+
+So the name is local PVC.
+
+The access mode, as we discuss it,
+
+has to be rewrite once, which is fine.
+
+We don't need to specify the volume mode for now.
+
+And storage is 500 megabytes.
+
+And the storage class name is local storage.
+
+That's what we saw.
+
+Right, so local storage.
+
+So that's it. Let's create the PVC.
+
+Let's make sure it's created. Okay.
+
+Now what is the status of the newly created
+
+persistent volume claim?
+
+So it's in a pending state.
+
+Now why is the PVC in a pending state
+
+despite making a valid request
+
+to claim the volume call local PV.
+
+So we made sure that we got everything right
+
+that 500 megabytes of capacity,
+
+rewrite ones access model matching,
+
+the local storage class is also matching.
+
+So then why is it that it was not created?
+
+So let's look at the events.
+
+So let's do a queue code: describe PVC local PVC.
+
+And here we see that the reason is
+
+that it's waiting for first consumer,
+
+waiting for the first consumer
+
+to be created before binding.
+
+So as we discussed, the wait for first consumer
+
+means that it's not going to bind to a PV
+
+if it's not used.
+
+So it's just waiting for someone to use it
+
+for a ideally a volume to use it.
+
+Right, so a pod consuming the volume
+
+is not scheduled person volume
+
+and claim is match search class not found.
+
+So this is the right answer.
+
+So the storage class called local storage makes use
+
+of volume binding mode set to wait for first consumer.
+
+So this will delay the binding and provisioning of
+
+of precision volume until a pod using the person
+
+volume claim is created.
+
+Create a new pod called EngineX
+
+with the image X alpine.
+
+Let's do that.
+
+And the pod should make use of the PVC, local PVC
+
+and mound the volume at the part were,
+
+WWHGML, the local PV should be in a bound state.
+
+So let's create a pod called EngineX
+
+with the image EngineX alpine,
+
+and then the portrait make use of the local PVC.
+
+So for that we're going to have to convert this to ammo.
+
+So we're gonna run it, we're gonna create the ammo file
+
+redirect it to EngineX. Start the ammo.
+
+Okay, so we have all of this details in there.
+
+Now what we need to do is we need to first
+
+configure the volume and the volume amount, right?
+
+So we need, we need the volume section
+
+and the volume has to come from the local PVC.
+
+So let's look at claims as volumes.
+
+And here you have example of using a claim as volume.
+
+So you have, you already have a volume section
+
+so we just need this.
+
+Okay, make sure to fix the format.
+
+So we have volumes and the name is going to be,
+
+let's name it as local PVC volume.
+
+Okay? Now the claim name has to be local PVC.
+
+Okay? And the next thing is we need the volume mount
+
+which is inside the container.
+
+So the volume is on the spec level at the pod
+
+and the volume mount is inside the container.
+
+So let's do that.
+
+We have the volume mount and the volume mount
+
+says you can see here is at (indistinct),
+
+which is right.
+
+And this, the name of the volume
+
+is the name that we've given here.
+
+It's gonna be this.
+
+So if the question does not ask you
+
+to use a specific name, you can use any name.
+
+Just make sure that this name
+
+and this name matches.
+
+So that's when this volume is going to
+
+get mount to this directory.
+
+Okay, let's save that and let's create a file.
+
+Let's see the status of the part.
+
+Okay, it's created, but it's not in a running stage.
+
+Give it a second.
+
+Yep, it's in the running stage.
+
+Okay, so that's successful.
+
+So let's check the status of the PVC now.
+
+And we now see that it's in a bound state -
+
+so it's in a bound state.
+
+So as soon as a volume use that PVC,
+
+it went into a bound state.
+
+So create a new storage called storage class
+
+called delayed volume SC
+
+that makes use of the below specs provisioner
+
+and volume binding mode.
+
+Okay, so let's do that.
+
+Let's first create a file called
+
+Delete volume SE.ammo.
+
+And we need a template for a storage class.
+
+That search for storage class.
+
+So we're gonna use this.
+
+So let's use the first lines.
+
+Okay, now the name is going to be
+
+delayed volume sc.
+
+The provisioner is going to be:
+
+no provisioner.
+
+And volume Binding Mode..
+
+The volume binding mode is this..
+
+is going to be wait for first consumer.
+
+Let's wait for first consumer.
+
+Yep. So this seems to be it.
+
+So let's create that storage class.
+
+Yes, the storage class is created.
+
+Let's check it out.
+
+Yep. It's created with the No Provisioner
+
+provisioner and the wait for first consumer
+
+while in binding mount.
+
+(indistinct)
+
+Okay, That's successful.
+
+Yep. So that's the end of this lab.
+
