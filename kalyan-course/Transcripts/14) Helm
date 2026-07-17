@@ -1,0 +1,4043 @@
+So why helm?
+
+Let's start with how we normally deploy things without helm.
+
+So on the left side of the screen you will see the without helm workflow.
+
+So this is the without helm workflow.
+
+So in a typical Kubernetes setup we manage multiple YAML files.
+
+So like deployments Configmaps, Statefulset secrets service accounts and even Kubernetes services.
+
+So for this is just for one environment.
+
+But if we talk about multiple environments like dev staging production, we manually update these YAML
+
+files with the correct configurations before deploying them.
+
+So that's a lot of repetition and plenty of room for human error.
+
+And even let's say like one example here for a deployment.
+
+So in in in dev environment you might take your replicas as two replicas in staging might be four,
+
+but in production it might be 100.
+
+So all these changes in your YAML files and all these things, how we need to do and how we need to
+
+go and update all this is a problem without helm, but with helm what happens?
+
+Let's understand that helm simplifies everything through a concept called helm chart.
+
+Inside each chart you have two parts.
+
+One is templates and the other is values.
+
+Templates is your Kubernetes YAML files with variables inside them.
+
+So uh, and in values file you will have the actual values which define configuration differences for
+
+each environment.
+
+So whatever the differences are there example like replicas okay.
+
+In dev you say two and in prod you say something like 100.
+
+So those things they will be present as replicas will be present as variables inside templates.
+
+And those values you will define in this values section.
+
+And then when it is run, these values will be replaced in these variables based on the file which you
+
+are using.
+
+Example prod values dot YAML you are using.
+
+Then you are 100 replicas will go into the picture when this deployment is deployed.
+
+In the same way, if it is when you are using the dev values, then only two replicas will be going
+
+into the picture.
+
+So this is a template and real values are defined here and here.
+
+For the values which need to be defined in values section.
+
+Those will be variables inside these deployments configmaps wherever it is required.
+
+In very simple terms, with helm, we can maintain one common chart with all the templates inside that
+
+and just plug in different value files for each environment.
+
+So a separate value file for development, separate value file for staging and then separate for production.
+
+That means no more editing YAML files manually.
+
+Helm handles that for us automatically when we deploy.
+
+So helm gives us common templates plus environment specific values, which is equal to simplified deployments
+
+across environments.
+
+Let's now talk about the benefits of helm.
+
+And there are many benefits when we are using helm.
+
+So the number one is reusability like write once and use everywhere.
+
+And we also have something called versioning.
+
+So versioning is another benefit in helm where you can track chart versions like application versions.
+
+So there is one more benefit which is release management.
+
+So easy upgrades and rollbacks with some if something breaks.
+
+So you can using a simple single command, you can roll back and all your configurations present inside
+
+it.
+
+It might be 100 templates present inside it.
+
+All those things will roll back to a previous version simply using a single command and packaging and
+
+sharing bundle all.
+
+YAML files into a single helm chart installable helm chart.
+
+And it also has another benefit like simplified deployments.
+
+So one command to install all the complex apps.
+
+And another important thing is consistency.
+
+Every environment stays in sync.
+
+And we also have something called helm repositories, wherein you can publish and reuse charts across
+
+teams and projects.
+
+So these are the key benefits of helm.
+
+And from DevOps perspective, helm is a package manager for Kubernetes, just like APT for ubuntu or
+
+yum for Amazon Linux.
+
+So you used to you use it to install, upgrade, rollback and manage applications on Kubernetes the
+
+same way you would install the software on your server.
+
+
+Alright, now that we know why helm exists and how it simplifies Kubernetes deployments, let's zoom
+
+out and understand what actually happens behind the scenes by going through this helm workflow.
+
+So this diagram shows the complete helm workflow from chart creation all the way to release management.
+
+At the bottom you can see the five key stages.
+
+So which is helm chart creation hosting pulling deployment and release management.
+
+So let's walk through it step by step.
+
+So we'll start with the helm chart creation.
+
+So on the left hand side you can see a developer here.
+
+So they create individual helm charts for each microservice like catalog cart checkout orders and then
+
+UI.
+
+So each helm chart packages Kubernetes manifest templates and values making them reusable and version
+
+control.
+
+So that's about helm chart creation.
+
+So once the helm chart is created we need to host them.
+
+So hosting the helm charts.
+
+So once the charts are ready they are hosted in the helm chart repositories.
+
+So this could be an open source repos like Artifact Hub or Bitnami or even vendor specific.
+
+Right.
+
+Or a cloud registry such as AWS, Azure, ECR or GCP artifact registries.
+
+And in and all these, whatever the cloud provided are OCI registries, which is open Container Initiative
+
+registries.
+
+Now, you might ask me, what exactly is this?
+
+OCI registries mean it's a standardized container image registry.
+
+We can call it as Open Container Initiative Registry that follows the OCI distribution specification.
+
+So which allows you to store, distribute and pull container images and also helm charts and also other
+
+OCI compliant artifacts in a consistent vendor neutral way.
+
+So those are called OCI registries.
+
+So AWS, Azure, ECR, Docker Hub, GitHub Container registry.
+
+All these comes under OCI registry in our retail store project.
+
+All charts are published to AWS e as OCI based Helm charts.
+
+So now we have discussed about chart creation and then hosting.
+
+So now let's also discuss about pulling the helm charts.
+
+Next, the Kubernetes administrator or a DevOps engineer uses the helm CLI right from their workstation.
+
+And the CLI connects to the repository and pulls the helm charts they want to deploy.
+
+So you can pull those helm charts.
+
+Example.
+
+We want to pull this UI helm chart.
+
+So we can pull that helm chart from our workstation using the helm CLI commands.
+
+And once we pull those helm charts right we need to move on for deployment.
+
+So as an administration administrator, Kubernetes administrator or a DevOps engineer, I want to use
+
+some help helm commands to deploy the charts into our Kubernetes cluster.
+
+So every deployment, whatever we do using these helm charts creates a helm release.
+
+So for example, you have you can you can keep deploying it and then it creates a new release catalog.
+
+Helm release one.
+
+Catalog helm release two.
+
+Which means in the release one you have some changes.
+
+And in release two you have added additional changes.
+
+So maybe like release one is like V1 version of your application and release two is your V2 version
+
+of your application something like that.
+
+So all those things you can manage using release management means like you can incrementally increase
+
+the version of your applications and then deploy them.
+
+So helm keeps full release history, it supports upgrades and even rollbacks.
+
+So from release two to release one you can quickly go back.
+
+And even helm also provides a helm uninstall command, wherein you can uninstall the entire release
+
+with single command, making Kubernetes application management predictable and easy.
+
+So this workflow Gives you the big picture of helm in action.
+
+So from building charts, hosting, pulling, deployment and release management.
+
+On the right hand side we can see the helm terminology here.
+
+So helm chart helm values helm templates right.
+
+We can see charts values templates repositories and helm CLI.
+
+Helm releases helm install and install commands, helm upgrade commands, helm rollback commands, and
+
+even helm packaging.
+
+So all these things we are going to explore in the series of demos which we are going to implement.
+
+So now that the foundation is clear, let's jump into our first helm demo where we will install the
+
+Retail Store UI application directly from our AWS ECR repository.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+All right.
+
+Now that we understood our helm workflow end to end, let's get hands on and see helm in action with
+
+our retail store UI application.
+
+So we are in our section 12.
+
+And in section 12 we are entering into the demo 12 zero one which is Helm Basics.
+
+In this demo, we will cover all the helm basics like installing a chart, checking releases, upgrading
+
+and rolling back, and finally uninstalling everything cleanly.
+
+So all those things we are going to learn as part of this demo before installing our helm chart, let's
+
+let's first see where this helm chart comes from so we can find tons of charts at Artifact hub.io.
+
+So many open source charts are available in Artifact hub.io, so you can browse all the packages here
+
+and you can see all the important Kubernetes related helm charts you can find in this artifact hub.
+
+So you can see this is Kube Prometheus stack.
+
+This is cert manager Argo CD ingress nginx.
+
+So lot of Kubernetes related helm charts.
+
+You can find everything in this respective website.
+
+So you can go and then review the content inside that.
+
+And then also see if you click on install you will find the commands to install them and all those things.
+
+You can review the templates and then you can review all the default values and even the change log
+
+everything.
+
+You can browse through this and then understand more about different different helm charts available.
+
+But our retail store UI chart is already published as a OCI helm chart in AWS public ECR Elastic Container
+
+Registry.
+
+So if we click on Retail Store UI helm chart.
+
+It is on AWS, which is a public ECR repo for AWS, and you can find here the Retail Store UI chart.
+
+Okay, so this is for our UI application in retail store.
+
+So now these all are the tags image tags.
+
+So means like every image tag has a different version of helm chart.
+
+So from this release to this release you can see.
+
+So accordingly you need to pull those things.
+
+So instead of adding a helm repo we will install it directly using the OCI URL because it is a OCI repo.
+
+So how do we do that.
+
+So let's go back here and then using this command helm install and name of your release.
+
+So this is the release name.
+
+And this is the URL.
+
+So you can see it here.
+
+This is the complete thing okay.
+
+OCI colon slash slash.
+
+And then this is the URL you need to paste it here.
+
+So this is the one.
+
+And then we are using currently the version 1.0.0 which means this version we are currently using.
+
+So let's go ahead and then install this retail UI helm chart.
+
+So we will go back to our terminal.
+
+Here I have run the kubectl get nodes, which means all my EKS cluster is configured to connect to my
+
+means.
+
+Like from my local desktop I am able to access the nodes, which means authentication to EKS cluster
+
+is good.
+
+So I'll go ahead and then run this command.
+
+So this command installs the UI helm chart.
+
+So this is an expected error.
+
+So now let's go back here and authenticate to public ECR.
+
+So helm needs a valid authentication token to pull OCI charts from Amazon ECR public registry.
+
+So the command here is AWS ECR public get login password.
+
+And for the region US East one and pipe it with helm registry login with user as AWS and password stdin
+
+with public ada dot AWS.
+
+So let's copy this command and run it.
+
+And once we run it so it says login succeeded.
+
+So now we will try to install the retail UI helm chart.
+
+So let's run it and then see what happens.
+
+So we can see it pulled the helm chart from this location.
+
+And then it is currently installing that helm chart.
+
+So let's wait for it to install.
+
+So we can see UI helm chart right is installed successfully with the release name UI.
+
+And you can see the status deployed and it deployed to the default namespace.
+
+Now the next question here is how do we check what helm installed.
+
+Right.
+
+So we can check using helm list command.
+
+Right.
+
+So helm list command will list the releases installed.
+
+And when we say helm list it will list only from the default namespace.
+
+In in other namespaces, whatever the helm releases you have if you want to list them.
+
+So then you need to provide your namespace, whatever it is, right?
+
+Hyphen n and then namespace name.
+
+And you can also get helm list and then hyphen hyphen output equal to YAML.
+
+So whatever the output it has provided here in table format you can get that in YAML format.
+
+Also you can see app version and this is the chart version and name is UI namespace is default and this
+
+is the important one.
+
+Which revision?
+
+This is the revision one and its status is deployed and its when it is deployed.
+
+Also it is giving the complete timestamp.
+
+So which means we have the complete information of the resources, whatever we have deployed and when
+
+we have deployed.
+
+But if you talk about kubectl right.
+
+So even those resources will have the information when it is deployed.
+
+And you need to go to that specific resource example.
+
+You have deployed deployment service and you have deployed a config map.
+
+And you have deployed service account like this.
+
+Multiple resources you have deployed.
+
+So you need to go to each resource and find the timestamp when they were deployed.
+
+But here all the resources together is packaged in a helm chart.
+
+And that entire package is deployed here, which means it shows the clearly that all those things deployed
+
+at this point of time.
+
+And, uh, now we will go to verifying Kubernetes resources.
+
+Right.
+
+So all right, now, what exactly did helm create in our EKS cluster.
+
+So let's list the pods and services.
+
+So we'll run the command cube CTL get pods and it should list our UI pod here okay.
+
+And in addition to that if you want we can also run the command and deploy.
+
+And it should show the deployment here.
+
+And we can also see the SVC which is our cluster IP service for UI.
+
+So you can see this UI cluster IP service.
+
+So these are the things it deployed.
+
+So we can't access it externally.
+
+So this application UI application right.
+
+So how do we test it.
+
+If our UI application what we have deployed using helm right is working or not.
+
+How do we test it.
+
+So again it's our standard process, right.
+
+So we run the command cube CTL put forward and we will say so first we'll say clear and kubectl port
+
+forward.
+
+And we will say svc slash UI as the service.
+
+And my on my local desktop I am going to use 3080.
+
+And my svc UI port is 80.
+
+Right.
+
+And enter.
+
+And now we will go ahead and access using 3080.
+
+So this is the one.
+
+So let me get that.
+
+This is the URL.
+
+And we can access it here.
+
+Or we can even access it.
+
+So this is the application we are accessing.
+
+So we will try to access it on this one okay.
+
+So it will be easy.
+
+It's dark one.
+
+So this is Bright browser right.
+
+So we'll go here and we will try to minimize this okay.
+
+So you can see the complete application is accessible.
+
+So this UI service right in what it does is when you access it it will show the complete application.
+
+Also everything is like a hardcoded version.
+
+So if you go to topology right.
+
+Or I instead of this I'll try to say topology.
+
+And you will not have any catalog service or cart service or checkout service or order service, but
+
+in UI service itself, all these things are packaged as a single application also.
+
+So if you don't provide any microservices endpoints then they will serve this.
+
+This is a testing application or a learning application, right?
+
+So for that purpose only if you deploy UI, also you can see those things.
+
+So that's not our context here to understand more about this application.
+
+But I am trying to explain you in the topology.
+
+You can see there are no other things available.
+
+But still if you click on explore.
+
+Your catalog will be displayed and add to all this will be displayed.
+
+So uh, even checkout will be displayed and it will go to even the uh you can see delivery and checkout
+
+delivery.
+
+And then also you can see because this is just a demo site, every entire application is also packaged
+
+in this UI.
+
+Helm chart means like in your UI application in that container.
+
+It also presented as a application.
+
+So you can call it as a in-memory.
+
+So if you provide your endpoints then automatically it will get the data from those microservices.
+
+So which means if you provide catalog endpoint in your UI Configmap.
+
+So it also deploys a Configmap.
+
+Right.
+
+So if you go here right, kubectl get cm and it should deploy a config map ui config map.
+
+So you can say you can say get cm and UI and hyphen YAML.
+
+And this is the UI config map.
+
+And you can see the data here for there are no information related to the endpoints here.
+
+So.
+
+But when we implemented our previous demos right.
+
+So if you go to ingress right.
+
+And you can go to 11 zero to ingress.
+
+And if you go to UI and go to config map you can see these are the endpoints.
+
+So if you provide endpoints from those endpoints it will get the data.
+
+And if you don't provide those endpoints and if you deploy those endpoints also in parallel right means
+
+like catalog cards and checkout orders applications.
+
+If not it will serve from the in-memory just for learning purposes.
+
+So that's what about uh, this application.
+
+So now let's come back here.
+
+And now we have successfully verified the application.
+
+Right.
+
+And next is in our next lecture we will focus on how we are going to upgrade this retail UI release.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Now let's upgrade our retail UI release.
+
+So we want to change the.
+
+In addition, when we are upgrading.
+
+So what are the changes we want to perform here.
+
+Right.
+
+So we want to change the app theme right.
+
+So in this application right retail UI you can change the app theme color.
+
+So currently if you go here right.
+
+So this is the default color.
+
+You can see this purple color R right.
+
+So this is a default color for this application.
+
+But if you click on the retail UI documentation right.
+
+So let me open that.
+
+And this is retail store AWS.
+
+In source UI you will find its Readme file.
+
+And here you can find the configuration information which means for this retail UI application what
+
+all environment variables you can send to that so that application can react accordingly.
+
+So for example like if you provide the carts endpoint, the application will send to that card's endpoint
+
+and get the data from that card's endpoint.
+
+So default is false in the same way for orders checkout.
+
+So which we have already seen that we didn't define any endpoints currently.
+
+In the same way, if you see retail UI theme is another environment variable which you can define.
+
+And if you don't define it, default is the value it takes takes.
+
+And in the default value this is the color you are going to get.
+
+Now what we are doing as part of this helm upgrade process, right, is we are going to set the app
+
+dot theme to orange.
+
+So if you see here this is the documentation.
+
+And here we are going to set for for for helm release.
+
+How are you saying that it will set the retail UI theme.
+
+You might get a doubt about it.
+
+So we'll learn about this app dot theme.
+
+What exactly is it?
+
+When we are learning about values.
+
+But you need to understand that the color of the application is changeable using this environment variable.
+
+And when you set using your helm command with set and then say app dot theme to whatever the thing defined,
+
+whatever the things allowed, green or orange or teal, then those changes will take place.
+
+So that's what we are trying to learn here, right?
+
+And in addition to that, we are also upgrading our version from 1.0. 0 to 1 .2.4.
+
+So for now, just remember that when we set app dot theme, that means it is going to set the retail
+
+UI theme.
+
+So we will discuss about helm chart values in detail.
+
+There.
+
+We will understand how to set these values right in detail about values, dot YAML and all those things.
+
+So for now we'll fix to this thing where we are learning about upgrade and we are upgrading it to 1.2.4
+
+and also setting the app theme to orange.
+
+So let's run this command now.
+
+Okay, so where is it?
+
+So we are here and we will run this okay.
+
+And currently Port Forward is also in progress here.
+
+Now let's run this and it will upgrade to version 1.2.4 and also change the app dot theme.
+
+So it is saying that revision two is deployed currently and with the into the default namespace.
+
+And it is deployed.
+
+So this updates our UI release to version 1.2.4 and updates a new theme color.
+
+To verify, we can check the release history also, so we can say helm and then history and then UI
+
+before that.
+
+If you want, you can also run the command helm list command once and once.
+
+The list command is there.
+
+You can see the revision is two right.
+
+And after that we will run the command helm history.
+
+This is the history command history.
+
+And then UI and in the history you can see this is the release one and this is the release two.
+
+So in release one you have used this chart.
+
+And in release two you have used this chart.
+
+So helm tracks every version and change automatically.
+
+No manual YAML updates needed here.
+
+So when you say cube CTL and cube CTL and get pods comma deploy.
+
+So both ports and deployment are we can say get pods and comma deploy.
+
+So it should provide pod.
+
+It is just running from 79 seconds.
+
+So it has restarted the pod with the new information.
+
+So this is the deployment.
+
+And in that your pod got restarted just 79 seconds before 19 minutes before.
+
+We have deployed the version 1.0.0.
+
+And now, just 79 seconds before, we have deployed the 1.2.4.
+
+So a new pod is created for us, old pod got deleted and new pod got created.
+
+So that's about upgrading the helm release using new version of your application.
+
+So now this is completed upgrade.
+
+Now the next thing here is doing values and manifests.
+
+So what if we want to see what helm actually applied.
+
+So helm makes this super easy for us okay.
+
+Now we are coming to the values concept okay on a high level again okay.
+
+So we'll say helm get and then values.
+
+And then we will say UI is the release right.
+
+So we'll say this and let's see what happens.
+
+So user supplied values you are seeing.
+
+So in the user supplied helm values you are saying app dot theme is orange.
+
+So that is what we have supplied.
+
+When you say helm get values, so it will print only user supplied values.
+
+But what all are the defaults plus overrided values everything.
+
+If you want to print then you need to say hyphen hyphen all.
+
+Okay, so now we will run the command hyphen hyphen all so that not only user supplied values, default
+
+values also will be displayed.
+
+So if you go back to the documentation here there are a lot of default things set inside this okay.
+
+So those default values also will be provided.
+
+So if you go to this same thing and go to the chart right.
+
+And in the chart you will find the values dot YAML okay.
+
+So this is the UI helm chart.
+
+And here you can see default replica count is one.
+
+And this is the image it is going to use by default okay.
+
+And tag we are supplying it from our chart okay.
+
+So whatever the version we are using okay.
+
+And in image pool secrets, these all are defaults.
+
+Null okay and service account create true by default.
+
+So all these are default values set in your values dot YAML file.
+
+So those are the things currently which are displaying here.
+
+So these are the things which will display here.
+
+So if you go up right.
+
+So we'll start with some things.
+
+One is computed values.
+
+And in these things we will check couple of things okay.
+
+So we can see this is the image dot repository.
+
+And this is what it took okay.
+
+In the same way configmap create true.
+
+So you can find those also here okay Configmap create true.
+
+And in app endpoints all these things are uh, all these things are commented.
+
+So you will see those things also here.
+
+So you can see resources limits, memory, CPU memory.
+
+So this is what is set currently.
+
+So you can go here and then see the same thing here.
+
+See resources limits five to requests CPU 128 and memory 512.
+
+So all those things.
+
+So these are all the default values set.
+
+Where will be the default value set in your chart values dot YAML.
+
+So this is your helm chart.
+
+And here in the values dot YAML file these will be set.
+
+And how to get those things using the command helm get values and provide your helm release name and
+
+hyphen hyphen all.
+
+So this will give you all your things okay.
+
+And if you want only user supplied values means like when you are running the helm, install command
+
+or upgrade command, whatever you have user supplied means like when you user supplied.
+
+In the sense very simply, this is the one when you are using set right.
+
+So that is nothing but user supplied.
+
+So those things you can get this way.
+
+And another thing is important thing.
+
+Okay.
+
+So which is you have run here the helm install command.
+
+Right.
+
+So this is the install command.
+
+When we are upgrading it we said helm upgrade.
+
+So that's another thing to remember.
+
+So this helm get values commands helps us to get all the values information.
+
+And in addition to that there will be one more command here which is print rendered Kubernetes manifest
+
+using the command helm get manifest okay.
+
+So we will run the command.
+
+So we'll clear this and helm get manifest and UI.
+
+And this should get the Kubernetes manifest okay.
+
+So what all manifests.
+
+It has deployed.
+
+All those things will be printed here.
+
+So it has created a service account okay.
+
+With helm chart version 1.2.4.
+
+And it also created a config map.
+
+And it's with retail UI theme orange.
+
+And it also created a service which is a cluster IP service.
+
+And it also created a deployment whose image version should be 1.2.4.
+
+So these are the things we can get using helm get manifest UI.
+
+So this is very important.
+
+Okay.
+
+Command okay.
+
+Which is helm get manifest UI.
+
+Basically what Kubernetes received rendered manifest.
+
+So which means from this template.
+
+So if you go here right so in your helm chart right you will have the templates defined here in templates
+
+folder like config map deployment and service and service account these things.
+
+So this will be in the go programming language.
+
+And here in this template the values will be replaced okay.
+
+So whatever we define them and if any functions is written from the functions.
+
+Also these are some functions okay UI dot fullname and these things.
+
+So those also will be replaced.
+
+So you can see it here.
+
+Right.
+
+So values dot service dot load balancer class or values dot service dot nodeport or values dot service
+
+dot ports like this.
+
+things will be defined and those things you can get from our values dot YAML file and in values dot
+
+YAML.
+
+All the default values are there and those will be come here.
+
+In the same way, if you want to override anything using helm commands whenever we are running hyphen,
+
+hyphen set will override in the next upgrade.
+
+When we are doing with the option hyphen hyphen set not only in upgrade when we are doing the install
+
+also right.
+
+So when we are doing this helm install command, right.
+
+So this is the one here.
+
+Also you can provide high uh after version hyphen hyphen set and what values you want to override.
+
+So those values you can override.
+
+So from the default values dot YAML.
+
+So those things you can do.
+
+So now let's come back here and we have completed these print helm values and manifest step.
+
+Before going to the next step we will also verify our application right.
+
+We set the orange theme.
+
+So this is the default theme.
+
+So we'll try to access it.
+
+We already have the port forward running here right.
+
+So our application should be accessible.
+
+So let me access it.
+
+What is the problem.
+
+I'll try to access it.
+
+So it got cancelled.
+
+So let me try again kubectl port forward and try to implement the port forward.
+
+And again come back here and try to refresh it and let's see what happens.
+
+See this is the orange theme.
+
+This is the previous theme default theme.
+
+And now you can see everything in orange color.
+
+So the entire application you will see in the orange color.
+
+So that's the difference.
+
+So which during the upgrade helm upgrade we have set this okay.
+
+So in our next lecture we will focus on something called rollback to previous release and some other
+
+additional things.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+So let's understand about how to roll back to the previous release.
+
+So what if something goes wrong when we have upgraded right and something is not working?
+
+So how quickly you can roll back to previous version.
+
+So let's see that now.
+
+So we will go back here and we will say helm history and then UI.
+
+And then for the UI release you can see we are release one which is superseded.
+
+And now it is released to which is deployed with 1.2.4.
+
+Okay.
+
+Now what we will do is we will say helm rollback UI.
+
+And then we can also specify the specific release if we want the release number and it immediately rolls
+
+back.
+
+Helm instantly restores the earlier working configuration.
+
+So we can check the history again to confirm that okay.
+
+So helm history UI.
+
+And now you can see release three is created.
+
+It is in the diploid state and the previous one is in superseded state.
+
+And you can see it is 1.0.0.
+
+It roll back successfully.
+
+Right.
+
+So now what you can do here is we can run the kubectl port forward command again.
+
+So this is the command right.
+
+So we can run the port forward command.
+
+Now again.
+
+So let me run that.
+
+And we can go back here to our browser and our browser here and try to access that with now and then.
+
+It should go to the default one from orange.
+
+Orange.
+
+I close it now and it went back to the default one.
+
+So rollback is successful.
+
+So it is super clean and no manual edits, just a single command.
+
+And you are all the things got rolled back to the previous version.
+
+So that's the advantage of using helm.
+
+So package not only a release management becomes easy when you are using the helm.
+
+Okay.
+
+Now let's also understand something about updating.
+
+Application theme.
+
+So what we are trying to understand here is we are trying to first upgrade our application to latest
+
+version, which is 1.3.0 and no changes there when you go and then access your application.
+
+That is the default theme.
+
+After that we will change the application theme to green color.
+
+Okay.
+
+So what happens?
+
+So the thing what we are trying to understand here is when you make some application changes, your
+
+parts don't get restarted automatically.
+
+So when you have done here right.
+
+So when you have changed the versions 1.0. 0 to 1 .2.4 and back to 1.0.0, when you run the kubectl
+
+parts, they got restarted, a new pod got created.
+
+Okay, but when you make some application changes which is inside the spring boot, you are setting
+
+some environment variables.
+
+So app dot theme change is nothing, but you are setting the environmental variables.
+
+Okay, so for those things Kubernetes automatically will not do any restart.
+
+Okay.
+
+So you need to manually trigger that that part.
+
+We are trying to understand here.
+
+So first try to upgrade to 1.3.0 which is our latest version okay.
+
+So let's upgrade it now.
+
+Okay.
+
+And then after that if you run the command helm history UI, we are using the latest version of our
+
+application as on today.
+
+Okay.
+
+Right.
+
+So let's wait for it to get deployed.
+
+So helm history and then UI and you can see that it is using the 1.3.0.
+
+And if you say kubectl get pods.
+
+Pod should be restarted.
+
+Now when you say just when you change the version from 1.0. 0 to 1 .3.0, which is 14 seconds, just
+
+14 seconds before we have deployed it and it is restarted now.
+
+So let's wait for the application to come online.
+
+And after that we will run the command port forward to verify with 1.3.0 base upgrade.
+
+Everything is working, so we will go here and run the port forward and go back to our browser here,
+
+and I'll try to access it here.
+
+Okay.
+
+And it should be accessible.
+
+So this is the default theme.
+
+Still it is working.
+
+No issues.
+
+Okay.
+
+Now what we will do is we will go ahead and upgrade our application just by configuration change.
+
+No changes in the version.
+
+Okay.
+
+So no changes in your core container version okay.
+
+Only Docker image version.
+
+Just some configuration values we are setting in helm.
+
+That is always again a new release.
+
+So helm history and then UI.
+
+So when you see that currently the release running is fourth release and now you are setting app dot
+
+theme to green.
+
+And this is going to be a fifth release.
+
+Okay.
+
+So now let's run this.
+
+So now once it is deployed we are going to see whether it will do a pod restart or not okay.
+
+So let's wait for it to get deployed.
+
+It is deployed.
+
+Revision is file and if you run the command cube CTL get pods.
+
+Okay.
+
+And let's see what happens.
+
+So it is running from close to two minutes.
+
+Okay.
+
+Right.
+
+But it didn't restart just now when we deployed this one dot or 3.0 with app three green helm history.
+
+You okay.
+
+And this is the release file again with 1.3.0.
+
+But it didn't get restarted.
+
+So if you see the get pods also it is running from close to two minutes but it didn't get restarted.
+
+Which means if you run the kubectl port forward right, you still should get the old UI only.
+
+So that's what I'm trying to show you.
+
+So it is still getting the old UI, so that is fine.
+
+Okay, now what we will do is cube CTL get deploy okay.
+
+And your deployment name is UI.
+
+So we'll say cube CTL rollout restart and deploy slash UI.
+
+And let's see what happens okay.
+
+so it restarted.
+
+So when you run the command, get what's now your pod is getting restarted.
+
+See it?
+
+Your container is getting created.
+
+Age is five seconds.
+
+So let's wait for it to get restarted and ready.
+
+And after that, when we access our application, it should show the green color theme.
+
+So let's run the kubectl get pods one more time and now it is still not ready.
+
+It is a spring boot application.
+
+UI is a spring boot application.
+
+It takes a little bit of time.
+
+So now it is running one by one ready.
+
+And now we will go.
+
+Here we first need to do the port forward.
+
+So let's do that.
+
+This is the port forward command.
+
+And now if you go and then access this right.
+
+So you should see that a green theme.
+
+So you can see everywhere green theme right.
+
+So we try to successfully understand that when you are setting some variables here, some configuration
+
+values and then upgrading your application to a new release.
+
+It might not restart the pods and changes might not take effect so that you need to find it whether
+
+your pods got restarted or not.
+
+And then you need to go ahead and then restart the manually if required.
+
+So that is very, very important thing because sometimes you have upgraded and it is not.
+
+So changes don't reflect.
+
+Then we go and then do troubleshooting somewhere else okay so but the key thing is it didn't get restart.
+
+So that's the reason changes didn't get affected.
+
+So that's the key.
+
+So how do we clean everything up.
+
+So how to uninstall your helm release.
+
+So if we go back here and if we run the command kubectl get pod deploy and svc service service account
+
+and config map.
+
+So all these resources are present here.
+
+So how do we clean up all these resources at a time.
+
+All these were created using your helm release UI.
+
+So we can just say helm list.
+
+And you can find the name of your release, which is UI, and you will say helm, uninstall and then
+
+UI.
+
+So this should delete all.
+
+This removes all Kubernetes resources created by this chart.
+
+So if you run the command helm list it should not show any release here.
+
+And if you run the command same kubectl get pod deploy svc CSM.
+
+So nothing related to UI should be displayed.
+
+So in this demo we have learned how to install a helm chart from an OCI registry list and inspect releases,
+
+upgrade and rollback override values and view manifests and uninstall the helm release.
+
+So that's complete helm basics hands on using our retail Store UI app.
+
+So in the next section we will learn some more helm concepts.
+
+So I'll see you in the next lecture.
+
+Our next demo.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Hey everyone, and welcome back.
+
+So in this section, right in 1202 heading Custom values, we are going to take our helm skills to the
+
+next level.
+
+In the previous lesson we deployed our retail store UI using a helm chart straight from AWS ECR repository.
+
+But this time we will customize it.
+
+We will use a custom values UI YAML file and enable ingress with the AWS load balancer, and even change
+
+the UI theme to teal color.
+
+So all these changes we are going to do as part of this demo.
+
+So before going there, we need to understand some important things about helm custom values.
+
+So let's understand them.
+
+So if you see here right.
+
+So if you see here we have a helm chart structure.
+
+So this is the UI helm chart means like our retail store application in that for our UI application
+
+in that application for the UI part this is the helm chart.
+
+So you can see this is the chart folder.
+
+And in chart folder one folder is templates.
+
+In templates you have all these things okay.
+
+So these all come under templates.
+
+So this is a test folder.
+
+You can put it aside.
+
+And now if you see here you will have your helper functions.
+
+So we will discuss these things in detail later.
+
+But we are trying to dissect it on a very high level later and focus only on values.
+
+In next demo we will explore the complete helm chart in detail in 12 zero three.
+
+But here we will focus on values only and after this in templates, after the helper functions you have
+
+Configmap template, deployment template, horizontal pod, autoscaler template and ingress template
+
+which we are going to use as part of this demo.
+
+Okay.
+
+And Istio gateway.
+
+Istio virtual service and PDB template service means like cluster IP service and then service account
+
+templates.
+
+And this is the main chart dot YAML file.
+
+And this is the important one.
+
+So these two are the things which we need to focus on.
+
+So this is the default value.
+
+So it is default values file.
+
+Okay.
+
+So and in our demo we are also going to use ingress which means this template will be fired as part
+
+of this demo with values ui dot YAML.
+
+So we are going to create a custom file values dot YAML and add some configurations inside that.
+
+So let's put this aside for now.
+
+Okay now we will focus on something called what are these values dot YAML and what is the precedence
+
+of those things when we want to use and how we can pass these values in different ways to the helm chart.
+
+So that's the thing we need to first get into.
+
+Now let's start with what is this in detail.
+
+So before we start editing the file let's understand how helm actually works with values.
+
+So helm charts are built to be configurable.
+
+And that configurability comes entirely from this values dot YAML file where in that file whatever we
+
+define the values.
+
+So where do these values come from.
+
+Right.
+
+So they can come from two places okay.
+
+So one is values dot file okay.
+
+So which is default one which we are talking about.
+
+And second is you do your own overrides which you can pass using different ways.
+
+So second is overrides.
+
+Okay.
+
+So you can talk them as overrides.
+
+In overrides you have one is using hyphen f argument.
+
+When you are doing a helm install or helm upgrade, you can provide hyphen f and you can provide your
+
+custom file here.
+
+So custom file name values ui, dot.
+
+That is one thing.
+
+And second is which you already seen that okay hyphen hyphen set.
+
+So you have set that hyphen hyphen set app theme equal to teal or green.
+
+You have said right.
+
+So this is one option and this is second option.
+
+So now when you combine these resources right.
+
+So you have totally when you say this as one and this as second option and this as third option.
+
+So now when you have three options to pass values to your helm chart, you need the precedence, right?
+
+Which one takes effect?
+
+What is the order you need to know?
+
+So we need to understand that the highest priority.
+
+So we are going to come from top priority to low priority.
+
+And the first priority goes to hyphen.
+
+Hyphen okay.
+
+So this wins means like you have hyphen f and default values and also hyphen hyphen set.
+
+This takes the first priority.
+
+And second comes your hyphen f.
+
+Whatever you provide hyphen f that takes the second priority.
+
+And if nothing is set and nothing is provided in this hyphen f, right?
+
+And hyphen f, then finally goes to the last one, which is values dot YAML, which is the default one.
+
+So that's the order it is going to take.
+
+So this is the first priority.
+
+This is the second priority and this is the third priority.
+
+So that's about values dot YAML.
+
+Precedence.
+
+So now what is the best practice.
+
+Right.
+
+So example you have something called dev queue and then prod environment.
+
+So then you can define your dev as values hyphen dev dot YAML and values hyphen q dot YAML.
+
+And you can also define values hyphen prod dot and important things.
+
+Here is example.
+
+Let's take an example of same replica count in prod.
+
+You are giving 100 replicas.
+
+In QA you have only ten replicas, and in dev you have only two replicas.
+
+So like this you can define the values based on environments and then accordingly you can override them.
+
+And so major changes means like you have ten values you want to define, right?
+
+Define.
+
+Then you can use values dot YAML files.
+
+Okay many changes, but quickly.
+
+Quickly you want to change only one tweak example like app dot theme.
+
+You want to change right to some teal color.
+
+Okay, at this point of time you can use simply hyphen hyphen set.
+
+So for minor tweaks or tiny tweaks are changing like some image tag or replica count during testings,
+
+right?
+
+So you can directly use the hyphen hyphen set option also.
+
+So like this.
+
+You can decide based on your environment and based on your use case which options to choose when using
+
+the helm chart for values.
+
+Okay, so that's about values and a very high level.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Now let's talk about some commands here.
+
+So what if you want to see what values are available in a default chart.
+
+So you can preview all default values using Helm show values command.
+
+So this is a very important command.
+
+And so wherein you have helm show values provide your helm chart and which version of your helm chart.
+
+And let's see what exactly it shows for us okay.
+
+So we'll go here and we will run the command now.
+
+Right.
+
+And it will show all the default values.
+
+So whatever is present in your values dot YAML.
+
+So in your UI chart right.
+
+So in your UI chart you have the values dot YAML.
+
+So whatever is present inside that the same thing right.
+
+You can get it by running this command.
+
+So complete values dot YAML will be printed here in detail.
+
+So that's about seeing the values of a default chart.
+
+And then default values, okay.
+
+And you might also need to see before applying.
+
+Right.
+
+So before applying the you have defined some custom values in your values hyphen dev dot YAML or something.
+
+And then you want to dry run and then see how it is going to populate.
+
+Right.
+
+So in that case how you are going to do that without deploying you want to dry run.
+
+So there comes the dry run command.
+
+So let's come back here.
+
+So we have something called.
+
+So we'll discuss about this in the next lecture in detail what is present inside this okay.
+
+So you have something called app theme.
+
+And you have defined the ingress.
+
+Some information here like ingress is enabled true and class name is Alb and some annotations etc. etc..
+
+But in the default values, if you go to the default values here, you see ingress is false and annotations
+
+everything is commented right and even app dot theme.
+
+Also you can see it should be something like default, something will be present here app dot theme
+
+also.
+
+So where is it Control F app.
+
+If I say C, this is also in the commented state.
+
+So these are the default values.
+
+And when you want to override with your custom values and you don't want to deploy them, but you want
+
+to dry run them and see how it is going to behave, how what what are the changes it is going to apply.
+
+So how you are going to do that, you want to preview what helm will actually deploy.
+
+So that's the statement to put right way okay.
+
+Now we will run this command.
+
+So what is that command.
+
+So let's come back here.
+
+Helm install UI is the release name.
+
+And this is the chart.
+
+And this is the version.
+
+And in hyphen F you provide your values YAML which we are talking about right.
+
+So this is the one values YAML.
+
+This is your custom values dot YAML.
+
+And you will provide hyphen hyphen dry run and hyphen hyphen debug and pipe it with less.
+
+So this is the complete command we need to run.
+
+So let's come back here and we'll say clear.
+
+We'll take like this.
+
+Right.
+
+And then clear.
+
+And we will run this command and let's see what happens.
+
+So there is some problem.
+
+Quit.
+
+I will try to run that command again now.
+
+Okay.
+
+This is the command.
+
+I don't know what is the problem.
+
+We'll go here and go to read me and we'll try to copy it in the right way.
+
+So this is the one and we should be sorry.
+
+What is the wrong we are doing is we didn't pass the values dot YAML.
+
+That is the problem okay.
+
+So we need to go to that location.
+
+So this is 12 helm.
+
+And in that we need to go to 12 helm custom values.
+
+And in that retail store apps is the folder.
+
+And there you have the values dot YAML.
+
+There you need to run this command.
+
+So now let's come back here and copy this entire command and run it.
+
+So now you can see it is running.
+
+And finally it is going to print all the values for us.
+
+Okay.
+
+So you can see it here.
+
+It has printed name is UI.
+
+So it has a dry run.
+
+So means like dry run deployment.
+
+It is showing us okay last deployed so and so namespace status is pending.
+
+Install revision is one.
+
+So these are the user supplied values which are coming from your values dot values UI dot YAML.
+
+So you can see app theme is teal and ingress annotations.
+
+So these are the annotations it is taking.
+
+Class name is Alb enabled.
+
+True.
+
+These are user supplied.
+
+And you have the computed values.
+
+Computed values are coming from your default values dot YAML.
+
+So all these things are from default values dot YAML.
+
+And after the values dot YAML is completed.
+
+So there are some more things it is going to generate for us.
+
+Okay.
+
+So where is that.
+
+You can go down here.
+
+And these are the values dot YAML.
+
+And this is completed.
+
+Now comes what all it is going to generate from the templates.
+
+We talked about templates, right.
+
+So if you go here or if you go here right.
+
+So we talked about templates.
+
+So these are the templates config map template deployment template.
+
+And you have service template service account templates.
+
+So these are going to generate actual YAML files when you run helm install and deploy in Kubernetes
+
+cluster.
+
+So what this command is doing is it is also generating those things for us okay.
+
+So what will be your actual uh pod okay.
+
+So this is a test pod okay.
+
+So it's information and how your helm, uh, means like how will the helm from the template service
+
+account template, it is going to generate a actual service account.
+
+Kubernetes YAML manifest.
+
+So how it is going to generate it is going to show us here.
+
+In the same way it is also generating the config map template in that C retail UI theme.
+
+Teal.
+
+Whatever we have supplied in our values dot values, ui, YAML in our custom file.
+
+So the same thing is added here.
+
+And you can see this is your service dot YAML file.
+
+So it is generating all the Kubernetes YAML manifests on the screen itself to see in a dry run mode.
+
+So what all it is going to deploy.
+
+So all these things you can review and then understand and think that these are the things it is going
+
+to deploy.
+
+So dry run is going to be very very very very important thing.
+
+So these two commands are gold standard for you.
+
+Before deploying itself you can learn what it is going to deploy from values perspective and also from
+
+Kubernetes manifest perspective.
+
+So you can see it also generated a ingress resource here API version.
+
+So and so kind is ingress name is UI.
+
+These are the labels you can put that these are the annotations.
+
+And Inspec ingress class name is Alb and rules HTTP pass in the route path it is sending to UI service.
+
+So everything it has generated for you in detail.
+
+Okay, so that's the greatness of this dry run command with debug option.
+
+And one more important thing you need to remember is when you make any changes to your config, map
+
+or environment variables, write your parts won't automatically restart.
+
+In that case, you need to manually trigger the rollout of your deployment, which we have seen earlier
+
+also.
+
+But I am reiterating that because most of the time we'll go and troubleshoot somewhere else instead
+
+of finding the exact problem.
+
+Finally, for this demo, before we deploy, we also need to ensure that AWS Load Balancer Controller
+
+is installed and installed and configured.
+
+Here we are using instead of Irca.
+
+We are using Pia.
+
+Okay.
+
+And then everything is correctly configured or not.
+
+You need to verify which we have already done right.
+
+So we have installed as part of 11 zero one load balancer controller.
+
+So which means ingress is going to get properly created as part of this 12 zero two demo.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Now let's go ahead and then review our values UI dot YAML on a high level.
+
+So we will go back here to our Visual Studio Code.
+
+And we are in 12 zero two helm custom values.
+
+And in retail store apps folder we have the values dot YAML.
+
+So this values dot YAML.
+
+We have defined the app dot theme as teal.
+
+And in ingress we said enabledtrue and class name alb.
+
+Right.
+
+So if you go here and run the command here right kubectl get ingress class name or ingress class, we
+
+need to say not class name ingress class.
+
+It will show the name of the ingress class as alb alb.
+
+We enabled ingress and in annotations we have provided internet facing and we are using the target type
+
+IP mode.
+
+So if you remember we have learned about instance mode and IP mode in detail when we are learning about
+
+Kubernetes ingress in 1102.
+
+So there we have discussed about IP mode and instance mode.
+
+So IP mode is nothing but from load balancer directly the request goes to the pod IP.
+
+So we are using the IP mode here.
+
+And this is our health check path we are using.
+
+The UI is a spring boot application.
+
+So we will have the spring boot actuator in our respective application.
+
+So where it is used to do the health check.
+
+So this is the health check path right.
+
+And actuator health liveness is the health check path.
+
+Now what we will do is this is the thing.
+
+And if you want you can also go and then open your default values YAML.
+
+And then also see okay this is the one we have defined app dot theme.
+
+And then default.
+
+That is one thing.
+
+And if you go top here right.
+
+So you should find somewhere ingress okay.
+
+This is the one ingress enabled.
+
+True.
+
+And here we also enabled annotations.
+
+So that's what we have done.
+
+We are using a basic ingress service here.
+
+And we also need to verify something which is uh if you want you can go to this chart and go to templates.
+
+Right.
+
+And in templates right.
+
+So you can go to ingress and then even verify the template if you want.
+
+Okay.
+
+But that's it's standard ingress template written in go templating language.
+
+Uh so everything you can see it in detail here.
+
+All the information about it okay.
+
+But key thing is we are trying to use something using values.
+
+And our focus is on custom values here.
+
+So we'll focus on implementing this use case first okay.
+
+So now let's come back here and go here.
+
+And this is about custom value file.
+
+And if you want to add any other values if you want to override from the defaults you can also do that.
+
+In our case our requirement is simple.
+
+We want our application to be in teal color and we also don't want to use kubectl port forward to access
+
+our application.
+
+We need a load balancer for it, and for that purpose we already installed in section 11 AWS Load Balancer
+
+controller.
+
+So I want ingress to be created.
+
+Ingress load balancer to be created.
+
+So those two things we are enabling using this thing okay.
+
+Now before going and then installing this helm chart okay.
+
+Retail UI helm chart with custom values UI dot YAML.
+
+I just want to ensure that our load balancer controller is running okay.
+
+So kubectl get deploy hyphen and kube system and name of it is AWS load balancer controller.
+
+So it is running not an issue.
+
+And if you want you can also verify the load balancer controller ports.
+
+Here they are also running.
+
+And if we want we can also verify the ingress class.
+
+And we have the Alb which is present.
+
+Now we need to go inside.
+
+1202 helm custom values and inside that retail store app.
+
+So we are in that location or not.
+
+We need to verify we are in 12 zero two and in retail store apps.
+
+Then we are going to run the command helm install release name is UI and this is the chart.
+
+And this is the version 1.3.0.
+
+And here we have the custom values file values ui dot YAML.
+
+So that one we are going to use and then install it.
+
+Before that I am verifying if any releases with UI name is present.
+
+It is not there.
+
+Now I am going to install it.
+
+So let's wait for this helm release to get created.
+
+So once it is created, we are going to verify these things so we can see our release got deployed.
+
+And if you want you can say helm history UI.
+
+And you can see that our release one is deployed now which is using 1.3.0 as the template.
+
+And you can also say helm list command, right?
+
+You can also run the command helm list and it will show our UI as our release name and version is one.
+
+And it is using the 1.3.0 chart.
+
+And next is helm status is one more command.
+
+So and you also need to provide the release name.
+
+So till here it will show that respect to your UI releases.
+
+Status means like when it is deployed and then in which namespace it is deployed and then status of
+
+that and all that information and which revision we are using.
+
+But this is not the command we need to learn.
+
+The very important command is hyphen.
+
+Hyphen show resources.
+
+So that's the important thing.
+
+Hyphen hyphen show resources.
+
+So what it shows that's the key thing to remember here.
+
+So let it print the values.
+
+Then we will understand okay.
+
+So when you say hyphen hyphen show resources In addition to this part, whatever we have shown when
+
+we have run the helm status UI right, it has shown actually what resources helm has deployed, what
+
+Kubernetes resources.
+
+So it has created a service.
+
+It has created a deployment.
+
+It has created a pod.
+
+It has created a ingress.
+
+It has created a service account.
+
+It has created a config map.
+
+So as part of this helm release what all Kubernetes resources got created.
+
+How you are going to know the gold standard command here is helm status UI hyphen show resources.
+
+So please remember this.
+
+This is the gold standard command in helm.
+
+So what all resources it has deployed as part of this release.
+
+And all those will be listed directly when you run it independently.
+
+Running them is different.
+
+So if you say kubectl get pods it will show all pods created in this respective namespace not specific
+
+to this helm UI release.
+
+Right.
+
+So that's the important thing.
+
+So that's the reason hyphen.
+
+Hyphen show resources is a gold standard flag for helm status UI command.
+
+Now you have we will go ahead and run the command here.
+
+We newly added only ingress right pod is anywhere running right.
+
+So pod is running.
+
+So we'll say kubectl get ingress right.
+
+And I am not going through other commands which we have already gone through which is get values UI
+
+all get manifest.
+
+All those things we know already which we have implemented as part of helm basic section.
+
+So I'm not going to all those things, but we are focusing on importantly uh kubectl get ingress.
+
+And if you see this is the ingress URL okay.
+
+Means like the DNS name.
+
+So we can go back here.
+
+And where is that.
+
+This is the one.
+
+And then you can go to EC2 and in the load balancer section right when you refresh target groups.
+
+And here in the load balancer section, load balancer got created just now.
+
+And its DNS name, you can find it here.
+
+29525784.
+
+This is the 129525784.
+
+It's the same thing.
+
+And in the target group you can see that you have directly the pod IP.
+
+So how to verify that kubectl get pods hyphen o wide.
+
+And for our UI pod you have ten zero 111 113.
+
+You can see ten zero 11 113.
+
+This is because you are using the IP mode here.
+
+Target type as IP mode for this ingress load balancer.
+
+So now let's come back here to our terminal.
+
+And this is the DNS.
+
+You can say cube CTL.
+
+Get ingress and get ingress.
+
+And get your DNS name of your load balancer and access it in browser and then verify.
+
+So this is the browser.
+
+And our application should be accessible in teal color.
+
+Okay.
+
+See in teal color it is accessible.
+
+So we have successfully tested the custom values here.
+
+So values ui dot YAML.
+
+Custom values we have successfully tested.
+
+Okay.
+
+So now we can go ahead and then clean up whatever we have implemented.
+
+So helm list will provide the release information.
+
+Which release name is UI.
+
+So I will say helm uninstall and then UI.
+
+So whatever we have created it is going to clean up.
+
+So in this lesson we learned how helm merges values, why precedence matters, and how to deploy an
+
+app with custom values YAML file and also create a Alb ingress load balancer as part of that process.
+
+In the next video, we will continue to learn more helm concepts.
+
+Until then, bye bye.
+
+Thank you.
+
+
+All right.
+
+So far we have installed charts from OCI registries.
+
+But have you ever wondered what actually inside a helm chart?
+
+So where do all these Kubernetes yamls come from and how does values.ml magically control everything?
+
+So here as part of 12 zero three section, we are going to explore the helm chart in detail.
+
+So our goal here is simple.
+
+By the end of this demo you will read a helm chart like a source code, not like a black box.
+
+So we are going to pull the OCI chart from the OCI registry, which is retail store UI chart, and explore
+
+its structure and how values dot YAML maps into templates, which is nothing but our Kubernetes resource
+
+templates.
+
+And we are also going to run a linting and templating locally without touching the EKS cluster.
+
+As a first thing, we'll go ahead and pull and unpack the chart first.
+
+Okay.
+
+So we will go back to our terminal here.
+
+And we are in section 12.
+
+And inside that we are going to enter into the section 12 zero three.
+
+And we'll create a simple charts folder if not present.
+
+And in the charts folder we will go ahead and then pull our retail store sample UI chart for pulling
+
+the chart.
+
+The command here is Helm pull, and we need to provide the OCI repository path for that respective chart
+
+and in which version you want to pull the means, like which version of helm chart you want to pull
+
+it.
+
+And also you are going to untar it as soon as you pull it.
+
+So that's the command we are going to use.
+
+So currently in the charts folder Nothing is there.
+
+So when you run the command helpful for that retail sample UI chart, it will be downloaded.
+
+And then it will also untar that chart.
+
+So if you go inside this retail store sample UI chart.
+
+So there are a lot of folders and things here.
+
+So we are going to explore those things right.
+
+And if you have a if you are using Mac OS or something you can use uh r Linux.
+
+You can use the tree command to see the entire structure.
+
+Okay.
+
+Or you can directly see that structure here how it looks.
+
+Okay.
+
+So I can run this command I mine is a mac OS.
+
+I have installed the tree command.
+
+So I am in charts folder.
+
+And this is the retail store sample UI chart.
+
+And inside that these are all the files present.
+
+So whatever the with helpful with helpful whatever the chart we have downloaded its entire structure.
+
+We are printing it to see it has 16 files and then four directories.
+
+So now we will go back here.
+
+Right.
+
+So we'll go back here.
+
+So the same thing I have copied here so that we'll discuss one after the other.
+
+So what does this hyphen hyphen untar does.
+
+Is it automatically extracted the tar dot.
+
+TXT file means like the chart will be downloaded in a dot.
+
+TXT file.
+
+Okay.
+
+And that's what immediately when it has downloaded it also untarred that for us into retail store sample
+
+chart folder name.
+
+So that's what happened.
+
+Now we are going to for convenience purpose instead of having this big name is difficult right?
+
+When we are executing lot of commands in this demo, we are going to locally run this chart and then
+
+also verify.
+
+So we will rename this to UI as a simple chart name.
+
+Okay.
+
+So now if you see here this is the UI chart okay.
+
+So if you want you can run this true and see under UI folder All these files are present.
+
+Okay, now let's go back to our here and then start discussing all the things here.
+
+Now in this UI folder we have these many files and we are going to focus on first the chart dot YAML.
+
+So it's the metadata file for chart.
+
+It defines the name version app version description and dependencies if any.
+
+So this chart dot YAML file is nothing, but it's like a charts package.json or setup dot p y, which
+
+you define in your Node.js applications.
+
+And then Python application.
+
+So it's equivalent.
+
+So you can compare that way.
+
+Okay.
+
+So if you go back to our Visual Studio Code and if we go to this charts folder and inside that this
+
+is the chart dot YAML.
+
+So you can see it here it is API version and description of this chart and name of this chart.
+
+Retail store Sample UI chart and type is application and version is 1.3.0.
+
+So the entire metadata information you store inside this chart.
+
+Okay.
+
+So we'll go back here.
+
+Yeah.
+
+And next thing is we have completed chart dot YAML.
+
+So the next thing is we'll go to the values dot.
+
+So this file holds the default configuration values that template use.
+
+And if we want to override them we can use hyphen f with your custom values file.
+
+Okay.
+
+Custom dot YAML or something which we have already seen in our previous demo.
+
+So that is clear for us.
+
+And one more which we need to see.
+
+So if we want we can also see that here.
+
+We'll go here.
+
+And this is the values dot YAML.
+
+So here you can see you have the replica count image information and then service account information,
+
+whether you want to create it or not, and in service if you want to add any annotations.
+
+So if you want to use config map or not, if you want to use app related settings endpoints chart theme,
+
+all these are app related settings which you need to pass to your Spring Boot UI application.
+
+Okay, and if you want to use ingress or not, all those information is present here.
+
+All these are default values for UI.
+
+Okay.
+
+And now we will go back here and talk about helm ignore okay.
+
+So this is another file which we need to discuss.
+
+Helm ignore.
+
+So we'll go back here and open the helm ignore file okay.
+
+So we have it here.
+
+So this is the helm ignore file.
+
+So just like dot git ignore it.
+
+Lists files or folders.
+
+Helm should skip when packaging a chart okay.
+
+So in our next lecture or in our next demo we ate at 12 zero four.
+
+We are going to work on packaging and publishing so you can see package and publish.
+
+12 zero four so there you are going to understand about pack what is what exactly is packaging.
+
+But key important thing here is during the packaging you don't want all these files to be with your
+
+package means like whatever the helm chart zip file you are creating, right?
+
+With that, all these things are not needed.
+
+So for that purpose you can define all those things in dot helm, ignore file so that those things will
+
+not be included as part your helm chart package.
+
+So just now we have downloaded that helm chart package from the registry.
+
+And in the same way we can also package it and push it to the registry.
+
+Right?
+
+So when that package is getting created, these files should not be present.
+
+So that's the that's the use of helm ignore Okay.
+
+And the next thing is we will move to the templates folder.
+
+So this is another important thing.
+
+So in templates folder you have something called deployment dot file.
+
+So this is the file deployment dot.
+
+So now let's go back here and open the deployment dot YAML file in templates.
+
+Right.
+
+So it defines the parts replica set standard deployment dot file.
+
+But in this what you need to verify is some important things.
+
+So we'll go to the image part.
+
+Where is the image.
+
+See in image you can see dot values dot image dot repository colon dot values, dot image dot tag or
+
+default dot version.
+
+So these two things is the thing it is saying.
+
+So let's understand this first.
+
+Okay.
+
+So we will go here right.
+
+And we'll copy this and we'll go here to the values dot YAML file.
+
+So this is the values dot YAML file.
+
+I'll just try to paste it here for understanding it okay.
+
+Right.
+
+So this is the image file in our deployment dot YAML template.
+
+And it is saying that from the values file at image folder.
+
+So from the values file values dot image dot repository.
+
+So get the repository information.
+
+So in our deployment dot YAML this part will be coming from image dot repository from values file okay
+
+values dot YAML file.
+
+So now this part is clear okay.
+
+So image.
+
+So how the templating is working and how it is filling the data from values dot YAML.
+
+We are trying to understand.
+
+So this comes from image dot repository.
+
+And after that you can see the colon.
+
+And you also need to provide the tag right.
+
+So in my default values, YAML tag is empty.
+
+Right.
+
+So if you if you define the tag here example 1.2.4, then automatically it will take that dot values
+
+dot image dot tag right.
+
+If that is not present means like.
+
+If that is not present, default is to take the chart dot version.
+
+Okay.
+
+So now if you go to this chart dot YAML right.
+
+So you have the version information here.
+
+So this is 1.3.0.
+
+So that's it is going to take by default.
+
+So now if you go back to values dot chart dot version is 1.3.0.
+
+So it is going to be colon 1.3.0.
+
+So this is the thing which will get replaced.
+
+Means like so now let me remove this here.
+
+This is just I'm trying to show you.
+
+So if you go here where is it in the deployment dot YAML.
+
+When it generates it from this template it will generate the Kubernetes YAML file, right?
+
+So when it generates that Kubernetes YAML file in that YAML file.
+
+So it is going to have this value generated.
+
+So that's the templating means like you define a template.
+
+And in template you will define from which files the value should come.
+
+So this is values dot image dot repository and values dot image dot tag.
+
+Those information you will be getting from your values dot YAML.
+
+Or if you override it with values hyphen YAML or something.
+
+And if you define this image dot repository and image dot tag in other values files from there.
+
+Also, it can get the information, but this is the way it is going to load them.
+
+So that's the thing okay.
+
+So you understood right how templating is working.
+
+So this is a go programming language.
+
+So whoever knows go right go programming language.
+
+That will be easy for them to understand.
+
+But for us we need to understand.
+
+That is very simple here okay.
+
+That is dot values.
+
+Dot image dot Image repository means from values file you have the image dot values means values file.
+
+And in that image and under that repository image dot tag.
+
+So like that we can reference them.
+
+Okay.
+
+So that's about it.
+
+And in addition to that if you go and then see the name here okay.
+
+So you can see the name of this deployment, it is saying UI dot full name.
+
+So let's see what exactly that means.
+
+Right.
+
+So there will be one more file here okay.
+
+So which is uh where is it.
+
+It should be somewhere here.
+
+So this is the file we are talking about which is helpers dot which is a helper template functions.
+
+It contains the helper template functions.
+
+So example like naming conventions.
+
+And everything can be defined inside this.
+
+So if you go to that helpers dot TPL right.
+
+So if here is this is the one okay.
+
+So here you write the functions here okay.
+
+And here this is the you define it and default is UI values dot name override.
+
+And you can define them and then implement it.
+
+So this is for UI dot name and create a default fully qualified app name.
+
+So this is one more function.
+
+So you said UI dot full name here.
+
+So this is the UI dot full name which means you are calling this function in deployment YAML to provide
+
+the name of your deployment.
+
+So in templating every thing whatever you see here.
+
+Right.
+
+So everything is a means like for whatever the things you want to templatize and get the information
+
+from either dot values, dot from values, dot YAML or from helper functions, you can get it.
+
+So you have you have the helper function here.
+
+And this function will create a name for you for your deployment.
+
+So you can understand.
+
+You can explore it in detail if you want, but those are the things the templates will have.
+
+All templates will be parameterized and that parameterized information you can get from your values
+
+dot YAML file or custom dot YAML files.
+
+And in addition to that from your helper functions helpers dot tpl file.
+
+So that's the important thing to remember.
+
+So we are not going to save it.
+
+We are not going to save it.
+
+Any changes did we do here.
+
+So just try to see nothing.
+
+And if we go to image tag also I'll try to see that nothing is present.
+
+So in the same line you have the configmap dot YAML.
+
+So you will find the template for that one.
+
+So you can go here and go for Configmap.
+
+You will have the template in the same line means like whatever, whatever you see for all these files
+
+dot, YAML, ingress, Istio and PDB service service account for all these things.
+
+You are going to have the templates defined.
+
+Okay.
+
+And in addition to that you have something called which is important one here which is notes dot txt.
+
+So these are messages helm prints after installation.
+
+So once you install a release right.
+
+That friendly message whatever you have that is coming from the notes dot txt.
+
+So you can see the notes dot txt here.
+
+So here you have get the application URL by running these commands and all those things okay.
+
+So here also again you are using the go templating language.
+
+And then you will use all the information related to what what would be my ingress URL and our node
+
+port service information or cluster IP service information.
+
+How to access your application.
+
+All that you can define here okay.
+
+And then if you are using a load balancer, what should be my load balancer endpoint.
+
+Or if you are using the ingress then ingress DNS name.
+
+So you can define them here so that as soon as the deployment happens for the respective person who
+
+has deployed additional information about how to access that application.
+
+Whatever you have deployed, you can define in this notes.txt.
+
+So that immediately after the deployment or immediately after that helm chart install, you can see
+
+them in detail.
+
+So that's about notes dot txt.
+
+So that said we have covered more or less everything here.
+
+Only thing pending is uh tests and this one is nothing.
+
+But after you install the helm chart, if you want to test it using helm test command, you can test
+
+whether your application is successfully deployed or not.
+
+And inside this test, YAML, you can define those steps in detail.
+
+So if you go back here and you can see the in tests you have the tests connection dot YAML.
+
+And here you have defined a simple pod.
+
+And in that pod you said that you are you are searching for you means like you are accessing.
+
+You are doing a w get on your application health and if it is successful then which means like it is
+
+a success for you.
+
+So that like that you can define your tests here.
+
+So not only for your web application, your application validation information can be defined in this
+
+test connection dot YAML file.
+
+Not only one part.
+
+What all you want to define, you can define and then test it.
+
+You can run the command helm test to do that.
+
+And we have a specific step in our demo in this demo.
+
+So where we are also going to do that and we are going to understand in detail at that point of time
+
+means like we can execute and then also verify.
+
+So all in all you understood the entire structure of your helm chart, right.
+
+So that's about helm chart.
+
+It is.
+
+It looks complex but it is simple.
+
+You Fine templates.
+
+Most of the things are already available, right?
+
+And for this template, whatever you define like deployment or anything, you get the values from either
+
+helper functions.
+
+That is one and second is from your values dot YAML.
+
+That is.
+
+Second, that's all.
+
+That's the key important thing to remember.
+
+So for any and what what is that you are defining as a template any K8S resource you are defining as
+
+a template like deployment or service or ingress or configmap or service account or whatever you want.
+
+Okay.
+
+So HPA anything okay.
+
+So everything you can define as a template that's that is helm chart.
+
+That's all.
+
+Nothing more than that.
+
+Okay.
+
+I'll see you in the next lecture.
+
+Until then.
+
+Bye bye.
+
+Thank you.
+
+
+Let's now explore the chart default values directly from the registry.
+
+So when we are learning about Helm Values section, which is in our previous 1202, we already learned
+
+about this helm show values command.
+
+So why use helm show values when we already have the values dot YAML with us.
+
+So we already have the values dot YAML.
+
+We downloaded the chart and then we can review it in detail.
+
+Then why use helm show values.
+
+So because sometimes you just want to peek without pulling the whole chart from the registry.
+
+It's like reading documentation before downloading the source.
+
+In that case, we can verify the values using helm show values.
+
+And in addition to that, you can also view the chart information using Helm Show Chart Command.
+
+And if you want, you can also get the complete Helm show readme readme file.
+
+Also, for every chart there will be a readme file.
+
+So even for this chart also if you have seen here.
+
+So there is a readme.md file so you can see it here readme.md.
+
+And if you go back here also, you will have the information in that readme file for this chart.
+
+So let me minimize the templates and this is the complete information of this chart.
+
+How to install it and what are the information about this chart.
+
+So replica account image repository everything.
+
+You can see it here.
+
+So if you want to read those things directly without downloading the chart you can use this helm show
+
+command where values chart and readme.
+
+These will be very helpful okay.
+
+And now the next thing is lint and render locally okay.
+
+So what exactly this means.
+
+This is a very important developer trick okay.
+
+So testing charts without touching the cluster means like you really don't want to deploy your chart
+
+in the cluster Kubernetes cluster.
+
+But if you want to test it in that in that situation.
+
+Lint and render these two things will help us.
+
+Rendering means like you will use the helm template command to do that.
+
+So what does this lint do?
+
+Actually it validates syntax and ensures required values are present.
+
+Something like if you if you already learn Terraform in Terraform section right.
+
+You said Terraform validate command to check the syntax.
+
+In the same way, helm lint is nothing but validating your chart.
+
+Okay using helm lint command.
+
+So now if you go back to our terminal here and we are in charts folder and you have the UI inside,
+
+this entire thing is there.
+
+So we'll say entire chart is there.
+
+So we'll say helm lint and then UI.
+
+So linting UI and it is saying one chart lint zero charts failed.
+
+So there is no issue with it okay.
+
+So it validates the syntax and ensures required values are present.
+
+So now what does helm template do.
+
+So we also have something called helm template.
+
+And this is the release name.
+
+And this is the chart path where it is present okay.
+
+So now this helm template command right.
+
+It renders all helm templates into a plain Kubernetes YAML locally the same YAML that would be applied
+
+to your cluster.
+
+So in simple terms you have the template files here.
+
+So these files will be means like these files will be generated with actual values, what it need to
+
+be generated.
+
+And before applying to the cluster how it need to look right means like whatever you are going to submit
+
+to the cluster, same things will be generated and shown for you on the terminal itself.
+
+So that's the important thing.
+
+And in addition to that, when you use hyphen hyphen debug to see.
+
+So it also adds additional values merged values and rendered outputs with context, it is going to show
+
+which means this is a gold standard command.
+
+So this helm template UI is just a release name.
+
+Some name you need to give there and any name you can give here okay.
+
+Right.
+
+And this is the path okay.
+
+It means like where you are.
+
+Thing is present.
+
+So here you have the UI folder.
+
+So that is dot slash UI and hyphen f.
+
+And you can provide your custom values okay.
+
+And you can also provide debug and all the output.
+
+You can slowly review it one after the other when you use the less command okay.
+
+Now if you want you can run that.
+
+If you go back here in the retail apps folder you have the same values dot UI values, UI, dot YAML
+
+file which we have seen earlier.
+
+So first let me put this to something like till or something okay.
+
+Right.
+
+And now in charts folder in UI folder you have all these things.
+
+Now you are going to run the helm template in charts folder for UI template and values ui dot YAML you
+
+are going to take into consideration.
+
+Okay, so now let's run this command here okay.
+
+And see it first generated the service account right.
+
+How it is going to generate that service account from the service account template present here in the
+
+templates you have a service account template with all this go programming language UI dot service,
+
+account name UI dot labels and all these things.
+
+So it generated a exact Kubernetes YAML manifest for us in the same way it has generated.
+
+You have said in your values UI, ML, right.
+
+So the same thing it has generated with config map.
+
+So if you want you can quit here.
+
+And I'll try to put it as green here in values ui dot YAML.
+
+I'm trying to change this to green okay.
+
+And then run the same command again.
+
+So now if you see retail UI theme it is green right.
+
+So it is replacing all the values and generating the Kubernetes YAML manifest, which we are going to
+
+submit to the EKS cluster.
+
+So this is a very advantageous command for developers.
+
+So before going and then deploying and then testing in clusters, you can directly generate all the
+
+YAML files and then verify them in detail what they are doing.
+
+Okay.
+
+So that's an important thing okay.
+
+And now next thing here is we are going to go ahead and also install locally this UI chart whatever
+
+we have downloaded and then test it.
+
+So how we are going to do that.
+
+To install the helm chart the command is helm install and the release name we are going to give because
+
+we are anything you can do.
+
+I'm just giving you a local.
+
+Okay.
+
+Right.
+
+And then where the helm chart is present in UI folder and we are in the charts folder in the current
+
+directory UI folder, it is present.
+
+And are we planning to take any custom values as from retail store apps, values, UI, dot YAML?
+
+We are going to take it.
+
+So let's run this command and then see that now.
+
+Okay.
+
+So we are in the charts folder and I will run this command.
+
+And it should install the UI local release for us okay.
+
+So when we run the command helm right.
+
+So it should show us the UI local release is created.
+
+Okay.
+
+And we already learned about one important command here helm status UI local and hyphen.
+
+Hyphen show resources.
+
+In the previous demo itself, we learned a gold standard command.
+
+Okay.
+
+So now let me run this command.
+
+Okay.
+
+What is it?
+
+Not install.
+
+Okay.
+
+Helm status UI local and hyphen.
+
+Show resources.
+
+This is the one.
+
+Right.
+
+So let me run that and it should show us all the resources it is running.
+
+okay.
+
+Kubernetes resources.
+
+It has created a UI, local config, map, UI, local cluster, IP service and UI, local deployment
+
+and UI local Kubernetes pod and it also created a local test connection pod.
+
+This is earlier.
+
+This is not now.
+
+Okay, so one 24 minutes before which I have tested it.
+
+Okay.
+
+Nothing related to you.
+
+And this is your UI local, uh, Alb, which is your ingress service and UI local service account.
+
+So these things, you can see it in detail.
+
+Now, the next thing what we are going to do here is we are going to do a quick value change.
+
+So we are going to change to orange.
+
+Currently we have deployed it with green and we can do a value change.
+
+So first what we can do is we can go here and access this.
+
+If the load balancer is created we can also access our application.
+
+So let me copy this and we'll go here and go to browser and access our application if it is created.
+
+Okay.
+
+So let's go back to load balancers.
+
+And it should be in the provisioning state.
+
+Let's wait for it to get provisioned.
+
+You can see here our load balancer is active.
+
+So let me try to refresh it.
+
+And this is in the green color.
+
+So now what we are going to do is we'll go to our values YAML.
+
+I'll change this to write.
+
+And now I want to do something like I don't want to run the helm upgrade install or something.
+
+Okay.
+
+So just I want to run a templating here.
+
+Okay.
+
+So what does that mean.
+
+So we'll go here and we'll run the helm template command.
+
+Okay.
+
+Which means you are not going to apply the changes in your cluster.
+
+Okay.
+
+You are just going to render the configuration information and see what exactly is the change going
+
+to happen.
+
+So that's what you are going to do.
+
+So you can run this command to see all the configuration files.
+
+What is happening?
+
+See retail UI theme are in something like that.
+
+Or you can directly run the command theme.
+
+And this is the one it is going to take place means like if you really upgrade your release then that
+
+change will happen.
+
+But before applying itself you can review those things using helm template command.
+
+Now we can go ahead and then upgrade that, and then it should switch to orange color when you deploy
+
+it okay.
+
+So let's go ahead and then deploy it.
+
+It is deployed.
+
+And we can go and then verify kubectl get pods.
+
+And your pod might not be restarted.
+
+So this is the one running from four minutes not restarted.
+
+So what we will do is we will go ahead and then restart our pod also so that the changes will take effect.
+
+Okay.
+
+So now let's go back here.
+
+Let's wait for the pod to get up.
+
+And after that we can go to the browser and then access it So we can see it here.
+
+Our pod is running now, so we can go to the browser here and try to refresh.
+
+And it should be in the orange color.
+
+So you can see.
+
+Right.
+
+All the things are in orange color.
+
+All the buttons here.
+
+Now that's about the template command okay.
+
+Now we will go back here and also talk about this helm test.
+
+So some charts include built in tests.
+
+So we have a built in test here.
+
+In our case there is a test file under templates tests and then test connection dot YAML.
+
+So this runs a short lived pod to verify that app is responding properly or not.
+
+So how to test that using helm test command and provide your release name.
+
+So that's the thing okay.
+
+So helm list and my release name is UI hyphen local okay.
+
+So we will say helm test I will say UI local.
+
+And it is currently running now.
+
+so let's wait for it to run so you can see it here.
+
+Name is UI local and in the default namespace for revision two, it tested UI means like UI local test
+
+connection okay and then phase.
+
+It succeeded one more time.
+
+I am trying to run that okay.
+
+And let's see what happens.
+
+So let's wait for it to run.
+
+And it again succeeded.
+
+So if I say kubectl get pods part should be in the completed state okay UI local test connection part
+
+completed state.
+
+And it took means like 11 seconds before it completed.
+
+So it has done the testing thoroughly against our UI, local application, whatever we have deployed,
+
+and then it verified and said that it is succeeded.
+
+So that's about helm test command.
+
+Now we are going to go ahead and then uninstall UI local whatever we have created.
+
+Okay.
+
+So this is very important because when we are dealing with the ingress load balancers right.
+
+So we should be very careful.
+
+As soon as our demo is completed we need to remove them.
+
+It is going to be means like if we leave it like that, we are going to get a surprise for our AWS bill.
+
+So that's the reason we need to uninstall whatever we have installed, mainly when we have ingress in
+
+place and then try to also refresh it and it is gone.
+
+So that's good.
+
+So this completes the demo about Helm Chart Explorer.
+
+So we have learned about all the important files present in helm.
+
+So all these things we have discussed.
+
+And in addition to that we have also discussed about helm template command and then lint command.
+
+And also we have discussed about helm test command in detail.
+
+So I'll see you in the next demo to understand more helm concepts.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Alright.
+
+We have explored, customised and tested helm charts locally in our previous demo.
+
+Now it's time for the real world step packaging and publishing your own helm chart.
+
+So instead of building a helm chart from scratch, we already have this UI helm chart with us.
+
+Okay, so what we are going to do with that is we are going to update some things inside this helm chart,
+
+and then we are going to package and publish that.
+
+So we are going to add a new release info dot YAML file in our templates.
+
+Okay.
+
+So in the templates section right.
+
+So we are going to add a new thing which is release info YAML which is a config map okay.
+
+And once we add that this whole chart okay this whole chart we are going to package it.
+
+So once we package this chart, we are going to create a AWS ECR Private repository, Elastic Container
+
+Registry in Elastic Container Registry and publish it to this repository.
+
+And once we publish it and we have our new UI helm chart here, and we will version the name of it as
+
+some 1.3.1 okay.
+
+And then as a user again we will go ahead and then download this chart 1.3.1 and then install that chart
+
+and access it on browser.
+
+And then access and verify that if it is working or not.
+
+So all these things we are going to do now as part of this demo.
+
+So in our next lecture we'll go ahead and then start updating all the things required for this demo.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Now let's go ahead and then enter into section 12 zero.
+
+So as a prerequisite item we are going to pull our chart into charts folder in this demo also which
+
+is 12 zero four helm chart.
+
+So we'll go here and we will clear this.
+
+And we are we ensure that we are in 12 zero four and in charts folder.
+
+Okay.
+
+So we are in 12 zero four charts folder.
+
+And we will pull the helm chart which is of version 1.3.0.
+
+Okay.
+
+We will pull that version now.
+
+And once it is available we will also rename that to UI folder.
+
+Currently it is Retail store sample UI chart.
+
+We will rename it to UI folder.
+
+And then we will go ahead and then update the chart dot YAML version number okay.
+
+So why do we need to bump the chart version.
+
+Because helm uses the version in chart dot YAML to track releases.
+
+So whenever we make even a small change, like adding a new template, we must increment that number.
+
+So as part of this demo, we are going to make some changes to our UI helm chart.
+
+So for that purpose we are going to increment that number.
+
+So we will go here and increment the number to.
+
+So where is it.
+
+This is the UI and this is the chart dot YAML.
+
+And we'll change the number to 1.3.1.
+
+Now the next thing is we said that we need to go ahead and then add some release info.
+
+So we are going to create a new template file named release info dot YAML.
+
+So in the template section here in the template section we are going to add this release info dot YAML.
+
+So first let me add that okay.
+
+And then we'll also copy this and paste it.
+
+Okay, this is in release info dot YAML.
+
+Now let's go ahead and then discuss what exactly that means.
+
+Okay.
+
+So now we'll go here and let's discuss this in detail.
+
+Right.
+
+So first what we are saying is we are putting everything in a if block.
+
+Okay.
+
+In if block we are saying in dot values if you say.release.info.
+
+This part is true.
+
+Then only create this config map.
+
+And if this pass.
+
+If this part is false, don't create this config map, which means you are relying on some values inside
+
+values dot YAML that is release info dot enabled.
+
+So let's come back here.
+
+That is nothing but this one.
+
+So by default it should be false.
+
+It should not be enabled.
+
+So in your chart values dot I will say this is the release info and by default it is false.
+
+But when I use this custom values values, ui, dot YAML, what I want to do is I should enable that
+
+release info.
+
+So in custom values I am saying it as true.
+
+That is one thing.
+
+Okay, so that part we have completed.
+
+Now let's come back here and let's see what exactly is present inside this.
+
+So in very simple terms only render this config map when the release info dot enabled is true in your
+
+values dot YAML any values hyphen star dot YAML file okay.
+
+So now that way we are putting it as optional file.
+
+Okay.
+
+You can turn it on or you can turn it off based on your requirement.
+
+Now let's go back to this part.
+
+We are using Apiversion v1 and config map.
+
+And here we have something called name of this respective or config map.
+
+Here we are appending it with a release info and this UI dot full name.
+
+We are getting that from our helper template.
+
+We already know our helper file.
+
+Okay, so this is the helper tpl file.
+
+And from here.
+
+So this is the function where you get your name okay.
+
+So and you are prepending that with your appending that with release info as the additional thing.
+
+Okay.
+
+Now this include runs that helper and returns a string.
+
+So this include runs this UI dot full name and gets that information.
+
+And after that it will also append with this release info and in labels.
+
+Also you can see UI dot labels.
+
+Again it's the same thing.
+
+Include runs this UI dot labels from helper function and then get those information.
+
+Okay, now we are also piping it with Nintendo four, which means new line plus indented by four spaces,
+
+so labels line up correctly under label section.
+
+So under this label section they line up correctly.
+
+So helpers keep naming and labels consistent across all tables.
+
+So means like all templates in all the templates this UI labels is going to be common.
+
+Okay now the next part is data part.
+
+This is the important part here.
+
+So when we have something called chart dot name comes from our chart dot YAML file.
+
+Whatever we have defined even the chart version.
+
+So these things also we get from our chart dot YAML file.
+
+So you can get the name and then version.
+
+All these things you get from there.
+
+And app version.
+
+Also you define in chart dot YAML file currently not defined in our chart dot YAML, which means it
+
+is going to be null or empty.
+
+So this is to match your uh means like all these information.
+
+Right.
+
+So this is the release name.
+
+So this you will get when you are doing a helm install right.
+
+You you run helm install and you provide your release name here.
+
+So that name you are going to get here and that release in which namespace it is installed, you are
+
+going to get that using dot release dot namespace.
+
+In the same way you will also get the release which revision it is running.
+
+Also currently you will get that okay.
+
+And then you will also get the release time.
+
+So we said dot chart, dot chart, dot release, dot release.
+
+So what exactly this means.
+
+These are built in objects okay.
+
+In helm chart okay.
+
+So you don't need to specify them means like dot chart or dot release anywhere.
+
+So those are built in objects.
+
+So we have some built in objects like dot chart is one and dot release is one.
+
+And in addition to that we have something called dot values.
+
+And we have Dot capabilities and we also have dot files.
+
+So like this we have built in objects which will be automatically injected when you call those information
+
+dot chart dot name.
+
+You will get your chart information dot release dot name.
+
+You will get your release name.
+
+So all these are from the helm data model okay so built in variables you can call them as built in variables.
+
+Hell helm automatically provides when it renders a chart.
+
+So that's about uh understanding about this respective release info.
+
+And we have already completed the release info part.
+
+So which means like creating a release info dot YAML, understanding it line by line, and also disabling
+
+it in deep by default in UI values dot YAML and enabling it right in our retail store apps values ui
+
+dot YAML.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Now in this step, we are going to go ahead and then implement the end to end workflow.
+
+What exactly that means.
+
+So that means we are going to go ahead and then package our application and then publish it to ECR private
+
+repo, Elastic Container Registry.
+
+But before that we need to create this Elastic Container registry.
+
+And once we completed the packaging and publishing we will also pull that up, pull that new version
+
+of helm chart from here and run it on our local and then test it.
+
+So let's complete this entire workflow now.
+
+So first thing is we need to create a ECR repository.
+
+So for that purpose we need to first set our region and get our account ID and also set our registry
+
+ID means like registry URL.
+
+So here you can see account ID dot dot dot dot region which we have set here.
+
+amazon.com.
+
+So this will be our registry URL.
+
+So let's set these things all at a time.
+
+So now let's come back here and we will set all these things.
+
+And now you can see region is us East one.
+
+This is my account ID and this is registry URL.
+
+Okay.
+
+Now we will log in to our ECR for helm our OCI.
+
+So the command is aws ECR get login password and region is US East one and piped with helm registry
+
+login with user as AWS and password stdin where we provide the registry.
+
+This is a standard command.
+
+Okay, we don't need to worry about it okay.
+
+So let's run that command and our login should be successful earlier when we are implementing our.
+
+previous demos we have when we are downloading the helm pool there, we have run ECR public, that is
+
+for our public repositories.
+
+These are private repositories.
+
+Okay, so now we will come back here and we will create a repository AWS ECR create repository and repository
+
+name is retail store sample UI chart.
+
+And in region US East one.
+
+And we are going to pipe it with true.
+
+And let's create that ECR repository.
+
+Now our repository got created.
+
+If we want we can also go ahead and then verify the same thing.
+
+So we can go to Elastic Container Registry.
+
+And in private registries in repositories when we try to refresh it.
+
+So this is the retail store sample UI chart okay.
+
+You can see it here.
+
+Currently nothing is present okay.
+
+So now we'll come back here and move to the next step, which is we'll go to CD charts and we will run
+
+the command helm package and dot slash UI, right.
+
+So UI in UI folder only, everything is present in our current directory UI is there and dot slash UI.
+
+We are going to say now we will go to this is the charts directory where UI folder is there.
+
+We'll run the command UI and it should create a package here.
+
+Here only it will create with name retail store sample UI chart 1.3.1.3 because in chart dot YAML.
+
+So whatever you have in your chart dot YAML, see your name is retail store sample UI chart.
+
+And this is the version so it created accordingly.
+
+Name hyphen version dot t z.
+
+So this is our helm chart which got created.
+
+And next is we need to push this one okay.
+
+So we need to push this chart t z file.
+
+Right.
+
+Whatever we have created a package that package to our OCI repo and we will just say dollar registry.
+
+We do not need to provide any suffix here.
+
+We can directly say dollar registry because whatever this name, retail store, sample, UI chart,
+
+this name and whatever we have created just now.
+
+Okay, so retail store sample chart both are same.
+
+So just the registry, which means the URL which we have constructed here, that should do the job for
+
+us.
+
+So command is helm push.
+
+And then this is the package which we have in our local desktop here in the charts directory.
+
+And that we are pushing it okay.
+
+So now let me run this command.
+
+And this should push the helm package means like whatever the package created here okay.
+
+So now let's come back here and try to refresh.
+
+And you should see 1.3.1 helm chart.
+
+We can see it here okay.
+
+Now the next thing here is We will go back here.
+
+And if you want, you can also describe the images.
+
+Okay.
+
+Now we didn't build any Docker image with 1.3.1.
+
+This is only a chart version.
+
+Okay.
+
+So if you go back to our uh this one.
+
+So in the values dot YAML, uh image dot tag will be there okay.
+
+So this is empty.
+
+So which means with default values dot YAML.
+
+If you try to deploy it will try to search for 1.3.1.
+
+And then it will fail whatever we have built just now.
+
+Okay.
+
+But what we will do is in values UI dot YAML.
+
+So we will ensure that we we are not changing anything to the application.
+
+We are just changing only the uh, uh, templates inside that.
+
+So for that purpose tag we will use 1.3.0 where we have the Docker image actually.
+
+So this is the retail store sample UI docker image.
+
+So we have the 1.3.0.
+
+So we didn't build any Docker image.
+
+We just packaged the helm and then pushed it.
+
+That's all.
+
+Okay so we didn't build any Docker image we are using.
+
+Still the 1.3.0 ideally.
+
+Ideally here in this helm chart they forgot something like chart YAML.
+
+And they need to use something called app version.
+
+And they should provide 1.3.1 or whatever it is 1.3.0.
+
+So they need to maintain a separate thing for images okay.
+
+For Docker images a tag is different and for helm chart you this is for Docker images and this is for
+
+helm chart versions.
+
+Ideally this is the best way of doing it, but they combined it here in our retail store application
+
+which AWS team.
+
+So for that purpose uh, we are using uh, we are using Docker image as 1.3.0, but the chart version
+
+as 1.3.1 okay.
+
+So it looks complex, but nothing complex here.
+
+Simple in values dot YAML.
+
+If you in your values dot YAML, if you try to put this as empty, it will search for 1.3.1 and if the
+
+tag is not available, it will fail.
+
+So that for that purpose we are explicitly defining our tag here.
+
+That's all.
+
+Okay.
+
+So now let's come back here and then install.
+
+Okay so version we are going to say helm install retail UI is my release name.
+
+And OCI.
+
+And this is the registry and registry.
+
+This is the chart path.
+
+And this is the version 1.3.1.
+
+And I am going to use my custom values dot YAML.
+
+So this is what I am going to do right.
+
+So I am trying to install it from chart directory itself okay.
+
+So that's the reason I said dot dot slash retail UI.
+
+That one or what you can do is we can come out of this and we can go to retail apps here.
+
+and then you can directly run this command by just changing it.
+
+Okay.
+
+So we can go here and just I will edit this and I will just say values dot YAML.
+
+Anything is fine okay.
+
+So I will try to x and we can run it.
+
+If you are in retail store apps you can run directly this way.
+
+Values UI dot YAML.
+
+If you are in chart directory, you are coming out of that and going inside retail apps and then installing
+
+it.
+
+So this is the retail UI release which you have installed just now.
+
+So let's go here and then uh, go ahead and then discuss about that image tag which we have already
+
+discussed.
+
+Okay.
+
+This whole thing we have already discussed, we have provided 1.3.0.
+
+Now we will go ahead and then verify that we'll run the command helm list.
+
+And you can see that retail UI is created.
+
+and if you want, you can say helm status, retail UI and hyphen.
+
+Hyphen show resources.
+
+So this is a very important command what all things it has created.
+
+We can see them here.
+
+What all Kubernetes resources okay.
+
+Now you can see it created a type cluster IP.
+
+And then it created retail UI deployment retail UI pod.
+
+And this is the ingress service.
+
+And then this is your service account and this is your retail UI Configmap.
+
+And this is one more which is your retail UI release info is another Configmap it created.
+
+Okay.
+
+So this is the name.
+
+So you can say kubectl get cm and you can find that retail UI release info.
+
+Let me copy that and kubectl get cm and release info and hyphen o and then YAML.
+
+So you can review that what is present inside that.
+
+Right.
+
+So here in the data section app version we didn't include, so it didn't come right.
+
+Chart name is this one and chart version is this one.
+
+Release name is retail UI where it deployed in default and release version is one and at what time it
+
+has deployed everything, all the data, whatever you have specified in your template here.
+
+Right.
+
+So where is it release info template.
+
+So this all data got populated successfully.
+
+So which means we have learned to create a template right in our helm chart and used the template.
+
+Uh means like you have also altered your chart version and packaged that chart and published it to the
+
+AWS ECR repository.
+
+And immediately after that you have also pulled that chart and you have run it and then verified.
+
+So now we can go ahead and then clean up whatever we have Implemented.
+
+So now we will say helm uninstall retail UI right.
+
+And this should uninstall the retail UI release.
+
+And if you want to again like means like I didn't access the application and test it but it is going
+
+to work.
+
+Okay.
+
+So there is no issue in not working.
+
+We just added additional template there.
+
+Other than that, we didn't touch any core logic of our deployment config map or anything related to
+
+UI application.
+
+Okay.
+
+But let's go ahead and then test it okay.
+
+What's wrong.
+
+Okay.
+
+So we'll try to install it again.
+
+And then once the pod is ready and load balancer is ready we'll also test it before cleaning it up.
+
+So we have deployed it again.
+
+And we'll go back here and we'll go to EC2.
+
+And we'll go to Load Balancers and try to refresh it.
+
+Once the load balancer is provisioned and it changes to active state will go ahead and then access it.
+
+We'll also say cube CTL get ingress or we can say helm status detail UI and then hyphen hyphen show
+
+resources.
+
+And then there also you will find the ingress address right.
+
+So you will get that ingress.
+
+Where is that.
+
+This is the ingress.
+
+Okay.
+
+So this is the address.
+
+We need to access it in browser.
+
+So we will put it here and access it.
+
+Still it is getting created.
+
+So once it changes to active state we will go ahead and then access it.
+
+So let me refresh this once and it is still in the provisioning.
+
+We can see it here.
+
+It is active.
+
+Now let me refresh it.
+
+And our application should be accessible.
+
+Now we'll go back and then uninstall that okay.
+
+So uninstall retail UI.
+
+It worked as expected even after adding our release info.
+
+Kubernetes helm template.
+
+Okay, now we have uninstalled it.
+
+We also need to remove our ECR repository.
+
+Whatever we have created that is going to cost us.
+
+So we need to definitely remove it.
+
+We'll go ahead and then first verify our load balancer deleted just to ensure that we are not getting
+
+a build.
+
+And this is gone.
+
+And next is ECR repository.
+
+So we'll go to repositories.
+
+So this should be gone now when we refresh okay.
+
+And it's gone.
+
+So that means we are good.
+
+So in our next demo we will focus on complete helm implementation for our retail store sample application.
+
+So which means not for UI but we will bring in catalog checkout orders and everything okay.
+
+So all those things we are going to bring into the mix.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you.
+
+

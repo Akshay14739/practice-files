@@ -1,0 +1,677 @@
+Welcome back.
+
+This is a prerequisite note about 0902X pod identity agent.
+
+So this whatever the demo we are going to see here in X pod identity agent demo.
+
+So it's the same we have done in our AWS EKS Kubernetes master class, also in a very, uh, very recently.
+
+Okay.
+
+So we are going to reuse the same videos here.
+
+So zero if you see any of in any of the videos, if you see the references like 0400X pod, identity
+
+agent, are anything referencing from the other course?
+
+It's nothing, but it's both the same.
+
+In simple terms.
+
+We are trying to learn the Pia concept here.
+
+Other than that, nothing.
+
+Okay, so either it is a cluster created using this course or this course, it is going to be the core
+
+concept is going to be same from Pia perspective.
+
+So this is an additional demo in even in our DevOps course which is unrelated to the core catalog application
+
+or even the retail store application.
+
+But to get the complete grip on Pia concept.
+
+I have put this demo here and moreover, if you see in AWS Secrets Manager for Kubernetes Secrets,
+
+which means here also we will use the secret CSI controller.
+
+And for that we use the Pia concept in the same line.
+
+If you go down here.
+
+Right.
+
+So in Kubernetes storage we are going to install the EBS CSI persistent Disk controller okay.
+
+So and here also we are going to use the same concept which is nothing.
+
+But again we are going to use the Pia concept pod identity agent concept.
+
+And in addition to that if you go to Kubernetes Ingress also here we are going to install the load balancer
+
+controller.
+
+And here also we are going to use the Pia concept which is pod identity agent.
+
+So that said right.
+
+So this Pia concept is very important.
+
+So I have given a dedicated demo.
+
+So there you will not see any sample application retail store sample application there inside that.
+
+But we are going to see a simple AWS iPod and simple AWS, S3, RLS commands and how to implement this
+
+Pia concept, how to install this Pia add on and how to create the IAM roles, and how to also create
+
+the Pod identity association in EKS cluster.
+
+So all those things.
+
+Right.
+
+So all those things we are going to practically implement.
+
+So it is a very very important concept in Kubernetes in EKS cluster, primarily from AWS perspective
+
+when IAM is in picture from AWS.
+
+Okay.
+
+So for that purpose we have a dedicated demo.
+
+So please complete this demo because all the concepts whatever we talk about secrets store CSI driver
+
+or EBS, CSI driver or AWS Load Balancer controller.
+
+So all these things primarily will go ahead and then integrate with this concept only.
+
+So that's about this demo.
+
+So let's go ahead and then understand this concept of what is Pia and everything in our next lecture.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+In this lecture we are going to learn about how exports access AWS services.
+
+So we have a ECS cluster here.
+
+And then we are running a simple app one pod in this ECS cluster.
+
+And our question here is how this app, one pod running in ECS cluster will be able to access these
+
+AWS services.
+
+So we have various AWS services available.
+
+And we want to access those services like AWS S3 bucket or AWS DynamoDB or AWS SQS.
+
+So based on our application use case, we might need something like a queuing system or a messaging
+
+system wherein you want to use SQS or if you are using a database, right.
+
+So like uh, NoSQL database for your application and you want to use DynamoDB, or you want to integrate
+
+your application with S3 bucket for some use case, and then how we are going to do that.
+
+Right.
+
+So there comes a new concept in AWS called p I a which is called pod identity agent.
+
+So we will implement this pod identity concept as part of this demo.
+
+So let's understand that in detail now.
+
+So here if you see there are various components available and numbering also have provided.
+
+So to achieve this X pod identity concept we need to go step by step.
+
+The first thing here is you need to create a aws IAM role.
+
+So in this x pod identity demo what we are doing is we are going to have a simple AWS CLI pod deployed
+
+on our EKS cluster, and we are going to test access from the CLI part to this AWS S3.
+
+We are going to just say AWS S3 list, trying to list the buckets and it will fail by default.
+
+When you do that it is going to fail.
+
+Then we will follow the concept which is related to eks pod identity.
+
+So there what we are going to do is first we are going to create a IAM role and that Im role is going
+
+to have permissions, S3 read only access.
+
+So that is number one thing.
+
+And in the EKS cluster we are also going to install the EKS pod identity agent.
+
+So which is a daemonset which means this pod identity agent will be running on each and every node present
+
+in the EKS cluster.
+
+So we are going to install this.
+
+And this is available as a add on in our EKS cluster.
+
+So we can just go to add ons and install the EKS pod identity agent.
+
+Then we will also create a service account for our CLI pod.
+
+So once one, two and then three are completed, then we will create a pod identity association EKS
+
+pod identity association.
+
+So for this EKS pod identity association we need three things.
+
+One is IAM role and second is service account and third is in which namespace you are respective workload
+
+is running.
+
+So my aws cli pod is running in default namespace and it already we have created a service account and
+
+we have also created a IAM role with S3 read only access.
+
+So using these three things we are going to create a EKS pod identity association.
+
+So once we create this pod identity association right then we will go ahead and then test from the CLI
+
+pod.
+
+It is going to fail.
+
+We just need to restart this.
+
+So we need to restart the pod so that the changes whatever we have implemented related to this ECS pod
+
+identity association, all these things will take effect for this respective part.
+
+And then when you access when you run the command AWS, S3 and then list, you will be able to access
+
+all the S3 buckets means you can you can list all the S3 buckets from the CLI pod running in EKS cluster.
+
+So the same concept applies to any of the AWS service which you want to access from ECS cluster.
+
+So example like DynamoDB, if you want to access it, you can use this option.
+
+Okay.
+
+Or if you want to access or if you want to create some EBS volumes.
+
+Okay.
+
+So after this demo our next demo is EBS volumes only.
+
+So here ebs cli controller a CSI controller will be running here.
+
+And for this we are going to give access to EBS service using AWS IAM and create its export identity
+
+agent.
+
+So we'll discuss that when we go to that respective demo.
+
+But let's go ahead and then practically implement this demo.
+
+So we get a complete and hands on on what we are going to do if we want to use ECS pod identity concept
+
+for accessing the AWS services from for the applications running in ECS cluster.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+In this lecture we are going to learn about how exports access AWS services.
+
+So we have a ECS cluster here.
+
+And then we are running a simple app one pod in this ECS cluster.
+
+And our question here is how this app, one pod running in ECS cluster will be able to access these
+
+AWS services.
+
+So we have various AWS services available.
+
+And we want to access those services like AWS S3 bucket or AWS DynamoDB or AWS SQS.
+
+So based on our application use case, we might need something like a queuing system or a messaging
+
+system wherein you want to use SQS or if you are using a database, right.
+
+So like uh, NoSQL database for your application and you want to use DynamoDB, or you want to integrate
+
+your application with S3 bucket for some use case, and then how we are going to do that.
+
+Right.
+
+So there comes a new concept in AWS called p I a which is called pod identity agent.
+
+So we will implement this pod identity concept as part of this demo.
+
+So let's understand that in detail now.
+
+So here if you see there are various components available and numbering also have provided.
+
+So to achieve this X pod identity concept we need to go step by step.
+
+The first thing here is you need to create a aws IAM role.
+
+So in this x pod identity demo what we are doing is we are going to have a simple AWS CLI pod deployed
+
+on our EKS cluster, and we are going to test access from the CLI part to this AWS S3.
+
+We are going to just say AWS S3 list, trying to list the buckets and it will fail by default.
+
+When you do that it is going to fail.
+
+Then we will follow the concept which is related to eks pod identity.
+
+So there what we are going to do is first we are going to create a IAM role and that Im role is going
+
+to have permissions, S3 read only access.
+
+So that is number one thing.
+
+And in the EKS cluster we are also going to install the EKS pod identity agent.
+
+So which is a daemonset which means this pod identity agent will be running on each and every node present
+
+in the EKS cluster.
+
+So we are going to install this.
+
+And this is available as a add on in our EKS cluster.
+
+So we can just go to add ons and install the EKS pod identity agent.
+
+Then we will also create a service account for our CLI pod.
+
+So once one, two and then three are completed, then we will create a pod identity association EKS
+
+pod identity association.
+
+So for this EKS pod identity association we need three things.
+
+One is IAM role and second is service account and third is in which namespace you are respective workload
+
+is running.
+
+So my aws cli pod is running in default namespace and it already we have created a service account and
+
+we have also created a IAM role with S3 read only access.
+
+So using these three things we are going to create a EKS pod identity association.
+
+So once we create this pod identity association right then we will go ahead and then test from the CLI
+
+pod.
+
+It is going to fail.
+
+We just need to restart this.
+
+So we need to restart the pod so that the changes whatever we have implemented related to this ECS pod
+
+identity association, all these things will take effect for this respective part.
+
+And then when you access when you run the command AWS, S3 and then list, you will be able to access
+
+all the S3 buckets means you can you can list all the S3 buckets from the CLI pod running in EKS cluster.
+
+So the same concept applies to any of the AWS service which you want to access from ECS cluster.
+
+So example like DynamoDB, if you want to access it, you can use this option.
+
+Okay.
+
+Or if you want to access or if you want to create some EBS volumes.
+
+Okay.
+
+So after this demo our next demo is EBS volumes only.
+
+So here ebs cli controller a CSI controller will be running here.
+
+And for this we are going to give access to EBS service using AWS IAM and create its export identity
+
+agent.
+
+So we'll discuss that when we go to that respective demo.
+
+But let's go ahead and then practically implement this demo.
+
+So we get a complete and hands on on what we are going to do if we want to use ECS pod identity concept
+
+for accessing the AWS services from for the applications running in ECS cluster.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+We are in 0400X pod Identity agent section in our course GitHub repository AWS, EKS Kubernetes master
+
+class.
+
+And here I have provided a detailed high level flow.
+
+How this works and all the information about it is provided here.
+
+So you can review all these things in detail.
+
+So what we are going to do we already discussed in the introductory section.
+
+So let's go ahead.
+
+And then first thing is to install the EKS pod identity agent.
+
+So we'll go to our EKS cluster.
+
+So in Amazon Elastic Kubernetes Service in the cluster section you can see here our EKS Demo1 is running.
+
+So we'll click on this eks demo1.
+
+And we'll go to the add ons section here and click on Get more Add ons.
+
+And here we will install the pod identity agent.
+
+So this is the one Amazon EKS pod identity agent.
+
+So this one will select this.
+
+And then we'll go ahead and go down here.
+
+Click on next and we'll click on next.
+
+We'll leave all these things to default and click on create.
+
+And this should install the Amazon ECS pod identity agent.
+
+So currently it's status is in the creating state.
+
+So let's wait for a minute or two so that it will be installed successfully.
+
+Now let's click on refresh.
+
+And if we go down here we can see ECS pod identity agent is in the active state.
+
+In addition to that, if we want we can also verify the same thing via kubectl get daemonset and hyphen
+
+n kube system namespace so that you should find the uh same thing there.
+
+So we'll go here kubectl get daemonset means ds is the alias for that and hyphen n and we will say kube
+
+system kube hyphen system in the kube system namespace.
+
+And we can see here Ex pod identity agent is running.
+
+So we have two nodes and in both nodes it is running.
+
+So if we say cube CTL get nodes you can see we have two nodes.
+
+And daemonset is nothing.
+
+But on each node, whatever you have, whatever you deploy using Daemonset, it will run on each and
+
+every Kubernetes worker node.
+
+And if you want you can also say kubectl get pods hyphen n and we will say kube system.
+
+Right.
+
+And we should see that, uh, this pod identity agent pods are running.
+
+And if you want you can also say hyphen o wide.
+
+And it should provide the IP addresses of the pods it is running.
+
+Right.
+
+So it is running on O 12.75 and 47.13.
+
+And if you say kubectl get nodes hyphen o and then wide you should see those things.
+
+Okay 75 and 130.
+
+So that is about installing the installing the pod identity agent.
+
+And the next thing is we will deploy the AWS CLI pod without pod identity association.
+
+So we'll go here and review those things and deploy it.
+
+So we'll go here.
+
+And in 0400X pod identity agent.
+
+So in kube manifest folder you have something called a simple service account which we are creating
+
+with name aws, cli, sca and whose namespace is default.
+
+We are creating this service account in default namespace okay.
+
+And next thing is we are also going to create a simple Kubernetes pod.
+
+Okay.
+
+So kind is pod here.
+
+And name of the pod is aws CLI.
+
+And where you are going to deploy it in the default namespace.
+
+And in the Pod specification you are saying service account name it is using is aws cli sca, which
+
+is nothing but this one.
+
+Okay.
+
+And then you are also going to provide the name of the container which is AWS CLI and image you are
+
+using is Amazon AWS cli and command you are using is sleep infinite?
+
+Which means this CLI part should be continuously running in your EKS cluster.
+
+Okay, so now we'll go here and we'll go to zero four.
+
+And inside zero four we have 00X pod identity.
+
+And here in in 0400 you have the kube manifest folder.
+
+So we'll say cube ctl apply hyphen f kube manifest.
+
+And this should create the service account.
+
+And also the CLI pod.
+
+So kubectl get CA in the default namespace.
+
+You can see it is created and kubectl get pods should also provide us AWS cli pod is the service account
+
+and pods.
+
+Now let's go ahead and then run the command kubectl exec hyphen it.
+
+And the pod name is aws cli.
+
+And you pass the command aws s3 ls.
+
+You are trying to list the S3 bucket.
+
+So let's try that.
+
+So we'll say kubectl exec hyphen it.
+
+Pod name is aws cli hyphen hyphen space aws s3 and then ls.
+
+And it should provide us with a error.
+
+An error occurred access denied when calling the list buckets operation so user with so-and-so thing
+
+it doesn't have access to list those buckets.
+
+So it by default uses the node instance role.
+
+Okay.
+
+So which means you are trying this from your Kubernetes Kubernetes pod is deployed on Kubernetes node.
+
+And that node has a IAM role associated with it which is node instance role.
+
+So using that instance role it tried to run this command means like it tried to authenticate this command
+
+and it failed okay.
+
+So what we will do is we will move on with creating the IAM role Pod identity association, all those
+
+things in our next lecture.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+Now let's go ahead and then create an Im role for Pod identity.
+
+So which is nothing.
+
+But we are discussing about the IAM role which we are going to create now with S3 read only access.
+
+Okay.
+
+So now let's come back here and we'll go to IAM and in IAM.
+
+So we'll go to the roles section and in roles we'll go ahead and create a role.
+
+And we will select the AWS service here use case which we are creating here is for X okay.
+
+So we'll select the service name as x and x.
+
+We are going to create this role for X pod identity allows pods running in Amazon ECS cluster to access
+
+AWS resources.
+
+So this role is particularly for this use case.
+
+So we'll select that.
+
+And then here we will search for S3 right in the permissions.
+
+And we will give S3 read only access.
+
+So S3 read only access we are going to provide.
+
+Click on next and we'll provide the role name as exported.
+
+Identity S3 read only role 101 and it will have this trusted identity entities here.
+
+So which means all this information right related to export identity, which means the trust policy
+
+related to ex identity is present here.
+
+Auto populated.
+
+And here we have the permissions which we have listed.
+
+If we want to add any tags you can add click on Create role.
+
+So this should create the IAM role for us.
+
+So this Im role we have created just now right.
+
+And now we'll go to the EKS cluster right.
+
+So we'll go to the cluster.
+
+Click on EKS Demo1 and we'll click on this access section right.
+
+And in the access section you will have something called pod identity associations.
+
+So here in the pod Identity associations we can click on create and select the IAM role which we have
+
+just now created which is ECS pod identity S3 read only role right.
+
+And in the namespace section we will select default namespace and in the service account section we'll
+
+select AWS, cli, sca, and then we'll go ahead and then click on create.
+
+So this should create the pod identity association for us.
+
+So if we go back here again go back to access here.
+
+And you can see a new pod identity Association is created for us.
+
+Now we will go back and then test it again okay.
+
+So what we need to do it is we need to restart the pod, which means this is just a pod, not a deployment.
+
+We will delete and recreate the pod okay.
+
+So we will run the command here, delete the pod and then we will deploy again okay.
+
+So let's wait for it.
+
+Once the pod is deleted we will recreate it.
+
+We will go ahead and then deploy the pod again.
+
+And this should create the pod for us right.
+
+Service account unchanged and pod got created.
+
+Now if you say cube CTL get pods, your pod should be running.
+
+Okay, so cube CTL get pods and you can run the command cube CTL exec hyphen it and pod name is aws
+
+cli hyphen, hyphen space aws, s3 and ls.
+
+So this should list all the S3 buckets present in my AWS account.
+
+There are many AWS buckets here, like S3 buckets.
+
+All those things are listed here.
+
+Okay, so that's about it.
+
+Now let's come back here and then clean up whatever we have.
+
+So let's go ahead and then delete whatever we have created.
+
+So we have we are deleting the service account and pod.
+
+And in addition to that whatever the pod identity association we have created, we are also going to
+
+remove that.
+
+And in addition to that, we are also going to delete the IAM role which we have created as part of
+
+this demo.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you.
+
+

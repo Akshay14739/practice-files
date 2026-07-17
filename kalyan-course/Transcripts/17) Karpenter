@@ -1,0 +1,5984 @@
+All right, everyone, we have just now completed section 16 where we deployed our retail store application
+
+with external DNS.
+
+Now we are moving into section 17.
+
+And this is an exciting one where we are going to learn about Kubernetes Karpenter controller.
+
+So but before we jump in into installing this Karpenter controller, let's first understand why we need
+
+this Karpenter controller.
+
+And then what exactly is this carpenter?
+
+And why not use the cluster autoscaler which is the current existing technology.
+
+So let's go ahead and then understand this with a simple diagram.
+
+Whatever Karpenter provides us.
+
+Okay.
+
+So on the left side we can see the pending pods.
+
+So these are five parts.
+
+It five parts that have just been created and are waiting to be scheduled onto the nodes.
+
+So now when the Kubernetes Scheduler looks for the looks at these spots, it tries to place them on
+
+the existing capacity or existing nodes.
+
+And out of these five pods, some of these pods can be scheduled because we have the available capacity
+
+in these, uh, existing nodes.
+
+Okay.
+
+So what are schedulable pods?
+
+The ones that fit in our current nodes, which go through the scheduler and they get placed on our existing
+
+capacity.
+
+So here you can see our existing nodes.
+
+They are represented as orange chips.
+
+Here you can see them in detail.
+
+And we have the pods placed.
+
+So out of these five parts two parts were scheduled on this existing capacity for for two parts they
+
+have the enough CPU and memory to accommodate.
+
+Okay.
+
+So so far, so good.
+
+The scheduler does its job for scheduling two parts on these two nodes.
+
+So what about these three parts which are still in the pending state.
+
+So those become the unscheduled parts.
+
+So what about these unscheduled parts.
+
+These are the parts that the scheduler looked at and said sorry I cannot place you anywhere.
+
+None of the existing nodes.
+
+Right.
+
+Having enough resources for you to be places.
+
+So maybe these parts need more CPU or more memory, or they have specific requirements that our existing
+
+nodes can't satisfy.
+
+This is where we need the additional capacity.
+
+We need to add more nodes so the more nodes to the EKS cluster.
+
+But how we add those nodes makes all the difference.
+
+So for auto scaling the cluster nodes.
+
+So we are saying there are two options okay.
+
+One is we write it here cluster autoscaler.
+
+And the other one is Carpenter okay.
+
+So now we are going to use the old way and then understand a little bit about it okay.
+
+So with the traditional cluster autoscaler when it sees these unscheduled pods right.
+
+So it provisions just in time capacity.
+
+So it provisions a just in time capacity, which means a new node will be provisioned.
+
+And these three parts will be scheduled on that respective node.
+
+So that's what it does.
+
+So this node is provisioned by cluster autoscaler.
+
+So cluster autoscaler works with the auto scaling groups.
+
+So you define node groups.
+
+Maybe you have the existing node group with T3 medium instances.
+
+So another uh, immediately when this, uh, unscheduled level parts it sees it will provision one more
+
+T3 medium instance.
+
+So you have one T3 medium here and two T3 medium here and immediately of same size.
+
+Okay.
+
+Another T3 medium will be provisioned for us immediately.
+
+And if this is not sufficient one more T3 medium it will provision.
+
+And if that is not sufficient again one more T3 medium.
+
+So it will be locked to a predefined size.
+
+So in simple terms cluster autoscaler node groups will be locked to predefined sizes.
+
+So that is the important thing to remember.
+
+So when pods can't be scheduled cluster autoscaler picks one of these predefined node groups.
+
+So currently in our cluster we have one node group with either T3 small or T3 medium based on our configuration.
+
+So we can go to our Visual Studio Code.
+
+And if we go to our 15 EKS cluster, and if we go to the Terraform vars.
+
+So you can see the node instance type is P3 small.
+
+So it is going to create a node group for us.
+
+So you can see the node group here EKS cluster private node group with the size whatever we have defined
+
+okay.
+
+So what is terraform dot.
+
+Uh so here if you go right.
+
+So you said uh var dot node node instance type okay.
+
+So here instance type you can give that respective instance type whatever we have defined which is T3
+
+small okay.
+
+So that's what we are trying to say when you use Cluster autoscaler.
+
+Right.
+
+So you you you will be per node group.
+
+You, you will be able to define one specific instance type and that instance type only you can provision
+
+the instances.
+
+Now, if you see here it has provisioned 1V1 worker node here and it might be something like a one vcpu
+
+with some two GB Ram.
+
+But your current these three nodes need only 0.5 vcpu with only like 0.5 Ram.
+
+Okay, so then whatever we have provisioned here is like wasting of resources.
+
+Okay.
+
+So this wastage of resources heavily happens when we use this cluster autoscaler technology.
+
+So it is an inefficient way of using the resources.
+
+So you are locked into predefined node sizes that might not match your actual workload requirements.
+
+So that's the problem with existing cluster autoscaler design.
+
+Now look at what Karpenter does differently.
+
+So Karpenter also sees the three Unscheduled parts.
+
+Right.
+
+And provisions new nodes.
+
+Okay.
+
+So it also provisions new nodes.
+
+So whatever.
+
+This is an existing capacity running with cluster autoscaler.
+
+And this is with Karpenter let's say.
+
+Okay.
+
+So it will provision the capacity in a optimized way.
+
+Okay.
+
+So instead of being locked into predefined node groups Karpenter analyzes the pending pods and creates
+
+optimized capacity.
+
+So look at what Karpenter provisioned here.
+
+So this you can see the size of this node.
+
+So this might be something like some T3 large.
+
+And this might be something like some T3 T2 micro or something.
+
+So you can see the sizes two different sizes of instances it has provisioned.
+
+But when you talk about cluster autoscaler all these are of same sizes in a single node group.
+
+So that's the difference.
+
+So one large node at the top.
+
+This is for parts that need more resources.
+
+Notice it's efficiently packed with nine parts.
+
+Here you can see them.
+
+Here you can notice them very clearly.
+
+So one small node here.
+
+And this is for a pod that reaches minimal resources.
+
+Why waste money on a large instance.
+
+So everything it calculates and accordingly it provisions.
+
+So this is intelligent bin packing Karpenter looks at your Pod requirements.
+
+So when you define your Kubernetes deployment right, you define your CPU and memory requirements in
+
+your Kubernetes deployment, which we have seen earlier also.
+
+So you can go to any of our previous resources here.
+
+We can go to section 14, section 14 or even in section 16.
+
+Just now we have done the demo right.
+
+So here if you go to any of this catalog service and its deployment, you will find its CPU and memory
+
+resources defined here.
+
+See resources you define.
+
+Okay.
+
+So these CPU requests and then memory requests right.
+
+Based on these things it will decide.
+
+In addition to that it will also use node selectors taints and tolerations.
+
+And by taking all these things into consideration.
+
+So this Karpenter right finds the most efficient instance type and size from the hundreds of options
+
+available in AWS.
+
+So now you can understand that why Carpenter is more better and advanced than traditional or old cluster
+
+autoscaler.
+
+So we can see that in multiple angles.
+
+Okay, so one is no predefined node groups in a carpenter.
+
+So cluster autoscaler is locked into the node groups you have configured in your auto scaling groups.
+
+So if you have three node groups defined that that's all it can work with.
+
+But when we talk about Carpenter.
+
+On the other hand, it can provision the exact instance, size and type you need from hundreds of EC2
+
+instance options.
+
+It's not constrained by predefined configurations.
+
+So that's one advantage of Carpenter.
+
+And the second one is fastest provisioning.
+
+So when we talk about cluster autoscaler it has to go through the auto scaling groups, which means
+
+AWS has to scale the ASG Auto Scaling Group and launch instances through the ASG lifecycle and then
+
+register them with Kubernetes.
+
+This takes time, often several minutes.
+
+So here when we talk about this cluster, autoscaler might take 3 to 5 minutes to add new nodes.
+
+But when we talk about Carpenter.
+
+Carpenter makes a direct API call to aws, EC2.
+
+It provisions Instance says directly and registers them with the Kubernetes cluster immediately.
+
+We are talking about nodes appearing in 30 to 60s instead of 3 to 5 minutes.
+
+So when you use Carpenter, it is 30s to 60s.
+
+So faster provisioning is another advantage of using Carpenter.
+
+And the third one is better cost optimizations.
+
+So Carpenter can intelligently mix spot and on demand instances based on your workload requirements.
+
+It can select from a wide range of instance families and even sizes, so always picking the most cost
+
+effective option that satisfies your Pod requirements whatever you have defined.
+
+So with Cluster Autoscaler you are limited to the instance types in your predefined node groups.
+
+Maybe you configure three large instances, but if T3, large instance or a T2 medium would be cheaper
+
+and just as suitable, you would never know because cluster autoscaler can't consider those options.
+
+So it can't think about it other than whatever you have defined in your node group.
+
+So it's limited.
+
+So better cost optimization happens with karpenter if we use it.
+
+Okay.
+
+And another very very important thing is active consolidation and deprovisioning.
+
+This is a very big one.
+
+Cluster autoscaler only scales down when a node is completely empty zero pods running on it.
+
+Even then it waits again ten minutes.
+
+So when node is empty and also when zero pods are running, node is empty means zero pods and it also
+
+waits again, ten more minutes to drain the node and finally remove the node.
+
+But when we talk about karpenter, it actively consolidates underutilized nodes.
+
+So if you have three nodes that are only 30% utilized, Karpenter can drain those parts, move them
+
+to fewer and then cheaper nodes, and terminate the old ones.
+
+So these three parts in three T3 medium it is running okay.
+
+And if these three parts can run on just T3 micro then it will provision T3 micro immediately.
+
+Okay.
+
+So it will take care of that whole thing.
+
+So it will provision the fewer nodes cheaper nodes and terminate the old ones.
+
+So it continuously optimizes your cluster to reduce wastage and even cost.
+
+It can even replace your on demand.
+
+So if you have on demand instances running and if you want to replace it with spot instances, it can
+
+also do that.
+
+It can swap your workloads from on demand to to spot instances wherein on demand is super expensive
+
+and spot is like super cheap, 77% are above it will be cheaper, so we can even go to cheaper alternatives
+
+when using Karpenter.
+
+So this is the reason why Karpenter is very popular nowadays.
+
+Okay, so now in future means like in long run everyone are going to use Karpenter for cluster.
+
+Autoscaling means like your node scaling.
+
+So for that purpose, learning this concept is very important for us.
+
+And we are going to focus on this in a very detailed way.
+
+So why karpenter itself?
+
+We are focusing close to 15 minutes and after this we will also focus on Karpenter architecture diagram.
+
+After that we will move on to Karpenter installation.
+
+So I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+All right, everyone, now that we understood why we need Carpenter and what makes it better than Cluster
+
+Autoscaler, let's dive into how Karpenter actually works under the hood.
+
+So let's jump into and then understand actual Karpenter architecture.
+
+So before going and understanding the end to end flow, let's see what all are these components inside
+
+this Karpenter architecture.
+
+So on the left side you will see something called node pools and EC2 node class.
+
+Okay.
+
+So these two these are the things you define as a Kubernetes administrator.
+
+So these are your node pools and EC2 node classes.
+
+So we will understand them in detail when we are understanding the flow in the center you can see the
+
+carpenter controller.
+
+So which is the brain that makes all the magic happen.
+
+So below it you will also see something called unscheduled parts.
+
+These are the parts waiting for nodes.
+
+On the right side you can see the actual EC2 instances.
+
+So these are the EC2 instances that karpenter provisions with different sizes and configurations.
+
+Now let's walk through the entire flow in a detailed manner.
+
+So let's start with this step one now.
+
+So here you have deployed some application.
+
+And those pods went into unscheduled state which means there is no no existing capacity available on
+
+your node groups.
+
+So you can also optionally define your node selectors in your Kubernetes Deployments.
+
+Like whether you means like when this selector is present, it needs to be scheduled on those specific
+
+nodes.
+
+So we will understand that first.
+
+So let's go to the nodes selector concept here.
+
+So this is the simple node selector concept I am going to explain.
+
+Let's understand the node selector concept before going to that architecture.
+
+So we never discussed that concept anywhere.
+
+And we are going to exclusively use that as part of Karpenter in implementation.
+
+So better understand that okay.
+
+So this is a tiny piece of block in our Kubernetes deployment.
+
+So this is one deployment and this is another deployment.
+
+And you can see here a node selector capacity type on demand.
+
+And here capacity type you are saying spot okay.
+
+So think of node selector like telling Kubernetes, schedule this pod only on nodes that match this
+
+label.
+
+So example like you have nodes one, two and three which have which are having the label capacity type
+
+is equal to on demand.
+
+So these are on demand nodes.
+
+And in the same line you have again another nodes which are like spot.
+
+Okay.
+
+So you have nodes with label capacity type equal to spot.
+
+So these are Kubernetes worker nodes.
+
+Okay.
+
+So now you are telling you are telling Kubernetes that uh when it matches when your deployment right.
+
+When the pod is created its label matches uh capacity type equal to capacity type equal to on demand.
+
+Then schedule those parts on this.
+
+Okay.
+
+On these nodes.
+
+And when it matches spot.
+
+Okay.
+
+Then schedule those spots on these nodes.
+
+So that is node selector.
+
+Nothing more than that.
+
+Okay.
+
+So now why this is important.
+
+Because when we talk about Kubernetes the stable workloads are stateful workloads on demand nodes are
+
+important for us.
+
+Means like if you want to use stable workloads like databases and everything on demand is your go to
+
+path.
+
+And when you are working about for when you are running some batch workloads or some stateless workloads.
+
+So if disruption is okay for them, you can use spot workloads, spot nodes okay.
+
+So which comes 70% are above cheaper for us.
+
+So using this node selectors you can switch between on demand and spot instances.
+
+So that's the importance of node selectors.
+
+And in your carpenter also you can effectively use these node selectors.
+
+Okay so it is optional but it is also recommended.
+
+These node selectors give you much better control over where your workloads run.
+
+So without them Carpenter will just pick whatever workloads, whatever it need to deploy and then whatever
+
+it feels, the instances it can provision, either it might be from the on demand node pool or from
+
+the spot node pool, and then it will end up creating a big mess for us.
+
+So even though it is optional for effective control or better control, it is recommended to use node
+
+selectors.
+
+So this is very important point for you to remember okay.
+
+So at this point these parts are in the unscheduled state, meaning there is no node in the cluster
+
+that can accommodate them.
+
+Yet the Kubernetes Scheduler has looked at all the existing nodes and said that nope, can't fit these
+
+parts anywhere.
+
+So it is saying currently.
+
+So that's the reason they are in the unscheduled state.
+
+So now we move to the step two here okay.
+
+Step one is pods are created with resource and request with node selectors.
+
+And they are in the unscheduled state.
+
+So now what happens is Karpenter controller is constantly watching the EKS cluster.
+
+It sees these unscheduled pods and thinks okay, I need to provision some nodes.
+
+So that's what Karpenter controller thinks.
+
+But it doesn't just provision some random nodes.
+
+First, it reads the node pool specifications to understand what kind of notes it allow to create.
+
+So think of node pools as your menu of options for Carpenter.
+
+In this example we have two node pools defined.
+
+One is on demand node pool for stable guaranteed capacity, and spot node pool for cost optimized interruptible
+
+capacity.
+
+So if each node pool defines uh constraints like instance family.
+
+So let's see that.
+
+So we will understand okay.
+
+So if you go here so this is the on demand node pool.
+
+So it will it will have it can we can define some important things here like instance families okay.
+
+So you can see instance architecture.
+
+You can define instance operating system.
+
+You can define.
+
+So you are saying my worker node it need to provision is Amd64 and of type Linux.
+
+And you are also saying the capacity type on demand and you are saying instance families whatever allowed
+
+for on demand.
+
+Okay is like T3 and T3.
+
+A so I have given only couple of them, but it is a list item.
+
+You can give any number here.
+
+Okay.
+
+Right.
+
+And then you can also define the sizes okay.
+
+It can be micro small medium large extra large whatever okay.
+
+So the reason I am restricting these things to limited because we are learning and then testing these
+
+things.
+
+So if by any chance if you do something else we might end up in having a huge AWS bills.
+
+So I have restricted Calculatedly restricted these things to specific things so that when we are experimenting,
+
+it doesn't hit our AWS bills heavily.
+
+So only micro, small, medium I have took okay, so which caps at maximum two CPU with four GB.
+
+So considering everything and you can even define in which zone these need to be provisioned, even
+
+that you can define them, but these should match with your VPC subnets.
+
+Okay.
+
+Right where your VPC subnets got created.
+
+Okay.
+
+And in addition to that you can also define your resource limits.
+
+Also see how much limit.
+
+So using this node pool you can go to up to 50 CPUs.
+
+So like that you can define those things also.
+
+So that's about on demand node pool.
+
+In the same way you have the spot node pool.
+
+Also you can see here right.
+
+So node pool spot and its API version is Carpenter dot slash v1.
+
+And here you can see again amd64.
+
+You can see the uh operating system is Linux.
+
+But here capacity type is spot okay.
+
+So earlier the capacity type you have seen here is on demand and now you are seeing the capacity type
+
+as spot.
+
+And in spot instances we have ensured that more options we have provided.
+
+So why we have provided most of the time example like in T3 your spot instances are not available for
+
+us.
+
+Then it can check for T3 if not T2.
+
+So for that purpose we have provided more options.
+
+Even we have provided micro, small, medium and then large instance sizes.
+
+We have provided the zones.
+
+Also, we have defined the limits and all those things.
+
+So that's about node pool related thing okay.
+
+But another important thing we need to understand here.
+
+Right.
+
+So you went to the node pool and scroll back to content and we'll go down.
+
+So it means like in your node pool you know that means like you we can define the menu of options for
+
+Carpenter okay.
+
+Now this node pool whatever is there it references the EC2 node class.
+
+Okay, so we need to understand how nodes actually get built.
+
+That information will be present inside this EC2 node class.
+
+The node pool says what kind of nodes to create, but the EC2 node class says how to create them.
+
+Okay, so what kind is nothing, but whether it is a T3 instance or T2 instance, or whether it need
+
+to be a medium instance or larger instance?
+
+Okay, but now if when you talk about the node class, it will talk about which Ami, what IAM instance
+
+profile, all those things.
+
+So let's see that also so that we will understand it in detail.
+
+Okay.
+
+So let's come back here first.
+
+What we said is every node pool references the node class so that you can see it here.
+
+Okay.
+
+So on demand node pool is referencing the node class which is EC2 node class of name default EC2 node
+
+class.
+
+In the same way, if you go to the spot node pool.
+
+Also, it is referencing the node class here.
+
+Okay, node class reference and kind is EC2 node class and name is default EC2 node class.
+
+So let's see what exactly is that node class first okay so let's come back here.
+
+This is the EC2 node class whose name is default EC2 node class.
+
+So here you are saying the Army family as a 2023 and Army selector terms Al 2023 at the rate latest.
+
+And in addition to that node IAM role what you are using.
+
+So this is the node IAM role you are using and subnet selector terms.
+
+So what subnets it need to select okay.
+
+So it need to select these subnets okay.
+
+So whose tags are like this.
+
+So those subnets it need to select and it also need to select the security groups.
+
+So this this tag, whatever the security group has that security group it will select.
+
+So this will select.
+
+This means actually you are selecting your private subnets in your VPC okay VPC private subnets.
+
+You are going to select you said internal ELB one means this internal ELB one will be tagged primarily
+
+for the private subnets in your VPC.
+
+So when we have implemented our ECS cluster right.
+
+So if you go to our ECS cluster and if you go to the ECS tags here, right.
+
+And if you go to the private subnets you have one is Kubernetes roll internal ELB one and your cluster
+
+with shared.
+
+So these are the two things which we have said okay.
+
+So now you will say you said that here you are showing owned and here you are showing shared okay.
+
+So as part of this respective demo we will also change the shade to odd, so I'll show you later.
+
+Okay, but for now you need to understand that internal ELB is equal to one tag will be applied for
+
+only private subnets.
+
+So we want our workloads to be run in private subnets only.
+
+That's the key security item right.
+
+Which we define our workloads should be always in private subnets okay.
+
+So for that purpose we said that for subnets whose tags are present as owned plus roll internal ELB
+
+is equal to one in those subnets only launch the carpenter nodes whatever it is going to create.
+
+And this whatever you are seeing this one right.
+
+Security group selector terms.
+
+So this this respective tag will be available for present for the cluster security group okay.
+
+EKS cluster SG it will be there.
+
+So that cluster security group also will be associated with the new Carpenter instances.
+
+What it gets created.
+
+One is in which subnets it will get created, one is subnets and another one is security groups.
+
+So both things are present here.
+
+And in addition to that, for Karpenter auto discovery you are seeing this also additional tag you are
+
+adding.
+
+And in addition to that you are also defining that for each instance.
+
+So we said that in node pool you said that you need a two to t two medium instance, etc., etc. but
+
+its OS is decide OS type is Linux.
+
+You said but what am I right?
+
+So OS type is Linux coming from your node pool?
+
+But what am I you are going to use is coming from your EC2 node class.
+
+You have defined that here in the same way for this instance.
+
+Okay, you have defined the Ami, you have defined the subnets in the EC2 node class and you have defined
+
+the security group.
+
+And now you will also define the disk size and what type of disk you are going to use.
+
+GP3 disk with 20 GB volume it need to it will get created.
+
+So and also some metadata options with put response hop limit of two.
+
+Also another Imds metadata options.
+
+Also you will define them here.
+
+So now you understand right node pool says what kind of nodes to create and EC2 node class says how
+
+to create them.
+
+So these two are the important things uh, which we need to understand when we are learning about Karpenter
+
+architecture.
+
+So in the Carpenter architecture we have seen step one, step two, and then step three where node pool
+
+references to node class for AWS specific config.
+
+In our next lecture we will focus on other flow items like four, five and then six.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Now let's talk about the step four of our entire Carpenter architectural flow.
+
+So now the Carpenter controller takes the decision based on the unscheduled parts and their specifications.
+
+Based on that, what node it need to create, whether it might be a on demand node or it might be a
+
+spark node, whether our pods have the node selector present as part or on demand.
+
+Based on that, it will take the decision and it will go ahead and then provisions the nodes okay.
+
+So it will go ahead and then provisions the nodes based on that requirement.
+
+So Carpenter will not create identical nodes.
+
+It will create a right sized nodes based on what the pods actually need.
+
+It might be a T3 micro or a T3 large or T3 medium or these parts are specifically.
+
+Few of them are having node selector on demand, so it will create the nodes using the information present
+
+in node pool on demand node pool, and if it has if few of the parts here have node selector as part.
+
+Based on that, it can also provision the spot nodes based on the information present in smart node
+
+pool.
+
+Okay.
+
+So accordingly it will consider based on whatever is present in node pools on demand node pool and spot
+
+node pool related configurations.
+
+Okay, so these two things are very important.
+
+On demand node pool related configurations and spot node pool configurations.
+
+And you can use the same EC2 node class for these things or for spot node pool if you have a different
+
+information you need to provide here.
+
+Spot node pools.
+
+If you want to give only ten GB of volume size, then you can give a different small spot EC2 node class
+
+differently and then you can create different one and then reference that spot etc..
+
+Node class here.
+
+So everything is a configuration thing based on our requirements, how we need it.
+
+We need to put them in all.
+
+We need to understand that Karpenter will create instance sizes based on workload needs.
+
+For example, like what type of pods and how much resources they are requesting.
+
+Based on that, it is going to create the nodes for us.
+
+So to recap, Karpenter controller is the actual brain which watches for the unscheduled pods and makes
+
+the provisioning decisions.
+
+And node pool is something a configuration item which defines what nodes can be created like constraints,
+
+limits, instance types, etc..
+
+And in addition to that, EC2 node class is like a blueprint defines how nodes are created.
+
+Like what am I it need to use, which security groups it need to use, and in which VPC subnets it need
+
+to get created.
+
+And what is the IAM instance profile role it need to be associated with.
+
+So all those information will be present in EC2 node class.
+
+In addition to that, if your pods have an optional field related to node selectors, which is nothing
+
+but the targeting mechanism, these pod labels that request specific node characters so that based on
+
+that, those pods will be scheduled on on demand nodes or spot nodes.
+
+So those decisions also can be made using node selectors.
+
+Now we understood the entire Karpenter architecture.
+
+In our next lecture we will focus on installing the carpenter using Terraform configs.
+
+So this carpenter controller installation we are going to automate it and use our Terraform to do that.
+
+So that it will be easy when we install it and when we recreate it.
+
+Okay, instead of manual steps we are going to use Terraform for that.
+
+So I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+Let's enter into the section 17 Auto Scaling Carpenter.
+
+And in that 1701 which is auto scaling Carpenter.
+
+And inside that carpenter install section.
+
+So here the important thing which we need to focus on is the carpenter all project files how they are
+
+going to look like.
+
+So now we will go here and go to section 17.
+
+And in 17 zero one we are going to run the command or we'll say tree hyphen A and 17 zero one carpenter
+
+install.
+
+And you will get the complete folder structure present inside that okay.
+
+So you will have something called VPC terraform manifest.
+
+And zero two is ECS terraform manifest with add on.
+
+So what we are going to do is whatever we have built in section 15 right EKS cluster with external DNS.
+
+So we are going to copy zero, one and zero to these projects.
+
+And in 17 zero one we are going to copy paste those things zero one and then zero two.
+
+Why.
+
+Because there is a minor change in this zero to x terraform manifest with add ons.
+
+So that we are going to make.
+
+So for that purpose we are putting the EKS project also here for Karpenter.
+
+There is a change needed in CFX tags.
+
+So for that purpose we are having the copy of our EKS cluster related Terraform manifest here.
+
+Now that is the first thing.
+
+Now let's come back here.
+
+And so that is one project which is zero to x terraform manifest and zero one which is VPC terraform
+
+manifest.
+
+And the third is you will have the carpenter terraform manifest.
+
+So we have put the carpenter related automation completely separate the infra from Carpenter.
+
+Whatever we are provisioning, we have put it completely separate.
+
+So it's an optional choice for us.
+
+Okay, so in our EKS cluster already we are using the managed node groups.
+
+So if you go here and if you go to C5RCAC9 okay.
+
+So this is your x node group.
+
+So we are already using the managed node group.
+
+And that will create us the get nodes.
+
+And you will see three nodes will be created which is of t three small okay.
+
+So that is the managed node group already we are using.
+
+So this is the one okay.
+
+So now Karpenter is an additional option where you want to provision the nodes okay.
+
+So for that purpose I am not mixing it with the existing EKS cluster.
+
+I want to put the carpenter separate okay.
+
+If you want it use it.
+
+If you don't want it then just to destroy that project.
+
+You really don't need to worry about your current working cluster with VPC and then ECS and EKS with
+
+all these things like external DNS, EBS, CSI secrets Store, CSI, and then like load balancer controller
+
+and pod identity agent.
+
+So all these things we really don't need to worry.
+
+So that is one part and this is other part.
+
+So I have put that zero three Karpenter terraform manifest separate.
+
+So that's about zero three.
+
+And in zero four Karpenter K8S manifest you will have the EC2 node class which we have already reviewed.
+
+Right.
+
+So if you go here.
+
+So this EC2 node class we have reviewed so that one and these are all YAML manifests okay.
+
+And then node pool on demand YAML file and node pool spot YAML file.
+
+So this whole project is of four layers.
+
+Layer one is vpc terraform manifest.
+
+Layer two is EKS cluster with add ons and layer three is Carpenter infrastructure and layer four is
+
+Carpenter configuration like node template configuration and node pool configuration.
+
+So that's about the thing.
+
+And if we talk about VPC and xsf projects, we are copying it from section 15.
+
+And why we are copying it is in zero to x Terraform manifest with add ons in c5 x tags.
+
+We are making a minor change for that purpose.
+
+We are doing it and this whole project if you want to just execute it.
+
+So anyway, we are going to go ahead and then review everything in detail in upcoming lectures.
+
+But if you want to create it, you can go to VPC and then create first VPC.
+
+Then go to X and then create the EKS cluster with add ons.
+
+Then go to the carpenter and then create the carpenter.
+
+Using Terraform means like install the carpenter controller using Terraform and then configure your
+
+cube CTL, and after that verify your carpenter pod is running or not, and then you can go and then
+
+deploy the node class and then node pools and then verify them.
+
+So this is the order which you need to deploy.
+
+And in the reverse order you can even destroy them.
+
+So we have discussed about the VPC and in the cluster.
+
+That is the important point which we are going to discuss in detail now.
+
+So let's go to the C5 x tags first okay.
+
+So we'll go to zero to x terraform manifest.
+
+And here c5 x tags I have also added the detail node here and here mainly for the private subnets.
+
+So we really don't need to worry about these public subnets.
+
+But still to maintain the standard I have changed it for public subnets also to owned but mainly for
+
+the private subnets.
+
+Right.
+
+And that too for your Kubernetes cluster slash cluster name for that respective tag.
+
+I have changed it from shared to owned.
+
+So why I have changed?
+
+Let's discuss now.
+
+Okay, so you might be wondering why we are now changing these tags to.
+
+What's the difference?
+
+Okay, so here is the key difference in AWS documentation.
+
+It is very clearly specified that when you are using the managed node groups, which means when EKS
+
+service itself is creating the EC2 instances, you really don't need to worry about whether it is owned
+
+or shared.
+
+Anything is going to work.
+
+So which means whatever you are seeing here c9 eks node group.
+
+This is created by AWS itself, AWS eks service itself.
+
+So when they are when AWS is taking care of it, we really don't need to worry about what is the value
+
+here.
+
+It can be shared or even it can be owned.
+
+But when we talk about Carpenter provisioning the EC2 nodes.
+
+Okay.
+
+So when Karpenter is provisioning those nodes it need to have owned.
+
+Okay.
+
+So Karpenter doesn't use the EKS service API to create nodes.
+
+Instead, Karpenter directly calls the EC2 API using our own IAM role to provision instances.
+
+It's much more direct and dynamic.
+
+And here is the catch AWS has a security restriction when third party tools like Karpenter are cluster
+
+autoscaler.
+
+These type of tools try to launch EC2 instances in your X subnets.
+
+AWS requires those subnets to be tagged as owned and not shared.
+
+So will this impact my existing node group?
+
+Okay, so whatever is present here.
+
+No.
+
+So for this node group, whether your tags can be owned or shared for because it is provisioned by X
+
+service, there is no impact.
+
+But for Karpenter, if it is shared, it is going to fail.
+
+You need to name it as owned only.
+
+So that's the reason we need to change this to owned.
+
+Okay.
+
+So now here I have changed this to owned.
+
+Okay.
+
+So I have means like we copied that code.
+
+And if you go to this 15 zero x and then go to C5 x you can see it is shared there.
+
+Okay.
+
+Now when we copied it we can change that here.
+
+I have already changed it and put it here.
+
+And now what that means is you can go to this 02X terraform manifest and run terraform init in both
+
+these things.
+
+Okay.
+
+So now let's go here and we'll go to 17 zero one Karpenter install.
+
+And we'll go to zero one VPC terraform manifest terraform init.
+
+it and we are not already.
+
+Our cluster is created as part of previous demos.
+
+We are modifying slight changes.
+
+Okay, right.
+
+So in VPC just we'll run the command Terraform state list to ensure that everything is listed here.
+
+Nothing is broken okay.
+
+And you need to ensure that when you have copied these configurations in your zero one VPC, your S3
+
+bucket name is updated here and in zero two also in C1 versions, your S3 bucket name is updated here
+
+and in C3 remote state.
+
+Also your S3 bucket is updated here.
+
+So these are important things.
+
+So VPC, I am running Terraform state list and it should work for me.
+
+And I'll also run the command terraform output.
+
+And even that should work for me.
+
+So I am able to access my resources because we are using the shared state on our bucket.
+
+So everything is working.
+
+So now I'll go to zero to I am in 1701 1701.
+
+I copied both the projects from 15th section.
+
+Okay, now if I say terraform init as the first thing.
+
+Right?
+
+And I'll run the command terraform state list output.
+
+And after that I am also going to say terraform validate plan.
+
+Okay.
+
+And if any changes I am going to do the apply okay.
+
+So those things we are going to do now.
+
+So let's wait for that.
+
+So let's wait for all these things to get downloaded.
+
+Now I will run the command Terraform state list and it should work for me.
+
+The state are displayed.
+
+I'll also run the command Terraform output and whatever is created all the resources we have defined
+
+as outputs, those also should be shown for us.
+
+And we will run the command Terraform validate.
+
+Because in C5 EQ stacks we have changed from shared to owned.
+
+so any changes are there or not.
+
+When we run the Terraform plan we will know.
+
+So let's wait for that thing.
+
+Okay, so we have six subnets three public and three private.
+
+So for all those things we are changing from shared to owned.
+
+So it is saying that six to change nothing to add or destroy.
+
+But all the six subnets will be changed from shared to owned.
+
+So I'll say Terraform apply auto approve.
+
+And this completes the changes related to EKS cluster.
+
+Okay, in our next lecture we will focus on zero three Karpenter Terraform manifests.
+
+So we will review all the Terraform configurations, whatever we have written in detail.
+
+And then go ahead and then create the Terraform Karpenter project.
+
+Deploy that project so that Karpenter controller will be deployed on our EKS cluster.
+
+Okay.
+
+So this change is successful.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+All right, everyone, before we dive into writing Terraform code, let's take two minutes to understand
+
+exactly what we are going to build.
+
+So we already discussed about the Carpenter architecture.
+
+Now we are going to understand about what we are going to build using Terraform for carpenter controller
+
+installation on EKS cluster.
+
+This single diagram shows you the complete Carpenter installation architecture.
+
+So if we understand this picture then we will understand all the Terraform files how we are going to
+
+build for carpenter installation.
+
+We can see here four sequential steps to install the carpenter controller.
+
+So we are going to understand one after the other.
+
+So let's start with the step one here.
+
+Okay.
+
+So we need to give carpenter controller permissions to manage AWS resources.
+
+So carpenter starting with the carpenter assume role.
+
+So this is using X pod identity association.
+
+So this is the modern way to give IAM permissions to Kubernetes pods.
+
+In this case whatever the Carpenter controller creates carpenter pods.
+
+And we'll also have the Carpenter IAM policy which defines what actions Carpenter can perform.
+
+Example like it need to create an EC2 instance or terminate EC2 instance.
+
+All those things all related policies will be present in this Carpenter IAM policy.
+
+And with this assume role and Carpenter IAM policy, we create a IAM role.
+
+And in addition to that we'll also create a Pod identity association where we provide all the information.
+
+So in simple terms we are using the Pia concept to create EC2 instances using Karpenter controller.
+
+So the whole authentication and authorization process we are applying using p I.
+
+So the carpenter controller job are the pods created by Karpenter controller.
+
+Their job is whenever needed.
+
+It need to create a new EC2 instances.
+
+Okay, so those will be our Kubernetes worker nodes.
+
+So for that purpose we need all these process like Karpenter, Assumerole, IAM policy, IAM role and
+
+also Pod identity association to be created.
+
+So that's about step one, our first part which we are going to implement.
+
+Now let's talk about the second part which is EC2 node IAM setup.
+
+So we need to prepare IAM permissions for the worker nodes that Karpenter will create.
+
+So this carpenter parts will create a EC2 instances and for these EC2 instances what all permissions
+
+we need to give.
+
+So even this also has four important things to focus on.
+
+One is EC2 node Assumerole which is EC2 Amazon AWS.
+
+So this is the traditional EC2 instance profile approach.
+
+And whatever we see here EC2 node assume role is different from whatever you see the carpenter assume
+
+role.
+
+Here it is ports dot x dot Amazon aws.com.
+
+So now the next thing is EC2 node IAM policy.
+
+So what can these nodes do in AWS.
+
+So those permissions we provide here.
+
+So these nodes should go and then join the EKS cluster.
+
+They should have the capacity to pull EC2 Docker images from ECR.
+
+And they should be able to configure EC2 networking in those EC2 instances or worker nodes, whatever
+
+we have.
+
+And so that it can assign the pod IP addresses when pods are scheduled on those worker nodes.
+
+So like this there will be a series of tasks.
+
+So this respective IAM role should do.
+
+So.
+
+For that purpose we provide equivalent permissions in this IAM policy and also create the IAM role with
+
+this IAM policy and this trust policy.
+
+So using both we create a IAM role.
+
+So when the EC2 instance is created.
+
+So this specific IAM role will be associated with that EC2 instance.
+
+The Carpenter EC2 instance will have this node IAM role with it okay.
+
+And next is EC2 access entry.
+
+So this is another thing okay.
+
+So this is critical.
+
+It allows the EC2 nodes to authenticate with your EKS cluster.
+
+So for that purpose we add this EC2 node x access entry.
+
+So when we are writing its equivalent Terraform file there we will discuss in detail for all these things
+
+also, but on a very high level.
+
+These are the four things required in node IAM role.
+
+We have step one and step two completed.
+
+So let's understand.
+
+Step one is primarily for the controller the the pods whatever the controller creates right.
+
+So for that pod it need to give enough permissions to create EC2 instances or terminate instances.
+
+And when we talk about step two, it is for the EC2 instances created by Karpenter controller.
+
+That is nothing but for the worker nodes.
+
+So now we have completed one and two.
+
+Let's focus on three which is focusing on AWS EventBridge and AWS SQS.
+
+Okay, so here we set up a Proactive spot interruption handling concept.
+
+So what exactly that does.
+
+So when we are using the spot instances using Carpenter and if our workloads are scheduled on those
+
+spot instances, and if AWS feels to reclaim that and at that point of time.
+
+So how to handle that without disrupting our infrastructure and even without disrupting our actual real
+
+world traffic coming to our application?
+
+So for that purpose, we will implement this entire step three setup EventBridge and SQS queue for EC2
+
+spot instances, interruption handling.
+
+And in this AWS EventBridge we define four rules.
+
+One is regular.
+
+If any EC2 health events happens, any maintenance happens.
+
+Even for EC2 instances created by Carpenter, then that will be notified by EventBridge to the SQS queue.
+
+And this SQS queue karpenter controller keeps pulling this SQS queue continuously.
+
+And then if it finds any message immediately it will take that message means like that instance information
+
+it will take.
+
+And then it will terminate that instance.
+
+And it will also create a replacement instance.
+
+And then also schedule that pods, whatever is running on the problematic instance to the new instance.
+
+And this whole process is like we have the two minute heads up from AWS before reclaiming that instances.
+
+So in those two minutes itself, Karpenter will take care of the whole process.
+
+So that's about either with EC2 health events or with EC2 spot interruption handling or with the EC2
+
+instance rebalance.
+
+Any rebalance recommendations coming from AWS, even those things.
+
+Also, this whole process will take care.
+
+It will send a message to SQS queue and then from there Karpenter will pick up and it will go ahead
+
+and then also replace those instances.
+
+Even for EC2 state changes like if instance is not running or in the pending state, or if it is in
+
+some other states, standard states, whatever it has right for those things.
+
+Also, it is going to trigger the event and then send a message to the SQS queue.
+
+So all these things means like to handle effectively our EC2 instances.
+
+So all these things were defined and Karpenter will keep pulling this SQS queue.
+
+And if any message it finds automatically, it will take action on those things.
+
+And it will secure our workloads safely by scheduling them on the new replacement nodes.
+
+And at that point of time, we will have zero downtime and zero disruption for our applications.
+
+So in very simple terms, it will gracefully drain the node and move workloads to a new node.
+
+So this is what makes Karpenter production ready for even the spot instances.
+
+So when you are using the spot instances, you get 90% of cost savings, but with graceful handling
+
+of interruptions, you don't have any issue with your actual workloads.
+
+So that two meter interval will save us by providing the replacement node and also scheduling the pods
+
+on them.
+
+Finally, let's focus on step four, where we deploy the actual Karpenter controller using a helm chart.
+
+So for this step four to work as expected, it needs the step one and step two, and then step three.
+
+So once deployed, the controller will watch your cluster for unscheduled pods and automatically provision
+
+the right sized EC2 instances.
+
+So this whole architecture Carpenter install architecture with Terraform files is designed for in a
+
+three important three pronged approach.
+
+One is security and second is reliability.
+
+And third is automation.
+
+So let's talk about these things.
+
+Okay.
+
+So we are going to create separate IAM roles for controller and also for nodes.
+
+Okay.
+
+So we have ensured that even when we are giving these IAM policies also in this is a very big IAM policy
+
+and we have provided as least privileges as possible.
+
+We have took the Carpenter GitHub repository from there the equivalent policies and embedded here.
+
+So that's about from security perspective, least privileged uh policies only we have used we provided
+
+only very least access.
+
+And when we talk about reliability, we have already designed the spot interruption.
+
+Handling means you can use cheap spot instances safely in production.
+
+And we also ensured that automation.
+
+So once this is set up, Karpenter handles everything automatically.
+
+Now let's also go ahead and then see the equivalent equivalent Terraform files for this step one two
+
+and then three and then four okay.
+
+So if we go here we have something called all the C6 in our Terraform project for Karpenter in 17 auto
+
+scaling Karpenter in 1701 Karpenter install in zero three Karpenter terraform manifest.
+
+So from C6 zero 1 to 6 608 we will do the actual karpenter installation, and in this you will focus
+
+on C6 0102 and zero three.
+
+C6 zero three will focus on this step 101203 okay.
+
+And if you see here C6 zero four node IAM role and then C6 zero five Carpenter Access entry.
+
+So there we can see here C6 zero four comma zero five at step two.
+
+And we will also have something called zero seven and zero eight which is SQS queue and EventBridge
+
+rules.
+
+So for step three which is C6 zero seven and zero eight.
+
+And we also have here C6 zero six which is Carpenter helm install.
+
+So all the steps whatever we have discussed.
+
+So these things are aligned with our whatever we have in our Terraform configs.
+
+Okay.
+
+Now in our next lecture we will go ahead and then start reviewing one after the other.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+We are in 1701 Carpenter install.
+
+And here in zero three Carpenter Terraform manifest.
+
+We will review from C1 to C5 first in this lecture.
+
+So here we have in C1.
+
+So we have the required version Terraform CLI version and required providers.
+
+We have AWS helm and then Kubernetes.
+
+And in addition to that we have also defined the Terraform remote backend.
+
+Here you need to update your S3 bucket here where you want to store the Carpenter terraform state file.
+
+Okay.
+
+So we are going to create a carpenter terraform state file in this path in your bucket.
+
+So update your bucket name here.
+
+So that's about C1 versions.
+
+And we also have the equivalent AWS provider.
+
+So all these things are from our previous sections only we are not going to go again and then explain
+
+everything okay.
+
+So when we are learning about Terraform in Terraform basics and also in Terraform EKS cluster, when
+
+we are implementing we learned them already.
+
+Okay.
+
+So we'll go on a very high level in C2 variables.
+
+Again, our standard variables for all our Terraform projects.
+
+One is AWS region, environment, name, business division and even the common tags.
+
+And you will see even in the terraform.tf.
+
+Also you provide your US east1 environment name is dev, business division is retail and your comment
+
+tags also you will provide.
+
+So platform team is managing this or even you can say auto scaling team anything is fine and project
+
+is Karpenter auto scaling.
+
+So these are the common tags.
+
+And now if you go to C3 zero one VPC remote state and C3 zero two ECS remote state.
+
+So these two files are we are using the Terraform remote state to access our project zero one and project
+
+zero two, which is VPC Terraform project and ECS Terraform project related information in project zero
+
+three dynamically.
+
+So in your case in C3 zero one and C3 zero two, you need to update your S3 bucket name here okay.
+
+Here okay.
+
+So that you can access your VPC.
+
+Terraform state file from your S3 bucket.
+
+Even in C3 zero two.
+
+Also, you need to update and after that in C4 data sources and locals, we have our standard data sources
+
+and also standard locals block.
+
+And one thing which we added extra is we are going to use cluster name in multiple files here, mainly
+
+the IAM policy which is of close to 500 lines for Karpenter controller and in multiple places we are
+
+going to use the cluster name.
+
+So defining them in locals block by getting the cluster name, using EKS remote state data source and
+
+then accessing it just as local cluster name is easy, then adding accessing it this complete path.
+
+So for that purpose, we have defined this as an extra thing here and remaining things as usual from
+
+our previous thing C1 version C2, C3 zero one, C3 zero two, and C4, and even in this VPC remote
+
+state data source also.
+
+So you can see you need to update this information, your bucket information even for the ex and in
+
+CFI, Helm and Kubernetes providers.
+
+So if you come here right.
+
+So here whatever the information.
+
+So host information if you want your cluster endpoint from Terraform remote state data source from outputs
+
+of our EKS cluster, we get that even the cluster certificate authority.
+
+Also we get using Terraform remote state data source dot x dot outputs.
+
+We already used this Terraform remote state multiple times.
+
+So the same thing here even for the Kubernetes provider also.
+
+And both Helm and Kubernetes provider we have defined here by getting the information of our EKS cluster
+
+from project zero to using EKS remote state data source dynamically.
+
+So no hard coded information.
+
+Everything we get dynamically.
+
+So that's about from C1 to C5.
+
+Okay.
+
+So basics basics of this Terraform project.
+
+In our next lecture we will focus on actual karpenter installation information.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Now we are entering the heart of carpenters II configuration.
+
+So this file Z601 Carpenter controller IAM role creates the IAM role that the Carpenter controller pod
+
+will assume to provision EC2 instances.
+
+So this is our first several of IAM files and it's critical to understand.
+
+So Carpenter runs as a pod inside Kubernetes.
+
+But it need to create AWS resources like EC2 instances.
+
+So we need to give it AWS permissions somehow.
+
+So using the ECS pod identity concept we are defining in C6 zero one, C602, and C6 zero three, we
+
+are going to give those permissions.
+
+So in simple terms, the way we do this is using ECS pod identity.
+
+It's a mechanism that lets a Kubernetes service account assume an IAM role without hard coded credentials.
+
+So let's start and understand this one first okay.
+
+So this is a carpenter controller role.
+
+So which we have already discussed in our previous demos also.
+
+So these two are the actions.
+
+And in principle you have the identifier as parts x Amazon aws.com okay.
+
+So let's discuss about this assume role and STS tag session okay.
+
+So this is the core action STS.
+
+Assume role is the core action.
+
+It means someone can assume this role and get temporary credentials.
+
+And you also have one more action which is STS tag session.
+
+So this allows adding session tags when assuming the role.
+
+So this is used for more granular permissions and even for auditing purposes.
+
+So let's also understand about these principles on a very high level.
+
+So this is the critical part for this Karpenter controller assume policy.
+
+Whatever we are creating which is a trust policy okay.
+
+Right.
+
+So here you can see identifier as a list item parts dot x dot Amazon aws.com.
+
+So this is the AWS service principle for EKS pod identity.
+
+Now we will also create the Carpenter controller IAM role here okay so this is the Carpenter controller
+
+IAM role in the assume role policy.
+
+We will get this data dot AWS IAM policy document dot carpenter controller assume dot JSON.
+
+And we'll also provide our var dot tags whatever we have defined.
+
+And for the role name and also role Arn will also define the outputs.
+
+So that's about IAM role.
+
+So as part of C6 zero one we only created the IAM role.
+
+We still didn't provide any permissions yet we only define the assume role, which is a trust policy,
+
+and we also defined our actual role and associated this assume trust policy to this IAM role.
+
+That's what we have done.
+
+Now we need to create an IAM policy with all the permissions, and then attach that IAM policy to this
+
+IAM role so that we are going to do in C602.
+
+In C602 we create a IAM policy document okay.
+
+So data dot aws IAM policy document Karpenter controller.
+
+And we define all the policies required for us.
+
+So this is one policy allows scoped EC2 instance access actions okay.
+
+So this is one policy.
+
+So like that one more scoped EC2 launch template access actions.
+
+So like this.
+
+If you see there will be close to 500 lines of code here for permissions we are giving to the Carpenter
+
+controller pod.
+
+Okay, so if you see these many lines so close to 500 lines we have.
+
+So here the permissions we are providing are EC2 provisioning which is nothing but run instances, create
+
+fleets, manage launch templates.
+
+And we will also provide additional permissions related to instance discovery means like describing
+
+instance types pricings and then availability zones.
+
+We will also provide instance lifecycle permissions like terminating instances, cordon nodes or drain
+
+workloads.
+
+So all those things and we will also provide interruption handling permissions like so reading SQS queue
+
+right.
+
+So Karpenter controller pod need to read the SQS queue and check for the messages every few minutes.
+
+If any is present then every few seconds okay.
+
+If any is present it need to take action of replacing that problematic EC2 node.
+
+So for that purpose we will also provide the SQS permissions here.
+
+So that is for interruption handling.
+
+So we if you type or search for SQS you will find those permissions also.
+
+Right.
+
+So these are the SQS permissions we provide.
+
+And we also provide IAM management permissions like creating and managing instance profiles for nodes
+
+and for cluster discovery.
+
+We will provide a describe EKS cluster metadata.
+
+And we will also provide permissions for SSM and pricing reading Ami IDs and then instance pricing.
+
+So all those things we will provide here.
+
+So this is a 500 line policy.
+
+So if you see here right in our carpenter sh okay so in our carpenter.sh.
+
+So if you go to the documentation right.
+
+So getting started with carpenter.
+
+So here in in create cluster command here you will find some file here raw dot GitHub user comm carpenter
+
+provider.
+
+And you provide the version.
+
+And then here you will find the file CloudFormation dot YAML.
+
+So in this CloudFormation YAML so you will find actual things means like actual IAM policy, IAM role
+
+and policy what we are supposed to create.
+
+Okay.
+
+So this is in the CloudFormation thing and we changed it to our means.
+
+Like some information here.
+
+Whatever is there we have taken and then whatever is needed we have added additionally which is like
+
+SQS queue and all those things.
+
+You can see AWS, IAM managed policy, this is the carpenter controller policy.
+
+And you can see here uh allow scoped EC2 instance actions, allow scoped EC2 launch template actions.
+
+Allow scoped EC2 instance actions with tags.
+
+Allow scoped resource creation tagging.
+
+So like this allows scoped resource tagging.
+
+Allows scoped deletion.
+
+So like this.
+
+There are many things available.
+
+So all those things we have converted to Terraform model.
+
+And then we have put that in this resource.
+
+Data dot data AWS IAM policy document Karpenter controller, and then we will go ahead and then create
+
+a IAM policy by referencing whatever we have.
+
+Data dot aws IAM policy document dot Karpenter controller dot JSON.
+
+So using that first we will create the Im policy and this IAM policy.
+
+Using IAM policy role attachment resource.
+
+We will attach the role and the policy whatever we have created here in C6 zero two we have created
+
+the IAM policy.
+
+And in C6 zero one we have created the IAM role.
+
+So this is our role Arn.
+
+So you can see that here.
+
+Role are role name okay.
+
+So you have provided the role name here and will also provide the policy Arn and attach both the things.
+
+So that's about C6 zero two.
+
+So if we see our architecture diagram here we have successfully completed things like Karpenter assume
+
+role is completed, Karpenter IAM policy is completed and Karpenter IAM role also completed.
+
+So these three things are completed as part of this, uh.
+
+Step one.
+
+Now we also need to look into pod identity association.
+
+Now let's come back to Visual Studio Code and open our C6 zero three Carpenter Pod Identity Association.
+
+So we provide our cluster name here.
+
+You can provide this full name or you can say local cluster underscore name.
+
+Anything is fine.
+
+And in which namespace we are installing Carpenter in kube system namespace.
+
+And what will be the service account for Carpenter it is Carpenter.
+
+And what is the role Arn.
+
+So you can see you have created it here okay.
+
+So this is the role you have created AWS IAM role dot carpenter controller carpenter underscore controller
+
+dot.
+
+Yeah.
+
+So that is the role.
+
+So if we go here so we'll provide that role Arn here.
+
+So that's about the step one completion.
+
+So in our next lecture we will focus on step two I will see in your in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+In previous lecture.
+
+We have completed step one.
+
+Now let's focus on step two.
+
+So which is node IAM role.
+
+We need to create.
+
+So Karpenter controller IAM role is used by the carpenter part to call AWS APIs to create instances
+
+terminate instances.
+
+And when we talk about the Carpenter node IAM role, it is used by the EC2 instances after they are
+
+created.
+
+So these EC2 instances can pull container images, join the EKS cluster or send logs whatever related
+
+to Kubernetes worker node related actions.
+
+So now let's review this role.
+
+Okay so here we will start with the assume role policy here.
+
+And here we have the action as STS assume role.
+
+And the identifiers is EC2 dot Amazon aws.com.
+
+Because why it is EC2 dot amazonaws.com is because this role will be assumed by EC2 instances, not
+
+by the Kubernetes pods.
+
+So when an EC2 instance launches with an instance profile, the EC2 service assumes the role on behalf
+
+of that specific EC2 instance.
+
+So that is the node assume role policy.
+
+Okay, now we will talk about the IAM role which is a carpenter node role.
+
+And we will access the assume role policy here.
+
+Data dot aws IAM policy dot node.
+
+Assume dot JSON and create a IAM role.
+
+So we have the IAM role but no permissions yet.
+
+So we'll create a IAM policy attachment by using the specific predefined policies already.
+
+Okay.
+
+So these are already AWS managed policies which we are going to attach.
+
+One is Amazon EKS worker node policy, which is a Amazon managed policy.
+
+In this we will have something called Register with the EKS cluster, download cluster configuration,
+
+update node status, interact with the Kubernetes API server so that type of permissions will be present
+
+inside this EKS worker node policy.
+
+And we also have something called Amazon EC2 Container Registry pull only.
+
+So this allows the EC2 instance which is our worker node, to pull the pull to pull the container images
+
+present in Amazon ECR.
+
+So your applications run in containers.
+
+And those container images might be stored in ECR.
+
+So this policy lets the Kubelet on the Kubernetes worker node which is our EC2 instance, to pull those
+
+images.
+
+So for that purpose we provide this.
+
+And we also have something called Amazon EKS CNI I policy.
+
+So this is for AWS vpc cni plugin.
+
+It allows the CNI to attach elastic network interfaces to the EC2 instances, and also helps us assign
+
+IP addresses to pods and also configure networking rules.
+
+So this is critical for pod networking in ECS.
+
+So CNI policy also very important for our node IAM role.
+
+And one more is Amazon SSM managed instance core.
+
+So this allows the node to be managed by AWS Systems Manager.
+
+Why is this useful to run commands on nodes without SSH or patch nodes, automatically collect logs
+
+and metrics, or troubleshoot nodes via session manager for all these things.
+
+This is helpful.
+
+So these are the node based policies.
+
+So if you see here in our uh this one okay.
+
+In our CloudFormation YAML.
+
+Also in the documentation you can see CNI policy, worker node policy, EC2 container register pull
+
+only, and also you have something called Add Amazon SSM manager instance core.
+
+So same we have replicated in Terraform also.
+
+So that way we'll create the IAM policy.
+
+Once you have the IAM policy right.
+
+Those will be attached directly to the IAM role because these are already AWS managed policies.
+
+So we are using the resource AWS IAM role Policy attachment and directly associating these for system
+
+defined policies or AWS managed IAM policies to this role.
+
+So you can see here for each you have defined here.
+
+And you said policy Arn is each dot value.
+
+So one after the other these will be associated to this role and equivalent outputs.
+
+Also we have defined here.
+
+So now that you have seen both the IAM roles, one for Karpenter controller and one for node or EC2
+
+nodes, so you can see them here clearly.
+
+Okay, so for Karpenter controller they run means like Karpenter controller which runs as a pod, uses
+
+Karpenter controller role permissions like run instances to terminate instances, IAM role or receive
+
+messages.
+
+Those things.
+
+Okay.
+
+And this Karpenter controller pod whatever is there it actually provisions the EC2 worker nodes.
+
+We call them as Kubernetes worker nodes.
+
+So here we are creating the carpenter node role which we have just now discussed.
+
+So we said uh assume role.
+
+We have discussed IAM policy and then IAM role.
+
+So this IAM role will have the permissions related to EKS cluster registering the nodes to the EKS cluster
+
+or pull ECR images, configure networking SSM management, those things.
+
+So we have clearly understood step two in detail.
+
+One thing is pending in step two which is ECS Access entry.
+
+So let's also discuss that now in detail.
+
+Now let's go back here and in C6 zero five access entry you have the AWS access entry.
+
+And you are saying Carpe enter node access.
+
+And you should have your uh depends on your remote state X, because you need to get your EKS cluster
+
+name from there and you will provide your node Arn.
+
+Okay.
+
+Principal Arn is aws iam role dot Karpenter node Arn which is just now we have completed in C6 zero
+
+four.
+
+So this is the one node rule okay.
+
+And then create a access entry and of type EC2 Linux.
+
+So what exactly this access entry is right.
+
+So this file creates an ECS access entry.
+
+It tells the EKS cluster hey allow I am role.
+
+So this is the IAM role node IAM role EKS to join the cluster as a node so that it is going to do so.
+
+So we are telling our EC2 instance node whatever Karpenter creates.
+
+That node should have permissions to join the EKS cluster.
+
+So that's what in this x axis entry it is mentioned.
+
+So this is relatively access entries are a new concept.
+
+So if you go back let's go back to the cluster one.
+
+So we will understand okay.
+
+So where is that.
+
+I'll go here and we'll go to the EKS cluster.
+
+I'll show you where exactly it is there.
+
+So you will understand it on a very high level okay.
+
+Not only for this specific IAM role based access entries, but for any user if you want to give access.
+
+Also, you can give that in this access tab in the EKS cluster, right.
+
+You can see the IAM access entries.
+
+So I have created this EKS cluster using my AWS credentials.
+
+Whatever we generate using IAM user.
+
+Right.
+
+So those access keys and then security access credentials, whatever we create.
+
+And then run the AWS configure in our uh in our terminal and provide those information.
+
+Right.
+
+What happened AWS configure and we provide the access key ID and then secure access key ID right.
+
+So using those information I created this ECS cluster.
+
+So but whose credentials are those whose security key information are those Kalyan devs information
+
+means like the user is Kalyan dev.
+
+So this Kalyan dev got the permission Amazon ECS cluster admin policy.
+
+So because he created the cluster using his information present here.
+
+Okay, so Terraform using Terraform when we created it using these access key ID and these access key
+
+IDs are related to this Kalyan dev user.
+
+In the same way this is the Access entries information.
+
+So who need to access our EKS cluster?
+
+You can define them here.
+
+Either it might be a user or either it might be a role, whatever it is.
+
+So you can see here this is one node group rule EC2 Linux okay.
+
+In the same line we are creating one more okay.
+
+So group name is system nodes.
+
+And this is self-service role for Amazon EKS.
+
+So this is one more role which has EKS cluster inside policy and Amazon EKS event policy which is EKS
+
+managed.
+
+So like this you have in the same line.
+
+Now we are creating one more access entry here, wherein this role will have has the permissions to
+
+register your EC2 instance to your EKS cluster so that information is present here and earlier before.
+
+This is a new concept introduced in EKS cluster.
+
+Earlier it used to be with Kubernetes auth Configmap okay.
+
+So using that auth configmap only AWS auth Configmap.
+
+We used to do the authentication related information in that auth Configmap we used to update manually
+
+or using scripts to allow the access.
+
+So if you go here cube CTL that's fine.
+
+Okay, so that's the older way.
+
+We really don't need to go too much about that.
+
+And now we also need to understand we have something called type equal to EC2 Linux.
+
+So this specifies the type of a access entry.
+
+The value is EC2.
+
+Linux means this is for EC2 instances only and not either a Fargate or any other things.
+
+Okay, only EC2 Linux means it's only running Linux OS.
+
+It's even not for windows also.
+
+So X has different access entry types for different workload types.
+
+So you have something called EC2 underscore Linux.
+
+You have something called EC2 underscore windows or you have Fargate underscore Linux or for and you
+
+have something like even standard.
+
+Standard which is for non node workloads you will also have standard.
+
+Okay.
+
+So this is a user with standard type is standard.
+
+And this is for EC2 Linux okay.
+
+And this is again standard.
+
+Standard is for non node workloads means like for kubectl.
+
+Access means like Kalyan dev user with which we are able to access the Kubernetes cluster.
+
+And then we are able to run the kubectl commands here.
+
+Right.
+
+So that comes under the standard.
+
+Type okay.
+
+So that's about this x access entry.
+
+So if we go back to our picture here.
+
+So we have.
+
+Discussed everything whatever is present inside this step two okay.
+
+In our next lecture we will focus on.
+
+Setup EventBridge and SQS queue for EC2 spot instances interruption handling.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+All right.
+
+Now let's look at SQS queue.
+
+Thing.
+
+Now this is C6 zero seven.
+
+So in C6 zero seven we will create the AWS SQS queue resource.
+
+And then we will name it as same as our EKS cluster name.
+
+So this file C6 zero seven creates the SQS queue that receives spot interruption notifications and other
+
+EC2 lifecycle events.
+
+So all those EventBridge rules we are going to define in C6 zero eight.
+
+So in C6 zero seven we will name the SQS name queue name as our cluster name and message retention seconds.
+
+We are going to give only 300 seconds, which is close to five minutes, which means messages in this
+
+queue will be deleted after five minutes if they are not consumed.
+
+So why so short, right?
+
+Interruption warnings are time sensitive.
+
+If we don't act within two minutes, it's too late anyway.
+
+So the maximum time AWS gives before terminating the spot instances is two minutes in that line.
+
+Within two minutes we need to act so more than two minutes.
+
+If we even the message retention period is five minutes, it's of no use means like that message sitting
+
+in that queue after five minutes is of no use.
+
+We don't want stale messages piling up in our SQS queue.
+
+Carpenter pulls this queue frequently, so five minutes is more than enough for us.
+
+Okay.
+
+And in addition to that, we have also said that SQS manager a managed TSS enabled, which is nothing
+
+but server side encryption.
+
+So this enables encryption at rest for the messages in the queue.
+
+So it is a security best practice.
+
+Okay.
+
+So there is no specific thing even it is false also.
+
+That's fine okay.
+
+And standard we have applied our tags.
+
+And in addition to that we have also created a queue policy.
+
+It is same as something like our S3 bucket policy.
+
+So this is a resource policy for SQS queue similar to S3 bucket policy or a IAM policy.
+
+Okay.
+
+So here we have associated this SQS queue policy to our SQS queue.
+
+Okay.
+
+You can see it here AWS SQS queue dot Karpenter interruption dot URL.
+
+So we have already associated that.
+
+So this policy is associated with this queue.
+
+And here we have written two policies okay.
+
+So one policy it is standard JSON encode.
+
+And the policy one is a allow policy and the other is a Deny policy.
+
+Although policy is from any from the events dot amazonaws.com, which is nothing but EventBridge and
+
+also from SQS.
+
+So why EventBridge is because we are going to define the EventBridge rules here, and then we are going
+
+to also send that event to the target, which is nothing but our SQS queue.
+
+So that's the reason we will allow EventBridge for our SQS queue to send messages.
+
+Okay.
+
+So you can see action send messages.
+
+So send messages is allowed from events.amazon.com.
+
+Okay.
+
+And then for the resource this one AWS sqs queue carpenter interruption Arn.
+
+So for this resource for this resource uh this event sending a message from events dot Amazon dot amazonaws.com
+
+is allowed.
+
+In addition to that, we have also provided SQS, Amazon, AWS, dotcom and that is just for testing
+
+or even for cross region or cross account message forwarding scenarios.
+
+It's very rare, but primarily for testing.
+
+We can use it.
+
+We can directly put some message in this queue and then see how Karpenter reacts.
+
+Okay.
+
+Whether it will go ahead and then uh, delete the instance and then reprovision the new instance.
+
+All that happens or not, we can see okay.
+
+So for that purpose also we can allow that.
+
+And in addition to that we also have one deny rule here.
+
+So this is a security hardening rule.
+
+It says deny all SQS actions on this queue.
+
+If the request is made over HTTP and not Https okay.
+
+Anything with HTTP just deny the request.
+
+So that's another thing.
+
+So that's about karpenter SQS queue related resources.
+
+SQS queue and then SQS queue policy.
+
+And the next is Karpenter EventBridge rules.
+
+So if we go here.
+
+So we have already now discussed about this one which is AWS SQS.
+
+Now we will discuss about these four bridge rules okay.
+
+So let's understand them in C6 zero eight.
+
+So here I have given the very complete detailed comments here.
+
+Even bridge rules that detect EC2 spot interruptions, AWS health events, EC2 rebalance recommendations,
+
+and EC2 instance state changes and send those events to karpenter SQS interruption queue.
+
+So this enables Karpenter to gracefully card on EC2 nodes, drain and then replace those part nodes.
+
+Okay, so the requirements are SQS queue must exist and IAM policy for Karpenter controller must include
+
+SQS permissions.
+
+These.
+
+We have already taken care and we have provided the name here.
+
+Right.
+
+So local dot short cluster name we are giving because of length of the name limitations okay.
+
+So we are putting our cluster name from 0 to 20 characters only.
+
+So this is the AWS Health event AWS CloudWatch event rule.
+
+Here you can see which is uh a health event.
+
+EventBridge was originally called CloudWatch event.
+
+So the Terraform resource you can see it always names as it is already it is named from that CloudWatch
+
+events only.
+
+So that's the reason.
+
+Even though the name currently is EventBridge, the resource name looks this way with CloudWatch.
+
+Okay, so now the rule AWS Health Events rules, right?
+
+So what exactly it does okay.
+
+So it focuses on scheduled maintenance on EC2.
+
+instances or hardware failures affecting your instances or network degradation, or even the regional
+
+issues.
+
+If an EC2 node is going to take to be taken down for maintenance.
+
+We want to know ahead of time so we can drain it gracefully.
+
+Right.
+
+So for that purpose we are using this AWS Health event.
+
+Okay.
+
+Right.
+
+And then what we are doing is whatever the health event we get.
+
+Right.
+
+So we are trying to send that to the target which is our SQS queue.
+
+So when the Carpenter Health event rule matches an event send that event to the SQS queue.
+
+So that's what here it is written AWS CloudWatch Event target.
+
+Carpenter health target and AWS CloudWatch event rule dot Carpenter health event dot name.
+
+So anything happens here.
+
+Anything hear any event it generates, then it need to send to the SQS queue.
+
+So that's about AWS health events.
+
+In the same way we have spot interruption warning okay.
+
+So this is one more okay.
+
+So this when AWS need to reclaim spot instances it emits an event with source AWS dot EC2.
+
+So with here if you see this one health event it is AWS Dot health.
+
+And here it is AWS dot e two.
+
+And the detail type is EC2 Spot Instance Interruption Warning.
+
+So this is the event pattern.
+
+And when this happens right.
+
+So we will have only this event is emitted two minutes before the instance termination.
+
+So we have two minutes to take care of it.
+
+So immediately when this event is occurred it will send to the SQS queue.
+
+Right.
+
+That message then, uh, AWS will send in such a way that, hey, I need this spot instance back in
+
+two minutes.
+
+Then EventBridge says that I see an interruption warning.
+
+Let me send it to the SQS queue immediately.
+
+It will send that to the SQS queue and then Karpenter keeps pulling this SQS queue.
+
+It says that I just read a message from the queue instance so-and-so is being interrupted and Carpenter.
+
+What it does is it will card on that node and drain all ports to the other node.
+
+Okay, so Carpenter will provision a new replacement node and move these parts from this interrupting
+
+node to the new node.
+
+And after that, if two minutes passes then AWS will go ahead and then terminate the instance.
+
+Now Carpenter will be fine.
+
+Our live traffic will be fine because already a new node is provisioned by Carpenter and that all the
+
+parts are already moved and then scheduled on the new node.
+
+So this two minute warning is what makes spot instances viable even for production workloads.
+
+So that's the important thing.
+
+So now one more we have which is EC2 instance rebalance recommendation.
+
+So this is a proactive signal from AWS.
+
+So that says hey your spot instance is at elevated risk of interruption.
+
+In the near future you might want to consider launching a replacement instances.
+
+So it's less urgent than an interruption warning which is two minutes.
+
+But it gives you even more time to react gracefully.
+
+So when Karpenter gets a rebalance recommendation, it optionally provisions a new node and it starts
+
+gradually draining the at risk node.
+
+If the node actually gets interrupted, the workloads are already moved.
+
+If the node doesn't get interrupted, it can stay and the extra node can be removed later.
+
+Okay.
+
+But Karpenter will take care of removing it immediately.
+
+Okay.
+
+So that's about EC2 instance a rebalance.
+
+Okay.
+
+And one more we have.
+
+So this is also again we will send it to that respective queue for rebalance.
+
+Also you can see AWS Cloud Watch event Karpenter rebalance dot name.
+
+And where it is sending it is sending to the uh Q a arn okay.
+
+Means like for the SQS queue we have one more, which is state change notification.
+
+So this respective event rule right.
+
+So this will catch any state changes for EC2 instances like from pending to running or running to stopping
+
+stopping to stopped or running to terminated.
+
+So why do we want these?
+
+Because karpenter need to know when nodes actually start to mark them.
+
+Ready?
+
+Carpenter needs to know when nodes are terminated to update its internal state.
+
+So Carpenter needs to detect unexpected terminations like someone manually stopping an instance or something
+
+happened to that instance and it is not responding in all these cases.
+
+So this state change notification also will send a message to the SQS queue.
+
+And then Carpenter will poll that queue and then get that message and take necessary action.
+
+So these are the four rules related to Carpenter EventBridge.
+
+So now if we see here we have successfully discussed this whole pot EC2 spot instance interruption handling.
+
+In our next lecture we will review this helm release related to Karpenter controller.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+All right.
+
+Now let's go ahead and then also discuss about Karpenter controller helm release.
+
+So we are in C6 zero six.
+
+And here we have the Carpenter controller helm release.
+
+So name we have provided the release name as Carpenter.
+
+And then this is the OCI registry where the Carpenter helm chart is stored.
+
+OCI stands for Open Container Initial, so it's a standard for container registries that also supports
+
+helm charts.
+
+So this Carpenter Helm chart is hosted on the official official AWS public ECR Elastic Container Registry
+
+okay.
+
+Our repository so anyone can pull from this public repository okay.
+
+So now the chart name is Carpenter and in which namespace we are going to deploy it in kube system namespace
+
+we are going to deploy it.
+
+So we are not mentioning any version here, which means always it can take the latest version.
+
+Okay, so are you can version log this to specific version.
+
+Okay.
+
+So it's always recommended in production also.
+
+So we will try to version log this to the current latest version here okay.
+
+Right.
+
+And then here are some of the settings which we need to discuss okay.
+
+So in production it is recommended to version lock your helm release.
+
+Even I am trying to do the same thing now.
+
+Now we will see here something like kube system namespace is already present.
+
+So we don't need to create it.
+
+Again.
+
+We will provide it as false.
+
+And then in set we can provide the arguments for this helm release okay.
+
+So one is settings dot cluster name.
+
+You need to provide your cluster name okay.
+
+So EKS cluster name which you can get it using Terraform remote state data source.
+
+And then provide that.
+
+And you also need to provide your cluster endpoint information even that we can get using our Aix remote
+
+state data source.
+
+Now, in addition to that, we also need to provide the interruption queue name.
+
+Okay.
+
+So this is the interruption queue which is AWS SQS Carpenter interruption dot name.
+
+Okay.
+
+So that is the one.
+
+So if you come back here so you can see interruption queue name also we have provided.
+
+Now in addition to that we also have something called service account dot name.
+
+We are giving it as Carpenter.
+
+Okay so this is the same name.
+
+If you go to Pod Identity Association also you have given the same thing service account name.
+
+Okay.
+
+Now uh, weather uh service account need to be created.
+
+We said even yes for that also.
+
+So that's about the settings we need to provide.
+
+In addition to that we also need to provide the depends on Terraform meta argument, wherein we are
+
+going to say that following things to be created and ready before deploying this helm release.
+
+Okay, right.
+
+One is IAM role for Karpenter controller, IAM policy for Karpenter controller IAM role policy attachment
+
+for Karpenter controller ex pod identity association for this Karpenter controller and x axis entry
+
+for Karpenter node access and even the SQS queue.
+
+So all these things I have given as a explicit dependency, I have defined it here.
+
+Okay, so that it will be safe during creation of resources and even during the destruction of resources.
+
+So that's about the complete review of Terraform configs for Karpenter.
+
+Terraform manifests in zero three.
+
+In our next lecture, we will go ahead and then deploy these things and then verify.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+In previous series of lectures we have reviewed all the Terraform configs for Carpenter.
+
+Now we will go ahead and then execute the Terraform commands to install the Carpenter controller on
+
+our EKS cluster.
+
+So let's go here and we'll go to the terminal.
+
+And we'll come out of zero to X.
+
+And in 17 0103 Carpenter Terraform manifest.
+
+So we'll run the command terraform init.
+
+And please ensure that in C1 you have updated your S3 bucket here.
+
+And in C3 zero one you have updated your S3 bucket.
+
+And in C3 zero two also your S3 bucket.
+
+Now once terraform init is done, so we'll run the command terraform validate plan and then apply auto
+
+approve.
+
+So Terraform validate is successful.
+
+So we'll run the command Terraform plan.
+
+And let's wait for the execution plan to be printed.
+
+We can see here execution plan is printed here.
+
+It is going to create 21 resources and all the outputs also displayed here.
+
+Let's go ahead and then run the command Terraform apply auto approve and let's wait for the resources
+
+to get created.
+
+We can see here all the resources got created successfully.
+
+So you can see the controller role and role name, etc. etc. even if we want the helm metadata output
+
+for our Karpenter controller helm release, we can also add that.
+
+So I have added the output here.
+
+Helm Karpenter metadata in C6 zero six in this helm release.
+
+Right.
+
+So this will provide the Carpenter metadata also.
+
+So what we can do is Terraform plan and we'll try to run the apply auto approve so that this change
+
+also will get embedded.
+
+We'll run the command Terraform apply auto approve.
+
+And this should create the Carpenter helm.
+
+Metadata output also will be displayed for us.
+
+We can see here successfully applied the changes.
+
+And we have the Carpenter helm metadata.
+
+So you can see the app version chart and then name of the release and the namespace and the revision,
+
+and even the values it is currently.
+
+Having everything displayed so service account create true name is Carpenter and in settings cluster
+
+endpoint information and cluster name and interruption queue.
+
+So everything is displayed here.
+
+So if we want we can also go ahead and then verify the things here.
+
+So we'll say helm list and then hyphen kube system.
+
+So in kube system namespace we are going to see the helm releases.
+
+And you have the AWS load balancer controller CSI Secret store, Secret store CSI Driver and Carpenter.
+
+You can see the carpenter here.
+
+So this is the one which we have installed just now.
+
+And if we want we can also run the command helm status.
+
+And then we can also run carpenter and then hyphen n kube system.
+
+And it will provide the information about that and release information and then everything.
+
+And if you want we can also run the command cube CTL, get pods, hyphen n and then cube system.
+
+So we should see the carpenter related pods running here.
+
+So these are the carpenter related pods.
+
+So we can run the command cube CTL logs hyphen f.
+
+And then you can use the command with labels so that it will be easy for us.
+
+So we can go here.
+
+And to verify the logs we can run with hyphen L app dot Kubernetes dot name equal to Carpenter.
+
+So with this you can verify the carpenter logs also.
+
+So earlier you have seen that carpenter pods are running from last four minutes.
+
+And here are the logs information about that okay.
+
+So it is saying starting the controller controller of kind node pool worker etcetera etcetera etcetera.
+
+But we don't see all or the info logs only, nothing related to anything related to issues here.
+
+Okay.
+
+So we have also verified the logs.
+
+Now in our next lecture we will focus on understanding and implementing or deploying the EC2 node class
+
+on demand node pool and also spark node pool.
+
+So I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Before going to Carpenter Configuration layer four.
+
+Also verify the things.
+
+Whatever we have created as part of Terraform one is IAM policy, IAM role and then Pod identity association.
+
+So let's go ahead and then review them.
+
+So we'll go here and we will go to it and then review them.
+
+So we'll go to IAM.
+
+And here in roles we will say retail hyphen dev.
+
+And in retail hyphen dev we can see that we have the retail dev carpenter controller role and node role.
+
+So these two are the things which we have created.
+
+So carpenter controller role will have a custom policy with huge amount of permissions.
+
+So which we have defined okay.
+
+And it should have the trust policy which is pod dot x Amazon AWS dotcom.
+
+So that is carpenter controller role.
+
+And we'll also have carpenter node role, right?
+
+And where the nodes EC2 instances will be able to pull Docker images from Elastic Container Registry.
+
+It should have the VPC related CNI policy related policy, worker node policy, and SSM managed instance
+
+score.
+
+So those policies are there.
+
+That is node role and its trust relationship also should have EC2, dot Amazon aws.com.
+
+And even that is present okay that's about IAM roles.
+
+So if we go back to the picture here right.
+
+So these things we have verified IAM role IAM role pod.
+
+And we need to verify the pod ID and these also we have verified okay IAM policy and then IAM role.
+
+Now we in EKS cluster we need to verify this one access entry and pod identity association.
+
+So let's come back here and go to the EKS cluster.
+
+So this is our EKS cluster.
+
+And if we go to the access thing right in the pod identity associations.
+
+So you can see retail dev Karpenter controller role.
+
+Right.
+
+So this is the IAM role and this is the namespace cube system.
+
+And this is the Carpenter service account.
+
+So if we want we can also verify that service account here.
+
+So we can go here kubectl get se and then hyphen n.
+
+And in kube system namespace we should have that carpenter uh and we can say pipe grep and carp okay.
+
+We should have the carpenter related service account.
+
+It is present.
+
+Now let's come back here.
+
+And we also need to verify the x axis entry.
+
+So you can see retail dev carpenter node role for it.
+
+We have the uh for it.
+
+We have the access entry created here of type EC2 Linux.
+
+And you can see the group name system nodes everything okay.
+
+So this is same as our retail dev x node group role okay.
+
+So these also we have seen now.
+
+So with that said we also need to see uh we need to go to EventBridge right.
+
+So we need to go to EventBridge and verify the four things.
+
+Whatever.
+
+We have created four rules.
+
+And we also need to verify the SQS queue simple queue service and go to simple Queue service.
+
+And here we have the retail dev EKS demo one SQS queue got created okay.
+
+And its access policy also allow from so and so and deny from so and so everything.
+
+We can see it here and in EventBridge.
+
+Also if we click on the buses and then rules and rules on default event bus.
+
+And if we say retail.
+
+So we have the four things created here.
+
+One is AWS Health event and then EC2 instance rebalance, EC2 instance, pod interruption and EC2 instance
+
+state change notifications.
+
+So these events got created and their target also specified to the EKS SQS queue which we have created,
+
+which is Retail dev X demo one.
+
+It will open the queue for us here okay.
+
+So their targets also correctly specified.
+
+So that said if we go here right.
+
+So if we go to the architecture diagram here.
+
+So we have seen all the things Karpenter controller we have verified okay.
+
+So we have verified the carpenter controller.
+
+We have verified all these things present here.
+
+These also we have verified and these also we have verified.
+
+So end to end whatever we said in the carpenter install architecture.
+
+So we have verified once they are created in our AWS environment.
+
+So in our next lecture we will focus on configuration layer four which is EC2 node class and on demand
+
+node pool and spark node pool.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+All right.
+
+Now let's go ahead and then review.
+
+In zero four Carpenter kits manifest we have zero one EC2 node class zero two node pool on demand and
+
+zero three node pool spot.
+
+Okay, so let's review these things on a high level.
+
+So this EC2 node class is the blueprint how we need to build our Kubernetes worker nodes.
+
+And on demand node pool is mainly for the stable capacity.
+
+So what nodes are needed for critical workloads.
+
+And we also have something called spot node pool right.
+
+So we'll have the spark node pool also here.
+
+And that spot node pool is primarily for stateless workloads and are less critical workloads okay.
+
+So now let's start with first the EC2 node class.
+
+So from there on we will go ahead and then review it in detail and move to On demand and spot node pools.
+
+Also.
+
+So if you see here we have something called API version is Carpenter dot AWS v1 and kind is EC2 node
+
+class.
+
+And the name of this respective node class is default EC2 node class.
+
+So this is going to be referenced in both on demand and also our spot node pools.
+
+So now in the spec we have defined some important things.
+
+So let's discuss them.
+
+Okay so the first thing here is a family.
+
+So we are using Amazon Linux 2023 which is AWS latest and greatest available as on today.
+
+So this is optimized for ECS, has better security defaults and even the long term support.
+
+So we are using Ami family L 2023.
+
+And then when we talk about the mi selector terms.
+
+Right.
+
+So we are saying Al 2023 at the rate latest means.
+
+Carpenter automatically uses the latest Al 2023 Army for your ex worker node instances.
+
+Okay, so no need to manually update the Ami IDs when new versions come out.
+
+Carpenter handles it.
+
+We really don't need to worry because we are using the at the latest.
+
+Okay.
+
+And one more.
+
+We see now here is node IAM role.
+
+We need to provide it here.
+
+So this is a very very critical setting.
+
+Okay.
+
+So this one.
+
+Okay.
+
+So because this node IAM role will be associated with the EC2 instances whatever it gets created right.
+
+So what permissions does it have matters.
+
+So whether the nodes created by Carpenter will be able to join the EKS cluster pull images from ECR.
+
+So all that, whatever we have discussed earlier so that information will be present in this IAM role.
+
+So that node IAM role related a we need to specify here and next is subnet selection.
+
+So this is another critical security point okay.
+
+So here if we say in subnet selector terms.
+
+So which subnet we need to select is one important thing okay.
+
+So when we are creating the EKS cluster right.
+
+So we have added subnet tags okay.
+
+Subnet tags we have added.
+
+So in that one is owned okay.
+
+And second is uh internal E one.
+
+So these two we are seeing it here.
+
+So the second one if we don't put only if we put the first one right.
+
+So then your nodes can be launched in either the public subnet or the private subnet, but the security
+
+measure is all always launch your workload instances workload instances in private subnets.
+
+Okay, so to launch your instances in private subnets we need to add this additional tag also.
+
+So when it checks for these two tags it will find only the three private subnets where it where Karpenter
+
+is going to launch the EC2 instances.
+
+So that's a very very important setting.
+
+And next is we need to focus on security groups.
+
+So here Karpenter auto discovers security groups that belong to your EKS cluster.
+
+So these were created when you set up EKS and control network access to your nodes okay.
+
+So these whatever the EKS cluster created node security group that only will be associated with your
+
+instances by.
+
+By using this tag, it will identify that respective security group and then associate it with the new
+
+EC2 instances.
+
+Whatever you are creating using Carpenter.
+
+Okay, so that's one thing.
+
+And now next comes this is another important setting.
+
+Okay.
+
+Tags.
+
+And then carpenter dot slash discovery.
+
+And then retail dev x demo one.
+
+Right.
+
+So this tag gets added to every EC2 instances instance Carpenter creates.
+
+So why it will add because it allows Carpenter to identify which instances it manages.
+
+So when Carpenter needs to scale down or terminate nodes it look for instances with this tag okay.
+
+So these are the existing tags which it is going to verify.
+
+But here this is the tag.
+
+It is going to add to the new EC2 instances.
+
+Which carpenter is getting created?
+
+Okay, Carpenter creates for them.
+
+It is going to add and this part is the storage configuration.
+
+So we are saying volume size 20 GB and volume type.
+
+We are using the GP3 which is the latest general purpose SSD with better performance and then cheaper
+
+cost than GP2.
+
+And we are also saying encrypted equal to true, which means always, uh, true in production if because
+
+it encrypts data at rest.
+
+And one more important setting.
+
+Also we are doing delete on termination.
+
+So when the node is deleted the EBS volume goes with it.
+
+Okay.
+
+So no orphaned volumes will be available in our AWS account which costs money for us.
+
+Okay, so they will get deleted as as soon as the node is deleted.
+
+And we also have some metadata options.
+
+Also we said HTTP Tokens required.
+
+So this enforces.
+
+We use the Imds v2 which is Instant Metadata Service version two.
+
+Okay, so version one has security vulnerabilities.
+
+So when we say HTTP tokens required it will use the Imds v2 version instance metadata service version
+
+two.
+
+Okay.
+
+And we also said that HTTP put response hop limit.
+
+So this limits how far Imds requests can hop through networks.
+
+So the value of two is perfect for containerized workloads.
+
+It allows pods to access imds, but at the same time it prevents ssrf attacks also.
+
+So that's about the EC2 node class.
+
+Okay, in our next lecture we will focus on on demand and then spot node pools.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+All right.
+
+Now let's go ahead and then review.
+
+In zero four Carpenter kits manifest we have zero one EC2 node class zero two node pool on demand and
+
+zero three node pool spot.
+
+Okay, so let's review these things on a high level.
+
+So this EC2 node class is the blueprint how we need to build our Kubernetes worker nodes.
+
+And on demand node pool is mainly for the stable capacity.
+
+So what nodes are needed for critical workloads.
+
+And we also have something called spot node pool right.
+
+So we'll have the spark node pool also here.
+
+And that spot node pool is primarily for stateless workloads and are less critical workloads okay.
+
+So now let's start with first the EC2 node class.
+
+So from there on we will go ahead and then review it in detail and move to On demand and spot node pools.
+
+Also.
+
+So if you see here we have something called API version is Carpenter dot AWS v1 and kind is EC2 node
+
+class.
+
+And the name of this respective node class is default EC2 node class.
+
+So this is going to be referenced in both on demand and also our spot node pools.
+
+So now in the spec we have defined some important things.
+
+So let's discuss them.
+
+Okay so the first thing here is a family.
+
+So we are using Amazon Linux 2023 which is AWS latest and greatest available as on today.
+
+So this is optimized for ECS, has better security defaults and even the long term support.
+
+So we are using Ami family L 2023.
+
+And then when we talk about the mi selector terms.
+
+Right.
+
+So we are saying Al 2023 at the rate latest means.
+
+Carpenter automatically uses the latest Al 2023 Army for your ex worker node instances.
+
+Okay, so no need to manually update the Ami IDs when new versions come out.
+
+Carpenter handles it.
+
+We really don't need to worry because we are using the at the latest.
+
+Okay.
+
+And one more.
+
+We see now here is node IAM role.
+
+We need to provide it here.
+
+So this is a very very critical setting.
+
+Okay.
+
+So this one.
+
+Okay.
+
+So because this node IAM role will be associated with the EC2 instances whatever it gets created right.
+
+So what permissions does it have matters.
+
+So whether the nodes created by Carpenter will be able to join the EKS cluster pull images from ECR.
+
+So all that, whatever we have discussed earlier so that information will be present in this IAM role.
+
+So that node IAM role related a we need to specify here and next is subnet selection.
+
+So this is another critical security point okay.
+
+So here if we say in subnet selector terms.
+
+So which subnet we need to select is one important thing okay.
+
+So when we are creating the EKS cluster right.
+
+So we have added subnet tags okay.
+
+Subnet tags we have added.
+
+So in that one is owned okay.
+
+And second is uh internal E one.
+
+So these two we are seeing it here.
+
+So the second one if we don't put only if we put the first one right.
+
+So then your nodes can be launched in either the public subnet or the private subnet, but the security
+
+measure is all always launch your workload instances workload instances in private subnets.
+
+Okay, so to launch your instances in private subnets we need to add this additional tag also.
+
+So when it checks for these two tags it will find only the three private subnets where it where Karpenter
+
+is going to launch the EC2 instances.
+
+So that's a very very important setting.
+
+And next is we need to focus on security groups.
+
+So here Karpenter auto discovers security groups that belong to your EKS cluster.
+
+So these were created when you set up EKS and control network access to your nodes okay.
+
+So these whatever the EKS cluster created node security group that only will be associated with your
+
+instances by.
+
+By using this tag, it will identify that respective security group and then associate it with the new
+
+EC2 instances.
+
+Whatever you are creating using Carpenter.
+
+Okay, so that's one thing.
+
+And now next comes this is another important setting.
+
+Okay.
+
+Tags.
+
+And then carpenter dot slash discovery.
+
+And then retail dev x demo one.
+
+Right.
+
+So this tag gets added to every EC2 instances instance Carpenter creates.
+
+So why it will add because it allows Carpenter to identify which instances it manages.
+
+So when Carpenter needs to scale down or terminate nodes it look for instances with this tag okay.
+
+So these are the existing tags which it is going to verify.
+
+But here this is the tag.
+
+It is going to add to the new EC2 instances.
+
+Which carpenter is getting created?
+
+Okay, Carpenter creates for them.
+
+It is going to add and this part is the storage configuration.
+
+So we are saying volume size 20 GB and volume type.
+
+We are using the GP3 which is the latest general purpose SSD with better performance and then cheaper
+
+cost than GP2.
+
+And we are also saying encrypted equal to true, which means always, uh, true in production if because
+
+it encrypts data at rest.
+
+And one more important setting.
+
+Also we are doing delete on termination.
+
+So when the node is deleted the EBS volume goes with it.
+
+Okay.
+
+So no orphaned volumes will be available in our AWS account which costs money for us.
+
+Okay, so they will get deleted as as soon as the node is deleted.
+
+And we also have some metadata options.
+
+Also we said HTTP Tokens required.
+
+So this enforces.
+
+We use the Imds v2 which is Instant Metadata Service version two.
+
+Okay, so version one has security vulnerabilities.
+
+So when we say HTTP tokens required it will use the Imds v2 version instance metadata service version
+
+two.
+
+Okay.
+
+And we also said that HTTP put response hop limit.
+
+So this limits how far Imds requests can hop through networks.
+
+So the value of two is perfect for containerized workloads.
+
+It allows pods to access imds, but at the same time it prevents ssrf attacks also.
+
+So that's about the EC2 node class.
+
+Okay, in our next lecture we will focus on on demand and then spot node pools.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+In previous lecture we have reviewed the EC2 node class.
+
+Now let's go ahead and then review the Carpenter on Demand node pool.
+
+So here we can see API version is Carpenter v1 and kind is node pool.
+
+And name is on demand node pool.
+
+And here we need to first verify this node class reference which it is referencing is default EC2 node
+
+class.
+
+So which is nothing but whatever we have just now discovered.
+
+So that is what we are referencing it.
+
+So what actually is happening is so when we provision this node pool we are saying Kubernetes that you
+
+we need to use the blueprint defined inside this default EC2 node class to create the EC2 instances.
+
+When Karpenter is provisioning the nodes, it need to use the blueprint defined in EC2 node class default
+
+EC2 node class.
+
+So that's what it is.
+
+And now this.
+
+We can leave it empty.
+
+So those are optional.
+
+We have put it okay but empty for now.
+
+Trains are used to repel pods which means you would use them if you wanted to reserve this node pool
+
+for specific type of workloads only.
+
+So we are keeping it open to all pods.
+
+Currently we are not reserving anything, so now we'll move on to the node selection logic here which
+
+is requirement section.
+
+And in this these two are the important things okay.
+
+So architecture of the VM or EC2 instance it is going to launch is Amd64 and its OS is Linux.
+
+And in addition to that we have something called capacity type.
+
+We are saying on demand.
+
+This is the very very important setting on demand instances are guaranteed capacity.
+
+AWS won't take them away from you.
+
+They are more expensive but stable.
+
+So this when we are using this on demand node pool.
+
+And if we want to launch instances using this on demand node pool, the type of workloads we need to
+
+choose for this node pool is production databases.
+
+Critical API servers are stateful applications and anything, any application that can't tolerate interruptions.
+
+So such type of applications we can use capacity type on demand okay.
+
+And in instance family.
+
+So if we go down here we have the instance families we have defined okay.
+
+So we have T3 and T3 a it's a list item.
+
+You can add any number here okay.
+
+Write any type of families you can add for cost cutting.
+
+For our demo I have put only simple T3 and then T3 a which are burstable budget friendly things for
+
+our testing.
+
+Okay, so that's the reason I have put it.
+
+You can add any number or any type of instances, whatever you want.
+
+And we also defined the instance sizes.
+
+I tried to put as small as possible micro small and then medium.
+
+And in addition to that we have also defined the zone.
+
+Okay.
+
+So this is another important setting.
+
+So these zones whatever you define must match your VPC subnet configurations.
+
+So Karpenter can only launch nodes in edges where your EKS cluster has subnets.
+
+So if you try to specify something which is not there in your EKS cluster subnets, right then it is
+
+going to fail.
+
+Karpenter will fail to provision the nodes.
+
+So that's another important thing to remember.
+
+And one more is limits CPU 50.
+
+So this is a cluster wide limit.
+
+So this node pool can provision up to 50 vCPUs total across all nodes.
+
+So if you have five T3 medium nodes with two vCPUs each, which means that's ten Vcpu already consumed,
+
+and Carpenter can still provision 40 more vcpu worth of nodes it can provision.
+
+So this is a hard limit.
+
+Whatever you are defining, you cannot go max above this using this respective node pool.
+
+So this is your safety net to prevent runaway scaling and unexpected AWS bills.
+
+So this is a very very, very, very important setting.
+
+And in the same way we have something called disruption settings okay.
+
+So here you have something called consolidation policy.
+
+You said when empty or under utilized.
+
+So you are telling Carpenter to automatically consolidate nodes when they are empty or underutilized.
+
+So let's take an example here.
+
+So you have 3T3 small instances.
+
+So let's say t three small instances okay.
+
+And you have one pod running on each okay.
+
+So you have one pod running on each of these things okay.
+
+Which is a each running one tiny pod.
+
+And then Karpenter will drain two of those nodes, move all pods to one node and terminate the unused
+
+nodes.
+
+Okay.
+
+So and when will it happen?
+
+Consolidate after 30s it will wait for 30s before consolidating.
+
+And that is very important.
+
+Okay, so how long to wait before consolidating.
+
+That is very important because it prevents thrashing rapid scaling up and down all those things.
+
+So 30s is a good number here okay.
+
+That's about on demand node pool.
+
+In the same line we have something called spot node pool here.
+
+And this part is same name is spot node pool.
+
+This part is same and this part is also same.
+
+Even this part is also same.
+
+The difference here you can see is this one.
+
+Okay so capacity type we are saying spot here okay.
+
+Right.
+
+So spot in the sense this is one of the game changer setting.
+
+Spot instances are 50 to 90% cheaper than on demand.
+
+But they can be interrupted with two minute notice.
+
+Okay so this is important thing to remember.
+
+So when AWS needs the capacity back.
+
+So then in that case for which type of workloads this is best okay.
+
+Spot can be best for batch workloads okay.
+
+So which runs during the night etc. are for CI CD pipelines okay.
+
+Are for stateless workloads like web servers okay web servers or even something like data processing
+
+tasks.
+
+Right?
+
+So for them also it is good even for test environments.
+
+Also you can use this spot instances and these are not for the spot instances are not for means like
+
+you should not use them for uh databases.
+
+Right.
+
+So databases you should not use.
+
+And for even the stateful apps also you should not use these things okay.
+
+So real time applications that can't tolerate interruptions.
+
+Also you should not use this spot node pools.
+
+And in this spot node pool I have added more number of instance families I have added here.
+
+So we have put five instance families instead of two on our on demand from on demand because spot availability,
+
+spot instance availability varies most of the times.
+
+So if T3 spot capacity is unavailable, Karpenter will pick T3 a in the same way if t3 A is unavailable,
+
+it can go to T2 or C5 or C6 A, so it can go like that.
+
+So that's the reason I have added more instance families here.
+
+In the same line I have also added more instance sizes.
+
+Also I have added I have included large also for this okay, but limits I have put as is again 50.
+
+I have put it and in disruption budget.
+
+Again it is same same as our on demand but added additional consolidation budget.
+
+Okay, so said that nodes 100% drifted under utilized and then empty.
+
+What exactly that means?
+
+Spot node pools can be more aggressive with consolidation because the workloads are fault tolerant by
+
+nature.
+
+So the providing budgets and nodes equal to 100% means Karpenter can disrupt all nodes if needed for
+
+node optimization.
+
+So for optimization, if you want, you can disrupt all the 100% nodes.
+
+Also, you can give even 50% based on your workload type and then its criticality.
+
+So in the same line drifted in the sense node config changed which means army update happened or something,
+
+then it can automatically replace those instances are underutilized.
+
+Node is wasting resources.
+
+So then it can immediately replace or reclaim the resources means like only remove some nodes and then
+
+put only whatever is required or when empty.
+
+So node has no parts.
+
+In all these cases, you can, uh, disrupt and rearrange the nodes based on our workload needs.
+
+So this keeps our spot capacity lean and even cost optimized.
+
+So that's about the spot node pool.
+
+So in our next lecture we'll go ahead and then deploy these things and then verify.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Now let's go ahead and then deploy all three files EC2 node class, on demand node pool and then spot
+
+node pool.
+
+So these three files are present in zero four Karpenter manifest.
+
+So let's go ahead and then deploy that now.
+
+So we'll go to our terminal here.
+
+And first we'll put our logs.
+
+Okay.
+
+So for our Karpenter pod logs we'll try to put it here.
+
+Okay.
+
+So these are our Karpenter pod logs.
+
+And now we will go here and we'll come out of zero three Karpenter terraform manifest.
+
+And here you have zero four Karpenter K8S manifest.
+
+And inside that you can see three files are there 0102 and then zero three and then zero four.
+
+So I'll say cube ctl apply hyphen f and then all three things I'm deploying at a time.
+
+Let's see what happens okay.
+
+So we will start with verifying the node pools and also our node classes.
+
+So cube CTL get EC2 node class first okay.
+
+So and let's see what happens okay.
+
+So it is saying it is true.
+
+So we'll say in ready area it is saying true okay.
+
+So we'll say describe and then EC2 node class and provide the name of it which is default EC2 node class.
+
+And when we describe it we can see all the information here, see all the information about it, whatever
+
+we have done okay.
+
+So it is saying Ami is ready.
+
+Capacity from Karpenter okay.
+
+Status condition trans transitioned everything.
+
+Everything.
+
+It is showing.
+
+Everything is ready.
+
+There are no errors here inside this okay.
+
+If some authorization errors or authentication errors, or if some node role we have put in a wrong
+
+way, then we will see some unknown status or some other status you will not see when you run this command
+
+EC2 node class, you will not see this true status at all everywhere you have seen ready and then true.
+
+Now we will also see kubectl get node pools.
+
+So we have two node pools on demand node pool and spot node pool, which are referencing default EC2
+
+node classes.
+
+And then both are also true.
+
+So if you see kubectl describe node pool and on demand node pool and then you can review that okay.
+
+So in the event section.
+
+So it is saying validation is succeeded.
+
+Node class is ready.
+
+And then finally it is ready.
+
+So it's one after the other.
+
+It is finally it came to ready state okay.
+
+It is true.
+
+Now in the same way we can also describe describe node pool and we will say spot node pool even that.
+
+Also we can verify here even that is also ready.
+
+And if you want to verify the carpenter pod logs you can see.
+
+So this is our carpenter pod log.
+
+Nothing.
+
+Anything related to errors.
+
+Everything is info only okay so we are good from pod logs also.
+
+So that's about the entire demo here okay so on demand node pool we have deployed everything.
+
+So that's about the 17 zero one carpenter install.
+
+Okay.
+
+So we we have seen lots of things here and lots of concepts we have seen.
+
+So we have seen the Carpenter architecture Carpenter installation.
+
+And we also seen why Carpenter.
+
+So if you see here why carpenter why not cluster autoscaler.
+
+So lots of things we have seen in this and it's a big section.
+
+But finally we have achieved whatever we need it.
+
+Which means like we have updated the ECS terraform manifest in CFX tags with owned here from shared
+
+for EC2 tag.
+
+And then we deployed the Carpenter Terraform manifest.
+
+Already VPC and x are running and changes applied.
+
+We have deployed the Carpenter Terraform manifest and we have also deployed the Carpenter Cortez manifest.
+
+So in our next lecture we will focus on testing Carpenter on demand instances and following.
+
+We will also test carpenter spot instances.
+
+So I'll see you in the next demo.
+
+Until then bye bye.
+
+Thank you.
+
+
+Alright everyone.
+
+As part of previous 1701, we have already installed the carpenter controller in our ECS cluster.
+
+So as part of 1702, we are going to focus on understanding how the nodes are created using the on demand
+
+node pool configuration.
+
+So we are going to watch Carpenter do what it does best, which is automatically provisioning and deprovisioning
+
+nodes based on your application actual needs.
+
+So no manual intervention, no guessing, just intelligent cost efficient auto scaling.
+
+So how it is going to work we are going to see that now.
+
+So we are going to demonstrate three critical carpenter behaviors.
+
+So we are going to deploy a simple application right.
+
+So with replicas okay.
+
+So when we deploy this right.
+
+So with capacity type as on demand.
+
+So when we deploy this right.
+
+So Karpenter will provision exactly the right nodes within 30 to 60s.
+
+So let's say it has provided it has provisioned node one and node two for these five replicas.
+
+So this from here on this is the initial provisioning okay.
+
+So then what we will do is we will do a scale up event.
+
+So which means we will increase our replicas from 5 to 10 replicas.
+
+And we will observe what Karpenter is going to do.
+
+So immediately Karpenter will add some additional nodes here.
+
+And then also ensure that these ten whatever replicas, in addition to five five more pods are scheduled
+
+on these nodes and they are in the running state.
+
+So later again, what we are going to do is so we have done the scale up event.
+
+So we will do the scale down event.
+
+So which means we will decrease our replicas to two replicas.
+
+So when we reduce our replicas to two, Carpenter intelligently consolidates and terminates unnecessary
+
+nodes to save cost.
+
+So these nodes will be removed.
+
+And again all these things will happen within 30 to 60s time interval only for each of the things.
+
+Okay, so we are going to practically implement this and then understand.
+
+So if we go here right.
+
+So this is our 1702 Carpenter on demand instances demo steps okay.
+
+So we will go to our Visual Studio Code here.
+
+And here you can see 17 zero to Carpenter on demand instances.
+
+And inside this you have the cube manifest folder on demand.
+
+Okay.
+
+And here on demand auto scaling test dot YAML.
+
+So here we are using a simple application a Kubernetes deployment with a simple uh Docker image.
+
+Right.
+
+So where the core focus is on the resources.
+
+So we are going to request 500 million per pod.
+
+Right.
+
+And memory 256 so if we say five replicas and we also say the node selector with capacity type as on
+
+demand, right?
+
+So how it is going to behave, we are going to see now.
+
+So the first thing is we'll go here and we will come out of 17, zero will come out of 17 zero one and
+
+go inside 17 zero two.
+
+And before that we will also discuss this okay.
+
+So this is about on demand node pool.
+
+But we didn't discuss about the current managed node group.
+
+Right.
+
+So the current managed node group has three nodes and all the current things which is like you in cube
+
+system.
+
+You have your load balancer controller and your core DNS, your secret store, CSI driver, EBS, CSI
+
+driver, X pod identity agent and your Carpenter pods and cube proxy pods and ACP.
+
+So all these things are running in your current managed node group and for your actual workloads, your
+
+application related workloads.
+
+We are using the Carpenter nodes.
+
+So now let's come back here and let's say cube CTL apply hyphen f.
+
+Let's see first the replicas.
+
+It's scheduled to five replicas.
+
+And then now we will say cube manifest on demand.
+
+And inside that you have on demand auto scaling test dot YAML file.
+
+And you can also see here cube CTL get parts.
+
+And those parts should be in the pending state.
+
+So now you will say node claims is one of the important command.
+
+Okay, so you can see it has requested for one, two, three small and 123A small.
+
+Okay.
+
+Node claims is nothing, but it is requesting Carpenter these nodes okay.
+
+And you can also see cube CTL get nodes right.
+
+We should have three nodes plus two new nodes okay.
+
+So these three nodes whatever you are seeing are created 24 minutes before when we have created our
+
+EKS cluster.
+
+And this is the new one.
+
+New two nodes requested just 11 seconds before.
+
+So now in node claims you can see their state is unknown okay.
+
+So when we try one more time node claims.
+
+So you can see in the node claims one VM one EC2 instance it requested is T3 small one is T3 a small
+
+okay.
+
+So it intelligently requested.
+
+It's not like same type okay.
+
+Right.
+
+And they are in the true status.
+
+In the same way when you run the command get nodes also again, you can see those two are ready.
+
+Whatever the new things just now requested, those were ready.
+
+And now if you run the command get pods right so you can see that you are all five Carpenter related
+
+means like auto scaling, on demand related application related parts are in the running status.
+
+If you see here we have explicitly said that use the capacity on demand.
+
+Okay, so if you run the command here kubectl get node pools okay.
+
+So if you go here and run node pools and here on demand node pool has currently two nodes.
+
+But in spot node pool nothing.
+
+So you might ask me the question whether these can be also scheduled on your existing managed node group.
+
+Also, yes when you don't specify this node selector and if you have space available on your means,
+
+like if the resources are available on your managed.
+
+Node group.
+
+Three nodes here.
+
+Right.
+
+So in these things also it can get scheduled.
+
+So that's the reason we said when we are discussing about the architecture right.
+
+So node selectors okay.
+
+Node selectors are optional but recommended so that we very clearly said the reason is you don't want
+
+your pods to be scheduled here and there and then later run into issues.
+
+So it need to be managed by specific systems.
+
+You can put accordingly.
+
+So when you select this karpenter capacity type on demand then they will be scheduled on Karpenter node
+
+pool only on demand node pool only.
+
+So that we should clearly remember.
+
+So now if you go back here right.
+
+So we have all the five parts running and in on demand node pool you have.
+
+It has Karpenter has provisioned two nodes okay.
+
+Now what we are going to do is we are going to go ahead and then scale this.
+
+So let me first clear this and we'll say cube CTL get deploy.
+
+We'll get the deployment name which is Karpenter auto scale demo on demand.
+
+So I'll try to copy this and we'll use the we will use the command let me copy this and we'll say cube
+
+CTL scale and deploy and deployment name.
+
+And I will say replicas equal to ten okay.
+
+And let's see what happens.
+
+So now if I run the command cube CTL get pods you should see five pods in the pending state.
+
+Okay.
+
+So now what I will do is I will run the command get node claims okay.
+
+And let's see what happens okay.
+
+And when we run that it again provisioned one more T3 a small and another T3.
+
+So you can also see the instance sizes okay means like it's not the same type of instances it is doing
+
+in our list.
+
+Also, we have given only T3 related instances, so it has provisioned them.
+
+But you can see not all T3 it is there.
+
+You have one T3, one T3 a accordingly it is provisioning and if you go here to even the node pools,
+
+right, you should see that four nodes in your on demand node pool.
+
+So we will also say node claims one more time.
+
+And you can see all the four nodes are ready in node claims.
+
+Now I will also say that get nodes and three plus these are four total seven nodes should be available
+
+for us just 30s 36 seconds before or 38 seconds before two new nodes got scheduled.
+
+And if I run the command cube CTL get pods, all the five all the ten pods should be in the running
+
+state.
+
+You can see it.
+
+So how fast it is happening you are seeing right when you talk about cluster autoscaler.
+
+It takes 3 to 5 minutes or 5 to 10 minutes.
+
+Also, most of the time for all these things.
+
+Okay.
+
+But here you said it is only 30s within 30 to 60s.
+
+Everything is getting ready.
+
+So that's the advantage of using Carpenter.
+
+Okay.
+
+So now what we are going to do is we are going to scale down these things to two.
+
+So we said we are going to test three scenarios right.
+
+So initial five it is completed okay.
+
+So we have tested this and scale up.
+
+We have tested this.
+
+Now we will do this now.
+
+So let's come back here and then scale down.
+
+So we have the scale kubectl scale.
+
+So we'll go up here and kubectl scale command.
+
+We can see and hear from replicas ten to we'll change it to two replicas okay.
+
+And then now if we run the command get pods, your pods should be immediately come down to two parts.
+
+Okay.
+
+But when you see the node claims right, right here, they are still in this state only.
+
+And if you say get nodes, you can see these things are also in the ready state.
+
+Why?
+
+Because if you go here right it will wait for 30s okay.
+
+Before removing any unused nodes.
+
+So in your zero four carpenter can manifest in node pool on demand.
+
+You said here in disruption consolidation policy when empty are underutilized consolidate after 30s.
+
+So as you said 30s it will wait for the 30s and then only trigger the things.
+
+Okay, so now if you come back here and if you run the command get nodes right, it might be already
+
+30s and you can see two nodes.
+
+First initially it is removing okay.
+
+So if you run the command cube CTL get node claims.
+
+And you should see here that are still four nodes.
+
+Node claims are present.
+
+Once those were removed, those node claims also will get deleted.
+
+Okay.
+
+So when the two nodes were removed.
+
+So now if you see node claim.
+
+So now only three node claims okay.
+
+So one more also will be gone now very soon one after the other.
+
+It is removing.
+
+You can see that right.
+
+So we'll again run the command node claims.
+
+And we have three node claims currently.
+
+Let's wait for it every 30s it keeps cleaning up okay.
+
+And if we want we can also keep watching our carpenter pod logs also here in parallel.
+
+Okay, so what is happening if you want to review those things also.
+
+So it is deleting the node claim and all the information about this.
+
+You can see it here with the name of what is the name of that node and what it is doing.
+
+Everything you can review in the logs also.
+
+Now I will run one more time.
+
+Get node claims only one node is running, so t3 A is still cheaper than T3 small, so that's the reason
+
+you try to use the cheaper resource.
+
+Okay.
+
+And for those two parts one node is sufficient.
+
+So it has removed all the four nodes it has provisioned and only one node.
+
+Okay.
+
+So three nodes were removed and only one is present.
+
+So now if you run the command get nodes.
+
+Also in addition to our three nodes which we have provisioned as part of managed node group, only one
+
+node is running.
+
+So that's about the on demand node pool okay so one more scenario.
+
+Also we are going to test here.
+
+So let's also see that okay so this is completed.
+
+So let's test one more scenario here okay.
+
+So we will come here and we will go here and also test one more scenario which is we will remove the
+
+application which means replicas as zero or delete our test application okay.
+
+And let's see what is the behavior.
+
+Behavior is whatever This one node running also will be removed.
+
+So let's also see that now that again happens in 30s itself.
+
+Okay I'll say cube ctl delete hyphen f and then cube manifest whatever the on demand auto scaling test.
+
+And if I clear cube CTL get pods and nothing should be there here and now if I go ahead and check for
+
+node claims right.
+
+Currently one is there.
+
+And if I say nodes right it should be currently present.
+
+It takes another 30s for this thing to get removed from the carpenter.
+
+Okay, Carpenter will take wait for 30s and after that only it will take the action.
+
+Okay, so we can see the message here.
+
+Disrupting nodes and then disrupted node count one and replacement node count.
+
+Also you can see zero pod count is zero and then it is disrupting this respective node and this respective
+
+node claim.
+
+Okay, so this is the node claim.
+
+T3 is small and whether it is going to replace any nodes, it is saying no okay it is zero okay.
+
+And then message it initially tainted the node and then finally it will remove okay.
+
+Now let's come back here and run the command get nodes and you should see only three nodes.
+
+It is currently in the not ready mode.
+
+Soon it will be removed okay in node claims.
+
+Also one node should be there even that also node claims everything is deleted in nodes.
+
+Also this should this node is gone now.
+
+So only three nodes from our managed node group is present.
+
+So all these things are gone and only we have these things currently running.
+
+So that's about on demand node pool demo as part of section 1702.
+
+In our next lecture we will focus on spot node pool.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+In this demo we are going to test the spot node pool here.
+
+So we are going to deploy our sample application with capacity type as spot.
+
+And already we have seen the scale up scale down all those things.
+
+So with spot node pool with replicas as five replicas we are going to deploy with capacity type as spot
+
+and see whether it is going to provision the nodes of type nodes in spot node pool or not.
+
+We are going to test okay.
+
+So now let's go back to 17 zero three section and then do that now.
+
+So if we see here this is 17 zero three.
+
+And in cube manifest spot you can see spot auto scaling test.
+
+And it's the same demo right.
+
+But only thing is you have the node selector here which is Karpenter dot slash capacity type equal to
+
+spot.
+
+Okay.
+
+So now we will go back to our terminal right.
+
+And then go ahead and then deploy them.
+
+So I'll try to put the log like this.
+
+And then we'll come out of 17 zero two.
+
+We'll go inside 17 zero three.
+
+And cube CTL apply hyphen f cube manifest spot okay.
+
+And this should create a some pods here close to five parts.
+
+And now if we run the command cube CTL get node claims right.
+
+So you should see that of type capacity spot.
+
+It requested two nodes of type T three small.
+
+And now if we say cube CTL get nodes you should see two nodes were requested.
+
+It's running.
+
+It's let's wait for it okay.
+
+Right.
+
+So you can see two nodes were requested just four seconds before and they are currently not ready.
+
+Soon they will be provisioned.
+
+So you can also see the logs here.
+
+Okay.
+
+So message found provisioning pods.
+
+And you can see all the information for for the default in default namespace Karpenter Autoscale.
+
+Demo spot.
+
+This is one pod and this is another pod.
+
+So like this.
+
+It's giving the pod information and all those things.
+
+And then it is trying to compute a new node claims to fit the pods.
+
+It has computed that okay.
+
+And then it created a node claim based on that.
+
+So Karpenter is intelligently computing what node claim it need to do means like what node request it
+
+need to put okay.
+
+And finally it has put the node request with so-and-so information.
+
+Okay.
+
+So with CPU 1800 M and then memory 11128 MI.
+
+So with all the information it is trying to calculate and then finally request the node claim.
+
+Okay, so if you read these logs in detail you will understand what is happening.
+
+Okay.
+
+Now if you come back here and if I say cube CTL get nodes right, you should see both nodes are ready.
+
+And if I run the command get pods and you should see that pods all are in the running state.
+
+And now if I run the command node claims you should see that node claim should be true here.
+
+Okay so that's about the spot node pool.
+
+So now you have the spot instances created instead of on demand.
+
+This is 70 to 90% cheaper than on demand.
+
+And this is good for all the batch processing or stateless workloads.
+
+We can use these, uh spot nodes okay.
+
+And you only difference here is you need to ensure that when you are creating your node pool for spot
+
+the.
+
+you should give a wider, wider instance family so that, uh, wherever the spot is available, it will
+
+take it or even the wider instance sizes also.
+
+So that's the key thing to remember.
+
+Now let's go ahead and then delete it okay.
+
+And cube CTL delete hyphen f.
+
+And we will also.
+
+But if you go to this 17 zero three right.
+
+So before deleting it so we can go here right.
+
+So we can go here and we'll go to 17 zero three.
+
+I have given lots of other commands also for you to try out here.
+
+Okay.
+
+Like uh this is one command okay.
+
+So let me come down.
+
+Right.
+
+So if you want cube CTL get nodes and selector is carpenter dot capacity type spot.
+
+It will only when you are saying here right.
+
+So when you are saying here so clear cube CTL get nodes.
+
+When you run it it is showing all five nodes but only Carpenter's part notes you want.
+
+Then you can run this command.
+
+And these two are the notes related to Carpenter, uh, provisioned spot nodes.
+
+So using selector Carpenter capacity type is equal to spot as a filter.
+
+Right.
+
+You get this listed.
+
+So this is one command I have put it for you.
+
+And if you want to see the node labels also you can take any node here.
+
+So this is one node okay.
+
+And you can verify the node labels in detail.
+
+Or you can describe this node and also review the node labels different different commands I have put
+
+it here for your just uh learning purpose and practice purpose.
+
+You can try these things okay.
+
+And then learn them okay.
+
+So this is just for additional knowledge okay.
+
+So that's about 1703 carpenter spot instances.
+
+So we'll also delete hyphen f and then kube manifest spot.
+
+And this should remove after 30s it should remove our nodes also.
+
+Okay.
+
+And let's wait for it.
+
+We can also go here and run cube CTL get node claims.
+
+And uh, currently it still didn't trigger.
+
+We can run the command nodes and we should see that they are still in the ready state.
+
+So let's wait for them okay.
+
+So now here it is triggered okay.
+
+Disrupting nodes in the log.
+
+You can see that right.
+
+So now if you run the command get nodes they should be in the not ready state.
+
+And once those were removed even the node claim also will be removed very soon.
+
+So you can see the complete log here.
+
+You can understand and then read this log and understand what is happening okay.
+
+Right.
+
+So let's run cube CTL get nodes one more time and we have only three nodes.
+
+And if you run the command node claims also you should see nothing is present.
+
+So that's about spot node pool demo I'll see you in the next demo.
+
+Until then bye bye.
+
+Thank you.
+
+
+Alright everyone, in our previous demo we have learned how to provision spot instances with Carpenter
+
+and achieve 70% cost savings.
+
+So now as part of section 17 zero four, we are going to do something very important, which is like
+
+with spot node pool and with spot instances and with interruption handling means like we are trying
+
+to simulate such type of situation here and in combination with pod disruption budget.
+
+So how the whole thing works we are going to see here.
+
+Okay, so what happens when AWS takes my spot instance whatever we have provisioned using Karpenter.
+
+So what my application crash or won't my customer see errors.
+
+So these type of questions we will be getting.
+
+So how to solve them okay.
+
+So not only the interruption handling with SQS queue and then event bridges, but even effectively using
+
+other Kubernetes concepts like PDB.
+
+Okay, which is nothing but pod disruption budget.
+
+So we can implement effective solutions here.
+
+So for that purpose this demo is designed okay.
+
+So let's understand that and then implement that now.
+
+So in this demo our focus is how Karpenter handles spot interruptions with zero downtime.
+
+So not minimal zero downtime.
+
+So how we are going to implement that.
+
+So we are going to walk through six stages.
+
+This is stage one.
+
+And from normal operation all the way through complete recovery.
+
+So by the end of this you will understand why spot instances aren't risky.
+
+They are actually the smart choice when you use Karpenter correctly.
+
+So this is stage one whatever we are talking here.
+
+So this is the normal operational stage.
+
+This is our baseline stage.
+
+Everything is running smoothly.
+
+So you have deployed some application with five replicas.
+
+And all the five replicas were scheduled on a spot node pool on one node pool okay.
+
+So that's the basic thing.
+
+So you can also see on the left here the entire infrastructure AWS EventBridge, SQS Carpenter, and
+
+also whatever the sample application we have deployed and also a pod disruption budget whatever we have
+
+deployed.
+
+So we will review this YAML in detail when we are implementing it.
+
+But here we will understand what actually it is going to do in a practical way.
+
+Okay.
+
+So if you remember EventBridge during the carpenter install 1701 you have implemented SQS queue in 1701
+
+Karpenter you have implemented 1701, and as part of 1703 you learned about how to create spot node
+
+instances.
+
+Means like when you deploy the your applications, you can provide the node selector that these workloads
+
+need to be scheduled on spot instances.
+
+So that also you have learned as part of 1703.
+
+Right.
+
+Only thing new here is pod disruption budget.
+
+So what does this mean?
+
+It means during any disruption, whether it is a spot interruption, a node drain or any other event,
+
+Kubernetes must keep at least three pods running at all times.
+
+So we have currently five pods available here.
+
+And we are saying minimum available is three.
+
+So which means Kubernetes must keep at least three pods running at all times so it can evict two pods
+
+maximum, but three must stay alive.
+
+So that's the rule you define in this PDB pod disruption budget.
+
+So this is what prevents your application downtime.
+
+So remember this pod disruption budget.
+
+It is the safety net for everything we are about to see.
+
+So right now we are at t plus zero seconds.
+
+So we have the five pods currently running.
+
+And spot instance.
+
+The spot instance is healthy.
+
+And as of now no interruptions and everything is normal.
+
+But that's about to change.
+
+So let's see what happens when AWS sends an interruption warning so that we are going to see in our
+
+next slide.
+
+Okay.
+
+So let's move on to the next slide here.
+
+So this is stage two.
+
+In stage two we are talking about t plus zero to 20s interruption detected.
+
+Okay.
+
+So when the interruption is detected what happens.
+
+So let's understand why this interruption will be detected.
+
+So let's understand the story around that.
+
+So here as a right as a AWS provider right.
+
+So AWS decides it needs this spot instance back.
+
+Maybe prices went up.
+
+Maybe on demand.
+
+Customers need capacity.
+
+Doesn't matter.
+
+Whatever it is, AWS wants to reclaim that spot node or spot instance.
+
+Okay.
+
+Right at that point of time, what will happen immediately?
+
+AWS will send a interruption warning to our EventBridge.
+
+So when that is means like when that warning come to our event bridge, which EventBridge will immediately
+
+forward it to our SQS queue and the message sits in the queue waiting to be processed in our SQS queue.
+
+Now what happens here is here comes the carpenters intelligence.
+
+So this carpenter will keep polling our SQS queue every 10s and within ten to 20s.
+
+It will know that there is some message in SQS queue and then it will take action stating that interruption
+
+warning received.
+
+And it will go ahead to this respective node and it will code on the node, which means it will not
+
+schedule any new parts on this node.
+
+So Carpenter immediately marks this node as un pullable, so it will first do that job.
+
+Okay, now no new parts can land here.
+
+It's quarantined.
+
+So now here is the important thing.
+
+Okay, so before draining the old node Karpenter proactively provisions a replacement node.
+
+So that's what it does.
+
+So we can see the spot node here which is in the launching status but not ready.
+
+So we are only 20s.
+
+So here it is zero seconds.
+
+When they have sent this AWS sends the interruption warning.
+
+And now we are at currently 20s okay into this interruption.
+
+And Karpenter has already in this 20s itself.
+
+Karpenter has already detected the problem, right?
+
+And then cordoned the node whatever AWS needs and also provisioned a new instance also replacement instance
+
+also.
+
+So this is not reactive.
+
+This is proactive.
+
+Carpenter isn't waiting for parts to become unscheduled before adding capacity.
+
+It's adding capacity first.
+
+That's the important thing to remember here.
+
+So now Carpenter will provision this thing.
+
+But notice we also have the pod disruption budget here.
+
+Okay.
+
+So if all five parts are still running on node one nothing has been disrupted yet.
+
+But the clock is ticking.
+
+Why?
+
+Because we have only two minutes.
+
+The time AWS sends this interruption warning, and then the time AWS reclaims this part node.
+
+The time here is from AWS and then reclaiming it.
+
+The node the whole time is only two minutes.
+
+In these two minutes.
+
+Everything should happen.
+
+Okay, so clock is ticking here.
+
+We have less than two minutes before AWS terminates this instance okay.
+
+Which is part node one.
+
+So let's see what happens.
+
+Let's move on to the stage three here okay.
+
+So we call this stage three as 40 to 60s timeline.
+
+We call it as first eviction wave.
+
+So all right now things are starting to happen.
+
+Look at node one.
+
+We see these dotted arrows right.
+
+So from part one and then part two right.
+
+So new node whatever is provisioned is ready.
+
+And we are moving um and it is moving the part one and part two to the new node.
+
+Okay.
+
+So what is happening here part one and part two are being evicted from node one and migrated to node
+
+two.
+
+And you can see here draining three.
+
+It is draining part one and part two and three parts you have remaining already running in node two.
+
+So with part three, part four and part five, three parts are still running on the old node.
+
+And look at the pod disruption budget.
+
+Here it is working.
+
+So we said minimum available should be three here okay.
+
+So which means three are present in the old node and two in the new node okay.
+
+So which means during the time when these things are getting created, when these things are getting
+
+created in your new node, you are your traffic.
+
+Whatever is coming will be served by these pods on the old node.
+
+Okay.
+
+So that's what is happening here.
+
+So minimum three and four are currently running three pods on node one.
+
+And status blocking further evictions only.
+
+It will allow to evict only two pods okay.
+
+So that's the pod disruption budgets.
+
+Uh Underlying.
+
+Underlying.
+
+Responsibility.
+
+Okay, so you can only evict two parts.
+
+You must keep three running at all times.
+
+So Carpenter evicted two parts, part one and two.
+
+And now they are running on new node.
+
+So now you can see on part one and two are in the running state in node two.
+
+At the exact moment in the time we have three parts remaining on the old node.
+
+Okay.
+
+So total five parts running, but three on old and two on new.
+
+So that's what is happening.
+
+Service is still up.
+
+Traffic is still flowing.
+
+Customers don't know anything is whatever is happening in the background.
+
+The summary at the bottom here is simple okay, first eviction wave PDB allows only max two parts okay.
+
+That allows to create those parts on node two.
+
+Three parts still be present on your old node only.
+
+So this is pod disruption budget in action.
+
+It's not just a configuration file.
+
+It's actively protecting your application's availability.
+
+But we still have three ports on the old node, and AWS is going to terminate that instance in about
+
+next 60s.
+
+So we are at 40 to 60 slot now.
+
+Okay.
+
+So how do we get those last three pods also to safety.
+
+So here comes the next stage which is 60 to 90 second stage.
+
+Okay.
+
+So this is the second eviction stage.
+
+So you can see here on the node one pod three four and then five are already fading out which means
+
+they are moving to the Or they are migrating it to spot node two.
+
+So we can see these pods are in the process of shutting down gracefully on node one.
+
+And then they will get recreated on new node which is node two.
+
+Okay.
+
+So now pod one and two, which happened on the first wave and pod three, four and five in the second
+
+wave.
+
+They got migrated, so now all five parts are now on the new node.
+
+The application is fully running on safe stable in.
+
+Now we need to understand one thing here.
+
+So how this three pods will get migrated to the new node, which means here it will be evicted and here
+
+it will be recreated again.
+
+That's the PDB job PDB is smart.
+
+It just it not just blindly blocking everything.
+
+It's checking.
+
+So it will check whether the current two parts are in the running state on the new node.
+
+And if that means whether if they are in the running state, it can let Karpenter evict the remaining
+
+three parts on that respective node one because already replacement parts are already present here,
+
+two parts which are already in the running state, and later it will allow to evict these three parts
+
+from node one and then get them created in our spot node two.
+
+So that's PDP's job to take care of, which means it will allow.
+
+Okay, so there will be a overlap period wherein old parts will be shutting down on spot node one and
+
+new parts will get creating on the spot node two.
+
+At no point did we drop below three running pods.
+
+That PDB made ensures that always three pods are running.
+
+This.
+
+This is why the pod disruption budget is non-negotiable for production spot workloads without it.
+
+If this PDB was not defined, then what would have happened is all five pods could have been evicted
+
+at once in this node one and within 30 to 40s downtime.
+
+All these five parts would have been created in spot node two.
+
+So for your actual application, for the actual customers, 30 to 40s of downtime would have been seen.
+
+But in this approach we have only zero downtime.
+
+So that's the advantage of using pod disruption budgets.
+
+So our application is running on node two.
+
+Everything is good.
+
+Now we'll move to the next stage which is nothing but old node termination.
+
+Right.
+
+So once the new node is up and running with all five pods.
+
+So the next stage is from 90 to 100 20s which is our two minute interval for AWS.
+
+Old node should get terminated.
+
+Okay.
+
+So now if you see the node one now it is safe to terminate because there are no workloads running in
+
+this respect to spot node one okay.
+
+So we are now at 90 to 1 20s.
+
+And our spot node is get one is getting terminated.
+
+So if you see the whole flow, whatever the AWS sent the interruption warning Carpenter detected it
+
+in ten to 20s interval, and it has implemented the first eviction in 60 to 90s, uh 40 to 60s, and
+
+the second eviction at 60 to 90s and 90 to 120.
+
+It is going and then even terminating the node whatever AWS needs.
+
+So AWS gave us two minute warning.
+
+We used it efficiently.
+
+We means Carpenter used it efficiently.
+
+The whole node is being deleted, all parts are safe and the application never went down.
+
+So let's look at the final state.
+
+How it is going to look after migration is complete.
+
+So we will have all the five parts running on spot node two.
+
+So status is stable zero downtime achieved.
+
+So that's the overall when using the spot instances.
+
+How to achieve zero downtime.
+
+Now you might ask me, hey, what is this man?
+
+You are showing everything on the pictures.
+
+Okay, so what about can we test this?
+
+Okay, so let's try that okay.
+
+We'll take a simple application now.
+
+And we are going to have five replicas for that application.
+
+We will also configure a pod disruption budget with minimum available S3 and simulate a spot interruption.
+
+So this spot interruption whatever you are seeing.
+
+Right.
+
+So this one we can simulate this part we can simulate by sending a simple test message.
+
+So we'll send a simple test message to this SQS queue.
+
+So because we can't wait for AWS to send all those things right.
+
+So it might it might happen in one month also.
+
+And it might not happen in that one month also for spot instance A reclaim ability okay by AWS.
+
+So for that purpose, we will send a simple test message to this SQS queue and then test it and watch
+
+the entire flow from here on means like from here on whatever the 1 to 6 stages we have seen.
+
+Right?
+
+So from here on, after sending this test message, we can verify that okay.
+
+So what we are going to find one is in the carpenter logs you will find the interruption detection.
+
+And second is node status changing from ready to called on to terminated.
+
+And then third is pod migrating from old node to the new node.
+
+And fourth is node claims being created and destroyed.
+
+Okay.
+
+So all those things you are going to see now and we will verify the end to end flow now by sending a
+
+message to SQS queue.
+
+Let's go ahead and then do that in our next lecture.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+We are entering into the section 1704 Carpenter Spot interruption handling.
+
+So as part of introduction, we already understood these six stages in detail.
+
+Now we need to first verify the prerequisites here.
+
+Whether we have our carpenter ports running and our interruption queue is configured with our SQS queue
+
+name.
+
+And also if the SQS queue exists.
+
+So let's complete the prerequisites now.
+
+Okay.
+
+So we'll go to the terminal here and we will go ahead and run the command cube CTL get pods in kube
+
+system namespace.
+
+So we can see carpenter pods are running okay.
+
+And the next thing we need to do here is we need to verify helm get values Carpenter and search for
+
+interruption queue okay.
+
+So interruption queue is configured.
+
+If you want you can also run something called helm get values.
+
+And a release name is Carpenter in kube system namespace, and you will get all the user supplied custom
+
+values for your respective helm release.
+
+Carpenter.
+
+So you have provided service account create true name is Carpenter service account name.
+
+And in settings you have also provided cluster endpoint cluster name and interruption queue name.
+
+So whether all these things are configured or not, we are verifying primarily in this demo.
+
+This is the important thing to verify.
+
+And with the same name, whether we have the SQS queue or not, we need to verify AWS SQS list queues.
+
+And then that should show us if we have the retail dev EKS demo one.
+
+So we have it here.
+
+So which is good prerequisites are good.
+
+Now the next thing is we need to also go ahead.
+
+And in 1704 spot interruption handling.
+
+We need to review the Kubernetes deployment and pod disruption budget.
+
+So this is a standard deployment.
+
+We are saying spot test app in namespace default.
+
+We are creating five replicas and selector match labels.
+
+App spot test.
+
+So this is the label we are using for our means.
+
+Like when this deployment is deployed all the pods, whatever gets created will get this label.
+
+And with this label only we will be able to send means like if you create any service fronting these
+
+pods.
+
+Also if you want to send any traffic also this label plays the important role.
+
+Okay, why we are discussing this now is even in the pod disruption budget, we will use the selector
+
+match labels only.
+
+We need to use the same label whatever we have used here, then only this policy, whatever we create.
+
+Pod disruption budget policy will be applied to the pods created by this deployment.
+
+Only when these match labels matches.
+
+Okay, when these labels matches.
+
+Okay.
+
+And here we have also used one important thing which is node selector.
+
+We are saying it need to use the capacity type spot okay.
+
+And we have also used the termination grace period seconds.
+
+30s.
+
+We are saying that the Pots application present are running in this Kubernetes pods should be shut down
+
+gracefully and we are giving 30s for that.
+
+And we are running a simple nginx alpine application container port is 80 and resource requests are
+
+requesting CPU 100 and memory 128 MI.
+
+So that's about spot test app Kubernetes deployment.
+
+You also have a pod disruption budget here.
+
+Policy is v1 and kind is pod disruption.
+
+Budget API version is policy v1 and kind is pod disruption.
+
+Budget and name is spot test app pdb.
+
+And in the spec you are saying minimum available three which means at any point of time, three parts
+
+should be running, whatever the disruption might be.
+
+So it need to ensure in that way Kubernetes need to ensure that thoroughly so it can allow if we have
+
+replicas as five, which means two two parts are allowed to be evicted during the disruption time.
+
+And in selector match labels, we need to provide the same match labels, whatever we have provided
+
+at our Kubernetes deployment.
+
+So now we will go ahead and then deploy this and then verify.
+
+So let's come back here.
+
+We will go here.
+
+And we have reviewed these things and we will deploy this application.
+
+So we'll come back and see.
+
+We are in 17 zero four only 17 zero four in auto scaling carpenter folder.
+
+And here you have the uh spark cube Kube manifest bot interruption handling.
+
+So you'll say cube ctl apply hyphen f.
+
+And this is the spot interruption handling dot YAML.
+
+It created the deployment and also the pod disruption budget.
+
+So you can run the command to verify how the pods are running now okay.
+
+So kube get pods hyphen L and these are in the pending state.
+
+If you want you can run the command node claims and you should see a node claim just now created.
+
+It is in unknown state.
+
+And you can also say get nodes and you should see a new node will be provisioned very soon.
+
+Let's wait for it.
+
+We can also go to node claims and it is in the unknown state.
+
+So this is the node claim.
+
+And you remember this.
+
+And we are trying to create a it is trying to create AT2 small instance of type spot capacity type spot
+
+in this zone okay.
+
+Currently it's state is unknown.
+
+We'll say node claims again.
+
+A new node is assigned here whose IP address is ten zero 1298.
+
+Please remember this 98.
+
+So when we initially deployed our application, five pods created.
+
+And for that purpose initially it has the new node.
+
+The spot node IP address is this one.
+
+We can also go ahead and then save it somewhere so that it will be easy for us.
+
+Okay.
+
+So I'll try to go here and new text file.
+
+And I'll try to put that IP address here or this whole thing.
+
+I'll try to put it here for our reference okay.
+
+Right.
+
+And we will also say cube CTL get nodes and we should see the node IP addresses.
+
+So this 98 is the one which we got just now okay.
+
+So hyphen oh wide right.
+
+And we can see.
+
+So this is the one which just now got created.
+
+Okay, so I will try to copy.
+
+This is sufficient for me, right?
+
+I'll try to put that here.
+
+And this 98 is the one which we are saving.
+
+And we'll also run the command get pods hyphen o wide.
+
+Okay.
+
+And our pod should be in the running state.
+
+And they are scheduled on 98 related node.
+
+Okay so dot 98 related node.
+
+This also I'm copying and then saving it here.
+
+Okay so let's have this for some time here.
+
+Okay.
+
+Now the next thing here.
+
+Okay.
+
+So is like we will go here and then prepare our four terminals.
+
+Okay.
+
+So we'll try to run four terminals.
+
+And in each terminal we are going to verify few things.
+
+In terminal one we will go.
+
+We are going to have the carpenter logs filtered for interrupt cordon or drains.
+
+So for these things and in terminal two we are going to verify the node status okay.
+
+In a watch mode hyphen w.
+
+Okay, so and in terminal three we will uh, have the pod status and in terminal for node claims status.
+
+Okay.
+
+So these are the things we are going to do.
+
+So first thing is we will get the carpenter logs.
+
+So here this is my first terminal I am running this.
+
+So let me run this now.
+
+Currently nothing is present here okay.
+
+So I have run it.
+
+And the second one is node status okay.
+
+So when I run this only one node 98 is running now.
+
+And which is of type spot capacity type spot okay.
+
+Which created two minute 47 seconds before that is the second terminal.
+
+And we will also see the third terminal here.
+
+And here we can see all five parts are running.
+
+All are running on the 9898 related node dot 98 you can say okay right.
+
+And we'll also have in the fourth terminal.
+
+So this is the fourth terminal where we are using the claims node claims.
+
+I will try to close this only now this we will fifth terminal we will use for our thing.
+
+So this is the node claim.
+
+And here this is the node currently associated with this node claim.
+
+So till here everything is good.
+
+Now in the fifth terminal we will go ahead and then implement something.
+
+One is simulate the spot interruption.
+
+So if you remember we set this clearly we will send some message to our SQS queue and see what happens.
+
+So for that you need to get the spot instance ID first okay.
+
+So let me get that spot instance ID.
+
+So we said right.
+
+So instead of instead of waiting for AWS we can try something here by sending a message okay.
+
+So that's we are doing that.
+
+We are trying to put one message in this SQS queue and then trigger this whole flow okay.
+
+So let's see what happens.
+
+So we will first get the spot instance ID right.
+
+So we are in the fifth terminal.
+
+And now we will echo that instance ID and see whether we got that or not okay.
+
+So these commands you can see we can build these things.
+
+Okay.
+
+So I'm not going to go and then explain every option here.
+
+We got the spot instance ID saved in this environment variable.
+
+Okay.
+
+So that's what we are going to see.
+
+So this is the instance ID we got.
+
+Okay.
+
+Now the next thing is what is our cluster name.
+
+So this is our cluster name.
+
+Which cluster name EKS cluster name.
+
+So using that EKS cluster we need to get that eks cluster name and the same cluster name.
+
+And then our SQS queue name also same.
+
+So we will try to provide that here and get our queue URL also.
+
+So I'll run these commands.
+
+And then if I say right so if I say echo dollar Q url.
+
+I should get my sqs queue URL.
+
+So this is my SQS queue URL which is stored in this variable okay.
+
+Now the next thing is send interruption message aws sqs send message to this queue URL and in message
+
+body we are saying it's a just a test interrupt message with date time detail type.
+
+We are saying EC2 spot instance interruption warning and source is AWS, EC2 and account.
+
+It can be dummy.
+
+We really don't need to give exact account number some time.
+
+Here we are generating and then region us east one and resource.
+
+Okay.
+
+So resources.
+
+We are giving some dummy information here.
+
+We really don't need to worry in the resources whatever is there.
+
+But instance ID in the detail instance ID should be perfect.
+
+So that's the reason we we got the spot instance ID here okay.
+
+Instance ID should be perfect.
+
+So that's what we are going to do now.
+
+So we will copy this and then run it.
+
+So in these two important things one is q URL will be placed based on this.
+
+Whatever we have got and spot instance ID here.
+
+So whatever we have got here will be placed means like replace.
+
+So that is very important okay.
+
+So now if I send the message what will happen.
+
+Okay I have sent the message.
+
+This is the message ID and this is the message body.
+
+Now let's see what happens immediately.
+
+In the logs you can see controller message initiating deletion from interruption message okay.
+
+And it is saying spot node pool so and so right.
+
+It is saying cordon and drain this node ten zero 12 98. EC2 dot internal.
+
+It is saying cordon and drain.
+
+That is the action triggered okay.
+
+And then immediately you can see these are the nodes 98 nodes.
+
+Still nothing is happening.
+
+See 97 a new node got created and it is not ready at new node is not ready right.
+
+But 98 is still present.
+
+And you can see the parts here right.
+
+So all the parts are here.
+
+If you want you can also run the thing here kubectl get pods.
+
+And you can also see the pods here three are running on the old node.
+
+Hyphen.
+
+If you say hyphen oh wide this is important here okay.
+
+Because our pod disruption budget right.
+
+So on the 98 you can see three things are still running.
+
+Okay.
+
+You can see here.
+
+And two things are getting created on the new node which is 97.
+
+That is the concept here.
+
+Pod disruption budget minimum available three.
+
+So all those three are still present eight minutes 13 seconds from on our old node dot 98.
+
+And then new one is getting created okay.
+
+Where is it.
+
+Yeah in the dot 98.
+
+So these are the 98 notes, right?
+
+Three are running and two are creating another new one.
+
+One more time I'll run the get pod o wide.
+
+Now all are running and all moved to the 97 in few seconds.
+
+Okay, but you have seen.
+
+Right?
+
+Initially, first only two things were there, and once those were running on the new 97.
+
+Then after that, only 98 things got moved.
+
+Okay, so now all are running on the new 97, 97, 97, 97, 97, all five pods.
+
+And here also you can see in the node claim.
+
+So this is for node claim right.
+
+So this is the one.
+
+These are for the pods okay.
+
+And this is the node claim right.
+
+So this is the node claim.
+
+And here you can see initially it is saying uh unknown unknown unknown.
+
+And then later it has created 97 okay.
+
+At that at some point of time you have both 97 and 98 in the node claims under this node pool node claim
+
+okay, and after some time only 97 will be there.
+
+So if you run the command cube CTL get node claims, now you will see only one node claim.
+
+Still you have two node claims, two nodes are still present 98 and then 97.
+
+Slowly it will delete it if I run the command cube CTL get nodes.
+
+So we have 97 is still present and 98 is still not deleted.
+
+Okay.
+
+So let's wait for it.
+
+Yeah it's gone okay 98 which is our initial node.
+
+We have said right.
+
+So this is the 98 198 node initial node.
+
+Now it is gone in the node claims.
+
+Also you can see in the node claims only 97 is there the new node.
+
+And it created an US East one B okay.
+
+But earlier 198 one.
+
+You can see it is in US East one see.
+
+Okay.
+
+Right.
+
+So you have seen everything pod disruption budget and how we have done this.
+
+Okay.
+
+If you want, you can try one more time with these things.
+
+Okay.
+
+So if you go back here and then keep sending messages and exploring what is happening end to end if
+
+you want.
+
+Okay.
+
+So if you go here and here just put this way and here also just remove and say and now you can put this
+
+again.
+
+And then here also you can put some space here and here you can send message again.
+
+But here spot instance ID is different right.
+
+We need to get the exact instance ID.
+
+So let's see what happens okay.
+
+Right.
+
+Get pass is good.
+
+But here what happens also we'll see nothing is happened because we don't have any instance ID with
+
+that name.
+
+So what we need to do.
+
+So we need to go back here and first get your spot instance ID.
+
+That is the important thing.
+
+And once you get that right.
+
+You can verify that spot instance ID and this is the one.
+
+Now you can run this message sending the message one more time if you want okay.
+
+And you can observe the whole process.
+
+So you can try multiple times to understand it in detail.
+
+But there is no downtime for our application okay.
+
+Right.
+
+So if I say cube CTL get pods hyphen o and then wide right.
+
+So let's keep monitoring this.
+
+So initially two parts only went into pending state.
+
+Remaining things are in the running state.
+
+So that's the important thing to remember okay.
+
+And here also you will get the message.
+
+And here you can see a new uh new node right in the node claim.
+
+Right.
+
+So you should see a new node claim also will be there.
+
+And new node also you should see very soon okay.
+
+And here first initially only two parts went into pending stage.
+
+And once those come into running state then only remaining three parts using pod disruption budget will
+
+go ahead and then schedule on the new node.
+
+Okay, so let's wait for it.
+
+97 is the older node and we are waiting for the new node to come in.
+
+So it is 50s.
+
+And still new node didn't come in.
+
+So we are waiting for that.
+
+And this is the 116 new node currently.
+
+It is ready now okay.
+
+So now if you come back here and verify right.
+
+So our containers are getting created on the new node 116 okay.
+
+And 90 733 parts are running on old 97 okay.
+
+So that you can clearly see now as soon as the new thing.
+
+Right.
+
+So if this containers get created and ready immediately remaining three also will get scheduled on that.
+
+So let's see what happens okay.
+
+Right.
+
+You keep monitoring here 116 and 97 things okay.
+
+And you will understand okay.
+
+Let's run.
+
+Let's run one more time.
+
+Get pod O wide.
+
+And now you can see, uh uh, 116.
+
+One more and one more.
+
+Few more pods are again.
+
+Moving on to that.
+
+Okay.
+
+Right.
+
+So all are getting created and now all got created on 116.
+
+Everything is removed on 97.
+
+And if you run the command cube CTL get node claims, you will have uh, close to two two.
+
+What is the 97 and 116?
+
+Both are present here, but soon 97 whatever created six minutes before will be removed.
+
+Only the latest one will be present.
+
+You can also run the command cube CTL get nodes.
+
+So let's wait for it.
+
+So once this is terminated we'll also clean up everything.
+
+Okay.
+
+So now you can see 97 is in the not ready state.
+
+Soon it will get terminated also.
+
+Okay let's check one more time Him and get notes.
+
+And we can see only 116 is present and that is gone.
+
+97 and if we run the node claims also, we should see only one which is 116.
+
+Okay.
+
+And we will also run the command cube CTL get pods and they should be running on 116 if you want hyphen
+
+o wide and you will get that okay.
+
+And all these things are running.
+
+And you can see two parts started three minutes before and later.
+
+Only these three parts got created 84 seconds before.
+
+Okay.
+
+So which clearly states your pod disruption budget initially two got created on the new node.
+
+Later remaining three also migrated to the new node okay.
+
+Evicted there and then recreated here.
+
+So that's the concept which we have seen end to end.
+
+Now we will also remove whatever we have deployed cube manifest pod interruption handling.
+
+So I'll see you in the next demo.
+
+Until then bye bye.
+
+Thank you.
+
+

@@ -1,0 +1,3688 @@
+Welcome everyone.
+
+Today we are learning about horizontal pod auto scaling in Kubernetes.
+
+So before we dive into how this HPA works, let me show you why we need it in the first place.
+
+So let's say right.
+
+So we already have the retail store application which we are using in our previous demos right.
+
+So let's say you are running an e-commerce retail store application on Kubernetes, and you have deployed
+
+it with a simple deployment that has three replicas okay, P1, P2 and then P3.
+
+So these three parts are running 24 seven as of now.
+
+Okay.
+
+So now let's understand the traffic pattern in reality.
+
+What happens in real world.
+
+Okay.
+
+So if we see this table right.
+
+So this is the reality of running a retail application.
+
+And its traffic is not going to be constant okay.
+
+It varies dramatically throughout the day, throughout the week, and even throughout the year.
+
+So let me walk you through this.
+
+Okay.
+
+So if you see here 9 a.m. to 5 p.m..
+
+So these are your standard business hours for this retail store application.
+
+And we are going to have close to high traffic during this period.
+
+And actual needed parts are ten parts.
+
+Okay.
+
+So this is high traffic and we need ten parts.
+
+And there are lunch hour wherein people use mobile phones to order things using this retail store application.
+
+And it is going to be a very, very, very high traffic period.
+
+And at that point of time, you need at least 20 parts for your retail store application.
+
+Again, during the night times from 5 p.m. to 9 a.m. next day.
+
+So overnight and early morning this is low traffic period.
+
+Most people are sleeping spending time with families.
+
+So during this time, Again, it's low traffic and we we need just three parts as a minimum capacity
+
+for our application to process the request.
+
+And there will be some high traffic days in the year like Black Friday New Year.
+
+So for these things also we need minimum means like we need 20 parts to handle the load.
+
+Okay.
+
+So these are the things.
+
+In addition there might be a peak days in a week based on our traffic pattern for our application.
+
+Like something like Wednesdays and Thursdays I need minimum 12 parts.
+
+So now this is the traffic pattern.
+
+Whatever we have seen on a high level.
+
+So how do you handle this with traditional Kubernetes deployments.
+
+So option one is so we can take here options okay.
+
+So we can take option one.
+
+Right.
+
+And that option one is provision 20 parts all the time.
+
+Enough to handle even the Black Friday and lunch rush okay.
+
+But look at the table again.
+
+You only need 20 parts for maybe 2 to 3 hours per day, right?
+
+Or maybe 2 to 3 hours per day here.
+
+Like 2 p.m. to 3 p.m..
+
+And on Black Fridays, New Years and then peak days.
+
+Okay, so if this is the case, if you run 24 bar seven and 365 days, 20 parts, which means 85% of
+
+capacity, you are wasting here.
+
+So that is the key thing to remember.
+
+85% of compute cost is wasted.
+
+So what is the other option you can try out.
+
+So let's say this is a option two right.
+
+So say like provision initially ten parts average okay.
+
+And then whenever needed manually scale okay manually scale when needed using cube CTL scale command
+
+is there right.
+
+Using that by closely monitoring.
+
+Okay, but here you will face many issues.
+
+Like.
+
+Exactly.
+
+It might not be daily 2 to 3 p.m..
+
+You will have a lunch rush here.
+
+Okay.
+
+High traffic during the lunch hours.
+
+Okay.
+
+Sometimes it might be from 130 to 330 okay.
+
+Or sometimes it might be 230 to 430.
+
+So we can't predict that.
+
+So prediction is not in our hands when traffic patterns are like this.
+
+So in addition to that these traffic uh happens means like these traffic spikes happen in seconds.
+
+So if we are late in reacting.
+
+So we are like very slow in reacting, then we will already users will already see the problem.
+
+Even that's not an option.
+
+So manual scaling is not an option.
+
+And putting the high number provisioning is not an option.
+
+So let's see another option here okay.
+
+So which is automated okay with some scripts, okay.
+
+Some scripts like shell scripts or etc. etc..
+
+Okay.
+
+So even that.
+
+Right.
+
+So you cannot predict the traffic okay.
+
+So why.
+
+Because sometimes it might be 130 to 330.
+
+Sometimes it might be 230 to 330.
+
+And on Black Fridays what will be the case.
+
+It might sufficient 20 or this Black Friday the discounts are good and you might need more people are
+
+purchasing and you might need 30 parts.
+
+So how you are going to handle these things?
+
+Okay, so you cannot predict the traffic and then write a static scripts to handle these things.
+
+So static prediction is not possible here.
+
+Even this option is gone.
+
+So now then what is the case here.
+
+So what we actually need.
+
+So here comes the important thing okay.
+
+So these are the things we need to remember now.
+
+So one is monitors actual traffic okay.
+
+So look look at your real CPU and memory usage on each pod.
+
+Okay.
+
+CPU memory on each pod and monitor them live.
+
+Okay, so that is one thing.
+
+Not guest guessing based on traffic pattern or time.
+
+Okay.
+
+So that's one important thing.
+
+Monitor okay.
+
+Real time for CPU and then memory.
+
+And if any other metrics are there monitor it.
+
+And second is you should scale automatically.
+
+So we should not do some scripts or do some additional provisioning like this etc., etc..
+
+No human intervention should be there.
+
+They should scale automatically.
+
+So you should scale up automatically.
+
+So that's another important thing.
+
+When traffic spikes add pods in seconds not minutes okay.
+
+So that's one thing.
+
+And second is even the scale down okay.
+
+Even the scale down.
+
+Also when traffic drops, wait to make sure it's sustained and then remove the pods when not needed.
+
+So that's the thing we need.
+
+And this whole thing should happen 24 over seven continuously optimizing even while we sleep.
+
+So that process we need okay.
+
+And additionally it should adapt to reality.
+
+The solution whatever we design, it should adapt to reality.
+
+If traffic patterns change, it adapts automatically.
+
+So what type of system is available in Kubernetes for doing all these things?
+
+We have something called Horizontal pod autoscaler.
+
+So this is the one which helps us to achieve all these things.
+
+So in our next lecture we are going to go ahead and then understand what is horizontal Pod autoscaler.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Alright, now that you understand the problem, let me show you the solution with horizontal pod autoscaler.
+
+How this problem is going to be solved.
+
+Okay, so now if you see here this is the horizontal pod autoscaler architecture diagram.
+
+So we have four main components working together in a continuous loop.
+
+So we have something called metric server.
+
+And we have our actual application.
+
+It might be a Kubernetes deployment or replica set or stateful set.
+
+So let's say it is a deployment and it is our retail store application in that it might be one application
+
+which might be something like catalog okay.
+
+Something you can consider whatever it is.
+
+Right.
+
+So that is the thing.
+
+And another is actual horizontal pod autoscaler.
+
+And the other is your actual pods okay.
+
+So these are the things.
+
+Now let's start with the metrics server first.
+
+Okay.
+
+So metrics server is available as a exe add on in your EKS cluster.
+
+You can install it and then start using it okay.
+
+So by default it is not available.
+
+You can install it.
+
+So now this metric server what it does is this is your data collection system.
+
+So it exposes this metrics API.
+
+This is the Kubernetes native way to access resource metrics from your Kubernetes resources like pods.
+
+Okay.
+
+So now this metrics server will scrape the metrics from these respective ports like CPU usage, memory
+
+usage, and if you configure any custom metrics also even those can be collected okay.
+
+So this happens every 15 to 60s.
+
+It's a constant background process.
+
+The metric server is always watching your Kubernetes pods and scraping or collecting the metrics like
+
+CPU, memory, etc. etc..
+
+Now let's come.
+
+So this part is clear for us.
+
+Now let's come to the actual parts.
+
+Okay.
+
+So now discuss that.
+
+So these are your application parts.
+
+Remember our retail store have these parts are running the application.
+
+And they are actually serving the customer requests like processing orders handling API calls everything
+
+okay.
+
+So the metric server is monitoring them asking what is your current CPU, what is your current memory
+
+usage.
+
+And those information will be collected by metric server, actual pod CPU and then memory.
+
+So these are the actual resources which processes our customer requests.
+
+Right.
+
+So we can call them as workloads and their CPU.
+
+and memory will be collected by this matrix server.
+
+And next is Kubernetes controllers.
+
+The third component.
+
+So this horizontal pod auto scaling is supported by three types of controllers.
+
+One is deployment controller, replica set controller and then Statefulset controller.
+
+So now when this horizontal pod autoscaler decides to increase the number of parts to you pods based
+
+on the metrics collected from metric server.
+
+If it decides, then who will take the decision of increasing the pods.
+
+So it says that instead of three replicas horizontal pod autoscaler calculated and said that I need
+
+ten replicas, but now who will actually increase those things?
+
+So that decision is given to deployments, replica sets or stateful sets.
+
+So this respective horizontal pod autoscaler will tell these controllers that go ahead and then scale
+
+your replicas from 3 to 10 or 3 to 20.
+
+And then these respective controllers will increase those replicas.
+
+So HPA doesn't create pods directly.
+
+HPA tells either the deployment or replica set, or Statefulset stating that you need to go ahead and
+
+then increase your replica count so that traffic can be handled effectively.
+
+So that's the job of this controllers.
+
+Okay.
+
+So deployment or replica set or statefulset.
+
+And now we have the actual brain which is horizontal pod autoscaler.
+
+Okay.
+
+So now here the important thing about horizontal pod autoscaler is it is the intelligent system which
+
+can make scaling decisions.
+
+Okay.
+
+So that is its job based on the metrics it receives from the metrics server, so it will take the decisions
+
+like it will ask the questions and take decisions like do we need more parts?
+
+Can we remove some parts?
+
+Are we at the right size.
+
+So like this.
+
+It will check continuously and then take decisions.
+
+So it will have a control loop running continuously every 15 seconds.
+
+It will calculate the desired replicas.
+
+So HPA runs its decision making in a continuous loop.
+
+It is a never ending cycle.
+
+So it will check metrics, calculate optimal replica count scale if needed, and wait for 15 seconds
+
+again.
+
+Repeat the same thing.
+
+Check metrics.
+
+Calculate optimal replica count scale if needed.
+
+Wait for 15 seconds.
+
+So that's its job.
+
+So this runs 24 seven 365 days a year even when you are sleeping.
+
+HPA is optimizing your application, so it's a three step flow.
+
+Okay, so now let me show you what happens in each 15 second cycle.
+
+So initially what it does is HPA queries your metric server.
+
+It queries every 15 seconds right.
+
+It queries your metric server and it will ask for give me the current CPU utilization for all pods in
+
+the retail app deployment.
+
+So one thing you need to remember.
+
+Okay.
+
+Right.
+
+So in your you have in your ECS cluster.
+
+So you have a ECS cluster.
+
+And here you have app one, app two, app three.
+
+So this whole process of HPA will be applied only to you, only to the parts for which you have installed
+
+the HPA Kubernetes manifest.
+
+Not for all applications okay.
+
+So which means if you enable this for retail store application, then only for that application this
+
+loop will be executed.
+
+Which loop this querying the metrics to the metrics server and get the.
+
+It will ask for the questions.
+
+Give me the current CPU utilization for all parts for the app for which HPA is enabled, so it will
+
+get those information.
+
+Example.
+
+Like for part one it has given 80% and for part two also it has given 75%.
+
+And for part three it has given 85%.
+
+So when you calculate this 80, 75 and 85 on an average you will get a 80% CPU usage.
+
+So you said this 80.
+
+This is 75.
+
+This is 80.
+
+They are running it.
+
+So when you get the average means like total by three, you get the average.
+
+And you can see that your pods are running at 80% CPU.
+
+So let's say like when it collected the information, it got this matrix.
+
+So it's 80% CPU they are running.
+
+So now what does this HPA do.
+
+Right.
+
+So that is the first thing.
+
+And now the second thing is what does HPA do.
+
+HPA now does the math.
+
+It asks that given that we are at 80% CPU, how many replicas do we need to hit our target of 50% CPU?
+
+So we have decided that our horizontal pod autoscaler for retail store application should have only
+
+target as 50% CPU, which means my pod CPU should not be more than 50%.
+
+If it is more than 50% CPU, then HPA need to trigger a trigger its scaling event to increase the number
+
+of pods.
+
+Okay, so now here we know that we are running at 80% CPU and our target is only 50% okay.
+
+So we know that.
+
+So now that calculation, right?
+
+So what it will do is like it will go ahead and then calculate and take some decision that it is above
+
+50%.
+
+So and it is at 80%.
+
+Now it will do some calculation.
+
+So this calculation will discuss later.
+
+But it will do that calculation.
+
+And then it will focus on and it sends a scale command to the deployment.
+
+So two is over three.
+
+So it will send to your actual application it go ahead and then increase the replica count from whatever
+
+is there to the desired replica count whatever I have calculated.
+
+So that's what it is going to do.
+
+Let's say it has got the new replica count number as five.
+
+Then it will send that information to your respective controller.
+
+Maybe deployment and then deployment will take care of increasing your parts from 3 to 5.
+
+Its deployment controllers job within 30 to 60s.
+
+The new parts are running and healthy, ready to handle traffic.
+
+So that's the continuous loop.
+
+And then he starts over again within 15 seconds later it queries again recalculates scales if needed.
+
+So remember the traffic table which we have seen here right.
+
+So which is uh, lunch hour 2 p.m. to 3 p.m..
+
+We have very, very high traffic.
+
+We need 20 pots.
+
+So he sees these CPU spikes, scales from 10 to 20 parts automatically.
+
+And after 3 p.m. again, if it sees a low CPU on your thing, it calculates and it waits for five minutes.
+
+So in in in HPA, one important thing we need to understand is right.
+
+So this scale up is aggressive very aggressive.
+
+Immediately it will try and then get the new parts.
+
+But scaling down right.
+
+So means like 3 to 5 is aggressive but 5 to 3.
+
+It waits for five minutes, and it verifies that if the system is sustaining that a CPU usage like less
+
+than 50%, and then slowly it will reduce within 5 to 10 minutes from three, again 5 to 3 replicas.
+
+So because the way it is designed is it need to ensure that there is no issues for our customers.
+
+Okay.
+
+So there should not be any outage for customers or should not see any errors due to resource shortage
+
+okay.
+
+For customers.
+
+So for that purpose, scale up is aggressive and scale down is a little slow.
+
+So like that uh, this whole HPA takes care of everything.
+
+Everything automatic, intelligent and all are metrics driven.
+
+Now let's see the exact math what it is happening here.
+
+Right.
+
+So say currently you have three replicas and they are running at 80% CPU.
+
+And you have designed your HPA to say that 50% CPU.
+
+If it reaches, then you need to take the decisions of scale up to five replicas and then how that decision
+
+will happen.
+
+We are going to see now.
+
+So we have a formula here to get the desired replicas, which is you need to provide the current replicas,
+
+which are three replicas, and your actual CPU usage, which is 80 and your target CPU usage 50.
+
+So when you do this math, you get 4.8.
+
+So which means close to five.
+
+So immediately this respective HPA will take the decision of replicas equal to five.
+
+You need to scale and it will send the signal to your controllers.
+
+And these controllers will take care of increasing those things.
+
+That's about horizontal pod autoscaling.
+
+I'll see you in the next lecture.
+
+And in the next lecture we are going to focus on HPA YAML manifest.
+
+I'll see you until then.
+
+Bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+Now that we understood how HPA works conceptually, let's look at the real HPA configuration in YAML.
+
+So this is the HPA for our catalog service, one of the microservices in our retail store application.
+
+So we are going to go line by line and then understand this in detail.
+
+So here is the good news about this HPA YAML file.
+
+So once we understand this for catalog retail store microservice.
+
+So for cart checkout orders and UI exactly this is going to be the same way.
+
+Only thing is names will be changed inside that whatever is relevant there okay.
+
+But the concept and the entire policy definition is going to be as is.
+
+This is the HPA YAML manifest for catalog service.
+
+So let's start and then see this part first okay.
+
+So here we are using the auto scaling v2.
+
+So v2 API version is the latest and modern version which supports multiple metrics CPU means like this
+
+latest version supports CPU memory and even custom metrics.
+
+So earlier it used to be v1 API version, which is a older one.
+
+It used to support only CPU.
+
+So we are using the latest whatever is available today and kind is horizontal pod, autoscaler and metadata.
+
+We have provided the name and namespace is default and these are standard labels we are providing here
+
+for all our retail store application related things just for tracking and auditing purposes.
+
+Whatever we provide in metadata labels okay.
+
+Right now the next thing is scale target.
+
+That is the important thing in specification in, uh, horizontal pod autoscaler specification.
+
+This is one of the important part.
+
+Okay, so this is the it tells HPA.
+
+What are you autoscaling.
+
+So here we said API version APS v1 kind deployment and deployment name is catalog.
+
+So we are scaling a deployment.
+
+And we can also scale Statefulset and replica set which we have seen in our previous pictures also.
+
+Right.
+
+So now name catalog the exact name of your Kubernetes deployment for catalog microservice should be
+
+provided here.
+
+So HPA whatever this resource when you create it right it will watch the catalog deployment and automatically
+
+adjust its replica count based on the metrics we define in this HPA configuration.
+
+So that's about scale target reference.
+
+We are referencing it to the catalog microservice.
+
+And next is min replicas and max replicas.
+
+So these are your safety boundaries.
+
+So HPA will never go below three replicas, even if CPU is set at 5% when you define this.
+
+So if you say min replicas is 2 or 3, then it will never go below that.
+
+Even if your CPU percentage is as low as possible or your memory is as low as possible.
+
+And in the same line when you talk about max replicas.
+
+Also HPA will never go above 12 replicas, even if CPU is at 100%.
+
+So whatever you define is final.
+
+Okay, so even max replicas ten it need to scale, then it will scale only to ten.
+
+Even if your CPU is running at 100%, our memory is running at 100%.
+
+Also, it cannot take any decision other than that.
+
+So we need to carefully design your Max replicas here.
+
+Okay, so then why ten?
+
+This is your cost control ceiling.
+
+It prevents runaway scaling.
+
+So if there's a DDoS attack or a bug causing infinite load on your application, HPA won't spin up 100
+
+parts or 1000 parts and then provide a big surprise AWS bill for us.
+
+Okay, so it will ensure that it ends at this specific level only.
+
+Now let's move on to the next part, which is metrics.
+
+So in spec we can define metrics.
+
+Again metrics is a list item.
+
+So you can define as many metrics as possible.
+
+Important things are CPU and memory.
+
+Okay.
+
+Right.
+
+So these are the built in Kubernetes resource metrics.
+
+So resource metrics CPU and then memory and target type.
+
+We are saying utilization for both the things for both CPU and memory.
+
+We are measuring as a percentage, not absolute values.
+
+So when you say average utilization 70, it is nothing but 70 percentage here.
+
+If we say 80 which means 80 percentage.
+
+Okay.
+
+So this is the magic number.
+
+So HP will try to keep CPU at approximately 70% across all parts when you are talking about CPU.
+
+So if average CPU goes above 70% so your application part running there and all the parts whatever running
+
+there, their average CPU goes above 70%, then HP will take the decision to scale up.
+
+Okay.
+
+In the same way, if it is below 70%, it will take the scale down decision to.
+
+So that's about metrics okay.
+
+Right.
+
+And now we'll also talk about something called uh we can go down here and behavior okay.
+
+So behavior is another important thing newly introduced in our latest uh v2 version.
+
+And we will talk about these things in detail.
+
+So this is again the advanced part.
+
+So till whatever you have above.
+
+So this should do the job here.
+
+Till here you can stop.
+
+And then your HPA is going to work as expected.
+
+So as we are implementing a production grade application and in a real world approach, I felt like
+
+adding an extra thing for our HPA is also good.
+
+Okay, so for that purpose we have added this behavior section also.
+
+So this controls how HPA scales not just when it scales okay.
+
+It's not when okay.
+
+So it's how HP scales will be decided in this behavior part okay.
+
+So that's the thing to remember here.
+
+Okay.
+
+So you can see behavior scale down and in scale down you are saying stabilization window seconds 300
+
+okay.
+
+So this is close to five minutes.
+
+What it means is before scaling down HPA waits five minutes to make sure low CPU or memory is sustained.
+
+And it's not just a temporary dip.
+
+It will, whether you are CPU scale down is sustained for five minutes or not.
+
+It is going to verify in the same line.
+
+If we go down, we have also policies and also select policy.
+
+These are important okay.
+
+So in these policies again list item we have two types of policies defined.
+
+One is percent policy and then another is pass policy.
+
+So these policies are called rate limiters.
+
+You call them as rate limiters okay.
+
+So if you say this type as percentage.
+
+And then you say value as 50 and period as 15 seconds means what you are saying.
+
+HPA is remove up to 50% of parts at once and can do this every 15 seconds.
+
+So that is one rate limiter policy.
+
+So that is one rate limiter policy.
+
+And you have another rate limiter policy which is pod based.
+
+One is percent based and the other is pod based and value is one.
+
+And then period is 60s.
+
+So here you are telling that you are telling that remove one pod at a time in the 62nd interval okay?
+
+Right.
+
+So that is what is the pod based policy.
+
+And now these you have defined two policies.
+
+But which policies to pick is another important thing.
+
+So there you have something called select policy okay.
+
+So use whichever policy removes fewer pods.
+
+So when you say min means use whichever policy removes fewer parts.
+
+So that's good for production, right?
+
+So when you are scaling down, you should slowly scale down.
+
+And actually this will win that.
+
+And then only one part for every 60s will be scaled down.
+
+So like this you can define the HPA behaviour how HPA should work right.
+
+You can define those behaviours here using behaviour option okay.
+
+And for scale down.
+
+We have seen in the same way we can also see for the scale up behaviour also.
+
+So see stabilization window zero seconds zero seconds stabilization for scale up.
+
+You don't need to wait for scale up right.
+
+So you need it because our applications needs it.
+
+If not our applications will fail.
+
+So that is zero.
+
+Scale up is urgent.
+
+High CPU means users are waiting requests might fail HPA scale up immediately, no waiting is required.
+
+And in the policies also we have defined here percentage, right?
+
+100%.
+
+In the percentage model, we have given 100% every 15 seconds, which means currently you are running
+
+three replicas.
+
+Immediately it will go to six replicas.
+
+So that's about percentage policy 100%.
+
+It will increase.
+
+And you have one more policy, which is pod policy okay.
+
+Which is value four okay.
+
+Four parts every 15 seconds.
+
+Which means you are going to have you have three, three parts running let's say.
+
+And then every 15 seconds it is going to add four parts okay.
+
+So for first 15 seconds it added four parts okay.
+
+So like you will get close to seven pods added.
+
+So now whatever Max is available here right in select policy.
+
+Here it is max for uh scale up behavior.
+
+So whichever gives max that policy will be taken into consideration.
+
+So three plus three.
+
+It is six.
+
+It is low but means like it's min.
+
+Okay, but here it is.
+
+Max.
+
+Right?
+
+3 to 3.
+
+And then for 15 seconds it adds four parts okay.
+
+Right.
+
+Four plus three total seven parts.
+
+So it is going to take this into consideration.
+
+So that's the key thing here okay.
+
+So when it is doubling it you have only three parts.
+
+It is adding.
+
+But here you are adding four parts.
+
+So which is bigger.
+
+This four is bigger.
+
+So that's the reason it will pick this policy.
+
+And in 15 seconds it will create four parts for us.
+
+And again it will go for the next cycle.
+
+So that's about HPA YAML manifest.
+
+We have reviewed the behavior scale down scale up.
+
+And we have also reviewed the metrics types resources CPU and memory.
+
+And also we have reviewed the scale target reference.
+
+So now if we go here to our Visual Studio Code and in retail store test manifest with data plane.
+
+So you have the zero one catalog HPA in zero four HPA zero one is secret provider class, and in zero
+
+two you will have your catalog card checkout orders UI.
+
+So all the microservices information zero three is ingress and zero four you have the HPA files.
+
+So this is for catalog in the same way you have for CART also okay so in catalog we said min replicas
+
+three, Max replicas 12 and everything is as is whatever we have discussed in cart.
+
+Also here name is carts HPA and all carts related labels.
+
+And here also deployment.
+
+You will reference is carts.
+
+In the checkout you will reference checkout related uh scale target reference checkout deployment.
+
+And for orders we'll select orders deployment.
+
+And for UI we will select UI deployment.
+
+So that's about the HPA.
+
+In our next lecture we'll also discuss about pod disruption budget.
+
+We have uh allocated for means like created for this respective demo.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Alright everyone.
+
+In previous lectures we have discussed and set up Hppa for auto scaling, but to make our retail store
+
+application truly production grade, we need two more critical components, even three more.
+
+Okay, so one is DB and second is topology spread constraints.
+
+And second third is node selectors.
+
+So these three things we are going to discuss in this respective lecture.
+
+So already PDBs we have implemented as part of Karpenter spot instances demo.
+
+So what actually pod disruption budget solves PDB is your availability insurance during voluntary disturbances
+
+or disruptions okay.
+
+So this will ensure that all your pods will not get disrupted at a time.
+
+So when you say here minimum available two which means at least right.
+
+At least two catalogue parts must be available at all times, even during voluntary.
+
+Disruptions.
+
+So voluntary disruptions include node drains, upgrades, maintenances, manually deleting parts or
+
+cluster autoscaler removing nodes are karpenter.
+
+Consolidating the nodes in all these cases ensures minimum two parts are available for us.
+
+So this we have already understood in detail and in our sport instances demo also with pictures.
+
+So here also we are embedding it.
+
+So ideally when we use node selector as on demand it is an optional item okay.
+
+So it is an optional item only, but still, to maintain that production grade architecture we are also
+
+adding it.
+
+So for our cat our retail store application, in this demo we are going to use on demand node selector
+
+okay.
+
+So if we go back to our Visual Studio Code and if you see any of these catalog or any of these things.
+
+Right.
+
+So if you go here we have added the node selector as on demand.
+
+But you need to understand if you use spot instances right.
+
+This is mandatory PDP is mandatory okay.
+
+But for on demand it is optional.
+
+But it is still recommended.
+
+So for catalog checkout orders, CART and then UI, we are going to have the same PDB files with minimum
+
+available two.
+
+So we can see all of them here.
+
+So we have created a PDB folder here zero five.
+
+PDB.
+
+This is catalog PDB.
+
+Cards PDB checkout.
+
+PDB orders and then UI.
+
+It will ensure minimum two parts at any point of time during voluntary disruptions.
+
+Okay.
+
+So now that's about pod disruption budget which we have added as part of this demo for our retail store
+
+application.
+
+And one more.
+
+Now we are going to discuss is topology spread constraints okay.
+
+So this is another very important thing which we need to know this we will be updating in our deployment
+
+specification.
+
+So if you go to our catalog deployment here right.
+
+So if you go down here here let me remove these things okay.
+
+Right.
+
+So here you can see in the pod template spec.
+
+So this is the deployment spec.
+
+And this is the pod template spec.
+
+We will add this topology spread constraints and it's a list item.
+
+So we have provided two constraints here.
+
+Spread constraints.
+
+We have added two two things we have added here.
+
+So let's review them one after the other.
+
+What exactly those means.
+
+Let's come from a problem standpoint to understand this better okay.
+
+So these two things I have removed those.
+
+Let's imagine for a catalog application you have five pods running or five pods scheduled.
+
+Okay.
+
+All are running perfectly.
+
+But one important thing is you didn't specify anywhere where those five pods need to be scheduled on
+
+your Kubernetes nodes.
+
+So you already know that we have three availability zones in our EKS cluster, right?
+
+So these are the availability zones let's say us east 1A1B and then one c.
+
+Right.
+
+And now here these five pods may be and you have notes here, here and then here.
+
+So you can say these as node one, node two and then node three.
+
+So these five parts might have been scheduled anywhere any of these nodes.
+
+So p1, p2, p3, p4 and p5.
+
+These might be scheduled anywhere.
+
+Currently we don't have any specification telling Kubernetes that these five parts need to be scheduled
+
+evenly across availability zones or evenly across nodes.
+
+We didn't define anything like that in our Kubernetes deployment.
+
+So let's say like all these things are scheduled on node one.
+
+And this node one has a hardware failure.
+
+Okay.
+
+So what happens.
+
+So all five parts instantly.
+
+And it takes for the Kubernetes deployment catalog deployment to schedule them.
+
+It takes some time on those other two things maybe 30s to 60s.
+
+But for this 30s to 60s your application is down.
+
+You will have errors and example at the same time.
+
+Orders are getting processed or payment is happening in your retail store application.
+
+Those transactions might have issues also.
+
+So everything is a mess here.
+
+Okay, so that should not happen.
+
+So if if that is one case and another case is this is only one node okay.
+
+But what happens if the entire availability zone is down.
+
+Okay.
+
+So again another bigger case okay.
+
+So even then we will have issues.
+
+This is a single point of failure.
+
+So your Kubernetes deployment right.
+
+So whatever you have created for catalog or cart or checkout doesn't have any settings to evenly distribute
+
+your pods or ensure that in any case our application will not fail.
+
+So currently it is not designed that way.
+
+So with means like with the topology spread constraints, what will happen is you can have your pods
+
+spread across multiple nodes.
+
+So with this topology spread constraints, you can have pods spread across multiple nodes and even the
+
+multiple availability zones.
+
+So you can do that okay.
+
+So if one node are one availability zone completely fails.
+
+Still your application will be running because you have pods running here and here also.
+
+So that's the thing.
+
+Even AG fails parts in the other edge is still running and you have a high availability.
+
+So that's the key thing to remember.
+
+We what we are going to get with topology spread constraints okay.
+
+So now you can see here in topology spread constraints Right.
+
+Let's start and discuss with this first one.
+
+Okay.
+
+So here first what we said is uh topology.
+
+Max Q is one.
+
+And here topology key.
+
+You are saying Kubernetes IO slash hostname.
+
+It is a node label.
+
+Every node has a unique host name.
+
+So here when you use kubernetes.io hostname which means spread my pods across different nodes.
+
+So it will ensure that every host name is a different right.
+
+So it will spread the pods across different zones.
+
+So this controls evenly.
+
+Pods are distributed okay.
+
+Right.
+
+Which one max q equal to one means the difference between the node with the most pods and the node with
+
+the least pods can be at most one.
+
+So that's what it happens.
+
+So example with five pods and then three nodes.
+
+So let's say you have node a, node b and then node c and you have five parts with you.
+
+So now with max q equal to one right when it will be satisfied is you have two parts here, two parts
+
+here and then one part here.
+
+And you can see the difference okay.
+
+Difference is two minus one equal to one.
+
+So that is the good configuration.
+
+You can say this is the good configuration.
+
+Let's also discuss the bad configuration right.
+
+So this is max Q one satisfied condition.
+
+Now let's see the bad configuration.
+
+In node A you have three pods.
+
+In node B you have two pods.
+
+And in node C you have zero pods okay.
+
+Now when you say difference Is three.
+
+-0 is three.
+
+Okay, so here it is.
+
+Violating max Q one ensures even distribution.
+
+So no node is overloaded with too many pods.
+
+So you understood this formula right.
+
+Difference formula.
+
+You might have understood I'll try to repeat that again okay.
+
+Right.
+
+So the definition for max Q is the difference between the the difference between the nodes with most
+
+pods and the nodes with the least pods okay.
+
+So nodes with most pods is two nodes with the least pods is two.
+
+So now this difference right two minus one equal to it is one.
+
+And now this satisfies your max q one okay.
+
+So now this is satisfied condition.
+
+In the same way when you have a equal to means like node A has three parts and node B has two parts
+
+and node C as zero.
+
+Now when you do the difference right, which is the difference between the node with the most parts
+
+and the node with the least parts is zero, three -0 is zero, which violates your max skew.
+
+Right.
+
+So it should be one.
+
+You should get the value as one.
+
+If not, it will fail.
+
+So that's the key thing okay.
+
+When you say max skew equal to one means it will ensure that even distribution of pods across nodes.
+
+So no node will be overloaded.
+
+So now you understood.
+
+Right.
+
+So topology key hostname is completed and max queue is completed.
+
+Now let's also discuss when unsatisfiable and then schedule anyway what exactly that means.
+
+So what if we can't satisfy the constraint okay.
+
+So already you said if if you if you get max q equal to one that's fine.
+
+But still sometimes you will not get that right.
+
+So if that constraint is not satisfied, if this condition is not met, I am not getting the difference
+
+as one.
+
+So what should I do?
+
+Right.
+
+So only two nodes are available but five pods.
+
+So in that case what is the story.
+
+Right.
+
+So the flexible option is you say schedule anyway.
+
+So you said that you have node A and node B and you have five parts to be scheduled right.
+
+So now you say you scheduled here two three and then two three minus two which is one.
+
+That is fine okay.
+
+But here four and then here one then four minus one which is three.
+
+Again it is failing right.
+
+It is not satisfying.
+
+So what should happen at that point of time.
+
+Still schedule anyway is one option and do not schedule is another option.
+
+Okay, so anything is possible, right?
+
+So now when unsatisfiable what should you do is the most lenient option or flexible option is schedule
+
+anyway, so that is the safest option.
+
+So we have selected that schedule anyway.
+
+So we use schedule anyway.
+
+We prefer the part to run even if not perfectly spread rather than not run at all.
+
+So that's the key thing.
+
+So schedule anyway will ensure that if you use do not schedule then that pod will not run and it will
+
+be in the pending state itself.
+
+Right.
+
+But we really don't want that scenario.
+
+So that's the reason we will ensure that schedule anyway will be there there.
+
+So for production schedule anyway is usually better.
+
+Availability is greater than perfect distribution.
+
+So that's one thing.
+
+So that's about constraint one we have discussed.
+
+And in the construction one constraint one you have the label selectors.
+
+You are saying catalog labels okay.
+
+So whatever you you have seen here right in your Kubernetes those labels you are putting it here okay.
+
+so these are the two things you have put in a name and then component you have put it.
+
+Okay.
+
+So that's about uh labels for the first one.
+
+Now go to the second one.
+
+So the second one here is spread across availability zones.
+
+First one is spread across nodes and second one is spread across zones.
+
+So here you can see topology.kubernetes.io/zone okay.
+
+Here uh means like it's a.
+
+Now what exactly is this value.
+
+This value is a label on nodes indicating their AWS availability zone.
+
+So you are saying that spread my pods across different availability zones.
+
+So that's what this constraint is defining us okay.
+
+So you have something called uh we'll go this side and then discuss.
+
+So you have something called one.
+
+Yay.
+
+Year, and then one b and then one C, and if you have three availability zones and six parts, you
+
+have to run then two parts here, two parts here, and then two parts here.
+
+Okay.
+
+So let's also see a disaster scenario.
+
+Okay.
+
+Right.
+
+Even this complete availability zone is down.
+
+Still you have four parts running your application.
+
+So four by six parts are up and running.
+
+So these both constraints.
+
+What this does is one protects against node level failures and other protects against zone level failures.
+
+These two work for providing the maximum resilience for our application okay.
+
+Now let's we have discussed about PDB and topology spread constraints.
+
+Now we'll also see the node selectors.
+
+So in our catalog or any of the deployments catalog cart checkout orders.
+
+And then UI.
+
+We have also added our node selector here saying you should use the on demand.
+
+Okay.
+
+So if you see as part of section 17 anyway we are deploying the carpenter.
+
+Right.
+
+So which means now our application will run on carpenter nodes.
+
+So we are designing a production grade application.
+
+So what all is needed there.
+
+Right.
+
+So one we will start from the web area.
+
+So do we have ingress.
+
+Yes we have we have installed LBC and ingress should work okay.
+
+And for SSL we know that we will use AWS Certificate Manager.
+
+So I am only putting HTTP ingress for now.
+
+In this demo already we have seen https in our previous demos, right?
+
+So everyone might not have the domain name, right?
+
+So if they don't have the domain name again, again Https is difficult to implement, right?
+
+So for that purpose we are cutting down here.
+
+But if you want you can always go here to our previous demo CRC in external DNS.
+
+If you go here in ingress you have the Https demo.
+
+You can get that and put it in ingress here and then it will start working.
+
+So one is ingress okay.
+
+Second is external DNS right.
+
+Automatically DNS register even this in the web part and in the app part.
+
+Right.
+
+So you have something called you are you are dealing with your persistent databases okay.
+
+Right.
+
+So the passwords for those things are should be highly secure.
+
+So for that purpose we are using Secrets Store CSI right.
+
+So we are getting from our secrets manager.
+
+So that is already there.
+
+Now for node auto scaling.
+
+So we have used the carpenter right.
+
+And for pod auto scaling we are using the HPA right.
+
+And now to spread across multiple parts.
+
+We are using topology spread constraints comma PDBs.
+
+So everything we have designed that way.
+
+And even when we go to the DB tier also we have designed the complete data plane right.
+
+AWS data plane we have designed and we have automated it with Terraform.
+
+So now what I'm trying to say here is we are going to run this application.
+
+This is a critical application.
+
+And we don't want to be running on spot.
+
+We are taking the decision of running it on on demand.
+
+Even if you want to run it on spot, we have ensured that TSC is covered and PDB is covered to ensure
+
+that there is no disruptions for our application, even that we have covered in this YAML manifest.
+
+So that's about the things we are making changes in our retail store application.
+
+Okay.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+We are in 18 auto scaling HFPA and here we have three projects.
+
+One is zero one metric server, Terraform manifest and zero two AWS data plane.
+
+Terraform manifests and zero three retail store manifest with data plane.
+
+So here if we see we as part of section 17 and 17 zero one, we already installed the VPC, ECS Carpenter
+
+and also the carpenter manifest.
+
+So all these four projects are up and running which are related to cluster.
+
+Now in the cluster we need to install the metrics server.
+
+So either you can get this metric server thing updated in your core X zero to Terraform project.
+
+Or you can put it as a separate project.
+
+Anything is fine.
+
+So I have put it as a separate project for now, right?
+
+And in future projects, if you want, I will try to consolidate this metric server under our uh, zero
+
+to X Terraform manifest with add ons.
+
+Okay, so for now I have put it as a separate Terraform project.
+
+So in C1 versions.
+
+So you can see we said metrics server and you need to update your S3 bucket name here right.
+
+And it is going to store its Terraform state in metrics server.
+
+Uh folder in dev terraform tf state file.
+
+Okay.
+
+So like this it is going to store in our S3 bucket okay.
+
+So remaining things standard C2 variables again standard how we have done for our previous Terraform
+
+projects and ECS remote.
+
+We need the ECS information here.
+
+Because this ECS add on we need to install in our ECS cluster.
+
+So this is that remote state data source for ECS, which we already know.
+
+And we discussed it in detail in multiple other projects.
+
+Okay.
+
+So here in the ECS add on metric server.
+
+So we will try to get the ECS add on version whose add on name is metric server and Kubernetes version
+
+is from our remote state data source.
+
+We will get it and we'll try to get the most recent version of our X add on for metric server and use
+
+that in our X add on here.
+
+So you can see here when we are installing the X add on resource x add on metric server, we are providing
+
+our EKS cluster name, which we got from our Terraform remote stored data source and add on name we
+
+are providing is metric server and these two are standard resolve conflicts and create or update override
+
+and the add on version will try to get it from this one.
+
+AWS eks add on version dot metric server latest dot version.
+
+So from here we are getting the add on version.
+
+So this is default version whatever available.
+
+Even if we want to use for a stable cluster we can also use the default version.
+
+And here we have defined our outputs.
+
+So that's about our zero one metric server Terraform manifest okay.
+
+So if we go here right.
+
+And we will go to this one and I'll say clear.
+
+And this one also clear.
+
+First, what we will do is we will verify that if our Kubernetes cluster is running okay and it should
+
+be running.
+
+So it's not configured yet.
+
+So we need to configure.
+
+So what we will do is we'll go to 17 0101.
+
+And in that zero to x terraform manifest.
+
+And I'll run the command Terraform output initialization is pending.
+
+So I'll try to terraform init once and I will run the command.
+
+Let me run the command terraform output and get me that command for configuring the Kubeconfig.
+
+Okay.
+
+We can run already my uh as part of previous 17 zero one, all these things are created and ready,
+
+so we really don't need to worry.
+
+So what I'll do is I'll run terraform output.
+
+If those were not run, you need to come from 17 zero one, which means first install the VPC, then
+
+install the Terraform uh eks cluster, then install the Terraform manifest for karpenter, then install
+
+the Carpenter related Kubernetes manifest.
+
+Okay, so those things you need to do.
+
+So we have the cluster ready here.
+
+So when I run the Terraform output I'll get this to configure kubectl okay.
+
+So I am configuring and we will run the command cube ctl get nodes.
+
+And in addition to that we will also run cube CTL get pods hyphen n and then kube system.
+
+We should have the carpenter running.
+
+If carpenter is running or not it is running.
+
+We can also say cube CTL, get EC2 node class and also node pools.
+
+Okay.
+
+So we can run those things also okay.
+
+Get node pools related to Carpenter.
+
+So we should have on demand and spot and currently zero nodes.
+
+So these are good okay.
+
+Now we will come out of this and we'll go to section 18 okay.
+
+So if these are not created you need to create them.
+
+Prerequisites are you need to have your VPC See.
+
+And then your ex.
+
+And then your carpenter and your carpenter YAML.
+
+Now we'll go here and we'll go to zero one metrics server Terraform manifest.
+
+We'll run the command terraform init.
+
+And then after that we will run the command terraform validate plan and then apply auto approve.
+
+With that we will install the metrics server.
+
+So before installing metrics server.
+
+So if we want we can go to our EKS cluster here.
+
+And then we can go to the add ons.
+
+And we can see we have the following add ons running external DNS, ebs csi, ex pod identity agent.
+
+If you want you can click on get more add ons.
+
+And here at the down you will find the metrics server.
+
+So this is the metric server add on you can directly install from here.
+
+But we are using Terraform all the automated approach.
+
+Okay.
+
+So I'll come back here and I'll say Terraform validate right.
+
+And after that I'll also run the command Terraform plan.
+
+And if it is good, I'll try to install apply auto approve.
+
+After that, if we go to the add ons and verify our metric server also should be running.
+
+Okay, so let's wait for the plan to be printed here so we can see it is going to install the metric
+
+server.
+
+Now one resource to be added which is x add on.
+
+So I'll say Terraform apply auto Approve and let's wait for this metrics add on to be installed.
+
+We can see here one resource added and it is successfully completed.
+
+So we can go here and uh, go back to our uh this one cluster and try to refresh here.
+
+And in the add ons we should see metric server is active and then it is installed.
+
+Okay.
+
+Now the next thing is we will go back to our Visual Studio Code.
+
+And here one thing is completed in our section 18 which is metric server installation.
+
+And the next is we need to go to zero to AWS data plane Terraform manifest and then install or create
+
+our data plane Terraform manifest.
+
+So if we are using the retail store as manifest with data plane which means a production grade implementation,
+
+then you also need to use your AWS data plane up and running.
+
+So which we have created as part of 14 zero one.
+
+So if it is already running then not an issue.
+
+But if not again the same.
+
+Whatever the templates you have here in zero three AWS data plane Terraform manifest the same thing.
+
+I have copied it here, which is zero to AWS Terraform AWS data plane manifest.
+
+So we can go to that folder.
+
+So we'll come out of zero one metrics.
+
+And whenever you want to install your application retail store application you need data plane and your
+
+cluster planes.
+
+Right.
+
+Means like your your actual YAML manifest Kubernetes manifest.
+
+So first you need to create your data plane.
+
+And whatever the endpoints you get here, you need to update in your retail store config maps wherever
+
+required.
+
+Okay, so in in our case now we'll go to zero to AWS data plane manifest.
+
+And I will run the command terraform init.
+
+And after that we'll directly run the Terraform apply auto approve.
+
+Or you can run plan validate plan and apply auto approve.
+
+But these are the same manifests right.
+
+It should work without any issues.
+
+So for that purpose I am running apply auto approve.
+
+So this takes close to 5 to 10 minutes to complete.
+
+So that's about in this lecture.
+
+In our next lecture we will focus on actually deploying our zero three retail store manifest with data
+
+plane in combination with HPA PDB and also our topology spread constraints.
+
+As part of HPF we are adding additional things which is PDB and topology constraints.
+
+So all those things we are going to verify after installation two.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+After we can see here our data plane related projects successfully run and all the endpoints got created
+
+successfully.
+
+So this is our endpoint and this is our orders Postgres endpoint.
+
+And this is our orders SQS URL.
+
+And we also have the checkout related endpoint also here which is this one okay.
+
+So now these things need to be updated in your retail store.
+
+Microservices in 18 HPA zero three retail store test with data plane and in catalog MySQL name service.
+
+You need to update your endpoint here and in cart here in Configmap it is already US West two which
+
+we have configured no changes and in checkout in Configmap you need to update your Redis endpoint here
+
+and in your orders.
+
+In your orders Configmap You need to update your orders endpoint here for your Postgres db and also
+
+your SQS queue name.
+
+Also here you need to provide.
+
+So that's about orders and also ensure that we have our catalog DB.
+
+If you see here you have your retail store DB secret one as in your secrets manager, you have this
+
+okay.
+
+So if you go here, if you go to secrets manager you have this secret present there.
+
+Okay.
+
+So then only everything is going to work.
+
+This is same as our previous demos only right?
+
+No changes.
+
+Right.
+
+So but just I am trying to reiterate.
+
+So if we miss these things then it will not work and we'll keep end up troubleshooting.
+
+So for that purpose I am trying to show you everything okay.
+
+And as usual we will use the ingress HTTP.
+
+We have the HPA for all these applications in PDB also present okay.
+
+And if you see the deployments for these things for all these five services, you should see the topology
+
+spread constraints also present.
+
+So now we will go back here and start deploying them.
+
+So we'll go to zero 3 in 0 to AWS data plane Terraform manifest.
+
+We'll move on to zero three retail store manifest with data plane and schedule.
+
+Anyway.
+
+So here if you go to any of the deployments right for catalog card checkout orders or UI in zero three,
+
+we are going to have something called for the topology spread constraint.
+
+Right.
+
+So that's what we have discussed.
+
+Where is it topology spread constraints.
+
+So for the zone constraint whatever we have defined it is going to be schedule anyway which we have
+
+already discussed.
+
+Okay.
+
+So that we are going to demonstrate as part of zero three.
+
+And in addition to that, as part of zero four we will ensure that do not schedule.
+
+So if the condition is not met, do not schedule.
+
+So in this case, mandatorily we, the carpenter, will ensure that in every availability zone a pod
+
+is created for us.
+
+So 100% spread out deployment across all availability zones.
+
+So here in zero four, the change here is if you go to zero one catalog deployment for the uh availability
+
+zones topology spread constraints, you will find do not schedule.
+
+So in the same way for CART.
+
+Also you will find do not schedule.
+
+So these things are the changes okay.
+
+Now what we will do is we'll start with the 031 first okay.
+
+Schedule anyway okay.
+
+We will go here and we'll go to zero three.
+
+And we have the files here okay.
+
+So we'll start with deploying the secret provider class.
+
+First apply hyphen f and then zero one secret provider class.
+
+So once those were created we will apply hyphen f and then zero two for this.
+
+In zero two we have multiple folders cart zero one, catalog zero two cart.
+
+Like this okay.
+
+So for that we'll do hyphen hyphen f and then zero two and hyphen F03.
+
+We can create ingress here hyphen f we can create zero four.
+
+Hyphen F05 PDB also.
+
+So now it is going to deploy all other stuff after creating the secret provider class, which means
+
+all the catalog file services will get created and ingress service will get created.
+
+And for all the five services HPA related things also will get created.
+
+See, we can see all those are getting created and it also will create for all five services.
+
+Pod disruption budget.
+
+Also.
+
+Now if we run the pod kubectl get pods here, you can see pods are currently in the pending state.
+
+And we can also see the node claims here okay in node claims.
+
+So these nodes are currently requested and those are getting created.
+
+If you want we can also run the command get nodes also.
+
+Right.
+
+Those are getting ready for us.
+
+Okay.
+
+If you want we can also say node claims again.
+
+And we can also say cube CTL get pods also one more time soon.
+
+Those will be means like all these will become in running state.
+
+Let's wait for that to happen.
+
+It might take a 3 to 4 minute initial deployment.
+
+It need to provision all the on demand node pools Karpenter need to create them and then schedule these
+
+pods on that.
+
+Okay, so it might take a little bit of time.
+
+So let's wait for it okay.
+
+So let's check one more time.
+
+I have waited for 2 to 3 minutes.
+
+And if I run get pods.
+
+So these are getting created.
+
+So most of the things are running.
+
+And we will also say node claims okay.
+
+And all the node claims are good.
+
+And we'll also run the command cube CTL get nodes and see whether the nodes are also ready.
+
+All the nodes are ready and currently it provisioned close to six nodes on demand node pool.
+
+And I will also run the command cube, CTL get pods and all are running now.
+
+Only one is pending.
+
+It will start very soon.
+
+Okay, now we already know these are the nodes and these are the pods.
+
+So how the distribution happened we need to see right.
+
+So we can say cube CTL get pods hyphen wide and on which node these parts were scheduled you will get
+
+it okay.
+
+So these are the node uh node information where these pods are scheduled.
+
+And if you want the node IPS also.
+
+So you can say get nodes hyphen o wide and you can verify these things.
+
+What what happened and how it is mapping everything.
+
+Right.
+
+But the best thing is I have something called in the same zero eight auto scaling HPA, I have created
+
+a check topology dot shell script.
+
+So what it does is like it will verify how the parts were spread across multiple availability zones.
+
+So when we run this check topology it's a part topology distribution report.
+
+So initially what it will do is it will list the nodes with IP addresses and in which nodes in which
+
+zones they are present.
+
+It has created three nodes in zone A, one A and four, four four here and then three here and two here.
+
+All these are the things.
+
+Okay, now you can see carts is present like this.
+
+Carts distribution is all the parts were created in US east one B and catalog 1A1B1C availability zones.
+
+It is present and checkout 2 in 1 A and 1 in 1 B only one part.
+
+And in orders also two and then one UI also two and then one.
+
+Okay, so now you understood, right?
+
+What is happening with this setting, whatever we have done here.
+
+So if we go to retail store and go to the cart and cart deployment and schedule anyway.
+
+Right.
+
+So it will go ahead and then schedule and it will sometimes it might even land up all the all the parts
+
+in the same availability zone.
+
+And if there is any issue with this node where it has scheduled or with that availability zone, then
+
+we have a bigger issue here, right?
+
+So that is the biggest problem when you use schedule anyway.
+
+But the advantage of karpenter is when you select it as do not schedule right.
+
+So here it will pod will go into pending state.
+
+And when it is in pending state, it's the carpenter's duty to somehow meet the condition and schedule
+
+it on the pod.
+
+Okay.
+
+So it will try and then recreate one more node or somewhere.
+
+It will try to meet the condition and then create the pod in one node.
+
+Okay.
+
+With satisfying the condition okay.
+
+So now what we will do is we will remove this here.
+
+Okay.
+
+Or what we will do.
+
+We will also see HPA and go to zero for later.
+
+Okay.
+
+Right.
+
+So we will run the command cube CTL.
+
+Till now we didn't discuss HPA right.
+
+So let's discuss that also.
+
+And it will display all the HPA configurations what we have deployed as part of this one.
+
+Okay zero for HPA catalog cards.
+
+Checkout for orders and then UI.
+
+So it is saying that on all these things CPU is 1% only use currently used out of 70%.
+
+We said target is 70%.
+
+When it reaches 70% then it need to hit, then it need to trigger the scaling event.
+
+Okay.
+
+Pod auto scaling event okay.
+
+So CPU is very less okay.
+
+And to replicate it we need to do a load test and then see it.
+
+But the easiest way right memory is here.
+
+It is hitting very nearer right.
+
+So 64% out of 83% out of 80.
+
+So here you can see this is interesting okay.
+
+Orders is 69% of 80%.
+
+Okay, so somehow if you try to hit here by doing something, then automatically it might trigger a
+
+auto scaling event.
+
+And you can see min pots three, Max pots 12 and current replicas are three.
+
+There is a chance that these replicas get increased and then auto scaling event triggered.
+
+And then we can see that practically here.
+
+Okay, so what we will do is we will go to this in zero three in the orders.
+
+Right.
+
+So in zero three retail manifests with data plane schedule anyway.
+
+So we will go to orders.
+
+And in orders deployment what we will do is for our application actually it's a spring boot application
+
+orders.
+
+And we need minimum three 5512 MB okay.
+
+Right.
+
+350 above MB only we need and if it is 512 MB then only this comes down to a lesser number 20% or 30%
+
+okay.
+
+But what we will do is we will try to put the memory pressure on our mission.
+
+Okay.
+
+Right.
+
+So we'll try to reduce it to 256 MB.
+
+and if HPA triggers or not, we see okay if if it crosses 80% automatically.
+
+HPA should be triggered whether it will trigger or not.
+
+We are going to see okay, functionally it is correct or not or whether it will work or not.
+
+From application perspective, that's not the case here.
+
+We are just verifying whether HPA will trigger or not.
+
+When memory of our respective orders pod reaches more than 80%.
+
+That's our goal here.
+
+So what we will do is we'll go here and we are in zero three retail kits manifest I will say kubectl
+
+apply hyphen f and then zero to retail store microservices.
+
+And inside that we have the orders okay.
+
+And now orders for deployment it should show configured okay.
+
+That is good.
+
+Now if I run the command cube CTL get pods right.
+
+So now you should see only one orders pod is currently present.
+
+They are changing currently.
+
+Okay.
+
+Right.
+
+So we will go here will go here and then try to run the get HPA right.
+
+And currently unknown because it is trying to create the pods.
+
+Now we will get parts.
+
+We will run and orders.
+
+Parts are getting created now.
+
+So let's wait for it okay.
+
+Right.
+
+And get HPA.
+
+And currently there are three replicas as of now.
+
+Memory is 36%.
+
+Right.
+
+Let's see whether it increases by 80% or not.
+
+Okay.
+
+And now it is 48%.
+
+Slowly.
+
+The spring boot application is coming up.
+
+Let's wait for it.
+
+We will run kubectl get HPA one more time.
+
+And we can see now it is 68%.
+
+Okay.
+
+So.
+
+And it is still 68%.
+
+So let's wait for it.
+
+And now you can see it is 92%.
+
+So it slowly increased.
+
+Okay.
+
+Now what happens?
+
+We are going to see.
+
+And if you want we can also describe and then HPA and orders HPA.
+
+You can also describe okay and see what is happening here okay.
+
+Fail to get CPU new size for reason.
+
+Memory resource utilization.
+
+Percentage of request above target.
+
+See successful rescale is triggered here.
+
+You can see that okay if you run the kubectl get HPA.
+
+Also, the number of replicas currently it is running is four replicas.
+
+So you can easily see that auto scaling event got triggered.
+
+Okay, so in real world case also when your memory or CPU hits crosses the targets then it is going
+
+to trigger the auto scaling event.
+
+So now what we are going to do is we will roll back the change okay.
+
+So we will put it back to 356 and comment the 2:56 a.m. I and then come here and then deploy whatever
+
+we have.
+
+We are going to redeploy the orders again.
+
+Okay.
+
+And we'll run the command cube CTL get pods and order should be recreated now.
+
+So it is getting recreated.
+
+Now let's come back here.
+
+And soon even this four again should come back to even.
+
+See now it is.
+
+We have changed it.
+
+Right.
+
+So it's not again scale down.
+
+We cannot test in this approach.
+
+So now again it should be below 80%.
+
+And you should see three replicas running shortly.
+
+Let's run cube CTL.
+
+Get one more time and we can see it is at 26%.
+
+And three replicas are running for us.
+
+And if you want we can also run cube CTL get pods and soon those pods will be available.
+
+They are currently in the one is running.
+
+Two more should come online very shortly now.
+
+So that's about horizontal pod auto scaling.
+
+And also we have discussed in this lecture also about topology spread constraints for the availability
+
+zone.
+
+and now we will uninstall whatever we have installed here, which is nothing but kubectl delete hyphen
+
+f and then hyphen r, hyphen f and then zero to retail store microservices hyphen f.
+
+And then we will also remove zero for HPA and zero five pdb okay.
+
+Only application related.
+
+We will leave the secret provider class and ingress as is here.
+
+We will not touch them.
+
+Why?
+
+Because those are the same configuration manifest present in our zero four folder also.
+
+So in zero four folder also those are the same things available for us here in Do not schedule folder.
+
+So that's the reason we didn't delete them.
+
+So we'll come back to zero four retail store manifest with data plane and do not schedule topology constraint.
+
+We spread constraint we have defined for the availability zone thing okay.
+
+And earlier.
+
+Also you have already seen the spread report right here.
+
+So how it has spread.
+
+Now, what will happen with the do not schedule?
+
+That's the key.
+
+Interesting thing we need to.
+
+Now we are in zero four retail store manifests with data plane.
+
+Do not schedule right.
+
+So here before deploying the application here retail store application, we need to ensure that there
+
+are no node claims available.
+
+It takes 2 to 3 minutes to clear all those things.
+
+Whatever it it got created in our previous demo which is with the schedule anyway.
+
+Demo right in zero three schedule anyway.
+
+Demo.
+
+So that what happens is it will distribute orderly.
+
+If not, the demo might take time for the carpenter to reschedule everything and then put it might take
+
+10 to 15 minutes to get everything in the order how it need to be scheduled.
+
+Okay, because we are using this hard rule do not schedule.
+
+So now there are no node claims.
+
+We will go ahead and then deploy the stuff cube CTL apply hyphen f, hyphen r, hyphen f zero to retail
+
+store microservices, and hyphen f zero for HPA and hyphen f zero fi pdb.
+
+So let's wait for all these resources to get created.
+
+Okay, so it might take another 3 to 4 minutes for all these things to get created.
+
+We can see here it successfully deployed.
+
+Now I will come out of this.
+
+And I'll run the command so that it will be easy to read the commands cube CTL get pods and most of
+
+them should be in the pending state.
+
+And I will also say cube CTL and get node claims and node claims c l m s.
+
+Okay, let's wait for the nodes here okay.
+
+So you have one year two nodes three nodes.
+
+And we have one b and then 11C and then one c.
+
+So in multiple availability zones.
+
+It is provisioning the nodes for us.
+
+Okay.
+
+So we will run the command cube CTL get pods and let's see what's happening here.
+
+Okay.
+
+So all already containers started creating.
+
+So it's been close to three minutes two and half minutes.
+
+And most of the things are running soon these things also will be available.
+
+It's been five minutes and most of the pods are up and running even from the cards.
+
+Also one one pod is running remaining two are currently coming up online.
+
+So what we will do is we'll go and then check the topology now.
+
+So we'll come here and we have the check topology report.
+
+So we'll run that script here and then see how it displays okay.
+
+So the expected here is in all the availability zones one one pod should be created for each microservice.
+
+So this is Scott's microservice.
+
+And we have one pod for each availability zone.
+
+Even for the catalog it is good.
+
+And now we are checking for the checkout and even for checkout.
+
+It is the same way and we are also verifying for the orders now and even for orders it, we can see
+
+that 111 pod per availability zone is present.
+
+So now we can clearly see that when we are using the topology constraint zero for retail store with
+
+data plane, do not schedule right.
+
+So when we use those things, if we go to the deployment and when we use this do not schedule for the
+
+zone.
+
+So it successfully ensured that one pod for each availability zone it got created.
+
+We can also see now in courts one more pod is also ready.
+
+Final one is coming online now.
+
+So now we can go ahead and then even test our application.
+
+So we can say cube CTL get ingress and we should see our ingress this one endpoint.
+
+And using this we can access our application.
+
+So if you already have your domain and then you have configured in your ingress service with external
+
+DNS.
+
+Even with that, you can test it.
+
+So we will go here and access our application via load balancer endpoint.
+
+Here I will also use my retail store one dot stack simplify com.
+
+With both I am going to test because we are also using external DNS here.
+
+So if you go here to the zero three ingress in my case it is going to be retail store one stack simplify.com.
+
+In your case if it is it is going to be different yourdomain.com.
+
+So update it and then deploy your ingress accordingly.
+
+So we'll test first with our load balancer endpoint.
+
+So it is throwing error.
+
+So that's fine.
+
+We'll try to see the topology first.
+
+And in topology it is saying catalog is healthy carts is healthy.
+
+Checkout is healthy and even orders is also healthy.
+
+I'll try to access it again.
+
+Now it is accessible and I'll click on Add to Cart and Let's wait for it.
+
+And now we'll click on Start Equipment Requisition.
+
+So cart to checkout request went there.
+
+And even checkout is working.
+
+And finally we'll click on continue.
+
+And if we click on purchase now the order ID should be generated with the load balancer endpoint.
+
+We have tested in the same line.
+
+If we want we can also test with our custom DNS name also.
+
+Right.
+
+I'll try to run this quickly and then after that we'll move on and then clean up whatever we have created
+
+as part of this demo.
+
+So with both endpoints we have tested successfully.
+
+So now we'll go back here and we'll say get pods and let's see if it is up or not.
+
+Right.
+
+And it is up.
+
+Cart is also up now.
+
+And now means like the last part for the carts are carts is also up.
+
+We will also say get HPA and we will see the HPA metrics here.
+
+Okay 7% CPU is like this.
+
+Memory is 63.
+
+29%.
+
+70% 73.
+
+Like this.
+
+You can see.
+
+Right.
+
+So now we'll go ahead and then delete whatever we have created as part of this which is cube ctl delete
+
+hyphen r, hyphen f and then zero for retail store manifest with data plane do not schedule.
+
+So this should remove all the things from application perspective.
+
+And we also need to clean up data plane.
+
+So it is also going to cost us money.
+
+So it's always recommended to remove that one also.
+
+And in the next demo wherever we try to create the cluster.
+
+Right.
+
+So I will ensure that this metric server thing is embedded into the core EKS cluster related configurations.
+
+So what I'm trying to say is so if we go here, whatever you see in this metric server, this X metrics
+
+add on these things, I'll try to put it in wherever we use the EKS cluster zero to EKS cluster with
+
+add on config.
+
+Right.
+
+So there I'll try to have one more C18 or something here for this respective matrix add on also so that
+
+we don't need to.
+
+We will also be an embedded in our EKS cluster related configurations.
+
+Now we will go to zero three retail store.
+
+We will go to zero to not.
+
+Now let me remove yeah zero to data plane.
+
+And we will run terraform init and we will destroy this one also.
+
+Okay.
+
+And I'll run the command Terraform destroy auto approve for removing the data plane related things.
+
+And in the same line we will also go to zero one metrics server.
+
+And we'll say Terraform destroy auto approve.
+
+So we'll remove we will remove this one also.
+
+So with that we have successfully completed the auto scaling uh means like horizontal pod auto scaling
+
+demo.
+
+And in line with that we have also learned about topology, spread constraints and also pod disruption,
+
+budgets and even node selectors on demand.
+
+We have used everything we have used for our real world application.
+
+That's the key thing.
+
+Okay, it's not that how in our section 17 demo, we learned with a simple sample test okay, auto scaling
+
+test here.
+
+But now actually we have applied it for our retail store application.
+
+So that's the difference between 17 020304.
+
+And then our 18 application including horizontal pod auto scaling we have implemented which means in
+
+future huge amount of traffic coming for us.
+
+And then our applications can auto scale their pods first.
+
+Okay.
+
+And these pods need to be scheduled on some nodes.
+
+And those nodes also can be auto scaled using carpenters.
+
+The full flow we have implemented.
+
+So I'll see you in the next lecture and next demo.
+
+Until then bye bye.
+
+Thank you.
+
+
+After we can see here our data plane related projects successfully run and all the endpoints got created
+
+successfully.
+
+So this is our endpoint and this is our orders Postgres endpoint.
+
+And this is our orders SQS URL.
+
+And we also have the checkout related endpoint also here which is this one okay.
+
+So now these things need to be updated in your retail store.
+
+Microservices in 18 HPA zero three retail store test with data plane and in catalog MySQL name service.
+
+You need to update your endpoint here and in cart here in Configmap it is already US West two which
+
+we have configured no changes and in checkout in Configmap you need to update your Redis endpoint here
+
+and in your orders.
+
+In your orders Configmap You need to update your orders endpoint here for your Postgres db and also
+
+your SQS queue name.
+
+Also here you need to provide.
+
+So that's about orders and also ensure that we have our catalog DB.
+
+If you see here you have your retail store DB secret one as in your secrets manager, you have this
+
+okay.
+
+So if you go here, if you go to secrets manager you have this secret present there.
+
+Okay.
+
+So then only everything is going to work.
+
+This is same as our previous demos only right?
+
+No changes.
+
+Right.
+
+So but just I am trying to reiterate.
+
+So if we miss these things then it will not work and we'll keep end up troubleshooting.
+
+So for that purpose I am trying to show you everything okay.
+
+And as usual we will use the ingress HTTP.
+
+We have the HPA for all these applications in PDB also present okay.
+
+And if you see the deployments for these things for all these five services, you should see the topology
+
+spread constraints also present.
+
+So now we will go back here and start deploying them.
+
+So we'll go to zero 3 in 0 to AWS data plane Terraform manifest.
+
+We'll move on to zero three retail store manifest with data plane and schedule.
+
+Anyway.
+
+So here if you go to any of the deployments right for catalog card checkout orders or UI in zero three,
+
+we are going to have something called for the topology spread constraint.
+
+Right.
+
+So that's what we have discussed.
+
+Where is it topology spread constraints.
+
+So for the zone constraint whatever we have defined it is going to be schedule anyway which we have
+
+already discussed.
+
+Okay.
+
+So that we are going to demonstrate as part of zero three.
+
+And in addition to that, as part of zero four we will ensure that do not schedule.
+
+So if the condition is not met, do not schedule.
+
+So in this case, mandatorily we, the carpenter, will ensure that in every availability zone a pod
+
+is created for us.
+
+So 100% spread out deployment across all availability zones.
+
+So here in zero four, the change here is if you go to zero one catalog deployment for the uh availability
+
+zones topology spread constraints, you will find do not schedule.
+
+So in the same way for CART.
+
+Also you will find do not schedule.
+
+So these things are the changes okay.
+
+Now what we will do is we'll start with the 031 first okay.
+
+Schedule anyway okay.
+
+We will go here and we'll go to zero three.
+
+And we have the files here okay.
+
+So we'll start with deploying the secret provider class.
+
+First apply hyphen f and then zero one secret provider class.
+
+So once those were created we will apply hyphen f and then zero two for this.
+
+In zero two we have multiple folders cart zero one, catalog zero two cart.
+
+Like this okay.
+
+So for that we'll do hyphen hyphen f and then zero two and hyphen F03.
+
+We can create ingress here hyphen f we can create zero four.
+
+Hyphen F05 PDB also.
+
+So now it is going to deploy all other stuff after creating the secret provider class, which means
+
+all the catalog file services will get created and ingress service will get created.
+
+And for all the five services HPA related things also will get created.
+
+See, we can see all those are getting created and it also will create for all five services.
+
+Pod disruption budget.
+
+Also.
+
+Now if we run the pod kubectl get pods here, you can see pods are currently in the pending state.
+
+And we can also see the node claims here okay in node claims.
+
+So these nodes are currently requested and those are getting created.
+
+If you want we can also run the command get nodes also.
+
+Right.
+
+Those are getting ready for us.
+
+Okay.
+
+If you want we can also say node claims again.
+
+And we can also say cube CTL get pods also one more time soon.
+
+Those will be means like all these will become in running state.
+
+Let's wait for that to happen.
+
+It might take a 3 to 4 minute initial deployment.
+
+It need to provision all the on demand node pools Karpenter need to create them and then schedule these
+
+pods on that.
+
+Okay, so it might take a little bit of time.
+
+So let's wait for it okay.
+
+So let's check one more time.
+
+I have waited for 2 to 3 minutes.
+
+And if I run get pods.
+
+So these are getting created.
+
+So most of the things are running.
+
+And we will also say node claims okay.
+
+And all the node claims are good.
+
+And we'll also run the command cube CTL get nodes and see whether the nodes are also ready.
+
+All the nodes are ready and currently it provisioned close to six nodes on demand node pool.
+
+And I will also run the command cube, CTL get pods and all are running now.
+
+Only one is pending.
+
+It will start very soon.
+
+Okay, now we already know these are the nodes and these are the pods.
+
+So how the distribution happened we need to see right.
+
+So we can say cube CTL get pods hyphen wide and on which node these parts were scheduled you will get
+
+it okay.
+
+So these are the node uh node information where these pods are scheduled.
+
+And if you want the node IPS also.
+
+So you can say get nodes hyphen o wide and you can verify these things.
+
+What what happened and how it is mapping everything.
+
+Right.
+
+But the best thing is I have something called in the same zero eight auto scaling HPA, I have created
+
+a check topology dot shell script.
+
+So what it does is like it will verify how the parts were spread across multiple availability zones.
+
+So when we run this check topology it's a part topology distribution report.
+
+So initially what it will do is it will list the nodes with IP addresses and in which nodes in which
+
+zones they are present.
+
+It has created three nodes in zone A, one A and four, four four here and then three here and two here.
+
+All these are the things.
+
+Okay, now you can see carts is present like this.
+
+Carts distribution is all the parts were created in US east one B and catalog 1A1B1C availability zones.
+
+It is present and checkout 2 in 1 A and 1 in 1 B only one part.
+
+And in orders also two and then one UI also two and then one.
+
+Okay, so now you understood, right?
+
+What is happening with this setting, whatever we have done here.
+
+So if we go to retail store and go to the cart and cart deployment and schedule anyway.
+
+Right.
+
+So it will go ahead and then schedule and it will sometimes it might even land up all the all the parts
+
+in the same availability zone.
+
+And if there is any issue with this node where it has scheduled or with that availability zone, then
+
+we have a bigger issue here, right?
+
+So that is the biggest problem when you use schedule anyway.
+
+But the advantage of karpenter is when you select it as do not schedule right.
+
+So here it will pod will go into pending state.
+
+And when it is in pending state, it's the carpenter's duty to somehow meet the condition and schedule
+
+it on the pod.
+
+Okay.
+
+So it will try and then recreate one more node or somewhere.
+
+It will try to meet the condition and then create the pod in one node.
+
+Okay.
+
+With satisfying the condition okay.
+
+So now what we will do is we will remove this here.
+
+Okay.
+
+Or what we will do.
+
+We will also see HPA and go to zero for later.
+
+Okay.
+
+Right.
+
+So we will run the command cube CTL.
+
+Till now we didn't discuss HPA right.
+
+So let's discuss that also.
+
+And it will display all the HPA configurations what we have deployed as part of this one.
+
+Okay zero for HPA catalog cards.
+
+Checkout for orders and then UI.
+
+So it is saying that on all these things CPU is 1% only use currently used out of 70%.
+
+We said target is 70%.
+
+When it reaches 70% then it need to hit, then it need to trigger the scaling event.
+
+Okay.
+
+Pod auto scaling event okay.
+
+So CPU is very less okay.
+
+And to replicate it we need to do a load test and then see it.
+
+But the easiest way right memory is here.
+
+It is hitting very nearer right.
+
+So 64% out of 83% out of 80.
+
+So here you can see this is interesting okay.
+
+Orders is 69% of 80%.
+
+Okay, so somehow if you try to hit here by doing something, then automatically it might trigger a
+
+auto scaling event.
+
+And you can see min pots three, Max pots 12 and current replicas are three.
+
+There is a chance that these replicas get increased and then auto scaling event triggered.
+
+And then we can see that practically here.
+
+Okay, so what we will do is we will go to this in zero three in the orders.
+
+Right.
+
+So in zero three retail manifests with data plane schedule anyway.
+
+So we will go to orders.
+
+And in orders deployment what we will do is for our application actually it's a spring boot application
+
+orders.
+
+And we need minimum three 5512 MB okay.
+
+Right.
+
+350 above MB only we need and if it is 512 MB then only this comes down to a lesser number 20% or 30%
+
+okay.
+
+But what we will do is we will try to put the memory pressure on our mission.
+
+Okay.
+
+Right.
+
+So we'll try to reduce it to 256 MB.
+
+and if HPA triggers or not, we see okay if if it crosses 80% automatically.
+
+HPA should be triggered whether it will trigger or not.
+
+We are going to see okay, functionally it is correct or not or whether it will work or not.
+
+From application perspective, that's not the case here.
+
+We are just verifying whether HPA will trigger or not.
+
+When memory of our respective orders pod reaches more than 80%.
+
+That's our goal here.
+
+So what we will do is we'll go here and we are in zero three retail kits manifest I will say kubectl
+
+apply hyphen f and then zero to retail store microservices.
+
+And inside that we have the orders okay.
+
+And now orders for deployment it should show configured okay.
+
+That is good.
+
+Now if I run the command cube CTL get pods right.
+
+So now you should see only one orders pod is currently present.
+
+They are changing currently.
+
+Okay.
+
+Right.
+
+So we will go here will go here and then try to run the get HPA right.
+
+And currently unknown because it is trying to create the pods.
+
+Now we will get parts.
+
+We will run and orders.
+
+Parts are getting created now.
+
+So let's wait for it okay.
+
+Right.
+
+And get HPA.
+
+And currently there are three replicas as of now.
+
+Memory is 36%.
+
+Right.
+
+Let's see whether it increases by 80% or not.
+
+Okay.
+
+And now it is 48%.
+
+Slowly.
+
+The spring boot application is coming up.
+
+Let's wait for it.
+
+We will run kubectl get HPA one more time.
+
+And we can see now it is 68%.
+
+Okay.
+
+So.
+
+And it is still 68%.
+
+So let's wait for it.
+
+And now you can see it is 92%.
+
+So it slowly increased.
+
+Okay.
+
+Now what happens?
+
+We are going to see.
+
+And if you want we can also describe and then HPA and orders HPA.
+
+You can also describe okay and see what is happening here okay.
+
+Fail to get CPU new size for reason.
+
+Memory resource utilization.
+
+Percentage of request above target.
+
+See successful rescale is triggered here.
+
+You can see that okay if you run the kubectl get HPA.
+
+Also, the number of replicas currently it is running is four replicas.
+
+So you can easily see that auto scaling event got triggered.
+
+Okay, so in real world case also when your memory or CPU hits crosses the targets then it is going
+
+to trigger the auto scaling event.
+
+So now what we are going to do is we will roll back the change okay.
+
+So we will put it back to 356 and comment the 2:56 a.m. I and then come here and then deploy whatever
+
+we have.
+
+We are going to redeploy the orders again.
+
+Okay.
+
+And we'll run the command cube CTL get pods and order should be recreated now.
+
+So it is getting recreated.
+
+Now let's come back here.
+
+And soon even this four again should come back to even.
+
+See now it is.
+
+We have changed it.
+
+Right.
+
+So it's not again scale down.
+
+We cannot test in this approach.
+
+So now again it should be below 80%.
+
+And you should see three replicas running shortly.
+
+Let's run cube CTL.
+
+Get one more time and we can see it is at 26%.
+
+And three replicas are running for us.
+
+And if you want we can also run cube CTL get pods and soon those pods will be available.
+
+They are currently in the one is running.
+
+Two more should come online very shortly now.
+
+So that's about horizontal pod auto scaling.
+
+And also we have discussed in this lecture also about topology spread constraints for the availability
+
+zone.
+
+and now we will uninstall whatever we have installed here, which is nothing but kubectl delete hyphen
+
+f and then hyphen r, hyphen f and then zero to retail store microservices hyphen f.
+
+And then we will also remove zero for HPA and zero five pdb okay.
+
+Only application related.
+
+We will leave the secret provider class and ingress as is here.
+
+We will not touch them.
+
+Why?
+
+Because those are the same configuration manifest present in our zero four folder also.
+
+So in zero four folder also those are the same things available for us here in Do not schedule folder.
+
+So that's the reason we didn't delete them.
+
+So we'll come back to zero four retail store manifest with data plane and do not schedule topology constraint.
+
+We spread constraint we have defined for the availability zone thing okay.
+
+And earlier.
+
+Also you have already seen the spread report right here.
+
+So how it has spread.
+
+Now, what will happen with the do not schedule?
+
+That's the key.
+
+Interesting thing we need to.
+
+Now we are in zero four retail store manifests with data plane.
+
+Do not schedule right.
+
+So here before deploying the application here retail store application, we need to ensure that there
+
+are no node claims available.
+
+It takes 2 to 3 minutes to clear all those things.
+
+Whatever it it got created in our previous demo which is with the schedule anyway.
+
+Demo right in zero three schedule anyway.
+
+Demo.
+
+So that what happens is it will distribute orderly.
+
+If not, the demo might take time for the carpenter to reschedule everything and then put it might take
+
+10 to 15 minutes to get everything in the order how it need to be scheduled.
+
+Okay, because we are using this hard rule do not schedule.
+
+So now there are no node claims.
+
+We will go ahead and then deploy the stuff cube CTL apply hyphen f, hyphen r, hyphen f zero to retail
+
+store microservices, and hyphen f zero for HPA and hyphen f zero fi pdb.
+
+So let's wait for all these resources to get created.
+
+Okay, so it might take another 3 to 4 minutes for all these things to get created.
+
+We can see here it successfully deployed.
+
+Now I will come out of this.
+
+And I'll run the command so that it will be easy to read the commands cube CTL get pods and most of
+
+them should be in the pending state.
+
+And I will also say cube CTL and get node claims and node claims c l m s.
+
+Okay, let's wait for the nodes here okay.
+
+So you have one year two nodes three nodes.
+
+And we have one b and then 11C and then one c.
+
+So in multiple availability zones.
+
+It is provisioning the nodes for us.
+
+Okay.
+
+So we will run the command cube CTL get pods and let's see what's happening here.
+
+Okay.
+
+So all already containers started creating.
+
+So it's been close to three minutes two and half minutes.
+
+And most of the things are running soon these things also will be available.
+
+It's been five minutes and most of the pods are up and running even from the cards.
+
+Also one one pod is running remaining two are currently coming up online.
+
+So what we will do is we'll go and then check the topology now.
+
+So we'll come here and we have the check topology report.
+
+So we'll run that script here and then see how it displays okay.
+
+So the expected here is in all the availability zones one one pod should be created for each microservice.
+
+So this is Scott's microservice.
+
+And we have one pod for each availability zone.
+
+Even for the catalog it is good.
+
+And now we are checking for the checkout and even for checkout.
+
+It is the same way and we are also verifying for the orders now and even for orders it, we can see
+
+that 111 pod per availability zone is present.
+
+So now we can clearly see that when we are using the topology constraint zero for retail store with
+
+data plane, do not schedule right.
+
+So when we use those things, if we go to the deployment and when we use this do not schedule for the
+
+zone.
+
+So it successfully ensured that one pod for each availability zone it got created.
+
+We can also see now in courts one more pod is also ready.
+
+Final one is coming online now.
+
+So now we can go ahead and then even test our application.
+
+So we can say cube CTL get ingress and we should see our ingress this one endpoint.
+
+And using this we can access our application.
+
+So if you already have your domain and then you have configured in your ingress service with external
+
+DNS.
+
+Even with that, you can test it.
+
+So we will go here and access our application via load balancer endpoint.
+
+Here I will also use my retail store one dot stack simplify com.
+
+With both I am going to test because we are also using external DNS here.
+
+So if you go here to the zero three ingress in my case it is going to be retail store one stack simplify.com.
+
+In your case if it is it is going to be different yourdomain.com.
+
+So update it and then deploy your ingress accordingly.
+
+So we'll test first with our load balancer endpoint.
+
+So it is throwing error.
+
+So that's fine.
+
+We'll try to see the topology first.
+
+And in topology it is saying catalog is healthy carts is healthy.
+
+Checkout is healthy and even orders is also healthy.
+
+I'll try to access it again.
+
+Now it is accessible and I'll click on Add to Cart and Let's wait for it.
+
+And now we'll click on Start Equipment Requisition.
+
+So cart to checkout request went there.
+
+And even checkout is working.
+
+And finally we'll click on continue.
+
+And if we click on purchase now the order ID should be generated with the load balancer endpoint.
+
+We have tested in the same line.
+
+If we want we can also test with our custom DNS name also.
+
+Right.
+
+I'll try to run this quickly and then after that we'll move on and then clean up whatever we have created
+
+as part of this demo.
+
+So with both endpoints we have tested successfully.
+
+So now we'll go back here and we'll say get pods and let's see if it is up or not.
+
+Right.
+
+And it is up.
+
+Cart is also up now.
+
+And now means like the last part for the carts are carts is also up.
+
+We will also say get HPA and we will see the HPA metrics here.
+
+Okay 7% CPU is like this.
+
+Memory is 63.
+
+29%.
+
+70% 73.
+
+Like this.
+
+You can see.
+
+Right.
+
+So now we'll go ahead and then delete whatever we have created as part of this which is cube ctl delete
+
+hyphen r, hyphen f and then zero for retail store manifest with data plane do not schedule.
+
+So this should remove all the things from application perspective.
+
+And we also need to clean up data plane.
+
+So it is also going to cost us money.
+
+So it's always recommended to remove that one also.
+
+And in the next demo wherever we try to create the cluster.
+
+Right.
+
+So I will ensure that this metric server thing is embedded into the core EKS cluster related configurations.
+
+So what I'm trying to say is so if we go here, whatever you see in this metric server, this X metrics
+
+add on these things, I'll try to put it in wherever we use the EKS cluster zero to EKS cluster with
+
+add on config.
+
+Right.
+
+So there I'll try to have one more C18 or something here for this respective matrix add on also so that
+
+we don't need to.
+
+We will also be an embedded in our EKS cluster related configurations.
+
+Now we will go to zero three retail store.
+
+We will go to zero to not.
+
+Now let me remove yeah zero to data plane.
+
+And we will run terraform init and we will destroy this one also.
+
+Okay.
+
+And I'll run the command Terraform destroy auto approve for removing the data plane related things.
+
+And in the same line we will also go to zero one metrics server.
+
+And we'll say Terraform destroy auto approve.
+
+So we'll remove we will remove this one also.
+
+So with that we have successfully completed the auto scaling uh means like horizontal pod auto scaling
+
+demo.
+
+And in line with that we have also learned about topology, spread constraints and also pod disruption,
+
+budgets and even node selectors on demand.
+
+We have used everything we have used for our real world application.
+
+That's the key thing.
+
+Okay, it's not that how in our section 17 demo, we learned with a simple sample test okay, auto scaling
+
+test here.
+
+But now actually we have applied it for our retail store application.
+
+So that's the difference between 17 020304.
+
+And then our 18 application including horizontal pod auto scaling we have implemented which means in
+
+future huge amount of traffic coming for us.
+
+And then our applications can auto scale their pods first.
+
+Okay.
+
+And these pods need to be scheduled on some nodes.
+
+And those nodes also can be auto scaled using carpenters.
+
+The full flow we have implemented.
+
+So I'll see you in the next lecture and next demo.
+
+Until then bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+We need to ensure that whatever the r k test manifests we have deployed, we need to clean up so that
+
+it will not cost hugely for us.
+
+It is going to spin up lots of VM's using Karpenter for supporting the complete do not schedule related
+
+use case, which means like topology constraints, pod disruption, budgets, all those concepts we
+
+have embedded.
+
+Right.
+
+So for that purpose.
+
+So in 18 autoscaling HPA, ensure that you have removed the retail store application.
+
+And then you have also ensured that you have also removed the AWS data plane.
+
+So you have destroyed the AWS data plane and also uninstall the metrics server.
+
+And after that as part of next demo, we are also going to embed this metrics server as part of EKS.
+
+Terraform manifest with add on section.
+
+So for that purpose we can destroy the metric server whatever we have installed in 18 HPA.
+
+And also you can also clean up means like if you are not doing this demo today.
+
+And if you want to freshly start the next demo, which is very important demo wherein using the helm
+
+charts to to deploy our retail store application, ensure while ensuring that that retail store application
+
+is pointing to the AWS data plane.
+
+Right.
+
+So that's a very important demo which we are going to see as part of section 19.
+
+So it's recommended to clean up whatever you have created as part of this demo okay.
+
+So not only your metric server, your data plane or your retail store application, you can also go
+
+to 17 Auto Scaling Karpenter 1701 Karpenter.
+
+Install and remove Karpenter test, manifest Karpenter, Terraform manifest, ecs cluster, and even
+
+the VPC, right?
+
+So I have created a script there directly when you go to this specific section, right?
+
+So if you go to section 17 and inside that Karpenter install, you will find the destroy cluster with
+
+Karpenter very simple script wherein it will go ahead and then first remove the test manifest.
+
+After that it will remove karpenter Terraform manifest.
+
+It will destroy.
+
+Then it will destroy ECS and it will destroy VPC.
+
+See, it is a very simple script.
+
+It's not a complicated, very, very simple.
+
+Okay.
+
+Wherein you will check for the kubeconfig and then ensure that no karpenter nodes are running.
+
+And after that only it is safe to proceed and it will delete the spot node pool and then on demand node
+
+pool EC2 node class.
+
+And then it will also go ahead and then destroy the Carpenter EKS cluster and then VPC.
+
+So in order it is going to destroy in the reverse order.
+
+So you can also run that and then test it.
+
+So with 18 auto scaling HPA after this demo is completed we don't have any running infrastructure related
+
+to EKS cluster or VPC or Karpenter or even our retail store application or even the AWS data plane.
+
+In the next demo we are going to create those things freshly.
+
+So I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you.
+
+

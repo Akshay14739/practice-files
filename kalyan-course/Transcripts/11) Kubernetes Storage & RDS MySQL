@@ -1,0 +1,1411 @@
+Welcome back.
+
+We are entering into the section 1002 which is AWS, EBS, CSI and Catalog Integration.
+
+So in the last section, we installed and verified the Amazon EBS CSI driver on our EKS cluster.
+
+Now it's time to put it to work and make our catalog microservices.
+
+MySQL database is truly persistent.
+
+So until now our stateful set right was using an empty Dir volume, which means every time, every time
+
+the pod restarts, the data is gone.
+
+So that's not acceptable in real world production systems.
+
+So in this session, we will integrate the EBS CSI driver with our MySQL Statefulset to achieve real,
+
+durable and fault tolerant storage on AWS.
+
+Let's quickly look at the architecture diagram here.
+
+And here we are going do a wrap up on what we have understood, or a quick review on what we have understood
+
+from the introductory section.
+
+Right.
+
+So here the EBS CSI driver runs as a daemonset on every node.
+
+So whenever our pod requests.
+
+So whenever our statefulset pod requests storage through a persistent volume claim, the driver automatically
+
+provisions the EBS volumes for us.
+
+So here EBS volumes were created.
+
+So these are the EBS volumes in the same availability zone where the pod is scheduled on which node
+
+it is scheduled in the same availability zone.
+
+It is it provisions those EBS volumes and attaches it to those nodes and mounts it inside the statefulset
+
+pods, container path, whatever we have defined, which is nothing but slash var lib.
+
+So var lib MySQL.
+
+So that path it is going to mount.
+
+So our MySQL pod will now have a dedicated disk.
+
+And that means true data persistent across restarts.
+
+So now first thing is we'll go ahead and then verify the storage class okay.
+
+So we'll start by creating a storage class.
+
+So if we go to ten zero two AWS ebs csi catalog integration.
+
+So zero one secret provider class which is coming from zero nine section, which is 0904, which is
+
+as is.
+
+So no changes okay.
+
+In zero to catalog Cat is manifest.
+
+So you can see here zero seven storage class EBS.
+
+Right.
+
+So this when we open this storage class EBS file, right inside that we define the provisioner which
+
+is EBS, csi AWS.
+
+Right.
+
+And also set the volume binding mode.
+
+Wait for first consumer.
+
+So you can see the API version and storage.k.io v1 and kind storage class and metadata.
+
+And in the name you are saying ebs SC.
+
+So my custom storage class name is ebs SC and provisioner we are using is ebs CSI.
+
+And we are also saying the volume binding mode wait for first consumer.
+
+So now let's understand that setting which is wait for first consumer.
+
+So this setting ensures that an EBS volume is created only when the pod is scheduled.
+
+So when stateful set is trying to create a pod, when that pod is getting created, then only the EBS
+
+volume in AWS will get created.
+
+So the for what?
+
+So that the volume is provisioned in the same availability zone as the worker node on which the Kubernetes
+
+pod is scheduled.
+
+So once applied, this storage class right becomes the blueprint.
+
+It becomes the standard for automatically provisioning EBS volumes whenever a PVC request storage comes
+
+in.
+
+So that's about storage class and zero for catalog statefulset ebs dot YAML.
+
+So here if you compare ten zero to with 0904 right.
+
+Only changes.
+
+Right.
+
+So if you go to 0904 and inside that only changes are we have added a storage class.
+
+And then now we are adding the Statefulset related changes when we compare to 0904.
+
+So rest all is going to be as is in the catalog integration.
+
+So now we have already discussed about the storage class.
+
+We will go inside this zero four catalog statefulset underscore ebs dot YAML file.
+
+And this is the standard statefulset which we have seen in our previous demos.
+
+So here is where the actual magic happens.
+
+So we are replacing our old empty.
+
+Old mkdir volume with a volume claim template.
+
+So this volume claim template tells Kubernetes for each pod in Kubernetes Statefulset.
+
+Create a unique PVC using the ebs SC storage class.
+
+So just now we have defined the ebs SC storage class.
+
+So using that ebs SC storage class create a unique PVC for each pod created in Statefulset.
+
+So that's the thing it is going to do.
+
+So you can see the metadata and the name of this respective volume claim template is data.
+
+Okay.
+
+And in the spec right.
+
+So we have something called access modes.
+
+We are saying read write once and then in the resources request storage we are defining I need ten GB
+
+of storage for my EBS volume.
+
+And then storage class.
+
+It need to use is EBS SC.
+
+So our this is the one.
+
+It is going to use the reference to that respective storage class.
+
+So that what happens is whatever is defined here.
+
+So this storage class is using the provisioner as this one.
+
+And it also has the volume binding mode this one.
+
+So these two settings will be applied for the volume which it is going to create.
+
+Which means it is going to use the EBS csi provisioner to provision the EBS volume with this ten GB
+
+storage with an additional setting in EBS SC which is wait for first consumer.
+
+So that's about volume claim template.
+
+Now if you go up a little here.
+
+So here is the volume mounts.
+
+So here for slash var lib MySQL.
+
+So this is the volume mount name data hyphen ebs.
+
+So this is the one we are putting it here.
+
+Data hyphen EBS.
+
+So we also mount that volume claim at var lib MySQL path.
+
+So MySQL data now lives on a dedicated aws EBS volume.
+
+So everything else the secret mounts uh the environmental variables, the service account, everything
+
+remains the same.
+
+So once applied every MySQL pod gets its own EBS volume in Statefulset, which is a fully and the volume
+
+is fully managed by Kubernetes and the EBS CSI driver.
+
+
+Ivor.
+
+Now we can go ahead and then deploy these things and then also verify.
+
+So we'll go to our terminal here.
+
+We'll go to ten Kubernetes storage.
+
+And inside that we'll go to ten zero to CSI catalog integration.
+
+And here you will find zero one secret provider class.
+
+So first we will say apply hyphen F and zero one secret provider provider class.
+
+And once the secret provider thing is created we'll also apply hyphen f zero to catalog it as manifest.
+
+And once those are created so we'll go ahead and then verify those things.
+
+Okay.
+
+We'll say kubectl get SC pvc and pods everything.
+
+We can run in a single command and also verify R will start with get SC.
+
+So which should see the our ebs SC is created and which is using the ebs SC aws.com as the provisioner
+
+and volume binding mode is wait for first consumer.
+
+And now we'll also verify get PVC which is persistent volume claim.
+
+So you can see data EBS catalog MySQL zero PVC got created which is which is binding with each status
+
+is in bound state and it is bound to the volume so and so PVC some okay.
+
+And then its capacity is ten GB.
+
+Access modes is read write once and storage class it is using is EBS SC.
+
+Now if we say the kubectl get and we will say PV write which is persistent volume.
+
+So this is the PV name and which is the ten GB of storage access mode is read write.
+
+Once reclaim policy is delete and status is bound to the claim D in default claim data EBS catalog MySQL
+
+zero and storage class ebs SC.
+
+Now if you also run the command cube CTL get pods your MySQL and we can see here our pods are running
+
+successfully.
+
+Now.
+
+It took a little bit of time, but it started successfully.
+
+First the MySQL pod is started and then catalog microservice pod also started successfully.
+
+So we can say get pods and we can first verify our microservices pod, get logs, hyphen f and then
+
+provide the pod name.
+
+So this is our micro catalog microservice pod.
+
+And here it is saying that using the MySQL database catalog MySQL 3306 running database migration and
+
+database migration is complete.
+
+So it is working as expected and will also say logs hyphen f and catalog MySQL zero.
+
+And this should say initialization is successful.
+
+There should not be any errors here.
+
+So this is also good.
+
+Now what we are going to do is we are going to access our application and then verify whether the records
+
+catalog product records are present in the database or not.
+
+Okay.
+
+Port forward and SVC slash.
+
+If we want we can say kubectl get svc and we will use kubectl port forward.
+
+And we'll say svc slash catalog hyphen service and 7080 colon 8080.
+
+Right.
+
+And this should post port forward to our application.
+
+And here we can local slash health and 7080 slash health.
+
+So we can see it here.
+
+Local 7080 topology.
+
+This is working.
+
+So if we want we can also try health.
+
+These are not important.
+
+Health is also okay, but we need to go for catalog products and all the products are listed here.
+
+Okay, now let's go back and we will also go to our Amazon EC2.
+
+So we'll go to our EC2 service and in EC2 right.
+
+So we'll go to Elastic Block Store.
+
+And inside that we'll go to volumes and we'll try to refresh it.
+
+And here we can see that Retail Dev X demo one is the cluster name and dynamic and some PVC name.
+
+You can see PVC, CF three some x some name.
+
+The complete name is here okay.
+
+So this is the PVC name.
+
+So this should match with our.
+
+So if I say cube CTL pet peeve okay.
+
+Our volume name persistent volume.
+
+So this is the one PVC hyphen CF 36639C36639.
+
+So it is matching.
+
+Okay.
+
+And you can see the volume type.
+
+Default is GP3 and size is ten GB.
+
+You can see it has created a ten GB storage.
+
+Whatever we have requested in the volume claim template.
+
+So that's what is the thing.
+
+And next thing is if we want to right.
+
+So if we want to also verify the data inside the database.
+
+So you can go directly here.
+
+And we have the command to connect to that.
+
+Right.
+
+So if we go to our section in ten zero two we have something called for database connectivity.
+
+So step five you have the command here.
+
+So this is the command to connect to the database.
+
+So I'll run the command here.
+
+And we'll also provide the password.
+
+So let it download the MySQL client first.
+
+And we have provided the password as Kalyan DB 101.
+
+And we will say show schemas here and use catalog DB.
+
+And we will say show tables.
+
+Right.
+
+And we'll say select star from products.
+
+And all the products are listed here.
+
+Now the thing here is we will delete the pod and reverify the persistence okay.
+
+So we will go here go here and we'll say cube CTL get pods right.
+
+And we'll say cube CTL delete pod and catalog hyphen MySQL hyphen zero.
+
+So our pod is deleted now.
+
+So let's wait for it.
+
+And if I run the command cube CTL get pods.
+
+And again the pod will be created back just five seconds before okay.
+
+But it will mount the same.
+
+Whatever.
+
+Here we have this right.
+
+So this volume it is going to mount EBS volume.
+
+So what happens in that case if we try to if we try to say select star from products.
+
+So it will reconnect to that.
+
+Uh we can say exit.
+
+And if we want we can try again.
+
+Okay.
+
+We'll connect to the database.
+
+And.
+
+If we search for use catalog DB those the data will not go anywhere.
+
+It will be persistent.
+
+So if I say select star from products right.
+
+The data 12 rows is present without any issues.
+
+So that's about uh, even with the pod restarts or pods rescheduled, the data present in EBS volumes
+
+is going to be persistent.
+
+Now, the one more thing which we need to verify is, uh, we can see it here, we are going to validate
+
+the EBS volume life cycle.
+
+So we are going to delete our Kubernetes manifests.
+
+Everything whatever we have done.
+
+But still your PVC will be present there.
+
+Your PV will be present there.
+
+So that's we are going to test now okay.
+
+So we will go back here and in ten zero to cube CTL delete hyphen f and zero to catalog k test manifest.
+
+And we'll also delete the secret provider class.
+
+Also everything whatever we have created we are trying to clean up right.
+
+So now if you say cube CTL get pods or anything, nothing should be shown for this respective catalog
+
+microservice.
+
+But when you run the command kubectl get PVC, our get PV right.
+
+So even after you will notice that even after deleting the Statefulset catalog microservice.
+
+Everything right?
+
+So.
+
+But your PvP and PvE still exists.
+
+So that's why the EBS volume always stays in AWS until we delete the PVC manually.
+
+So now you know your PVC name is this one.
+
+Okay, so this is the name of your PVC.
+
+So if you go here also your EBS volume provisioned but it is still present here.
+
+Even your stateful set is deleted.
+
+Your EBS volume is present here.
+
+So this is the ten GB volume.
+
+Now what I will do is kubectl delete PVC and I'll provide my PVC name.
+
+And now let's say kubectl get PVC.
+
+PVC is deleted and the bounded PVC persistent volume is also deleted.
+
+And if you come back here to the EBS volumes and refresh and that is also gone.
+
+So means like that shows how Kubernetes cleans up EBS volumes once PVC and PVCs are removed.
+
+PVCs and PVR removed.
+
+So in ten zero one and ten zero two we have successfully installed the EBS CSI driver.
+
+And uh, we went and then created a storage class, EBS, SC and updated our MySQL stateful set with
+
+volume claim template.
+
+And then we have deployed it and then verified very clearly that when there is a restart or reschedule
+
+of Pod, still you are underlying persistent volume will not have any issue with the data inside that
+
+and the volume itself, because we are using the durable, fault tolerant and production ready EBS storage
+
+and not a plain empty Dir.
+
+Now in the next section, we will move beyond EBS and connect our EPCs catalog microservice application
+
+to a fully managed database, which is Amazon RDS, which is relational database service in AWS.
+
+I'll see you in the next video.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Alright.
+
+In the previous section, we connected our catalog microservice to a MySQL database running inside our
+
+Kubernetes cluster using EBS volumes and stateful sets.
+
+So that worked great for learning.
+
+But in the real world it's not ideal.
+
+So why?
+
+Right?
+
+Because managing databases inside Kubernetes comes with challenges.
+
+So when you start using databases in your Kubernetes then the biggest problems comes.
+
+There are biggest challenges you need to resolve are like how do you do database backups and how do
+
+you do database patching and how do you implement replication.
+
+So you might have a Master server and you want to implement multiple slaves.
+
+So yes, stateful set supports most of the concepts related to Kubernetes, but it doesn't support.
+
+Database concepts.
+
+Kubernetes is a separate tool which is used for deploying your applications, orchestrating your container
+
+workloads effectively.
+
+But that doesn't solve the problems related to core databases like even replication.
+
+So you need to manually implement this replication from master to slave servers and all those things,
+
+and implementing high availability or even implementing database recovery.
+
+So in databases you will have point in time recoveries and or different different recovery options will
+
+be available.
+
+So all those problems cannot be solved using just Statefulsets plus databases.
+
+And moreover, that will be a lot of overhead for a team that just wants to run microservices.
+
+And that's exactly why in production we rely on cloud databases.
+
+So like even if it is AWS or GCP or even Azure, it is recommended to use cloud supported databases.
+
+So here in AWS we have Amazon RDS right, which is a fully managed relational database service from
+
+AWS.
+
+So RDS takes care of even the database backups.
+
+And it can take care of, uh, patching automatically.
+
+Replication can be implemented, high availability can be implemented, even recovery can be implemented.
+
+So all these things are already Problems solved once.
+
+Okay, so we don't need to reinvent the wheel.
+
+So reinvention is not required here.
+
+So just use the service.
+
+Use that service.
+
+And we have our databases ready.
+
+So in this section we will integrate our catalog microservice with a MySQL instance instead of In-cluster
+
+Statefulset.
+
+So in your Kubernetes applications so that you are the Kubernetes applications like catalog microservices.
+
+Right.
+
+So the microservices team are the teams who are managing these things can focus only on the application
+
+deployment or application implementation, whatever it is.
+
+But there is no additional burden needed for doing a database management job.
+
+So now let's walk through the architecture here.
+
+So when we have implemented our secret store CSI driver in sections zero nine and zero three and 0903
+
+and 0904.
+
+Right.
+
+So we have implemented this architecture wherein you have the secret store CSI driver for pulling the
+
+secrets from AWS Secrets Manager.
+
+So this whole thing is going to be as is for us except this MySQL part.
+
+So this part we are going to remove now and what we are going to implement.
+
+Let us see that okay.
+
+So instead of that here comes some important things okay.
+
+So this MySQL part is gone.
+
+And you got a new MySQL database here which is a AWS service.
+
+And then you have introduced one more Kubernetes concept called external name service.
+
+So using this external name service, you will be able to communicate from your catalog pod to your
+
+database.
+
+So this is the flow you are going to implement.
+
+So which means you should know how to create a RDS database.
+
+And then you should know how to configure the external name service.
+
+And this external name service information you need to put in your catalog deployment.
+
+So these are the changes we need to implement.
+
+Rest all is same.
+
+So which means for this RDS MySQL database right.
+
+We are going to set the username and password.
+
+That is going to be the same thing.
+
+So whatever you have set earlier right.
+
+The username and password in your secret store CSI driver in your AWS secrets manager.
+
+It's the same username and password we will try to use in RDS MySQL database so that when this part.
+
+Right?
+
+So when this part tries to get the username and password for database using this whole flow from secrets
+
+manager.
+
+Right.
+
+So those username and password is going to work for the database also.
+
+In that way our entire use case works as is.
+
+So the important thing we need to know here is how how does the catalog part know where to find this
+
+end point.
+
+So when we create a database it will have a radius end point.
+
+And so this MySQL part this catalog part sorry this catalog microservice part how it will know to get
+
+this AWS RDS endpoint.
+
+So that's where this external name service comes into the picture.
+
+So let's understand about this external name service in detail.
+
+So if we go down here.
+
+So the external name service is a special Kubernetes service type that simply maps a DNS name inside
+
+the cluster to an external endpoint, in our case my SQL database endpoint.
+
+So if you see this API version is v1 service, kind is service and name of this respective service is
+
+catalog MySQL and type here is external name.
+
+And here you provide the external name and your.
+
+Endpoint.
+
+So that is what you will provide here.
+
+So whatever the RDS db endpoint you get after creating that you provide that here and you provide the
+
+port information.
+
+So no code changes, no config rewrites, just seamless DNS mapping.
+
+So what is happening here is like you are.
+
+Let's say this is your pod.
+
+Okay.
+
+So which is your catalog pod?
+
+Catalog pod.
+
+So this will communicate with this catalog MySQL service.
+
+So this will communicate with this service.
+
+And this service internally have the reference to this respective DNS name which is your RDS endpoint.
+
+So RDS endpoint.
+
+So this is the flow.
+
+Now why do you need this flow.
+
+Okay.
+
+So you can directly update your pod with this endpoint.
+
+Yes you can update which means your catalog deployment file.
+
+You can directly update this.
+
+There is no issue in updating it and then having it.
+
+But the key thing here is in future, any day, if you want to change your You are your DB endpoint,
+
+then you need to update your deployment Kubernetes deployment file.
+
+Okay, deployment YAML file which means you need to restart restart your pods.
+
+Okay.
+
+But in this approach.
+
+So it is going to be seamless.
+
+You update your catalog MySQL SVC, anything under this service, whatever changes there is no impact
+
+to the pod, right?
+
+So that's the key important thing to remember.
+
+So which means no code changes, no YAML changes are needed here okay.
+
+No config rewrites just seamless DNS mapping.
+
+So that's about external name service.
+
+So now let's talk about credentials.
+
+We already discussed that.
+
+But we will reiterate that one more time okay.
+
+Right.
+
+So this is the flow diagram.
+
+So we'll discuss this also.
+
+But what we are trying to do is we are using the exact same Kubernetes, uh, same secret.
+
+What we have defined here.
+
+Right.
+
+For username and password, you have given my db admin and then DB 101 in your AWS Secrets manager.
+
+And using this whole Secrets Store CSI driver approach, your catalog pod is able to get those information.
+
+And using those information it will be able to connect to your database.
+
+So when creating this RDS database, we are ensuring the same username and password is set in RDS MySQL
+
+database.
+
+That means there is no changes in our secret provider class and pod identity setup.
+
+Everything remains unchanged.
+
+So just use the templates as is and add just an external name service and create a RDS database, RDS,
+
+DB and everything should work as expected.
+
+So to summarize the flow right.
+
+So to summarize the entire flow right.
+
+So when you deploy this catalog pod right it starts and authenticates via pod identity.
+
+Then using the secrets store CSI driver it fetches MySQL credentials.
+
+So it will get the MySQL credentials right from Secrets Manager.
+
+The pod connects to that RDS database using external name service.
+
+And finally all database operations now happen on Amazon RDS while Kubernetes stays clean and lightweight.
+
+Only used for our microservices workload.
+
+Let's get started with Amazon RDS integration for our catalog microservice.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+We are entering into the section ten zero three which is AWS, RDS, MySQL integration with catalog
+
+microservice.
+
+So here we are going to go to step zero two which is create Amazon RDS database.
+
+So to create that the prerequisite here is to create a VPC security group for RDS.
+
+So we need a security group that allows the RDS database to accept traffic only from the EKS cluster.
+
+So we are allowing the traffic to RDS database which we are going to create in private subnets to get
+
+the incoming traffic to.
+
+This RDS database should be only from the EKS cluster.
+
+So for that purpose you need to get the EKS cluster security group.
+
+So aws eks described cluster and name of your EKS cluster and you can query the cluster dot resources
+
+vpc config dot cluster security group id so that you get the cluster security group and that cluster
+
+security group you will mention as the source when creating the security group for RDS database.
+
+So that is one option.
+
+So if you see it here, right when you create a RDS security group, you provide the name of your security
+
+group as RDS, MySQL, SG, and you will select the VPC where your EKS cluster is running.
+
+And in the inbound rules you have two options to create the rules.
+
+One is type is MySQL Aurora and protocol is TCP and source from which source from EKS cluster.
+
+The request will come because catalog microservices will be deployed there.
+
+And that catalog microservice will make the connection to your respective database, which is your RDS
+
+database.
+
+So the source is going to be EKS cluster security group.
+
+So that's the reason you are trying to get that security group ID.
+
+So that's the production recommended option or an alternative lab only option is source can be ten 000
+
+16, which is your entire VPC range of your where your ECS cluster is created.
+
+So anything is fine.
+
+Okay, so now what we will do is we will go to EC2 here right.
+
+This is the EC2.
+
+And we'll go to security groups.
+
+Right.
+
+And before creating the security group we will go ahead and then get our cluster security group ID right.
+
+So that you can run this command in terminal and get the security group ID.
+
+So this is the one.
+
+So let me copy this and we will go here right.
+
+So we will go to security groups and create a security group.
+
+And the security group name.
+
+We have seen it here which is MySQL SG.
+
+So which is RDS my SQL SG.
+
+So you can say rds s g okay.
+
+And then here VPC you need to select your VPC which is your dev VPC, which where your EKS cluster is
+
+running, and you are going to add the inbound rule.
+
+And here you can select for MySQL or Aurora, which is TCP port 3306.
+
+And in the source you can provide this security group.
+
+So it's auto populated here right EKS cluster ag retail dev EKS Demo1 okay.
+
+And we can go ahead and then create security group R right.
+
+So if you want if you don't want to use this okay.
+
+And if you want to use simply you don't want to complicate the things.
+
+Then you can just say MySQL.
+
+And then in custom just say ten .0.0 16.
+
+So the second one you can use anything is fine.
+
+So I'll try to use the first one and create a security group.
+
+So that's about creating the security group.
+
+Now let's move on to the next prerequisite before creating the MySQL database which is create a DB subnet
+
+group.
+
+Okay, so in which DB subnets this respective RDS database instances should be created right.
+
+So you need to create a DB subnet group for that.
+
+So in RDS in subnet groups you will create the DB subnet group.
+
+And you will select couple of private subnets there.
+
+So let's go here and go to RDS server.
+
+I will search for RDS.
+
+And we are going to the RDS service here.
+
+And here you will have the subnet groups.
+
+And here Aurora and RDS.
+
+Create a DB subnet group.
+
+And you can name this subnet group.
+
+Also you can say RDS private subnets.
+
+Or you can give something like uh we are using the DevOps course right.
+
+So DevOps RDS private subnets.
+
+Okay.
+
+So that it will be easy for us to remember.
+
+You can also say little bit DevOps AWS.
+
+Okay.
+
+Now we will say choose dev.
+
+VPC is the thing we are going to select.
+
+And in the availability zones okay us East okay.
+
+Select all the availability zones.
+
+And now select the subnets okay.
+
+So we have the subnets in uh one b right.
+
+So one b you have the private subnet.
+
+And in one year you have the private subnet.
+
+And in one C also you have the private subnet.
+
+So you have selected all the three private subnets okay.
+
+And then click on create.
+
+You can see all of them ten zero 1010 zero 11 and then ten zero 12.
+
+So let's go ahead and then create.
+
+You can also provide uh DevOps AWS course.
+
+Catalog microservice integration demo.
+
+Right.
+
+And go ahead and then create this one.
+
+And now our database DB subnet group is created.
+
+Now let's come back here.
+
+And we can go ahead and then create the RDS MySQL instance now.
+
+So we will create a standard create approach.
+
+And we'll select MySQL.
+
+And we will use the dev test.
+
+And you can provide the DB instance identifier anything and username is my db admin and the password
+
+is DB 101.
+
+So why I am using those things is if I go to the AWS Secrets Manager service, and inside that we have
+
+the catalog DB secret one.
+
+And here if we retrieve those secret values you can see MySQL user is my db admin and MySQL password
+
+is db 101.
+
+So if we use these same credentials then you don't need to go and change anything in your catalog.
+
+Microservice deployment configurations, all those things okay, you don't need to change any secret
+
+provider class or you don't need to create any new secret manager object, everything, all these things
+
+we learned in our previous demos.
+
+So why?
+
+To redo all those things, right?
+
+So for that purpose, we are using the same credentials here.
+
+Okay.
+
+Now let's come back and instance we are using T3 micro and this is the subnets we are adding.
+
+And this is the security group we are adding and disable delete protection.
+
+So these things we are going to do now.
+
+So we will go to our RDS and in the dashboard in the databases we'll go ahead and then create the database.
+
+And here we will start with creating a MySQL database standard create and then in MySQL.
+
+So we'll go down here and whatever the eight, whatever the eight zero or anything.
+
+Right.
+
+So whatever it is okay.
+
+So default is there.
+
+I'm trying to take that and we'll select the free tier right.
+
+Single AZ database instance and instance identifier.
+
+I'll say my Db1 zero one something like this.
+
+Okay.
+
+And this is the one we need to select from here, which is my DB admin is the username and self-managed
+
+password and that password I am trying to give db 101.
+
+So this is the one I can say or I can type it.
+
+I'll go here and copy this MySQL password and paste it and instance configuration db t 4g micro.
+
+That is fine.
+
+Whatever is there.
+
+Right.
+
+And general purpose allocated storage ten GB.
+
+Those are not an issue okay.
+
+Additional storage options.
+
+That is fine and do not connect to EC2 compute resource and all those things.
+
+This is the one dev VPC.
+
+So this is the VPC we need to select and it selected automatically selected the DB subnet group.
+
+Public access.
+
+No.
+
+And existing VPC security groups.
+
+We need to select a MySQL SG, which we have created as a prerequisite.
+
+Number one and no availability zone preference.
+
+I don't need it okay.
+
+Rest all password authentication is good.
+
+And now if we go down right additional configuration.
+
+And uh if you want you can directly create a catalog DB here okay.
+
+So database options and initial database name catalog DB.
+
+You can give it here but we will do that later okay.
+
+Enable automated backups I have removed okay.
+
+We don't need any automated backup.
+
+So that's about the settings.
+
+Now we'll go ahead and then create the database.
+
+And this is going to take another 5 to 10 minutes to create it.
+
+In our next lecture we will focus on moving on to the next step.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+We can see it here.
+
+MySQL database is created successfully.
+
+RDS MySQL.
+
+And this is the database endpoint.
+
+Okay.
+
+Now what we need to do is we need to go ahead and then connect to to connect to that RDS and create
+
+the database schema.
+
+So once the database is available connect to that RDS instance from your EKS cluster using a temporary
+
+MySQL client pod.
+
+So this we have done multiple times earlier.
+
+So here you need to provide your database endpoint.
+
+So let me copy this and paste it any of the text file and try to get our RDS endpoint which is Mydb
+
+101 right.
+
+And let's try to run this command okay in our EKS cluster and provide the password as Kalyan DB 101.
+
+So let's wait for it.
+
+So now it is connected to our database.
+
+8042.
+
+So if you say show us, you can see all the default schemas available.
+
+And we need to create a new schema here.
+
+And that is catalog DB.
+
+So this is required for our catalog microservice.
+
+So we'll say create database catalog db.
+
+And now if you run the command show databases or show schemas you should find catalog DB here.
+
+Okay.
+
+So now we have successfully completed that.
+
+Now we will go ahead and then update the Kubernetes manifest.
+
+So in zero one secret provider class no changes.
+
+Okay.
+
+It is going to be as is and in catalog deployment.
+
+Because we didn't change anything from passwords perspective or anything.
+
+We don't need to do anything here.
+
+And in catalog cluster IP service.
+
+No changes.
+
+Config map, no changes.
+
+MySQL service account no changes.
+
+Only.
+
+We are going to add a new file here which is zero five catalog MySQL external name service.
+
+So this is the one we are going to create.
+
+So let's go back here and go to the section okay.
+
+So which is uh ten zero three.
+
+And in zero one secret provider class no changes deployment no changes okay.
+
+So if you go here, go down right.
+
+So this is the catalog deployment thing and so standard from 0904 which means from secrets store CSI
+
+driver implementation.
+
+No changes inside this.
+
+This is the catalog cluster IP service no changes.
+
+This is a catalog config map.
+
+So here you have provided the endpoint as catalog MySQL.
+
+So instead of this catalog MySQL.
+
+So in this config map also you can go ahead and then change add this directly your endpoint also if
+
+you want okay.
+
+Or you can go to your catalog external name service and then add it.
+
+Anything is fine for us.
+
+So this is the service account.
+
+No changes.
+
+So this is the external name service.
+
+And here you need to update your database endpoint.
+
+So what is my database endpoint.
+
+So this is the endpoint.
+
+So I will go to zero five here and update this.
+
+So that's what we need to do.
+
+So in ten zero 3 in 0 five catalog MySQL external name service.
+
+We need to update that.
+
+And after that we need to deploy the resources and then verify.
+
+So we will go here and we will exit and.
+
+Clear.
+
+We will go to ten Kubernetes storage and ten Zero three and then we will say RDS MySQL integration section,
+
+and we will first deploy the secret provider class.
+
+And after that we'll also deploy our cube CTL, apply hyphen f zero to catalog Kubernetes manifest.
+
+And here it will create the catalog deployment service config map service account and also catalog MySQL
+
+external name service.
+
+So if we run the command cube CTL get pods here you will see only the catalog pod is running.
+
+Why?
+
+Because we don't have any statefulset or anything.
+
+It just need to go and then connect to our RDS mysql database.
+
+So if I say cube CTL logs hyphen f and then if I run this catalog pod and you should see the database
+
+migration should be successful starting catalog service with the secure DB credentials using MySQL database.
+
+So and so running database migration.
+
+Database migration is complete.
+
+So which means if we go back and then connect to the database we should see all the things there, all
+
+the other records created in the database.
+
+So we will do that.
+
+First we will do a port forward and access our application via browser.
+
+So let's go here and we will go to our browser here.
+
+And we will say localhost and health is okay.
+
+And if we want we can also run the topology command.
+
+It is okay.
+
+And now we will also run the command uh run the URL catalog products.
+
+And you can see all the product information is present here.
+
+All the records are showing here.
+
+Now we will exceed this port forward and go back here.
+
+And if we will go and then communicate to the database again okay.
+
+And then verify if our records are present inside that or not.
+
+We are going to verify.
+
+So for that we will go here.
+
+And oh I closed that file.
+
+Okay.
+
+So that's fine.
+
+Okay.
+
+So we will try to file new text file and then update this.
+
+Endpoint.
+
+This is the end point.
+
+So let me copy and copy this and go back to terminal here.
+
+Say clear and let's wait for the connection and curl yarn DB 101 is the password.
+
+And we will say use catalog db.
+
+And inside that if you want we can say show tables.
+
+If tables created means it successfully connected to that okay.
+
+And if I say select star from products and you should see all the 12 rows here.
+
+So this is a successful test.
+
+So this completes the verification of our uh whatever.
+
+We have created the RDS database to that RDS database catalog.
+
+Microservice is able to connect successfully.
+
+Now we will go ahead and then first delete this test manifest and then secret provider class.
+
+So we'll go here and then clean up whatever we have created.
+
+So zero to catalog test manifest.
+
+And after that we will also delete zero one secret provider class.
+
+We'll also go ahead and then clean up whatever the database instance we have created.
+
+This is going to cost us heavily.
+
+So for that purpose we don't need any snapshot.
+
+I acknowledge that upon instance deletion everything will no longer be available.
+
+I am fine with it.
+
+To confirm, delete me and then click on delete.
+
+Okay, so whatever we have created as part of this demo, we have cleaned up primarily the things which
+
+costs us.
+
+Okay.
+
+So you can go to subnet groups and later if you want delete this one.
+
+And you can also this should be deleted anyway.
+
+The reason is if not when you are cleaning up the ECS cluster and then VPC, then that creates the problem.
+
+Okay.
+
+So let's wait for the db instance to get deleted.
+
+After that we will also delete this subnets.
+
+My DB 101 is deleted.
+
+We'll also delete the equivalent subnet group whatever we have created.
+
+And we'll also go to the security groups and delete RDS MySQL security group whatever we have created
+
+okay.
+
+So let me also delete this security group.
+
+So this way we have completely cleaned up whatever we have created as part of this demo.
+
+I'll see you in the next demo.
+
+Until then bye bye.
+
+Thank you.
+
+

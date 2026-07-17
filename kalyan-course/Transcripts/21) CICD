@@ -1,0 +1,3440 @@
+All right, everyone.
+
+Welcome back to section 21 AWS DevOps CI, CD.
+
+So this is where everything comes together.
+
+We are going to build a complete GitOps pipeline that automatically deploys your code to production.
+
+So before we start building, I want to show you what we are going to do in section 21 a complete picture.
+
+So we have divided it into multiple sections 21, zero, one, 21, zero two, 21, zero three and 20
+
+104.
+
+But here the core focus is on entire section 21.
+
+What we are going to implement.
+
+So if you see this diagram right.
+
+So on the left side you can find the continuous integration pipeline where we are going to build the
+
+Docker image.
+
+So here we are going to build the Docker image.
+
+And at the right side you will have the continuous deployment pipeline, wherein we are going to deploy
+
+our newly built Docker image using CI pipeline to our EKS cluster.
+
+Okay, now here in the center we have given the complete seven steps flow.
+
+What happens in detail.
+
+So now let's understand or let me walk you through this entire flow.
+
+So initially developer pushes changes to one of our retail store application microservice.
+
+Maybe like a UI app, we have made some code changes and that developer pushes that changes to our GitHub
+
+repository.
+
+And when that when that is done, whatever the GitHub workflow we have defined.
+
+Right.
+
+So GitHub actions will be triggered and then it will go ahead.
+
+Whatever the code we have written in that GitHub actions workflow that will be executed, and it will
+
+build the Docker image and push the Docker image to Elastic Container Registry AWS Elastic Container
+
+Registry.
+
+And after that, it also does one more thing.
+
+So when it is building the Docker image it will also have the Docker image tags.
+
+Also there it will construct a image tag based on the GitHub commit code.
+
+Whatever we have done as part of that release and using that, whatever the tag it has created.
+
+Right.
+
+So that tag it is going to update in our helm chart.
+
+Okay.
+
+Helm chart means like in our chart values UI dot YAML file will be there.
+
+Right.
+
+So UI dot YAML in our custom values file.
+
+That image tag will get updated.
+
+So now you can see as part of continuous integration pipeline whenever a user pushes any change to your
+
+UI app, right?
+
+So that will be automatically packaged as a Docker image.
+
+And then that Docker image tag will be updated in the helm chart custom values file.
+
+So this is the continuous integration pipeline.
+
+So here in this CI pipeline two things are importantly done.
+
+One is it builds a Docker image with an immutable Sha tag which is our GitHub tag.
+
+And additionally it will update that updates the git with the updates the helm chart of custom values
+
+with that new tag.
+
+So new git tag has been updated.
+
+This is where the ci ci handoffs to CD.
+
+So now this is updated and now ci part is completed.
+
+So here comes the CD part.
+
+Okay so this is the CD part.
+
+So here what happens is Argo CD polls GitHub right?
+
+Continuously.
+
+Whatever the git repository you have configured, it pulls that GitHub and again which file you have
+
+also defined to poll means like in this GitHub.
+
+There might in this GitHub repo there might be multiple files.
+
+But what we will configure inside this Argo CD application is right.
+
+So we will say that always keep checking for this values ui dot YAML file in this git repository.
+
+And if any changes happens during the sync process.
+
+During the poll process, it will find that there are changes to your values UI, YAML file and when
+
+the changes are detected, right automatically.
+
+Argo CD takes those changes and syncs and deploys that new image.
+
+So previously if v1 image is running so that new image new parts will be created with this new version
+
+V2.
+
+And then after that V2 version and then slowly it will also deprecate the V1 version, related things
+
+will be deprecated.
+
+So all these things is done by Argo CD.
+
+So Argo CD sees the new image tag in git, syncs it to Kubernetes cluster, and your application updates
+
+from v1 to v2 with zero downtime.
+
+So the complete flow here is developer commits the change and CI builds the image.
+
+Git updated their means like your helm chart tag, got updated in your custom values and Argo CD polls
+
+and finds the changes and syncs those changes to the EKS cluster and new pods will get keep running.
+
+So this is a fully automated pipeline.
+
+No manual deployment, no code, and also just committing the code here to your UI app source automatically
+
+triggers the entire pipeline.
+
+So now we see that we have put the CI build separate and CD deployment separate.
+
+They don't overlap.
+
+That is a clean separation.
+
+So that is one important thing.
+
+So the key highlight here is clean separation CI is separate and CD is separate.
+
+And we are using the git as source of truth.
+
+So want to know what's in production.
+
+Just look at your git and that's it.
+
+We will know what version is running in our production.
+
+And we are also using immutable deployments.
+
+Means like we are using the git tag as our git tag as our Docker image tag.
+
+So this this tag never changes.
+
+Same image in dev staging and production.
+
+Also we can use and we can also have the zero downtime.
+
+So using the Kubernetes rolling updates.
+
+Old ports stay until new ports are ready.
+
+Even that we can do so.
+
+Like this.
+
+We have.
+
+We are going to implement this complete GitOps pipeline now in this section 21.
+
+But what we do, what we are going to do as part of 20 101 is we are going to build the CI pipeline,
+
+and from 20 102 we will install the Argo CD.
+
+Right.
+
+And 20 103 we will implement the CD pipeline and 20 104 we will do a end to end testing.
+
+So end to end testing we are going to do in 20 104, which means we commit the code here and we see
+
+that new version is coming here or not.
+
+So that's what this whole overall section 21 means.
+
+So let's go ahead and then practically implement this.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+We are going into the section 21 DevOps CI CD, and in that we are entering into the section 20 101
+
+CI GitHub actions AWS.
+
+So as part of the introductory section, we have already reviewed the entire full flow, but we didn't
+
+review the CI pipeline flow in detail.
+
+On a high level, we have already reviewed like a developer checks in the code, and then that code
+
+will be converted into a Docker image using the GitHub actions.
+
+And in addition to that, whatever the Docker image tag will be, that the same will be updated in our
+
+UI app.
+
+Helm chart values hyphen UI dot YAML file.
+
+So that high level thing we have already discussed, but we didn't review the complete CI pipeline code,
+
+the GitHub workflow code.
+
+We didn't review it.
+
+We will review it a little later.
+
+So these are the images.
+
+And you can see this is the build and push UI workflow.
+
+And these are the steps in detail.
+
+So setup job checkout code, configure AWS credentials.
+
+Login to Amazon ECR.
+
+So all the steps are present here.
+
+And once you are image is generated.
+
+So that image will be pushed to Amazon Elastic Container Registry.
+
+And this is the image tag whatever you are seeing a hyphen.
+
+So and so so right.
+
+That is your GitHub commit code.
+
+Okay.
+
+So first seven characters of your GitHub commit code is the thing here.
+
+Okay.
+
+So the same we are saving it as the image tag also so that we have a complete reference that this version
+
+of GitHub code is generated as a Docker image.
+
+So that's the key thing here.
+
+And like this in your specific file values hyphen YAML file.
+
+This Docker image tag will be updated like this okay.
+
+So this tag portion will be updated.
+
+So now let's start with some steps and move on.
+
+And later when we reach to that section where we want to review the file which is related to our GitHub
+
+workflow, there we will go ahead and then review it in detail.
+
+So for now we will move on.
+
+And then first go ahead and then create a ECR repository.
+
+So to create a ECR repository in the Amazon uh you can go to the ECR service Elastic Container Registry.
+
+And here in the private registry section in the repositories section you can go ahead and then create
+
+the repository using console or using this command AWS ECR create repository and name of my repository
+
+is retail store slash UI.
+
+And in region US East one I want to create it.
+
+So let's go ahead and then do that now.
+
+So we'll do that in the last terminal here.
+
+So let me do that just a minute Okay.
+
+So now let me clear this.
+
+And here we'll create that repository.
+
+And once we create the repository.
+
+So this is the repository URI.
+
+Complete URI.
+
+So we'll leave this like this.
+
+And we'll go back here and then try to refresh it.
+
+And retail store UI repository got created.
+
+Now the next step here is we need to create a GitHub Oidc I role.
+
+For that you need to set these environment variables.
+
+One is AWS region, another one is AWS account ID and your GitHub repo where you are putting your code
+
+and GitHub workflow related YAML file everything where you are going to run your ci CD, right?
+
+So for that purpose you need a GitHub repository.
+
+And that repository name.
+
+My repository name is AWS DevOps, GitHub actions ECR Argo CD three okay.
+
+In my my username is my.
+
+My GitHub ID is tax simplify.
+
+So this is the complete path and role name I am giving the IAM role name Oidc.
+
+IAM role is GitHub actions Oidc role UI three.
+
+So for UI application I am creating this.
+
+So I am providing that.
+
+So let me set these things.
+
+So we'll go here and first set these things.
+
+We'll put this aside and we will set AWS region.
+
+We'll set the account ID and we will set the GitHub repo right.
+
+And then we'll also set the role name and verify if those all are set okay.
+
+Region US East one my account id aws account id.
+
+This is the GitHub repo and this is the IAM role name.
+
+So these are all set.
+
+Now the next thing is uh you need to generate a trust policy with automatic variable substitution.
+
+So now when creating this IAM role and trust policy, you might ask me the question why do we need this
+
+trust policy.
+
+And then IAM role okay.
+
+So this trust policy is the security handshake that allows GitHub actions to deploy to your AWS account
+
+without storing any credentials.
+
+Okay.
+
+So let me explain how this works.
+
+The traditional approach was to create AWS Secret Access keys, AWS Access Key ID, and then AWS Secret
+
+Access key in means like create an IAM user with these access keys and generate these secret access
+
+key, and then access key ID and then store these in your GitHub in your GitHub settings.
+
+Okay.
+
+Right.
+
+So then GitHub actions use these credentials to deploy to your EKS cluster or to connect to your AWS
+
+account, but problems with this approach is long lived.
+
+Credentials sitting in your GitHub.
+
+So if leaked, anyone can use your AWS account and manual rotation required.
+
+You have to remember to rotate these keys and no automatic expiration keys work forever until you revoke
+
+them.
+
+So that's the regular process.
+
+But what we are with this new approach right.
+
+So that is a security risk approach.
+
+But with Oidc there are no credentials to store instead.
+
+So GitHub actions workflow starts GitHub generates a temporary Oidc token.
+
+GitHub presents the token to AWS, AWS AWS IAM.
+
+GitHub actions from repository eks AWS checks the trust policy.
+
+So this is the trust policy where you provide the GitHub repository repo also.
+
+Right.
+
+So AWS checks the trust policy.
+
+Is this GitHub repository allowed to assume this role or not assume role with web identity whether it
+
+is allowed or not?
+
+AWS checks if matches AWS issues a temporary credentials valid for one hour only, and GitHub actions
+
+use uses those temporary credentials to deploy our applications from GitHub actions to our EKS cluster,
+
+so credentials expire automatically in that case within one hour.
+
+Okay, after one hour they are worthless.
+
+Okay, so zero long lived credentials, zero manual rotation, and maximum security we get with this
+
+oidc approach.
+
+So first we create a trust policy.
+
+Then we create an IAM role like that.
+
+We have series of steps for these things okay.
+
+So now you understood the reason right.
+
+So why we need the trust policy approach.
+
+Instead of creating an IAM user, generating access keys and storing those access keys in GitHub for
+
+GitHub actions runner to access AWS account.
+
+So that is a security risk approach.
+
+And this is a maximum security approach.
+
+Okay.
+
+So now let's go ahead and then create this trust policy now.
+
+So we'll copy this and we will go here.
+
+And we will come out of this.
+
+And we'll go to our section 2021.
+
+Okay.
+
+We'll go to section 21.
+
+And inside that 20 101.
+
+And here right in this we will go ahead and then create this trust policy.
+
+So let me create this trust policy.
+
+And if I say trust policy dot JSON my account ID is placed.
+
+And this is my GitHub repository which I am going to create.
+
+So that also provided.
+
+So now I have the trust policy here in my section 20 101.
+
+Now the next thing here is in your case you need to delete and then recreate based on your AWS account
+
+ID.
+
+Now I have the trust policy with me.
+
+Now I will create an IAM role role name we have already set in our echo dollar role underscore name.
+
+And you can see it is already set.
+
+So create IAM role with assume role policy document file trust policy dot JSON.
+
+Now let me create this IAM role now.
+
+And now my IAM role also created.
+
+And for this IAM role you need to attach some permissions.
+
+What are those permissions when that GitHub actions runner when it is running what it is supposed to
+
+do.
+
+So if we go back to our picture here right.
+
+So when this GitHub actions runner is running, right?
+
+So what it's supposed to do it need to build a Docker image and push that Docker image to AWS ECR.
+
+So which means it needs the permission related to ECR push images to ECR.
+
+And additionally we are also giving pull images from ECR, manage ECR repositories and get ECR authentication
+
+tokens.
+
+So all these permissions are present in our Amazon EC2 EC2 container Registry.
+
+Power user.
+
+So for the IAM role, whatever we have created just now, we are also giving the AWS Managed policy
+
+EC2 Container Registry Power User.
+
+So let's do that now.
+
+Okay so we will provide that thing after that.
+
+Now we'll move on to configuring our GitHub actions workflow.
+
+And this we are going to review step by step in detail.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Before going and understanding the GitHub actions workflow, let's go ahead and also create the Oidc
+
+provider in your AWS account.
+
+So this.
+
+So you might ask me the question what is this Oidc provider actually.
+
+So whatever we have discussed earlier right.
+
+The IAM role we have created trust policy.
+
+We have created.
+
+So all that is works when we create this oidc provider only.
+
+So this Oidc provider is an identity federation setup in AWS, IAM that allows GitHub actions workflows
+
+to authenticate directly with AWS without storing long lived AWS credentials in GitHub secret.
+
+So for this oidc setup, the first thing is we have created a trust policy specifying which repos can
+
+assume this assume role with web identity.
+
+And then after that we have created the IAM role that trust this GitHub.
+
+Now we'll go ahead and then create the Oidc identity provider pointing to GitHub.
+
+Okay.
+
+So this is the one which we are going to create.
+
+First we can verify if they are present or not.
+
+And then we will go ahead and then create it AWS IAM list OpenID connect providers.
+
+And currently there are no OpenID connect providers.
+
+So if we want we can also go here and verify the same thing.
+
+So we'll click on IAM.
+
+And in IAM we can go to identity providers.
+
+And there is no identity provider which is related means like Oidc identity provider.
+
+Nothing is present here.
+
+So you can click on add Provider and add from here.
+
+Or we can run the command line easily.
+
+Okay.
+
+So this is the I am create OpenID connect provider and URL is token dot actions dot GitHub user content.com
+
+and client ID list is sts Amazon aws.com.
+
+So let's go ahead and then create this Oidc provider.
+
+So now if you go ahead and then refresh here right.
+
+So let me uh again come back here or let's try to refresh this page.
+
+Or we will go here and try to refresh or refresh the entire IAM page.
+
+And if we go to the identity providers so we can see OpenID connect provider is created for us.
+
+Okay.
+
+So this is the OpenID connect provider.
+
+So now let's come back here.
+
+And in our next lecture we will focus on GitHub actions workflow in detail.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Now let's go ahead and then configure the GitHub actions workflow.
+
+So let's understand this complete CI pipeline which is our GitHub workflow in detail okay.
+
+Right.
+
+So now let's start with the right side picture which we have already discussed this multiple times.
+
+So what it is going to happen.
+
+So when you push the code and the left side one whatever you are seeing is the pipeline steps the actual
+
+jobs GitHub actions execute.
+
+So these are the actual jobs GitHub executes.
+
+So every step on the left maps to a specific part of the workflow YAML you are seeing here.
+
+So if we go to the Visual Studio Code and in 20 101 CI GitHub actions.
+
+So you will have one folder called GitHub files.
+
+And there in GitHub slash workflows you will find the file build push UI dot YAML.
+
+So the name of this workflow is Build and Push UI service to ECR.
+
+So that's the name of this.
+
+Okay.
+
+And.
+
+Whenever developer pushes the code.
+
+Right.
+
+So whenever developer pushes the code then this GitHub actions workflow will be triggered.
+
+So we have very clearly written here on push right.
+
+So end to the branches main and the path is source slash UI slash source slash star star.
+
+So when that happens any change happens there.
+
+Then this workflow should be triggered.
+
+So that's what we have written here.
+
+Okay.
+
+So exactly the advantage of using this approach is that like GitHub action builds the Docker image and
+
+pushes to Amazon ECR for the UI source changes okay.
+
+Now we have also given permissions ID token right needed for oidc and contents right needed to push
+
+the commits so these permissions.
+
+Additionally, we have given and we have also defined the environment variables here AWS region US East
+
+one and then ECR repository is retail store slash UI.
+
+So if you go to our here and if you see our retail store slash UI is our repository name.
+
+So those we have defined as environment variables and in the jobs.
+
+Our job here is build and push UI is one job and it runs on ubuntu latest.
+
+And in the steps you have the first thing is checkout code.
+
+So it will say that it will check out the code from our current repository, whatever we are running.
+
+Okay, which is our Argo CD three repository which we have defined here.
+
+Right.
+
+So that is the one.
+
+So our it will check out the code.
+
+And then next comes the configuring the AWS credentials via Or DC.
+
+So we already know Oidc means GitHub means GitHub actions.
+
+Assume an IAM role directly.
+
+No AWS keys stored in GitHub secrets.
+
+Secure and best practice, which we have already discussed.
+
+So this role has permission to push to ECR and nothing else.
+
+So now the role we have created is UI three.
+
+So you need to ensure that your aws IAM account ID and the role name, whatever you have created exactly
+
+updated here, else it is going to fail even that we have specified here in detail.
+
+Update your role in detail.
+
+Okay, now the next thing is we'll move on to the next step here which is login to Amazon ECR.
+
+So what does it do.
+
+It will authenticate Docker to the ECR registry.
+
+So then once it is done it will define the.
+
+We will define the Docker image tag.
+
+So all these things, whatever you are seeing here checkout code is completed.
+
+Configure AWS credentials is completed.
+
+Login to Amazon ECR is completed.
+
+We are going to define the Docker image tags.
+
+So what it does it creates two image tags.
+
+So one is latest image tag.
+
+So you can see in the latest.
+
+And the another one is tag.
+
+So two tags it is creating for us okay.
+
+And why we are creating two tags tag is the important one.
+
+The latest tag is just for convenience and for testing.
+
+But here important is the tag.
+
+So this tag takes first seven characters of your git commit right.
+
+And then it will create a tag for us.
+
+Okay.
+
+So the tag here is tag you are building with a hyphen and dollar GitHub underscore QT.
+
+Colon.
+
+Colon seven means first seven characters of your respective check in.
+
+It is going to add here.
+
+Okay right.
+
+Check in commit code okay.
+
+So now that's about it.
+
+And this is the image base and full ecr URL.
+
+From the login step.
+
+We are going to get that even we are trying to get that automatically.
+
+We are not doing any hard coding here okay.
+
+So ECR repository you are getting from the env dot ecr repository which means from here okay.
+
+And login ECR outputs registry.
+
+From this we are getting the remaining part image base.
+
+So we will push two tags.
+
+One is Asia hyphen commit code, first seven characters and latest so that the things we are defining
+
+the image tags here.
+
+And after that we are building and pushing Docker images.
+
+Again.
+
+It is a pretty standard command.
+
+You can see it here docker build hyphen t image url and then in source slash You are.
+
+We have our source.
+
+So using that source we are pushing it.
+
+Okay.
+
+So now this is important thing.
+
+When you are building the Docker image you need to have the docker build file right.
+
+So if you go here right in the GitHub files.
+
+So all these files in the GitHub files we will copy these things to our GitHub repository when we are
+
+creating it in our next lecture.
+
+But try to understand here in the source and in source you have lot of applications.
+
+You have card catalog, checkout and UI and then orders.
+
+And in the source UI right in the UI, you should have that Docker file.
+
+If it is present, then only it can build the Docker image.
+
+Right.
+
+So you can see docker file is present here for the UI service in source UI.
+
+So if you see the build push UI also here you can see it is source UI right docker build hyphen t image
+
+uri.
+
+And here you also constructed a image underscore URI saying.
+
+Dollar image underscore bass and then dollar tag for each tag.
+
+For tag in dollar tags, you are going to build these things and then push those images also to that
+
+image URI, which means your ECR Elastic Container Registry.
+
+So for both the tags you are going to build and push it.
+
+And after that you will set up git auth using GitHub token.
+
+So you will go ahead and then configure that.
+
+Now here.
+
+So why do we need to do the git authentication here.
+
+Because in our git repository we have the helm values file.
+
+So where is it present.
+
+So we'll I'll show you that okay GitHub files and in GitHub files if we go to source.
+
+And if you go to UI and in the chart folder you will find the values ui dot YAML.
+
+So here it is going to update the new value.
+
+So to update that you need to authenticate to your GitHub repository.
+
+Right?
+
+So that part you are doing and the user you are trying to use here is ci hyphen bot and CI hyphen bot
+
+at the red stack.
+
+simplify.com as the user dot email.
+
+And using that you are going to authenticate to your repository.
+
+So github.com slash GitHub repository dot get.
+
+And then you will update the helm values here okay.
+
+So you will go to source UI.
+
+And here you will inside source UI you will go to slash chart slash values dot YAML.
+
+And there you are going to update the actual tag information tag hyphen whatever the new tag is there
+
+that one using said command.
+
+Right.
+
+You are going to update that.
+
+And then you are going to commit the changes and you are also going to push that.
+
+Also those changes were pushing to the GitHub repository.
+
+And after that the final thing is CI complete image push and git update done, tags used etc. everything.
+
+It will be shown here.
+
+So all these are the.
+
+This is the complete GitHub actions workflow we have built.
+
+So now what we will do is we will in our next lecture go ahead and create a new GitHub repository and
+
+then copy all these things okay.
+
+So copy all these things and then check in those stuff okay.
+
+So whatever is present inside this GitHub files folder, all those things we are going to copy to that.
+
+And there are some additional things here okay.
+
+Those also let's discuss before going there.
+
+One is application source code.
+
+Whatever the 1.3.0.
+
+Just I am putting it for reference complete zip file.
+
+It is unzipped here already and edited for UI to add the value siphon ui dot YAML file.
+
+It's already edited and even in UI.
+
+Also you will have something called source and in source in main and in resources in templates in home
+
+dot HTML.
+
+Also, we will keep editing here.
+
+Okay.
+
+Some files.
+
+Okay.
+
+So to show the versions okay.
+
+So you can search for the secret shop.
+
+And here this is the version number we keep editing every time V7 zero one V7 zero two to test our CI
+
+CD entire process okay.
+
+So this is a landing page.
+
+So in this landing page if we change anything and the entire use case means like so if we go here this
+
+entire thing right.
+
+So this entire CI and then c c CI and then CD pipeline is completed in the output when you access your
+
+application, if you get V7 zero one or V7 zero two, all those things you can see.
+
+So that's what we are trying to do.
+
+So for that purpose here we update it okay.
+
+And to update that.
+
+So you can go here always in the source and then update it.
+
+So that is one way okay.
+
+But we have added simple shell script for that.
+
+So what this shell script will do is when you pass by running this one with some version number, if
+
+you pass, then automatically it will go to that secret shop section and then update the version number.
+
+So even the as a developer, whatever the changes we are supposed to do, right.
+
+Those we have just automated it with a simple shell script.
+
+So we are trying to test the ci CD process and not actually developing an application.
+
+Right.
+
+So for that purpose this update UI home dot HTML also there and we have one more git pull and git push
+
+right.
+
+So git pull you know git push.
+
+You know what.
+
+Whenever we make the change to our UI home dot HTML or anything, we can push those changes.
+
+For that purpose.
+
+We can use git push, git add, git commit m and commit message.
+
+If you give when running it, it will provide that, else it will take welcome to stack simplify and
+
+then it will push.
+
+So that is git push.
+
+But why we are using git pull.
+
+This is the important thing you need to understand right.
+
+So when this workflow is run.
+
+So this is very critical guys.
+
+Git pull is very important.
+
+So when you run the build push UI, when when you made a change.
+
+V107 to your app and then checked in and then automatically this pipeline will run right.
+
+So once this pipeline is run Docker image is built and push it to your AWS ECR.
+
+After that it will also authenticate to your repository GitHub repository and update that tag also where
+
+it will update in your source UI and then chart and then in values UI.
+
+Here a new tag will be updated, but where this entire code is present in your remote repository, which
+
+means in your GitHub repository, here it is going to present.
+
+Okay, so if we go here let me go to repositories.
+
+I'm showing you the Argo CD two.
+
+But in our demo we are going to use Argo CD three.
+
+But I'm just showing you for reference okay.
+
+Right.
+
+So here in the remote repository in the remote repository means in actual GitHub repository.
+
+The changes were there.
+
+Okay.
+
+But when you want to make the next change from your local desktop, then you need to have the latest
+
+code with you, right?
+
+So for that we use the git pull.
+
+So first we will run the git pull.
+
+And then after that we'll make the changes to our application update UI home HTML and then push those
+
+changes.
+
+This is very very important right.
+
+Workflow will update the remote repository directly in your local copy.
+
+You don't have it.
+
+You need to sync those changes using git pull.
+
+And after that any next version.
+
+If you want to develop and make changes and then submit it, you need to do that.
+
+So that is the key thing to remember.
+
+So that's about these, uh, files, whatever we have in our GitHub files.
+
+In our next lecture we'll go ahead and then create a new GitHub repository, check in these files and
+
+implement and implement the workflow use case GitHub actions workflow use case.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Now let's go ahead and then create a GitHub repository with AWS DevOps GitHub actions ECR Argo CD three.
+
+Okay.
+
+So we'll go here and we will go and then create that now.
+
+So we'll go to repositories and we'll click on New Repository.
+
+And this is the repository name.
+
+And this I'll try to give the same thing.
+
+And we'll try to put it as private for now.
+
+Later I'll make it public when I'm publishing the course and I'll try to add a readme.
+
+And then we'll also we'll try to leave all these things as is, and then we'll create a repository.
+
+Now let's create a repository.
+
+And this is the repository created.
+
+Now we will clone this repository to our local desktop okay.
+
+Right.
+
+So we will come out of this.
+
+And here we will try to clone this repository.
+
+And now once we have cloned this Argo CD three repository, we'll go inside that, right.
+
+AWS DevOps GitHub actions ECR Argo CD three.
+
+Right.
+
+We'll go here to Visual Studio Code.
+
+Close these things and we will go to 20 101 CI.
+
+And these are the GitHub files.
+
+So we will copy all these things okay.
+
+Copy all these things inside GitHub files.
+
+Whatever are there I'll try to copy and we will go here.
+
+And the default readme we will delete it and we will add all these files here.
+
+Okay.
+
+So now you have something called GitHub workflows build push YAML.
+
+And this is the app source code.
+
+This is the workflows backup.
+
+This is the file.
+
+Whatever.
+
+We have that complete thing we have here also as a backup.
+
+And this is git pull git push update UI.
+
+Home dot HTML and standard Readme for this respective section.
+
+Whatever we are doing here, right?
+
+21 zero 1 in 20 101 whatever the readme is, there it is the same Readme and update UI home HTML.
+
+So these are the things we have before going and pushing the changes to our GitHub repository.
+
+One change we need to do in the source here.
+
+Okay, so in the source and if we go to UI and in UI if we go to chart right in chart you have the values
+
+hyphen UI dot YAML.
+
+So here you need to update your repository.
+
+So this is my AWS account ID.
+
+In your case it will be yours.
+
+So when you have created your Elastic Container Registry.
+
+So you need to make a note of this respective output.
+
+And then use this URI whatever it has generated.
+
+repository URL here in the repository section.
+
+So this is very important.
+
+Else it is going to fail.
+
+So you need to update your repository URL in your values UI dot YAML file in your source.
+
+So once you copy it in your Argo, once you copy it in your GitHub repository, right.
+
+Which you are going to use that GitHub repository for your GitOps pipeline.
+
+And now we can push these changes if we want to.
+
+Okay.
+
+And let's see what happens okay.
+
+Right.
+
+So let me come back here.
+
+And if we say git status right.
+
+So all these things are added newly.
+
+So I'll say git push.
+
+We have the file here right.
+
+Git push okay.
+
+So we'll try to push all these files to our repository.
+
+So all these things are pushing to the remote so you can see AWS DevOps, GitHub actions, ECR, Argo
+
+CD three and you have everything here.
+
+Git pull, git push, update UI home HTML source, git workflow backups, app source code backup, and
+
+GitHub workflows.
+
+And you have the build push UI here.
+
+Okay, right.
+
+And if you click on the actions tab here also you can see this build push UI service to ECR.
+
+Okay so currently no runs are there.
+
+So we have successfully created the stuff for now.
+
+Okay.
+
+Right now what we will do is we'll move to the next step here.
+
+Okay.
+
+We have done the initial push and then no trigger happened.
+
+Now we'll move here and then go ahead and then test the CI pipeline now.
+
+Okay.
+
+So if any changes are there in the remote repo you can run the git pull origin main or git pull.sh.
+
+Currently there are no changes.
+
+We are fine with that.
+
+Now we will run the update UI home dot HTML with v1 zero two or whatever the number we want.
+
+Okay, so before that if you want.
+
+So here in the source and in your UI, what actually we are doing in the source UI.
+
+And again actual source of your application.
+
+And in the main in the resources in the templates you have something called home dot HTML.
+
+And inside that if you see Secret shop you have V7 zero one currently.
+
+Now with this command okay.
+
+Right.
+
+So with this update UI home dot HTML, I will say something like V7 zero two or something like V801
+
+something.
+
+Okay.
+
+And then let's see what happens.
+
+So it will update that right.
+
+So it has updated.
+
+So if I see it change it to V801.
+
+Instead of manually going and changing there I just created a script for that.
+
+Now we have the change happened in the file in the source location.
+
+So if you go to your this one also right in this build push UI, you said source UI source slash star
+
+star okay.
+
+So which is source UI.
+
+And in this source location in UI in the source location, any change happened as in the resources section
+
+in templates home dot HTML change happened.
+
+So if I say git status also that file is changed source UI source and inside that any file changed as
+
+a home dot HTML file is changed.
+
+So this path inside this path.
+
+So which means inside this path change happened.
+
+If I push these changes to remote repository and it will automatically trigger this GitHub actions workflow.
+
+So let's see that whether it will happen or not.
+
+So the script now is simple slash git push okay.
+
+So you can run git add commit and then push all manual commands or run this okay dot slash git push.
+
+It is pushing the changes.
+
+Okay, now it has pushed the change.
+
+Now if you see here.
+
+Right.
+
+So the change should be present here.
+
+Okay.
+
+So here now just now the change happened and where happened.
+
+You can go and then verify that also.
+
+But here you can see it started with this.
+
+Okay.
+
+Welcome to Stack Simplify because when we are running that git push we didn't provide any code there
+
+okay.
+
+Right.
+
+Uh if we have provided any dot slash git push and V10V801, then it would have taken here V801 as the
+
+name okay.
+
+Commit message.
+
+Okay.
+
+So it is running the entire workflow.
+
+It has set up the job first and then it has check out the code right.
+
+It has check out the code configured AWS credentials via Oidc.
+
+So this it has done authenticated as assume role id so so and so.
+
+And logging into Amazon ECR.
+
+So it has logged into ECR and it is defining the image tag.
+
+So these tags were defined.
+
+And then it is building and pushing the Docker image.
+
+So I didn't add any caching and all those things in this build and push right.
+
+So Docker caching and everything also we can add.
+
+But the thing is it will complexify your use case and we might miss the functional flow.
+
+Right?
+
+We are learning for the first time, right?
+
+So for that purpose I didn't add any complexities here.
+
+It is a plain build.
+
+So build and push to Amazon ECR is the key thing.
+
+So once it will build and push it will move to the next step okay.
+
+So if you go here Argo CD three source and inside UI where is UI.
+
+So this is the UI.
+
+And let me let me go down here.
+
+And this is the UI and inside UI in source in main in resources, in templates you will find the home
+
+dot HTML.
+
+And here if you search for this zero one right.
+
+So that is the version it updated successfully actually here.
+
+But the key thing here is it need to generate a image and push them here.
+
+Right.
+
+So two images should come here.
+
+So workflow is running here.
+
+It is pushing build and push.
+
+Docker images is completed just now.
+
+And then it moved to the next step.
+
+Set up git using GitHub that is completed updated helm value file with new image tag.
+
+So that should be done and then CI complete also completed.
+
+Okay so all the things are completed okay.
+
+So build and push UI successfully completed.
+
+So that's what it is showing okay.
+
+Now if you go here to repositories and retail store UI, you can see with latest tag and also with one
+
+more tag which is here Right.
+
+This is s latest tag.
+
+And you also have a hyphen A3, DCC, f3.
+
+So with both the things you have the Docker image created for you.
+
+So you have that image created with this thing's size is 345 .04 okay.
+
+With two tags it has created okay.
+
+And now the next thing is we will go back here.
+
+Right.
+
+So we have successfully completed the entire use case okay.
+
+And if you want we can try one more time also.
+
+But to try one more time I told you right.
+
+So you have now if you see here.
+
+Right.
+
+So if you see here in the repository right.
+
+The latest tag here is 5515282.
+
+Why.
+
+Because just now one minute before in the source here helm values updated right.
+
+So in the source.
+
+And if we go to the UI here and in UI in the chart see one minute before it has updated updated UI image
+
+tag.
+
+So in the chart.
+
+So if you go to the values UI dot YAML just one minute before this updated, it updated with A3, DCC,
+
+f3 with which it has generated the.
+
+You can see it here.
+
+Where is that in the images A3, DCC, f3.
+
+So this also updated successfully.
+
+No issue here okay, but the thing is, when it is making the change in your remote git repository,
+
+it is another change, right?
+
+So we got a new commit code here 5515282.
+
+Which means your remote git repository in GitHub is advanced than your local repository AWS this one.
+
+Okay, so which means you need to run the command git pull here.
+
+So git pull has something called git pull origin main.
+
+You need to run.
+
+Or you can directly run git pull dot and which means it will be pulling the latest changes from our
+
+remote repository.
+
+And it has pulled the latest changes.
+
+What is that latest change?
+
+This is the source UI chart values YAML.
+
+So that is the thing.
+
+So this one it has pulled currently mine is this one.
+
+And in the remote this is the one.
+
+So I brought that and then added that in my local.
+
+Now the next thing is if I want to update one more right.
+
+So I'll say V802I have updated it.
+
+Okay.
+
+So this is the V8 zero two.
+
+Now what I will do is git push and I will also say V802.
+
+Right.
+
+So that is the message I am sending V802 or V80 to commit something.
+
+Okay.
+
+So why.
+
+Because in git push.
+
+Also I have provided that if you provide anything when running it right.
+
+So when running git push command, if you provide any message, take that message.
+
+Else default.
+
+Welcome to stack simplify message.
+
+You Take it.
+
+I have said so I will, I have made the change.
+
+Now I am pushing that change.
+
+So V80 commit I will say simply okay.
+
+And then I'm pushing these changes.
+
+Now one more time it will run okay.
+
+So it should run ideally.
+
+So actions.
+
+If I click on action see the name came here thoroughly V80 commit.
+
+And then it is running.
+
+It will build and push the entire thing.
+
+So it will build and push those Docker images.
+
+So here I didn't add the caching thing, but it's a good thing to add caching and all those things.
+
+We can add it okay.
+
+So you can try and add all those things also.
+
+Now it will generate a new Docker image for us.
+
+So let's wait for that okay.
+
+So you know that right.
+
+So this Docker images are built because in the source right.
+
+So in the source wherever the source is present for UI we also have that Docker file present.
+
+So using this docker file only it is building this Docker image.
+
+So we can see here this is also successful.
+
+So build and push is successful for v zero to commit also.
+
+So everything is working.
+
+We'll try to refresh here.
+
+And we'll have the latest commit here 967B is the latest one.
+
+And now we'll also have a new thing here right.
+
+So if I try to refresh this and even the helm values also will be updated here with nine d6 D7.
+
+Be your helm value.
+
+Also updated.
+
+Okay, so that's the thing.
+
+And if you want to do further changes here then you need to run the command git pull origin main or
+
+git pull dot s.
+
+I'll run the git pull.sh and then put the things ready here.
+
+And this completes our entire demo related to 20 Zero one.
+
+So as a developer, you push the changes and to your UI app source and automatically your GitHub actions
+
+workflow will trigger and it will build the Docker images and push to your AWS.
+
+And after that, it will also go ahead and then update your helm chart.
+
+Okay.
+
+So ideally this arrow should be coming from here.
+
+I did a small mistake but that's fine okay.
+
+So this is the flow.
+
+Okay.
+
+So this is the F1 flow.
+
+Flow means like step one step two and then step three.
+
+Then the GitHub workflow actions also will update this helm chart UI values.
+
+Values UI dot YAML with the latest commit code.
+
+Whatever it has created the Docker image with a hyphen.
+
+So that's the CI pipeline.
+
+In our next demo we will focus on Argo CD.
+
+So I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Alright everyone, let me ask you a question that will probably sound familiar, right?
+
+So before learning about what is Argo CD, so let's understand some cases which we usually face in our
+
+organization with Kubernetes.
+
+Like you deploy an application to Kubernetes using kubectl apply.
+
+Two weeks later someone makes a quick fix.
+
+So you have done the first change and after two weeks someone made one more change.
+
+A month later.
+
+So after a month again, someone made a third change for your application.
+
+Might be a config map fix or a editing the deployment.
+
+Anything.
+
+Okay, so those are some changes done.
+
+So now as on today right.
+
+So as on today what is actually running your cube in your Kubernetes cluster.
+
+Do we know that?
+
+So your git repository says one thing is present and your cluster is running something completely different.
+
+Because this is manual apply.
+
+This is manual apply.
+
+This is manual change.
+
+And today we don't know what is our current state at all.
+
+So you have configuration drift.
+
+You have zero audit trail and you have potential disaster waiting to happen if we manage our infra in
+
+this manner.
+
+So now this is the problem.
+
+Argocd solves.
+
+And today I am going to show you exactly how.
+
+So Argocd is a GitOps continuous delivery tool for Kubernetes.
+
+So let me break down what that actually means.
+
+What is this content GitOps continuous delivery tool.
+
+Okay, so first Argocd makes get your single source of truth.
+
+So every Kubernetes manifest, every deployment, every service, every config map, whatever the Kubernetes
+
+resource, they should live in git.
+
+Okay.
+
+So they should be checked into your git repository.
+
+So they should not be scattered across people's laptops, not in random kubectl commands or kubectl
+
+edit commands.
+
+Everything should be present in your git repository.
+
+That's the first thing okay.
+
+And second thing is Argo CD is the robot that watches your git.
+
+So this Argo CD keeps watching your git repository.
+
+It continuously monitors your git repository and compares it to what what's actually running in your
+
+cluster.
+
+So that's what it does actually.
+
+So if they don't match Argo CD Automatically syncs them.
+
+So whatever is there in the git, it will try to sync.
+
+In your Kubernetes cluster.
+
+So it makes your cluster look exactly like git.
+
+Always.
+
+So with Argo CD, git becomes the steering wheel for your entire Kubernetes.
+
+Architecture.
+
+So git history is your deployment history.
+
+You don't have a specific deployment history.
+
+You have your git history as your deployment history.
+
+So now let me show you exactly how Argo CD works under the hood.
+
+Okay.
+
+Right.
+
+So let's understand its architecture in detail.
+
+So this diagram shows you the complete Argo CD architecture.
+
+So it's actually simple just three main components and a continuous loop.
+
+One is git repository.
+
+Second is Argo CD server.
+
+And third is your Kubernetes cluster.
+
+So let's start with the first one, which is your git repository.
+
+At the top we have our git repository.
+
+So this is labeled as source of truth for a very good reason.
+
+Inside git you have your manifest folder with all your Kubernetes YAML files, deployment services,
+
+config maps, everything, or your helm charts.
+
+This is where your infrastructure is declared.
+
+So this isn't documentation.
+
+This isn't a backup.
+
+This is your infrastructure definition.
+
+If it's not in git, it doesn't exist.
+
+So that's the number one rule we need to follow.
+
+And the component two here is this is the second component which is the Argo CD server.
+
+So this is labeled as the sync engine okay.
+
+So this is the sync engine.
+
+And that's exactly what it does okay.
+
+So it pulls the manifest from our GitHub repository.
+
+Every three minutes you can configure.
+
+This is a configurable item, not three minutes.
+
+If you want to change it, you can change it.
+
+Okay, so Argo CD pulls the latest manifest from the git and compares them to what actually running
+
+in your Kubernetes cluster.
+
+And then it will go ahead and then auto sync the differences.
+
+So that's about the Argo CD job.
+
+And we have the Kubernetes cluster here at the bottom.
+
+So we have this is labeled as the actual desired state because it should always match with what is present
+
+in the.
+
+Okay.
+
+So when Argo CD detects differences between git and cluster, it automatically applies those changes
+
+to Kubernetes.
+
+So your cluster gets updated to match git okay.
+
+So that's the key important thing here always matches git.
+
+That is the key thing.
+
+So now let's talk about one important thing here which is.
+
+Detection loop.
+
+So this is another important thing.
+
+Okay so someone like me went and manually changed something okay so I said kubectl edit deployment and
+
+I made some changes okay.
+
+So I might change the replicas from 2 to 10.
+
+Or I made the I have ten replicas running.
+
+I made it to two.
+
+Something I have done in this Kubernetes cluster.
+
+Okay.
+
+So now what happens is right within three minutes.
+
+So not only it checks every three minutes to the git repository, but it also checks your Kubernetes
+
+cluster, the actual configuration okay.
+
+Right.
+
+So Argo CD detects this drift, sees that the cluster no longer matches with git and automatically corrects
+
+it back to matching git.
+
+So if I change it from 10 to 3 replicas again, Argo CD will take care of making them back to ten replicas.
+
+So that's what it does.
+
+So this completely prevents the configuration drift.
+
+So your cluster cannot drift from git because Argo CD is constantly pulling it back.
+
+All in all, we will have the complete transparency when using this approach.
+
+And now in addition to that, we can also see here some important things.
+
+Git which is source of truth, which means everything lives in git and Argo CD which is a sync engine.
+
+So automatic reconciliation happens here.
+
+And automatic drift correction.
+
+No manual changes survive in your clusters.
+
+So automatic drift correction and also get history equal to audit trail, which means complete deployment
+
+history is nothing but your git history.
+
+So this is GitOps.
+
+This is infrastructure as code.
+
+When it is done right now, let's move on to with and without Argo CD comparison.
+
+Right.
+
+So now you understood how Argo CD works technically, but let me show you why it matters by comparing
+
+the old way versus the Argo CD way side by side comparison.
+
+So you can see in the left side we have the traditional way how we manage it, and right side we have
+
+the Argo CD way, right.
+
+So on the left this is how most teams work without GitOps.
+
+Developer makes the changes.
+
+Then they run kubectl apply directly to the cluster and the cluster gets updated.
+
+Okay, so automatically the cluster gets updated so the deployment is successful, but then time passes
+
+and look at all the problems that start happening.
+
+Okay.
+
+So we'll have configuration drift happens.
+
+No tracking or audit trail right.
+
+Manual rollbacks required.
+
+And what's running nobody even knows.
+
+Okay.
+
+So is production running version 1.2 or 1.3?
+
+Which config is active?
+
+It.
+
+Everything is a mystery.
+
+So this is Operation Chaos.
+
+Okay, so we are flying blind when we follow this traditional approaches.
+
+But when we talk about the Argo CD way.
+
+Right.
+
+So the same developer, same change, but instead of using the kubectl apply.
+
+So instead of using the kubectl apply they commit the code to your GitHub repository.
+
+The changes go into git first.
+
+It's tracked.
+
+It's versioned.
+
+It's reviewed through pull request.
+
+If you want you can define a pull request workflow so that it can be even reviewed.
+
+Then Argocd pulls the change from your git automatically.
+
+So no Cicd pipeline with cluster credentials needed.
+
+Argocd runs inside the cluster and pulls the changes.
+
+So this is the pull model versus the push model.
+
+So from GitHub, if you want to push to your cluster then you need in the push model you need your cluster
+
+creds right.
+
+So you need your creds for your cluster right.
+
+But in this pull model.
+
+So you are going to pull your YAML manifest.
+
+This is sitting in EKS cluster or Kubernetes cluster itself.
+
+Right.
+
+And then it is pulling the the pulling the Kubernetes manifest and pushing into the cluster automatically.
+
+So here no Kubernetes cluster credentials are required.
+
+So Argocd syncs the changes to the cluster.
+
+The cluster gets updated.
+
+So now look at the benefits here.
+
+So we have something called auto drift correction.
+
+No manual changes.
+
+Argo CD corrects them back to git within three minutes.
+
+And we have the complete git history which is equivalent to our deployment history and even the audit
+
+trail.
+
+So every deployment whatever you do is a commit.
+
+So full history full audit trail we have okay.
+
+So if something goes wrong, whom to catch and whom to ask.
+
+Also we know in detail and easy rollback.
+
+So just git revert will roll back to the previous version.
+
+So just one command.
+
+So this is operations clarity.
+
+So you know exactly what's running when it was deployed and who deployed it.
+
+So end to end is tracked and then audited.
+
+So that's the with and without Argo CD comparison I'll see you in the next lecture.
+
+Until then.
+
+Bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+We are entering into the demo 20 102 continuous deployment or delivery using Argo CD.
+
+So here we are going to install the Argo CD.
+
+First ensure that you have your kubeconfig configured which is already done.
+
+And all our kubectl commands are working without any issues here.
+
+So if I run the kubectl get pods or kubectl get nodes, everything is working as expected.
+
+Okay, so the key thing here is you need to create a namespace for argo CD kubectl create namespace
+
+argo CD.
+
+And you are also going to deploy Argo CD core components, UI server repository server, application
+
+controller and all Argo CD cruds.
+
+Using this kubectl apply and in namespace Argo CD and hyphen f, and this is the manifest where all
+
+are present and you can access your Argo CD UI locally using kubectl port forward and svc slash argo
+
+CD, hyphen server, and then hyphen n and which is present in Argo CD namespace and its port is 443.
+
+On our local, you can use 844 3 or 8 080 whatever you want and using https colon slash slash localhost
+
+colon 88, you can access your Argo CD UI.
+
+And in addition to that, if you also want to get Argo CD admin password, you can run this command
+
+to get that.
+
+Okay.
+
+And if you want to also means like Argo CD, CLI also will be there.
+
+So you can see it here.
+
+So this is the Argo CD installation related documentation.
+
+And in this this if it is for Linux, if it is for Mac OS, brew, install Argo CD and for other things
+
+okay for Linux amd64 this is the thing.
+
+Okay.
+
+So and uh, different Linux and WSL versions.
+
+You have the options here.
+
+Apple Silicon also.
+
+But you install Argo CD you have the options for windows.
+
+Also you have the options so you can go through and install the Argo CD CLI.
+
+And you can also log in via Argo CD, CI.
+
+Also, you can log in to your UI means like log in to your Argo CD instance, Argo CD login and localhost
+
+colon.
+
+80.
+
+80.
+
+Username and password.
+
+Whatever you have copied and you will say insecure.
+
+And if you also want to change the admin password.
+
+Argo CD account update password.
+
+So like this.
+
+You have all the options available.
+
+So we can go ahead and then install this Argo CD now.
+
+So we can create a namespace first and then install it like this.
+
+Or I have also put a script for you install Argo CD and using this creating the namespace, installing
+
+Argo CD components and waiting for the Argo CD to be ready.
+
+And then after that fetching the default admin password.
+
+And after that you can run the port forward manually and then access via browser and then test it.
+
+Anything is fine.
+
+Okay, so we'll try to create from whatever we have here.
+
+Okay.
+
+Steps.
+
+Okay.
+
+Kubectl create namespace argo CD.
+
+Right.
+
+And if I say kubectl get n then you can see Argo CD namespace is created right in that we are going
+
+to install this Argo CD related core components.
+
+So I'll run the command to install them and it will take some time.
+
+It will take 2 to 3 minutes for all the things to be operational.
+
+So let's wait for them to get installed.
+
+And so we can see here all the things are getting installed related to Argo CD.
+
+So first it has created the service accounts and then uh roles, cluster roles, cluster role bindings
+
+configmaps secrets and then services and deployments, stateful sets and network policy.
+
+So everything it created.
+
+Okay, so if we run the command cube CTL get pods, hyphen N and then Argo CD.
+
+So there are all those things should be coming.
+
+So we are using our EKS cluster with T3 large VM's.
+
+Okay.
+
+So if you remember for supporting all the additional add ons and everything.
+
+So if you go to 20 observability zero 20 zero one EKS cluster environment in zero two.
+
+And if you go to here terraform.tf vars so you can see T3 large on demand.
+
+We are using here okay.
+
+So let me minimize this.
+
+So which means there should not be any issue in accommodating this application.
+
+Also on our on our EKS cluster.
+
+So everything is running now those are get pods.
+
+And we also need to see the get SVC services.
+
+There are other components also many it created.
+
+You have seen right.
+
+So the key thing is Argo CD server.
+
+This is the one.
+
+It has both 80 and 443 port using kubectl port forward.
+
+For this Argo CD server, we need to access using this port for accessing our Argo CD web console.
+
+Okay, so this is the service we can say kubectl hyphen n argo CD and then port forward.
+
+And we will say service s vc and Argo CD hyphen server.
+
+So this is the one right.
+
+And we will access on 8080 on our local and 443 as our remote port in Argo CD.
+
+Right.
+
+So let me get the port forward.
+
+And now we will go ahead here and access it on the browser okay.
+
+So localhost and then we will say 80808080.
+
+And here also we will give http s okay.
+
+And let's see whether it will be accessible.
+
+It should be accessible now and it will ask for the admin password and all those things okay.
+
+So username and password we need to provide okay.
+
+So for that we'll go here and we'll get the password.
+
+Username is admin.
+
+And the password we can get using this command.
+
+So we'll try to get that now.
+
+So we'll go here and run that okay.
+
+We'll run that and get the password.
+
+And this is the password for our Argo CD.
+
+So let me copy this and I will say admin and I will sign in.
+
+And you can see there are no application standard settings documentation.
+
+You can browse through all those things.
+
+There are no applications.
+
+We need to create a application which we will do in our next sections.
+
+Okay.
+
+And next thing is we also need to install the Argo CD CLE.
+
+So here you have.
+
+Mine is a mac OS machine.
+
+You can run, brew, install Argo CD.
+
+So I already have the Argo CD running in my local.
+
+So it is already means like that CLI is already installed.
+
+So now what we need to do here is we need to also log in via Argo CD cli.
+
+So this is the username right.
+
+And this is the username and password is this one.
+
+And hyphen hyphen insecure.
+
+And let's also log in via this one also.
+
+So that's about Argo CD CLI login also.
+
+So you can see here admin logged in successfully context localhost 8080.
+
+Updated.
+
+So that's about the Argo CD installation and CLI installation and accessing the UI via browser.
+
+In our next demo we'll focus on additional things related to Argo CD.
+
+I'll see you in the next video.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Will come back.
+
+Now we are entering into the demo 20 103 CD Argo CD helm.
+
+So here we will focus on deploying our UI service here using Helm charts.
+
+Okay, so how we are going to do that is the key thing.
+
+And one very, very important step we need to do here is right.
+
+So because our Argo CD three this actual where our source is stored, that GitHub repository is a private
+
+repository.
+
+And in real world also it is going to be a private repository right.
+
+Not a public repository.
+
+So we need to do some git repository authentication for Argo CD here.
+
+Okay.
+
+So that part we are going to do now.
+
+Else we are going to have the issues okay.
+
+So we we need to install the Argo CD CLI which we have completed.
+
+We also need to complete the Argo CD login.
+
+Even that part we have completed.
+
+So if we go here.
+
+So we have also completed the Argo CD login.
+
+Now we need to register your GitHub repo with Argo CD.
+
+So for that the command is Argo CD repo.
+
+Add your repository the complete URL and username.
+
+Your GitHub repository username and password is nothing but your personal access token.
+
+Whatever you create and name of your repository.
+
+Okay, right.
+
+So here I need to give three.
+
+So this can be a desired name.
+
+Also not an issue.
+
+So now to get this right.
+
+So my username is to simplify my GitHub username and password is nothing.
+
+But we need to generate the personal access token on our GitHub.
+
+So we need to go to GitHub Settings Developer Settings and go to Personal Access tokens.
+
+And in Tokens classic we need to generate a new token.
+
+So first what I will do is I'll try to copy this and try to put it in a notepad here.
+
+Okay.
+
+So here right.
+
+So I'll try to use the same readme here.
+
+So this is the one, right?
+
+So this is the complete thing.
+
+My repo URL my username.
+
+And here we need to get the personal access token.
+
+So we will go back here and we'll go to our GitHub repository.
+
+And this is my GitHub repository.
+
+And we'll go to the settings here okay.
+
+So here are the settings.
+
+And in settings we need to go to developer.
+
+So this is our developer settings.
+
+And here in the personal access tokens.
+
+In tokens Classic.
+
+So we'll create a generate new token which is classic token right.
+
+And for that on this generate new tokens classic and I'll say Argo CD and live demo 101.
+
+And for 30 days we are putting the expiration or I'll try to put for seven days.
+
+And then I will also provide a read packages and repo.
+
+These are the things.
+
+And then we'll go ahead and then generate the token.
+
+Okay.
+
+So I just gave only read the packages.
+
+Why?
+
+Because we don't need for Argo CD to anything to write.
+
+Right.
+
+So only read the stuff.
+
+So this is the access token I have.
+
+So this is the one.
+
+So I'll try to copy it.
+
+And here I'll try to paste it okay.
+
+And any other Argo CD accesses I have.
+
+So this is before previous one which is expired.
+
+I'll try to delete all other things whatever I have and expired ones.
+
+And this is the expired.
+
+So this is the one which is the older one I think.
+
+Okay, so Argo CD access one.
+
+Also I'm trying to delete only one we have which is the live demo one.
+
+And we'll try to regenerate the token for that one more time for next seven days.
+
+And this is the token.
+
+Right.
+
+So this is the token it generated.
+
+So we'll try to copy that token now okay.
+
+And now we will run this command okay.
+
+So let's come back here and run this command and let's see what happens.
+
+Okay.
+
+So it's running now.
+
+Repository added.
+
+Okay.
+
+So that is the thing.
+
+So now let's come back here.
+
+Once added go to your settings repositories confirm repo shows as successful under connection status.
+
+So if you go here and this is the Argo CD thing, if you go to settings and in the repositories you
+
+have this repository AWS DevOps, GitHub actions, ECR, Argo CD three and its connection status is
+
+successful.
+
+So now we have successfully completed one step here which we are discussing, which is step zero two.
+
+In our next lecture, we will focus on reviewing the actual Argo CD application manifest, which is
+
+the heart for the entire continuous deployment in Argo CD.
+
+So I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Will come back as part of step zero three.
+
+We are going to review the Argo CD application manifest.
+
+So if you go to the Visual Studio Code here so you can find here in 20 103 CD Argo CD Helm in Argo CD
+
+manifest, you will have this application dot YAML file.
+
+Okay.
+
+So this is the YAML file which we are going to review now.
+
+So let's come back here and understand line by line what exactly it is okay.
+
+So as usual it is a Kubernetes manifest.
+
+It will have the API version and kind is application okay.
+
+And here the important thing is name and then namespace.
+
+The application name we are giving is UI and namespace.
+
+Where this application is getting deployed is in the Argo CD namespace, which means this respective
+
+application manifest where it is deploying.
+
+We are trying to tell here.
+
+So it will be managed by the Argo CD instance running in the Argo CD namespace.
+
+So when you deploy this UI application related manifest and provide the namespace where our Argo CD,
+
+actual servers and everything is present, so that Argo CD instance, uh, will manage this application.
+
+And next comes the important thing.
+
+So here we have something called project as default.
+
+And in the source we have something called repo URL.
+
+So here the GitHub repo where your helm chart lives.
+
+We have provided that complete path.
+
+And we also provided the branch name okay.
+
+So the target revision where that branch actually present and also where the helm chart custom value
+
+values UI dot YAML is present.
+
+That path in source UI chart there that is present.
+
+And we have also said that what is the values file name we are saying helm values file and values ui
+
+dot YAML.
+
+So this tells Argo CD which values file to use when rendering the helm chart, so you are overriding
+
+default values.
+
+Defaults in values dot YAML with x specific settings in this values ui dot YAML file.
+
+So if we go to our our AWS DevOps GitHub actions ECR Argo CD three in the source in the UI, in the
+
+chart you have the values UI, dot, YAML.
+
+And here this is the tag it will take.
+
+And this is the repository it will take.
+
+So in your case right.
+
+So in your case this repository you need to update it your values UI dot YAML file.
+
+You need to update with your repository ID here okay.
+
+So then only it is going to work.
+
+So I'm going to also add a note in the previous section.
+
+Also I forgot about this to tell you you need to update in your values YAML your repository ID here
+
+okay right.
+
+So this is my account ID.
+
+So this is the complete URL of my ECR repository.
+
+And now let's come back to the YAML manifest which we are discussing.
+
+Right.
+
+So values file you have provided.
+
+And you have something called destination.
+
+This tells Argo CD where to deploy the app.
+
+Okay.
+
+So you are saying Kubernetes dot default dot svc and in the default namespace.
+
+So in server when you say Kubernetes dot default dot svc, which means you are telling that where the
+
+Argo CD is hosted.
+
+So in the same EKS cluster you deploy it, you are saying that's the thing and in which namespace.
+
+In the default namespace you deploy this application.
+
+So what you get from here okay.
+
+Right.
+
+And you also have something called sync policy.
+
+And you said that in sync policy automated enables automatic sync on any git change okay.
+
+So when a change happens to this file right?
+
+When this Argo CD is pulling your GitHub repository every three minutes, if it finds that there is
+
+a change in this file, then it will automatically try to sync those changes.
+
+And we also have something called prune equal to true.
+
+So it deletes old resources no longer defined in git.
+
+That's a very important thing.
+
+It will try to put everything in sync.
+
+And one more important setting we have added which is self-heal which restores the drift.
+
+If someone manually edits the app in the cluster.
+
+So your UI app someone went in and updated something.
+
+Okay, so something there they have updated inside that okay.
+
+So then Argo CD will find it as a drift.
+
+Some change happened there and then it will try to whatever the manual edits you have done right.
+
+So manual edits you have done, it will go ahead and then overwrite those things.
+
+It restores to the original condition, whatever is present in values UI, dot, YAML and also in sync
+
+options we have provided create namespace true.
+
+So if you don't have the default namespace, it is going to create it okay.
+
+But in our case it is default namespace.
+
+It always exists.
+
+We know we don't need this, but example like in future instead of default namespace you are using some
+
+retail apps namespace.
+
+Then if that namespace is not present, this option will go ahead and then create that namespace.
+
+So this manifest makes your app fully git driven and self-healing.
+
+So you control deployments via git commits.
+
+So Argocd ensures what's in git is always what's in the ECS cluster.
+
+So that's the key thing to remember.
+
+So in our next lecture we'll go ahead and then deploy it and then verify it.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Now let's go ahead and then deploy our application UI manifest and then access it via browser and then
+
+verify the stuff.
+
+Okay.
+
+So now we will go back here to our terminal and we will go to.
+
+So we will go here right.
+
+This is okay.
+
+Now we'll go to the section 21.
+
+And in that 20 103 and we have the Argo CD manifest here.
+
+Right.
+
+And we'll say cube CTL apply hyphen f and then Argo CD manifest application UI dot YAML.
+
+Okay.
+
+So let's wait for it to get deployed.
+
+It is deployed.
+
+Now we will go back to the thing here in applications.
+
+Right.
+
+And let's see, it is in progress.
+
+Okay.
+
+So it is currently getting deployed.
+
+So let's wait for it to get deployed.
+
+So if we see here cube CTL get pods also get pods also right.
+
+And UI pod is currently in the pending state.
+
+This is because we know that it need to provision the carpenter nodes right.
+
+So node claims and 82 medium spot carpenter node is provisioned.
+
+When I run the cube CTL get pods it will take a little bit of time.
+
+So let's wait for the node to get ready get nodes.
+
+And now the node is ready.
+
+Now if I run the get pods here.
+
+Now the container is getting created.
+
+So if I say cube CTL describe pod.
+
+And if I provide the let me say clear and cube CTL get pots and cube CTL describe pod.
+
+And if I copy this pod and then see the things here.
+
+Right.
+
+So it is trying to get the image with nine 6066 D7B.
+
+That is the image it is trying to get.
+
+Okay.
+
+Now we will go here and then go to Elastic Container Registry.
+
+So this is the 19DED7B.
+
+This is the one it try to get and then create it.
+
+It created the container.
+
+And the pod is also getting ready.
+
+It will run shortly.
+
+So let's wait for it.
+
+So it might even fail.
+
+Also we really don't need to worry.
+
+Why?
+
+Because other things are not present, right?
+
+So means like uh uh, we have uh, other services also not present, so it might even fail.
+
+So if we will say log siphon F, and this is the part we really don't need to worry about what is happening
+
+with the application here, whether it is deployed or not is the key thing.
+
+So let's wait for it, okay.
+
+We can see it is in the running status okay.
+
+Now let's go back here.
+
+Right.
+
+And now we will argue.
+
+We have seen that we will go here to the console Argo CD console first.
+
+Right.
+
+And if we try to go to here and then applications and refresh, it is saying it is healthy and it is
+
+deployed.
+
+So it has deployed the Configmap, it has deployed the service, it has deployed the service account,
+
+it has deployed the Kubernetes deployment and its replica set and its pod.
+
+You can see and its HPA it has deployed and its ingress service it has deployed.
+
+So this is the complete UI service it has deployed.
+
+So the purpose of this section is only till here.
+
+In our next demo, we will focus on integrating other services with this UI, which means cards, catalog
+
+checkout and also orders and we will make the change means like we'll make the changes to our application
+
+code for our UI code like VAT 01802803.
+
+And those changes are sinking here.
+
+And then our application is getting a continuous deployment is working or not using Argo CD.
+
+All those things we are going to verify in our next demo.
+
+So in this demo the focus is on understanding the application YAML file for Argo CD and deploying it
+
+and whether application is up or not.
+
+And then all things are deployed using Argo CD or not.
+
+And we have tested it and it is working.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+We are entering into the section 20 104 where we are going to test the complete CI, CD, full flow.
+
+So which means whatever we have implemented here.
+
+Right.
+
+The complete GitOps pipeline okay so DevOps ci CD.
+
+So the entire thing we are going to test now.
+
+So this should pass and even this should pass and we should see the output here okay.
+
+Now let's go back here and enter into the demo.
+
+So the first thing here is we need to deploy the other services right.
+
+So which is catalog cart checkout and then orders.
+
+So if you want to deploy without secrets manager you need to use zero three script.
+
+And if you want to use with Secrets manager you want to use zero five script okay.
+
+But now let's go here and then review them once okay.
+
+Let me close these things.
+
+And now we will go here and here in 20 104 right in we have the low cost retail store helm values.
+
+And in zero three and zero five UI will be commented out.
+
+So you can see here UI is we are not deploying UI service here okay.
+
+We are saying UI service will be deployed using Argo CD and even for zero five.
+
+Also if you go down here, right.
+
+So UI service will be deployed using Argo CD and that UI related values ui, YAML.
+
+Also we said not needed.
+
+We need only cart catalog checkout and then orders here.
+
+Okay, when you are deploying this low cost retail store, helm Values means like other services you
+
+are deploying now already UI is deployed using Argo CD.
+
+So now let's come back here and come out of this.
+
+Go to 20 104 and go to low cost retail store Helm Values.
+
+And here we will use zero five.
+
+So mine is I.
+
+We already have the secret manager set up.
+
+Everything is working.
+
+So I'll try to use the full flow here.
+
+Right.
+
+So now this should install the catalog checkout orders and cart.
+
+Okay so these are the things it is going to install.
+
+Now it is installing the catalog service.
+
+After that it will install the next microservice.
+
+We can see here it is installing the cart service now.
+
+So let's wait for it.
+
+After that it should also install the checkout and orders.
+
+So order service is completed and after order service nothing is installed here okay.
+
+Right.
+
+So it said that UI service will be deployed using Argo CD and then rest all.
+
+It is showing all the things after installation.
+
+Okay so now if you say cube CTL get pods right.
+
+Let's see what all are present currently okay.
+
+Right.
+
+And if they are running so all the things are running.
+
+I'll try to get this on the top cube CTL get parts, cards.
+
+Everything is running.
+
+So we'll say cube CTL get ingress right.
+
+And then here we will try to access this address right.
+
+So we'll access this address via browser.
+
+So let's come back here and access it via browser.
+
+So here you can see it is in the Sync'ed state okay.
+
+So so far UI is good with our GitHub repository.
+
+And it is saying V802 as the thing.
+
+And we if we want we can also run the topology also topology right.
+
+And you can see all are healthy here.
+
+Cart checkout orders everything.
+
+And we are getting V802.
+
+So what we will do is we will do a full use case now okay.
+
+So we'll go down here and go to that directory git pull update with some V904 or something and then
+
+test the entire use case now.
+
+So let's come back here.
+
+Right.
+
+So this is where this is the AWS DevOps GitHub ECR Argo CD.
+
+So I'll say git pull first okay.
+
+To sync with my local repo right.
+
+Let it pull the latest changes.
+
+No no changes.
+
+It is good.
+
+So now I will say update and I will say V904.
+
+Currently what you are seeing here V802 is the version which is deployed UI version.
+
+Okay I will say V904 right.
+
+And now I will say git push and then V904 commit.
+
+Okay so this is the one we are pushing it okay.
+
+Now we will go to the repository here.
+
+This is the actions right.
+
+Argo CD three and V904.
+
+Commit is currently running and once it is run then we are going to get the new image here.
+
+And that image should be deployed.
+
+Means like this.
+
+Argo CD will try to poll our poll, our GitHub repository and then deploy the latest version.
+
+Okay.
+
+Right.
+
+So let's wait for all those things.
+
+We will try to open this.
+
+And currently if you see here the commit code is 967 B.
+
+At the end you can see it is the seven B is the current thing which is Sync'd okay.
+
+Now let's see what happens after this okay.
+
+So after these changes.
+
+So let's wait for it.
+
+Build and push is currently running.
+
+So let's wait for it.
+
+You can see here build and push is completed for v9 zero for commit.
+
+Now if we go to our Elastic Container Registry we should have a new one here earlier.
+
+It is with seven b.
+
+Now it is one okay.
+
+And here we are at our applications.
+
+And currently there are no changes.
+
+Let's wait for it okay.
+
+So this is still seven B so it might take three three minutes.
+
+Is the poll interval.
+
+So let's wait for it okay.
+
+So we can see here that sync is happening now.
+
+And it is progressing.
+
+So you can see everything is rotating.
+
+A new replica set is created and new pod is getting created here.
+
+Okay.
+
+So currently we have only one pod.
+
+Because of that we are seeing uh we'll see a application downtime.
+
+But if we have multiple parts then automatically it will roll out one after the other.
+
+So we can see here a new replica set is created.
+
+And here the new pod is also up and running.
+
+Okay.
+
+And now if I go to applications here and try to open the UI again right.
+
+So here it will load and the E is the tag.
+
+You can see that is the latest tag.
+
+And now when we access our application it should be V V904.
+
+Okay, so it is taking a little bit of time here.
+
+Uh, once the application is up, we can access it.
+
+So we'll run the command cube CTL get pods here.
+
+Right.
+
+So let's wait for it.
+
+Cube CTL get pods.
+
+And if our pod is up and running it is getting created.
+
+For some reason all other things are also getting created.
+
+Maybe because of uh, this node claims maybe the spark node pool has been reclaimed or some issue with
+
+that.
+
+Okay, so a new node pool, a new spot node is created and things are getting, uh, changed on all
+
+those things.
+
+That's fine.
+
+This is Carpenter related thing.
+
+So let's wait for it okay.
+
+So get pods.
+
+And again it came to the one node itself.
+
+And we are waiting for all these things to come online.
+
+Just wait for it okay.
+
+So our all ports are up and running now.
+
+We'll try to access our application.
+
+And it should be 904 now.
+
+So it is good.
+
+Okay.
+
+So if we want we can also verify that topology also.
+
+And everything is up and running.
+
+And we got the V904.
+
+So the latest whatever one e related uh Docker image got deployed successfully.
+
+So which means we have successfully tested the end to end flow from here to this whole flow is tested.
+
+And here we have seen the V904 output.
+
+And if we want to roll back also we can do that.
+
+So we can click on history and rollback.
+
+And then currently this is the one running one e if you want to go to the previous version.
+
+So you can see 904 is the current version right.
+
+And if you want to go to the previous version you can select that version okay.
+
+Rollback okay.
+
+Roll back to this version.
+
+Auto sync needs to be disabled in order for rollback to occur.
+
+Are you sure you want to disable auto sync and rollback application UI.
+
+Okay.
+
+So you can click on rollback.
+
+And then we can click on okay to roll back.
+
+But why it is asking for auto sync need to be disabled is because every three minutes it is going to
+
+check your GitHub repository.
+
+And then it will again override it back.
+
+So for that purpose auto sync need to be disabled.
+
+So we are not going to anyway rollback this.
+
+But just trying to show you the features here.
+
+Let's go ahead and then do one more version which is V905.
+
+So we'll go here and then we will go here right.
+
+And we'll say git pull right.
+
+So git pull origin main we can do.
+
+But what we will do is we'll run the command git pull dot s.h.
+
+Right.
+
+And we will update the thing with V905.
+
+Or we will just say V505 something like this okay.
+
+Update the UI home dot HTML.
+
+In addition to that, we will also make one more change.
+
+So what is that change?
+
+So we'll go to this Argo CD and then we'll go to the source and we'll go to the UI and we'll go to the
+
+chart and we'll go to the values UI, dot, YAML.
+
+And we'll go down here.
+
+And there are nothing related to HPA should be configured here.
+
+Right.
+
+So auto scaling right.
+
+So I'm saying minimum replicas as three replicas here okay.
+
+So instead of one we are saying three replicas.
+
+So even our instead of one we just made it to three.
+
+Let's see what happens okay.
+
+Now if I say git status in addition to home dot HTML, your values ui dot YAML also change it.
+
+Now I will say git push and V505 is the change V505.
+
+Commit is the change we are doing.
+
+So let's see what happens now.
+
+Okay.
+
+So we have pushed it.
+
+And let's wait for the commit to happen here.
+
+So now if we see here and V505 commit is running currently.
+
+So let's wait for it to get completed.
+
+So this build is successful.
+
+Now we will go here to Elastic Container Registry.
+
+And we have a new thing which is 79 ending with.
+
+So now soon this will be deployed here.
+
+So it will sync that here.
+
+So let's see what happens okay.
+
+Right.
+
+So V505 commit is currently uh progressing here.
+
+Let's see what happens okay.
+
+So it is deploying three parts for us here.
+
+So it deployed three parts for us here.
+
+We will also run the command cube CTL get pods.
+
+And we should see three pods running here.
+
+And in addition to that if we want we can also verify the topology.
+
+And I am refreshing it.
+
+Catalog healthy carts checkout orders.
+
+Everything is healthy here and we will try to access our application and we should see.
+
+VV90 for only coming because application is currently going to only.
+
+It means like these are two minutes and then two minutes.
+
+And this is 95 seconds.
+
+So let's wait for it okay.
+
+So what happens.
+
+So we are getting V904 because first it increases the number of parts from 1 to 3 in the V904 release
+
+only.
+
+And now it is.
+
+It has moved two parts here for V9V505 release right now.
+
+Okay.
+
+So I am just I tried this approach to see that kubectl rollout restart one after the other part is getting
+
+upgraded or not, just to test.
+
+I have tried it and it is working okay.
+
+So currently two parts are active with the older release and new two parts are getting created here
+
+with the latest release.
+
+Once these are ready, then these will be terminated.
+
+And one part.
+
+The third part will get created under the new release.
+
+Okay.
+
+So that's what it is happening.
+
+So let's wait for it.
+
+See, now these are getting terminated.
+
+And then, uh, all the things are coming online on new release.
+
+So whatever.
+
+I felt it should work as expected.
+
+That is working in the same line.
+
+And you can see the image tag is 79.
+
+Currently these are using.
+
+And that is the same thing.
+
+The latest is 79 ending with okay.
+
+And now if we try to refresh let's see one more time refresh and see V505.
+
+It is working as expected.
+
+So this completes the demo about DevOps, CI, CD, GitOps pipeline, continuous integration and continuous
+
+deployment.
+
+In our next lecture, we'll go ahead and then clean up whatever we have created.
+
+
+We can see here, whatever the helm changes, we have done.
+
+Right.
+
+So from three parts to one part it is taken care now automatically.
+
+Okay.
+
+So value siphon UI dot YAML will be continuously monitored by this Argo CD.
+
+So you really don't need any new build here okay.
+
+So if there is any change in the value siphon UI dot YAML either it might be a application tag.
+
+So if you go to this values ui dot YAML file right.
+
+So let me go to the source and UI and source and then a chart.
+
+And then here okay.
+
+So not only this change.
+
+So not only the tag change if any change happens to your other things okay.
+
+So this one I changed it from 3 to 1.
+
+Those changes automatically reflected in our Argo CD.
+
+Argo CD keeps tracking your values UI dot YAML.
+
+Now only one pod is currently running.
+
+Now let's go ahead and then clean up our UI application first.
+
+So we'll click on delete and please type UI to confirm the deletion UI.
+
+And we'll select the foreground.
+
+And then go ahead and then click on okay.
+
+Okay.
+
+So if you select non cascading which means only we'll delete the application but not cascade.
+
+Delete its resources.
+
+Which means when you select non cascading it will delete only the application in Argo CD.
+
+But it will not delete the UI resources, its deployment ingress service.
+
+All those things will not get deleted.
+
+So now foreground means cascade.
+
+Delete the application's resources using foreground propagation policy.
+
+So we'll use this.
+
+So which means all the resources will also get deleted okay.
+
+So once this is deleted we'll go ahead and then review those things whether those were deleted or not.
+
+And after that we'll also remove other stuff which is other microservices catalog checkout all those
+
+things.
+
+Also we are going to delete.
+
+Now you can see here application UI is deleted.
+
+Now let's come back here and verify cube CTL get pods and you should see only the UI thing is deleted.
+
+And if you want you can also verify ingress and egress service also gone.
+
+That is the main important thing.
+
+If we leave it then it costs a lot for us right.
+
+So for that purpose now we will go ahead and then uninstall.
+
+So we are in this location in 20 104 ci CD full flow test.
+
+Right.
+
+So let me clear present working directory here.
+
+And I will say zero one uninstall retail apps.
+
+So this should also uninstall the order service catalog service checkout service and card service.
+
+So with this application installation will be gone.
+
+Then next is you need to also uninstall your data plane.
+
+After that your ECS cluster will also do those things now so we can see all our application things are
+
+deleted.
+
+So retail store application.
+
+So if I say get parts nothing should be running.
+
+And our carpenter node also should be cleaned up slowly.
+
+Okay.
+
+Get node claims and it will be gone very slowly.
+
+It will go away.
+
+Now the next thing is we'll come out of these things right.
+
+And we'll go to 20 observability opentelemetry and we'll go to 21, zero 1 to 20 zero one and X environment.
+
+And inside that we'll go to zero to retail store app environment.
+
+And we'll go to zero one retail store AWS data plane.
+
+And here we will delete the AWS data plane.
+
+Once the AWS data plane is deleted then we will delete the EKS cluster resources.
+
+So our data plane is deleted successfully.
+
+Now we'll come out of this and we are in 20 01X environment with a dot.
+
+And here we will go to 01X cluster environment.
+
+And we will clean up the cluster whatever we have created.
+
+So all the five projects Opentelemetry Terraform, manifest, Karpenter, K test, manifest Karpenter,
+
+Terraform, manifest X and VPC.
+
+Everything will be destroyed in the reverse order.
+
+So let's wait for all these things to get deleted.
+
+We can see here our entire cluster related resources.
+
+All the things got deleted successfully.
+
+So one thing pending is we can go here and we can find here.
+
+Right.
+
+So these are the things which we need to delete okay.
+
+So I'll delete all these things.
+
+And I'll also delete this retail store related repository also.
+
+So let me clean up this one also.
+
+This completes the clean up process.
+
+

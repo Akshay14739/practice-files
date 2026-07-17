@@ -1,0 +1,2786 @@
+Welcome back.
+
+In this section, which is section 19, we are going to focus on updating our helm charts to point to
+
+our AWS data plane, which means our catalog microservice will point to AWS, RDS, and charts.
+
+Microservice will point to AWS DynamoDB and checkout.
+
+Microservice will point to ElastiCache.
+
+So like this.
+
+Orders will point to AWS, RDS, and SQS and all these things.
+
+We are going to use our custom values and do that.
+
+So far this demo which is with retail store application with AWS data Plane, we have used K8S YAML
+
+files to do that.
+
+And now we are going to change that and use the helm charts for the same thing.
+
+So if you remember right.
+
+So as part of section 12 so we have learned the helm basics and Helm custom values.
+
+Helm explore the charts and how to package and publish all these things we have learned.
+
+And in addition to that, as part of 12 zero five Helm Retail Store.
+
+So we have implemented or used the helm charts to deploy our retail store application.
+
+But here all the data plane components, which means our, uh, what we call it like, uh, MySQL database
+
+or PostgreSQL database or DynamoDB, right.
+
+Or even the messaging everything.
+
+So all these things are directly self-hosted on our EKS cluster.
+
+So which means our my just MySQL database you have created in EKS cluster, Postgres.
+
+Also you have created an EKS cluster DynamoDB table.
+
+Also, you have created an ECS cluster.
+
+So as part of this demo, it is like a self-hosted data plane on ECS cluster.
+
+We can say, right?
+
+So now when we are using the helm charts.
+
+So now what we are doing is we are trying to change that.
+
+Our helm charts for catalog helm chart, we will have the custom values which will point to this RDS
+
+database and for cards microservice.
+
+Also we will have custom values wherein we will in that custom values, we will ensure that we will
+
+point to the DynamoDB.
+
+Same for checkout and then orders.
+
+So that's what we are going to implement.
+
+So till section 18 we have learned lots of concepts like AWS Secrets Manager.
+
+And then we have also learned about node auto scaling with Carpenter.
+
+And with section 18 we learned about pod auto scaling with horizontal pod auto scaler.
+
+And as part of that we have learned about topology, spread constraints, pod disruption, budgets.
+
+All these things we have implemented till section 18, even the external DNS ingress and even AWS data
+
+plane.
+
+In this section 19 we are going to focus on helm completely, right.
+
+So which means our catalog microservice are cart checkout all these microservices.
+
+So whatever we are seeing here will be deployed using helm.
+
+So that's what we are going to do.
+
+So during this process right.
+
+So if we want to implement this we need to make some changes to our helm charts.
+
+So what we are going to do is so first thing is we will download the helm charts, whatever AWS has
+
+published for this retail store application.
+
+Right.
+
+And then we will change them to the need how we need it, which means, uh, to point to our data plane
+
+services.
+
+AWS data plane services like MySQL, PostgreSQL and AWS SQL.
+
+So if any changes needed in those helm charts, we will make those changes.
+
+So we can say this as pointing to data plane.
+
+So whatever the changes needed we are going to do that.
+
+So we can call this as a simple helm chart development okay.
+
+Means like changes okay.
+
+So only changes not building from scratch.
+
+So we'll point to a data plane which is AWS data plane.
+
+So now when we do that right.
+
+So these helm charts we are making the changes.
+
+Then what we will do is we will package them using V 1.0.0 version and also publish them to GitHub helm
+
+GitHub helm charts repository okay.
+
+So all these things.
+
+So this is v 1.0.0, which means pointing to the data plane, which is the v 1.0.0.
+
+And next thing we will focus on is.
+
+We also know that these helm charts currently doesn't support the secrets manager okay.
+
+Secrets manager is not supported for these helm charts.
+
+What exactly that means is we have something called secret provider class.
+
+Okay, so this class related helm template is not present.
+
+Okay.
+
+So this helm template is currently not present in which services it is not present.
+
+So this secrets manager for which services we are using currently.
+
+So if you remember we are using this for our catalog microservice.
+
+And also we are using this for orders microservice.
+
+Right.
+
+So wherein this need to connect to RDS, MySQL.
+
+Right.
+
+And this need to connect to RDS, PostgreSQL.
+
+Right.
+
+And it needs the secrets here okay.
+
+So it needs the secrets here.
+
+And that secrets right.
+
+So we are getting it from the secrets manager to connect to these databases.
+
+Right.
+
+So now these current helm charts doesn't support that.
+
+Whatever we have downloaded from the internet for this application means like retail store, AWS, whatever
+
+they have provided, it doesn't support it.
+
+So what we will do is as part of V 2.0.0 for catalog and also for orders.
+
+So for these two services we'll have the 2.0.0 helm chart version also okay.
+
+Helm chart version.
+
+So as part of this.
+
+So we will ensure that this secret manager will be supported using helm charts also.
+
+So we have tested this whole flow with with secrets manager using k test YAML in our previous demos.
+
+Even our recent HPA demo also has end to end all features.
+
+Whatever we are talking about external DNS ingress data plane.
+
+All these features including secret.
+
+This secrets manager also is present.
+
+Now we are trying to get the equivalents using helm charts.
+
+So that's what we are going to do now.
+
+Okay, so with v 1.0.0 we will ensure that we will hardcode the username and password of our databases
+
+in those values.
+
+Dot values hyphen catalog dot YAML and values hyphen orders dot YAML files okay.
+
+So there we will hardcode those things.
+
+Okay.
+
+In V 1.0.0 versions.
+
+Okay.
+
+But in V 2.0.0 we will ensure that it is.
+
+The secrets were brought from our AWS Secrets manager.
+
+So that's what we are going to do.
+
+So this is the overall demo.
+
+Which means when we deploy V 1.0.0 or v 2.0.0, or our entire application should be working, which
+
+means we can access our retail store application and add to cart, right?
+
+And then checkout and place the order.
+
+So all these things should be working with either this version or this version.
+
+So all these things we are going to do in our upcoming lectures.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+Let's go to the section 19 wherein we are going to implement helm charts, which will deploy the retail
+
+store application.
+
+And this retail store application will be pointing to the AWS data plane.
+
+Right.
+
+So as part of introductory section, we have already learned about all these architecture diagrams.
+
+And now we are going to focus on environment setup wherein we are going to first review the folder structure
+
+for this respective section.
+
+Right.
+
+So let's understand that in detail.
+
+So in this 19 helm retail store AWS data plane.
+
+So we have 0102 and then 033 things okay.
+
+So zero one is you have the EKS cluster environment and zero two is retail store AWS data plane.
+
+and zero three years.
+
+Retail store.
+
+Helm.
+
+Helm with AWS data plane.
+
+Which means you are going to have the helm charts here.
+
+Okay, so helm charts related things we are going to have in this zero three section, which is completely
+
+related to helm.
+
+And zero two is completely related to your AWS data plane for your retail store application.
+
+And zero one is your Ex cluster related things.
+
+So in zero one EKS cluster you have your uh, zero one VPC terraform manifest zero to ex terraform manifest
+
+zero three karpenter terraform manifest and karpenter K8S manifest.
+
+And now you can always go into this VPC project and first create the VPC.
+
+Then you can go into Terraform EKS project and then run the Terraform init validate plan apply to create
+
+the second one, and then you can go inside this Karpenter project zero three Karpenter terraform manifest
+
+and run the command terraform init plan, validate and then apply.
+
+And finally you can go inside this zero four and run the kubectl apply for creating the EC2 node class
+
+pod node pool and on demand node pool.
+
+So that is one way going manually and doing it.
+
+But what I have done is I have created these two scripts to create and to destroy.
+
+So you can go to this section in 19 helm retail store AWS data plane.
+
+And inside that you will go to zero one EKS cluster environment and run this script so that it will
+
+first go ahead and then create the VPC.
+
+Then it will go ahead and then create the EKS cluster means like whatever we are running here manually.
+
+So it is going to run one after the other.
+
+After that it will go to this terraform manifest carpenter and create the carpenter related configs.
+
+And after that it will also go ahead and then deploy this Kubernetes manifests related to Carpenter.
+
+So very basic script straight through commands.
+
+Nothing complicated is there.
+
+Or I didn't put any super complex checks in it are some big if else loops and everything.
+
+Check everything.
+
+It's not like that.
+
+Very simple.
+
+Straight through whatever you are implementing here uh, using uh uh, using whatever you are implementing
+
+here, uh, using uh commands, we are going to do that using this script.
+
+Okay.
+
+So we can run that, that is first thing.
+
+And in the same way, after the EKS cluster is ready, you will go and then create the retail store
+
+AWS data plane.
+
+So this data plane also need the VPC information.
+
+So which means this whole project is ready so that we can easily use this.
+
+We can run the second project.
+
+Okay.
+
+So here you can go inside this zero one AWS data plane Terraform manifest and run Terraform init validate
+
+plan apply auto approve.
+
+Right.
+
+But or you can directly run this create AWS data plane script.
+
+Anything is fine.
+
+So now let's first complete these two things okay.
+
+So this and this let's complete now.
+
+Later we will go to the actual helm part okay.
+
+Right.
+
+So now we will go to our section.
+
+We'll come we'll go here.
+
+We'll go here right.
+
+So we are in DevOps real world project implementation on AWS.
+
+And we'll go to section 19 Helm Restore retail store AWS data plane.
+
+And we'll go to zero one EKS cluster environment.
+
+And here you can see create cluster with Carpenter.
+
+We need to run that.
+
+But in your case, right before running it.
+
+One important thing you need to take care.
+
+That is, you need to go to this VPC, Terraform manifest.
+
+And in C1 you need to update your S3 bucket name here.
+
+And in the same way you need to update here.
+
+Also your in your EKS cluster, also your S3 bucket.
+
+And here in the remote state.
+
+Also you need to update that and in Karpenter.
+
+Also in C1 versions you need to update and here in your VPC remote and EKS remote in these two places.
+
+Also, you need to update your S3 bucket where your Terraform state will be stored.
+
+Okay, so these are the important things you need to first perform before running the uh.
+
+Before running this create create cluster with Karpenter thing.
+
+Okay, so now I will go ahead and then run this command create cluster with Carpenter Dot and it will
+
+go ahead and then first run the Terraform init inside this zero one VPC folder.
+
+And after that it will run the Terraform plan.
+
+Apply auto approve like that.
+
+It will go ahead and then create all these things.
+
+So once this is completed then only we need to move to our next step which is creating our AWS data
+
+plane.
+
+So we have entered into the uh end of our important sections.
+
+Means like we are entering into the end of our course, which means, uh, all the things you need here,
+
+like you need to have the VPC, you need to have the EKS cluster, you need to have the add on secrets
+
+store, CSI driver or even carpenter and everything so that you can test end to end even in our, uh,
+
+final demos.
+
+Also, now we are learning about using the helm charts for deploying our retail store application in
+
+combination with AWS Data Plane.
+
+In our next demo, which is section 20, we will focus on observability means like for logs, traces
+
+and also for metrics for all three pillars of monitoring traces, metrics and logging.
+
+We are going to use the Opentelemetry.
+
+So there also we need the environment to be ready.
+
+So if we don't know how to have our environment set up or if we didn't, if we skip our previous demos,
+
+then it is difficult for us.
+
+Okay.
+
+And another important thing is when you go to your, uh, deploying your application also with the secrets
+
+manager, then you also need to ensure that in your AWS, right, your secrets manager is created.
+
+So if you go to the secrets manager here, your respective secret manager object is created or not.
+
+You need to verify retail DB secret one.
+
+So all these are very important things.
+
+Okay, now let's wait for this thing to get created.
+
+And after that we'll go ahead and also create the AWS data plane.
+
+We can see here VPC creation is completed.
+
+And then it moved to creating our EKS cluster.
+
+So this is the complete plan.
+
+So now it is creating the EKS cluster.
+
+So just to show you in this section 19 in 0 to x Terraform manifest with add ons.
+
+So we have added the file c18 eks add on metric server.
+
+So wherein it is also going to install the metric server as part of our zero to X project only.
+
+So we don't need any separate metric server Terraform manifest project.
+
+And there we need to install it okay.
+
+So it is going to go ahead and then install the metrics server add on in our EKS cluster as soon as
+
+our EKS node group is created.
+
+So it's a standard EKS add on.
+
+So whatever we have done for our previous EKS add ons, EBS, CSA, etc..
+
+So accordingly we have also done this for uh uh metric server also.
+
+So this doesn't need any specific IAM role or policies, just it need only the add on need to be installed.
+
+So directly.
+
+We are using the AWS EKS add on resource to install the metrics server, and we are using the latest
+
+version here okay so we can see metrics server latest dot version.
+
+So that's about installing the metric server as part of zero to x cluster Terraform manifests itself.
+
+So let's wait for the EKS cluster Karpenter related things get completed.
+
+We can see here private node group creation is completed and it's started installing external DNS add
+
+on and then metric server add on pod identity add on EBS, csi identity add on.
+
+So all these things are getting installed.
+
+Now we can see here all the successful uh I eks related things are completed, 38 resources added successfully.
+
+And then now it moved on to the next step which is installing the carpenter using Terraform.
+
+We can see here Carpenter project is successfully created and now it is applying the, uh kubeconfig
+
+related things.
+
+Okay.
+
+So which means it is, uh, creating the Carpenter EC2 node class and Carpenter on demand node pool
+
+and Carpenter spot node pool.
+
+So this script successfully created the VPC X.
+
+And then it also installed the Carpenter related things using Terraform.
+
+It also configured the Kubeconfig and it also created the EC2 node class on demand node pool and then
+
+spot node pool.
+
+So if you run the command kubectl get pods or get nodes.
+
+So already a kubeconfig is configured.
+
+So you should see your nodes running here.
+
+Now we have successfully completed the project one.
+
+So this part is completed.
+
+Now we'll go ahead and then also create the data plane part which is our zero two project.
+
+So we'll come back to our terminal here.
+
+Come out of zero one EKS cluster environment and we'll go to zero to retail store AWS data plane.
+
+And here you have the create AWS Data plane script which is nothing.
+
+But it will go inside this zero one AWS data plane Terraform manifest folder and run the terraform init
+
+and Terraform apply auto approve.
+
+So let's also go ahead and then create the AWS data plane.
+
+Now we can see here our retail store application related AWS data plane also created successfully.
+
+All these are our endpoints which are needed when we are constructing our helm custom values to point
+
+our microservices to these data plane related resources.
+
+So now we have our EKS cluster ready.
+
+And also our data plane is created.
+
+Now in our next series of lectures, we need to focus on creating the helm charts or modify those helm
+
+charts to support two point to these respective data plane related resources.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+So we have successfully completed the ECS cluster environment and AWS data plane.
+
+Now we are at this helm part.
+
+And in this if you see in zero one we will have the charts source code.
+
+And in zero two we will have the values helm custom values.
+
+So these are the things present.
+
+So this is the important thing we need to focus on actually.
+
+Which means like if you have these custom values with you and if you update these custom values with
+
+your equivalent MySQL or Postgres SQL.
+
+So those information your SQS related, uh, SQS related queue name or queue URL, whatever is required
+
+and all those information then.
+
+And when you deploy your application with these custom values, then automatically it will be pointing
+
+to your AWS data plane.
+
+So this chart source whatever provided in zero one.
+
+So in zero one is just for reference only.
+
+We are not going to use anything from that.
+
+Our helm charts are successfully packaged by this source and push it to our GitHub repository.
+
+So we have we have a helm charts repository in GitHub under Stack Simplify.
+
+And there all the source is packaged and pushed already.
+
+So we are going to download directly from our helm charts repository in GitHub.
+
+We don't need to use the source whatever is present inside this zero one.
+
+So this is just only for reference.
+
+So for this demo to work you need to focus on values present in zero, two.
+
+And in this lecture particularly, we are going to just review in zero one what all changes we have
+
+done as part of V 1.0.0 related helm chart changes just for understanding only.
+
+Okay, right.
+
+So if you go back to our GitHub repository here and this is the helm charts repository in stack simplify
+
+slash helm hyphen charts.
+
+So you will find all the helm charts related to cart catalog.
+
+And then checkout and then orders and for orders and in UI also you can see for orders and then catalog.
+
+You are also going to have the 2.0 versions also catalog and orders, because we are also going to generate
+
+a helm chart or create a helm chart, which also supports AWS Secrets Manager secrets for securely connecting
+
+using those secrets to our RDS and PostgreSQL databases.
+
+So for that purpose 2.0 version of charts also present.
+
+So that's the reason you have two more charts.
+
+Catalog 2.0.0 and then orders.
+
+Also you will have 2.0.0.
+
+If you see this is the 2.0.0 chart okay.
+
+Now we will go back here and you can see step 0202 and 0203 data plane.
+
+All these things are completed.
+
+Now.
+
+Our focus is on helm charts V 1.0.0.
+
+So you can go here and review these files and then directly deploy them using this script okay.
+
+So instead of script you can also run helm install command and then use those custom values and then
+
+deploy it.
+
+Or you can run the script which will do the same thing.
+
+Okay.
+
+So there are five services which you want to deploy right.
+
+So for that purpose I have given this okay.
+
+But this we are going to do in our next lecture.
+
+For now our focus is on before going to zero to retail store values.
+
+Helm AWS Data plane and reviewing these custom values.
+
+We also need to understand what all changes we have done.
+
+Okay, so on a very high level for v 1.0.
+
+So let's go back to our Visual Studio Code here.
+
+And if you go to zero one retail store chart updates here okay.
+
+So in 19 helm retail store AWS data plane and in zero three retail store helm with data plane.
+
+Here you have the charts base charts V 1.0.0 and charts V 2.0.0.
+
+And this download and Untar helm charts will download create a charts base folder and download all the
+
+helm charts with the version, whatever we provide.
+
+Okay, as on today for this retail store application, which AWS provided.
+
+This is the latest version that we are version locking here and we are using that version.
+
+And under that version, whatever the charts are there for these applications from our public ECR repository
+
+of AWS.
+
+We have downloaded those charts and put them under here as charts underscore base.
+
+And in this mainly catalog are these things few are not working when we are pointing to our services
+
+means like they are not 100% built.
+
+These are just a demo charts which AWS has provided and a few.
+
+There are bugs inside them and they are not working all those things.
+
+So for our use case, our use case is very simple.
+
+We have created a AWS data plane and we need to point our retail store application using helm charts
+
+to our AWS data plane.
+
+So for that, what all changes are required.
+
+We have done that okay.
+
+So now let's go to charts V100.
+
+And we'll go to the catalog and in catalog chart.
+
+Right.
+
+So there are no changes related to catalog.
+
+It worked as expected okay.
+
+Means like in catalog we We don't need to make any changes.
+
+The base chart, whatever is there.
+
+It worked as is.
+
+Okay, so what we have done is we went to this chart and we went to the chart dot YAML and changed the
+
+version to 1.0.0 and then repackaged it and then put it here.
+
+See 1.0.0.
+
+You have already learned about helm packaging in 12 zero four.
+
+Okay.
+
+So in the same way using helm package command, we have packaged that with 1.0.0.
+
+So whatever we have changed here is we said the version is 1.0.0.
+
+These are going to be hosted on our, uh GitHub repository going forward.
+
+So for that purpose we are making them 1.0.0 base okay.
+
+And app version.
+
+We have given as 1.3.0 our application version, our retail store actual application version.
+
+We have made it as 1.3.0.
+
+Right now that's about catalog chart.
+
+No changes okay.
+
+but in the cart chart, if you go to the cart.
+
+Right.
+
+So here in the templates in the config map so you can see it here.
+
+Right.
+
+So here we have added the stuff okay.
+
+Right.
+
+DynamoDB endpoint.
+
+And here we are saying value dot DynamoDB dot create is true.
+
+Then in this if it will use the local DynamoDB right.
+
+If not in the else part, you have given the thing which is DynamoDB, which is in our US West two region.
+
+Okay.
+
+So for that purpose we have added this code logic.
+
+So if you see this is the you can see here, this is the changes we have done.
+
+If you compare it with the chart base of cart here templates and config map.
+
+See here.
+
+You don't have any uh this one okay.
+
+So you don't have else.
+
+And then you said DynamoDB create table and then it just said create table.
+
+That's all okay.
+
+But it doesn't have any.
+
+What is the endpoint information and region?
+
+All those things.
+
+It didn't provide those flexibility here.
+
+And we have provided that flexibility in the base chart.
+
+You don't see that.
+
+And in our thing we have provided that flexibility.
+
+So if you review these things in detail you can understand.
+
+But that's the key thing here okay.
+
+So card chart we have fixed it.
+
+And then uh check out we have left it as is.
+
+No changes.
+
+It worked as expected.
+
+And in the order chart also.
+
+Right.
+
+So if you go means like the card chart also our checkout chart, we will ensure that chart dot YAML
+
+will have 1.0.0 app version 130.
+
+And then we will package them.
+
+So it's standard okay.
+
+But when we go to the orders chart here right.
+
+So in the orders chart also if you go to the config map here here this is the orders config map which
+
+we have made the changes okay here if you say equivalent to RabbitMQ then take that information.
+
+But if a provider is SCS, then provide this information.
+
+This part is not present in the base chart.
+
+Okay, so if you go to the chart base and if you go to orders and if you go to the config map, see
+
+there is no SCS part here, only RabbitMQ part is there.
+
+And then PostgreSQL part is there.
+
+Okay, but there is no what we call uh SCS related information.
+
+So here we have specifically said that SCS related information if equivalence equal if values dot ab
+
+dot messaging provider is SCS then send then set this respective uh uh environment variable and get
+
+the queue name from the values values dot app, dot messaging, dot sqs, queue name.
+
+So these things we have done it accordingly okay.
+
+So that's about orders also.
+
+And in UI and these things as usual those are standard.
+
+And we didn't make any specific changes.
+
+We left it to defaults and we have packaged them.
+
+But all these, all these five charts, we ensured that their chart is changed.
+
+Chart version is 1.0.0 and app version is 1.3.0.
+
+And then we have packaged them.
+
+So that's about the changes related to 1.0.0.
+
+And when we go to 2.0.0 for both catalog and orders.
+
+So if you go to the templates, what we need for secure for AWS secrets Manager related thing to work,
+
+we need the secret provider class.
+
+So secret provider class related template is built here.
+
+Okay so here we said that if the persistence provider is MySQL and if you say use secret manager, if
+
+these two things are there then you create this secret provider class object okay.
+
+And then we have provided this secret provider class object.
+
+We already have it.
+
+Earlier we converted it into helm template.
+
+Okay.
+
+So in this language we have added accordingly.
+
+So we have added this for both catalog.
+
+And also we have added it for our orders.
+
+Okay.
+
+So you can see the orders here.
+
+And here you can see secret provider class.
+
+Okay.
+
+All the necessary changes we have done.
+
+So you can review all these things in detail later.
+
+But that's about it.
+
+Okay.
+
+So this is the chart source.
+
+Also I have provided here so that you can quickly review them or if you have any issues or if you are
+
+facing, then you can go to that respective source and then verify all these things okay.
+
+So that's about 1.0.0 version of charts and 2.0.0 version of charts.
+
+Okay.
+
+And in our next lecture we will go ahead and then deploy 1.0.0 charts and then test it.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+In previous lecture, we have understood about what all source code changes we have done for 1.0.0 and
+
+then 2.0.0.
+
+Now we will go ahead and then review whatever is present in zero to retail store values helm AWS data
+
+plane.
+
+So we'll review this values files and also review the script scripts on a high level.
+
+So and once we run the scripts whatever is related this zero three v1 zero zero install remote helm
+
+charts, then it is going to deploy our retail store application, which means catalog card checkouts,
+
+orders and UI.
+
+And these will be pointing to our AWS data plane.
+
+And it will also expose a our application UI application using ingress service.
+
+So we are going to verify everything now okay.
+
+So now first go ahead and then review these files okay.
+
+now let's go back here and then we will go to zero to retail store values helm AWS data plane.
+
+And we'll start with values hyphen catalog dot YAML.
+
+So here you have your image repository.
+
+So that is fine.
+
+Okay.
+
+We are also using the tag here.
+
+Right.
+
+And then we are saying MySQL create false okay.
+
+So we are not creating any uh local MySQL database in EKS cluster okay.
+
+We are using external aws, rds, mysql database.
+
+So we are saying app persistent provider is MySQL.
+
+And here end point here is the thing you need to provide.
+
+So you need to go to your respective application here right in zero to retail store AWS data plane output
+
+got printed.
+
+So you can always go to your section 19 helm retail store AWS data plane and inside that zero two retail
+
+store AWS data plane.
+
+Right.
+
+And here you can go inside these Terraform manifest and then run the Terraform output command if you
+
+want.
+
+Okay.
+
+So when we have run the AWS data plane I already got the endpoint information here.
+
+And my database endpoint is my DB three.
+
+So and so.
+
+So that one I have provided here and database name is catalog DB okay.
+
+So even that also we should have here uh we didn't output it, but it's the same thing which is coming
+
+from our previous demos also, which is catalog DB.
+
+And it is also going to create a Kubernetes secret whose name is catalog DB and username and password,
+
+whatever we have used when creating these things.
+
+Okay.
+
+When creating this RDS endpoints, which is my DB admin and DB 101, we are hard coding those information
+
+here.
+
+So what happens is when this helm chart is deployed, it is going to create a Kubernetes secret whose
+
+name is catalog hyphen DB.
+
+So that's the thing.
+
+And this secret information will be referenced if you go to the uh chart here and then charts 1.0.
+
+And then if you go to catalog and in templates.
+
+So if you go to your deployment template here, if you go right in uh containers and then here, if
+
+you see in environment from secret reference and you are saying values app persistent and then secret
+
+name, you are referencing your secret also here.
+
+So in your Kubernetes deployment.
+
+So whatever the secret you are creating here right.
+
+So this secret will be referenced in your deployment, which means your catalog service will be able
+
+to connect to your MySQL database.
+
+So that's the key thing.
+
+What which is present in AWS.
+
+Okay.
+
+So this is the RDS database.
+
+It is going to connect with this username and password.
+
+Okay.
+
+And now this is standard resource management.
+
+We have put it.
+
+And we have also tried to add the things which are related to what we have implemented earlier.
+
+Right.
+
+So if you go up here right so we have implemented topology spread constraints and pod disruption budgets.
+
+Okay.
+
+So using HPA right.
+
+So these three things whatever we are seeing here this one HPA topology spread constraints and pod disruption
+
+budgets.
+
+These things also we try to embed in this helm chart.
+
+So for that purpose you can see horizontal pod autoscaler.
+
+We are saying min replicas S3 max replicas as well target CPU utilization and target memory utilization.
+
+So this will go ahead and then create a HPA.
+
+So these charts also have HPA template HPA dot YAML.
+
+So here it is going to go ahead and then also create that HPA resource for us.
+
+So that's about HPA.
+
+And we are also going to use the node selector also here.
+
+So we are going to use on demand.
+
+Or if you want to use spot you can use spot.
+
+Okay.
+
+So it's our choice okay I am using on demand but it might cost write multiple VMs might get created
+
+here.
+
+Okay.
+
+So if you feel spot is relevant when you are testing it you can use spot.
+
+Okay.
+
+So we'll try and see if I can put a low cost one okay.
+
+So if you go to the observability Opentelemetry and here somewhere I have put it okay.
+
+So if I go here retail store app environment here see high cost retail store helm which means with the
+
+three main replicas.
+
+Max 12 replicas and I have also put low cost retail store helm, where it uses spot instances and only
+
+one replica.
+
+I really don't need to worry about all these features.
+
+So for learning purpose, all that is not needed, right?
+
+So we in these demos I have put the low cost.
+
+But here I we need to ensure that everything is working via helm right.
+
+So for that purpose, whatever we have tested using HPA in section 18.
+
+Right.
+
+So all things should work via even using helm, right.
+
+So for that purpose we will try to use the same configuration okay.
+
+So if you want you can reduce these things and this uh topology spread constraints also instead of schedule.
+
+Anyway here also you can put schedule anyway.
+
+Or you can even comment these things so that multiple VMs will not get uh, multiple VMs will not get
+
+created using Carpenter.
+
+Okay.
+
+So it's our choice.
+
+Okay.
+
+so now whatever we have seen in regular ML in section 18 one is HPA.
+
+It is present node selector for Karpenter which is present here.
+
+And topology spread constraints.
+
+Also we can see those are also present here.
+
+And in addition to that pod disruption budget also present here.
+
+So all these things are there okay.
+
+Either we can use in pod disruption budget mean available or max unavailable.
+
+Only one thing we can use.
+
+Other thing you need to put zero.
+
+So we are saying min available and at least two parts must remain available during any disruption.
+
+So as min available is to max available, we have put zero.
+
+If you plan to put max available then you need to put min available as zero only.
+
+At any point of time one can be used one setting.
+
+So that's the important thing.
+
+So we have covered uh pod disruption budget present in our helm chart.
+
+So if you go here you can see PDB dot YAML file is present okay.
+
+And then we have also seen a thing which is present and in our deployment here right.
+
+So here it is also going to add the topology spread constraints.
+
+Also whatever we define in our here okay.
+
+So whatever we define in our values dot YAML file values catalog dot YAML file.
+
+So so this is good.
+
+That's about catalog.
+
+In the same line we'll go to cart here.
+
+And we can see the cart cart related image.
+
+And here is the important thing.
+
+App persistent provider is DynamoDB DynamoDB table name is items create table false.
+
+Why?
+
+Because table we are already creating as part of AWS data plane right?
+
+So we'll create the table and you can see it here in our data plane AWS data plane.
+
+We will already create the table okay.
+
+So we don't need to create it at the runtime, so it's not a production grade setup.
+
+Also create table false and we will provide our DynamoDB endpoint in US West two location.
+
+Okay, now these things were added in our config map accordingly.
+
+So we have said right in our config map in zero one.
+
+In chart base 100, if we go to the cart and in the config map, you can see we have added these things
+
+value DynamoDB endpoint.
+
+And then you can see app DynamoDB endpoint exists.
+
+Then set that endpoint and if region exists set those region information also.
+
+So even your application might be in one region and your table might be in another region.
+
+Even that is supported here now.
+
+So we we already discussed this bug right in cart application.
+
+It is hard coded to one specific location.
+
+So accordingly we are using it okay.
+
+So that's about catalog.
+
+And then even the cart also.
+
+Okay, so this is the important thing to remember.
+
+Remaining resource management, auto scaling, karpenter, node selection, pod topology spread and
+
+pod disruption budget.
+
+Those are standard for all the services okay right now catalog is over in checkout.
+
+So you can see here image is standard.
+
+This is not an issue.
+
+But here app persistent provider is Redis.
+
+And you provide your Redis endpoint.
+
+So you can go to your terminal here.
+
+And you can find the checkout related Redis endpoint information and provide that information with including
+
+the port 6379 okay.
+
+Rest all.
+
+Again you have the memory resource management, auto scaling, karpenter, node selection, topology,
+
+spread constraints and pod disruption budgets.
+
+All those as is.
+
+Next is values orders okay.
+
+So in orders also this is our Docker image and this is the tag we are using, right?
+
+And now here PostgreSQL create false which means we are using the aws, RDS Postgres.
+
+So app persistence provider is Postgres.
+
+And you can get the endpoint here right.
+
+If you go to orders Postgres related endpoint.
+
+So this is the endpoint.
+
+And this is the database name.
+
+So you can see it here.
+
+And then in secret we are going to create the orders DB secret here as part of V 1.0.0.
+
+You can see my DB admin and then DB 101.
+
+Okay so that's about orders related persistent part.
+
+And in the messaging part we have defined provider is SQS.
+
+And in SQS queue name we have provided our queue name which is retail dev orders queue.
+
+So if you go to here SQS and SQS queue URL in this URL this is the part.
+
+Okay.
+
+So this is the one we have provided here.
+
+Q name we have provided.
+
+So that's about ADRs.
+
+And if you go to UI also you can see this is the image and theme we are using green.
+
+If you want we can also use different theme.
+
+Also it's our choice okay right.
+
+And end points standard whatever we have earlier right.
+
+So same thing.
+
+And this is the ingress service.
+
+So I am using external DNS here because external DNS also installed as part of EKS cluster.
+
+So I'm using mine.
+
+In your case you can change it whatever you want here your domain name here and then use it.
+
+Or if you are not using you don't have any, uh, domain registered in your AWS, uh, for related for
+
+this external DNS.
+
+Then you can even comment this respective external DNS annotation also.
+
+So standard resource management, auto scaling carpenter and topology spread constraints and pod disruption
+
+budgets.
+
+So all these things are as is.
+
+So we have reviewed all the five things.
+
+Now I will try to reduce these requests right.
+
+So request part in resource management to a little less so that the amount of VM's it creates and size
+
+might be lesser due to that.
+
+Okay, not very minimal, but I will try to reduce this memory from 512 to 256.
+
+For all these things I have changed them to 200 with 256 MB of memory for all the things now.
+
+Now let's also review one important thing which are these scripts okay.
+
+Right.
+
+So these things also we will review once okay.
+
+So 01020304 and then zero five.
+
+So this part we have already completed.
+
+So this is uninstalling all our things okay.
+
+So whatever the helm releases we have installed using these values.
+
+Right.
+
+So these two things will review little later okay.
+
+We'll put them aside.
+
+So remaining things we have already reviewed.
+
+Now this is just for uninstalling whatever the helm charts we have installed zero one okay.
+
+And the next is zero two which is install local helm charts of version V 1.0.0.
+
+So if you go here, right here, if you go here in our charts V 1.0.0, you have the helm charts here.
+
+So from our local source it will install.
+
+So this one okay.
+
+So this this one is not needed okay.
+
+So just for testing purposes I have put it here okay.
+
+Right.
+
+When you are developing something some feature for your helm charts.
+
+And if you want to test it quickly.
+
+So that will be helpful.
+
+Now this is the important 103V 1.0.0 remote helm charts.
+
+So this is the one which we are going to use now.
+
+Okay.
+
+And next one is again local helm for V 2.0.0, which means it will use this one.
+
+Okay v 2.0.0.
+
+Whatever the two charts is there those two charts remaining it will use from 1.0.0.
+
+So even this script is not needed for us.
+
+But when we talk about again 05V 2.0.0 and then remote.
+
+So this is the one.
+
+Again we need it okay.
+
+So this is for testing with Secrets manager AWS Secrets manager okay.
+
+Now currently we are testing only 03V 1.0.0 install remote helm charts dot.
+
+So let's go there and then review those scripts before deploying them okay.
+
+Right.
+
+So we will go here.
+
+And zero one uninstall the retail apps.
+
+So first it will uninstall uh UI.
+
+Then it will uninstall uh orders checkout cards catalog like this in the order it is going to uninstall
+
+for us.
+
+So that's about the uninstall script.
+
+Okay.
+
+But now our focus is on 03V 1.0.0 install remote helm charts.
+
+Okay.
+
+So this remote is the keyword here.
+
+So where are our helm charts.
+
+Present.
+
+It is present in our helm charts directory okay.
+
+So it means like this is our repo helm chart repo on GitHub.
+
+And there our helm charts are present okay.
+
+So this is the path.
+
+And here all our helm charts are present.
+
+And this is the location okay github.com slash tag simplify slash helm charts.
+
+And all my charts are present here.
+
+Retail store related charts okay.
+
+So those things we are going to use now.
+
+So we'll say helm repo add stack simplify as their local repository name in my local desktop.
+
+And this is the path I'm going to use.
+
+And I'll say helm repo update.
+
+And then I'll say helm upgrade, hyphen, hyphen install, and name of the respective helm release is
+
+catalog.
+
+And inside this helm repository.
+
+In this repository it is present.
+
+Its name is Retail Store sample Catalog chart and its version is 1.0.0.
+
+And we are using the custom values values hyphen catalog dot YAML.
+
+And we'll wait.
+
+And then and that wait timeout is also five minutes.
+
+Okay.
+
+And if it is successful it will say catalog service installed successfully in the same line we have
+
+for the CART service.
+
+Also install command helm upgrade install for checkout orders and then UI service.
+
+So that's all we have.
+
+Okay.
+
+So now what we are going to do is we'll go here and we'll go ahead and then deploy this and then verify
+
+everything in our next lecture.
+
+So I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Now let's go ahead and then deploy 1.0.0 charts and then verify.
+
+So before that, ensure that your information related to endpoints is updated here successfully.
+
+Mainly the catalog related endpoint information which is MySQL database RDS, MySQL and your Redis endpoint.
+
+Right.
+
+Your Redis endpoint and your, uh, PostgreSQL endpoint and your SQS queue name.
+
+So these information is updated or not.
+
+Uh verify accordingly.
+
+Now we will go back here and then run the command 03V100 install remote helm charts dot ssh okay.
+
+So we'll go to our terminal here and go to section 19.
+
+And inside that we'll go to zero three retail store helm with data plane.
+
+And inside that zero to retail store values.
+
+Helm.
+
+AWS Data plane okay.
+
+So we'll go there.
+
+And we have all the files here.
+
+And we'll say zero three.
+
+And it is going to go ahead and then add the helm repository and start deploying the catalog service.
+
+And after that it will also deploy other four services.
+
+So step one it is currently installing the catalog service.
+
+Let's wait for all these helm charts to be installed.
+
+So if you want we can also run the command helm list in another terminal to see the things if we want.
+
+We can also run the command cube CTL get node claims.
+
+Why?
+
+Because it is going to create the nodes for us which are on demand node pool.
+
+And it created one a, one b and then one c.
+
+So why.
+
+Because we have implemented the topology spread constraints also.
+
+So it need to create minimum three parts using HPA means like as per HPA three is the min and max is
+
+12.
+
+So three instances it has created 1 in 1 A, 1 in 1 B and 1 in 1 C.
+
+Okay.
+
+And then now if I run the command helm list and let's see the thing it is deployed.
+
+If I want I can also run the command cube CTL get pods and catalog is running.
+
+And we should see that we are waiting for the card service okay.
+
+So we'll run the command helm list now.
+
+And you can see it is in the pending install mode.
+
+And we'll also go ahead and then describe pod and then catalog.
+
+We can also review one pod description all the events at the end.
+
+So it has successfully pulled our uh image and then deployed it okay.
+
+Now the next thing is cube CTL logs hyphen f.
+
+And then you can review the logs here.
+
+Okay.
+
+And you can see it's trying to insert.
+
+But already the records are there.
+
+Create.
+
+So it's failing.
+
+That's fine.
+
+Okay.
+
+So usually when the catalog starts it usually does.
+
+The database migration means initial data.
+
+Whatever it it need to import it is going to import maybe all the three parts tried the same attempt.
+
+And then uh, one pod is succeeded and remaining two things again restarted.
+
+Okay.
+
+So that's fine okay.
+
+Right.
+
+So now we will say logs hyphen f.
+
+And then these are the new parts which is coming up now catalog.
+
+And they should be successful and it is successful.
+
+And we will also see other things also.
+
+Right.
+
+So they will stabilize okay.
+
+That's not an issue.
+
+So we'll wait for the second one.
+
+Even second one is good.
+
+And the third part we will verify.
+
+So this is the third part, which started two minutes before the other two just now restarted.
+
+Okay.
+
+So this is the one and all the things are good.
+
+So all three parts are running now for catalog.
+
+And now we will also see get pods and carts how it is doing.
+
+And the carts are also running okay.
+
+So cart parts are also running.
+
+So if you want we can also go and then see the logs for those things also.
+
+And we should see those also running without any issues okay.
+
+And if you want we can say get node claims and see how many nodes it has created okay.
+
+So currently these are the nodes getting created.
+
+And if you want we can also run the command cube CTL get nodes and all the nodes are getting created.
+
+And if you are not ready they will be ready.
+
+Now Karpenter is taking care of creating all these nodes and our application is slowly getting deployed.
+
+Card service is complete.
+
+Now it is moving to the checkout service.
+
+Okay, so cube CTL and get pods and let's wait for the checkout service to get deployed.
+
+Okay, so even the checkout service related containers are getting created now.
+
+Logs hyphen F and then checkout service right.
+
+So it's logs also.
+
+We'll check shortly.
+
+Containers are getting created and we can see it is good now.
+
+Okay cube CTL get pods and we should see catalog checkout and cards are good.
+
+And if we run the command helm list also now it is moving to the orders related helm release.
+
+It is pending install.
+
+Soon it will start creating the pods.
+
+Also means that those orders pods also will be scheduled shortly.
+
+One pod currently scheduled.
+
+You can see here.
+
+Still, the orders thing is getting created, so we'll run the command cube CTL get pods and two of
+
+the order spots are currently running.
+
+So we can go ahead and then review those logs.
+
+Also on a high level cube CTL logs hyphen F and orders pod is coming up now.
+
+And this is good okay.
+
+Right.
+
+And now we'll also run the command cube CTL get node claims.
+
+And we should see these are the nodes currently created on demand.
+
+And we'll also say q CTL get pods and we can see orders.
+
+Final pod is coming up online.
+
+After that it will cube CTL logs hyphen f.
+
+And after that it will move on to the UI service.
+
+Okay, so let's wait for these things to get created.
+
+Orders is successfully deployed and UI service is getting deployed now.
+
+So if we run the command cube CTL get pods, all the orders pods also should be up and running and UI
+
+are currently in the pending state.
+
+They are coming up online.
+
+So let me copy this and cube CTL logs hyphen f.
+
+And then this is the UI service okay.
+
+And it's coming up online.
+
+We can also run the command cube CTL get ingress and ingress service should be created now.
+
+And we can also say cube CTL get hyphen n and then external DNS maybe external hyphen DNS okay.
+
+And we'll also see the logs of that cube CTL hyphen n external hyphen DNS and logs hyphen f and external
+
+DNS pod is this one.
+
+And let's see.
+
+Retail store 1.5.com.
+
+Yes, it got added successfully right in our route 53 records also.
+
+So if I say Nslookup and retail store one dot stack simplify.com so soon it will get resolved.
+
+Okay.
+
+Currently it might take some time but it will get resolved.
+
+Okay.
+
+So let's wait.
+
+Let's wait for it okay.
+
+So it might take 2 to 3 minutes.
+
+And in meantime we can also run the command cube CTL get pods okay.
+
+And we can see UI one pod is up and running.
+
+Remaining things are coming up online.
+
+You can also say cube CTL get node claims and Carpenter nodes.
+
+How many created.
+
+You can see here okay now till the UI parts are coming means like till those were means like it takes
+
+some time to get those things online right.
+
+So we will try to run the command get bots.
+
+And if those were online right.
+
+So all were online now cards, catalog checkout orders and even UI everything is up and running okay.
+
+Now what we will do is we will go here and verify something.
+
+Okay.
+
+So if you are using helm three dot x, if you want to verify the status of that release, you can say
+
+helm status UI and then hyphen hyphen show resources command.
+
+If you are using helm CLI four dot x, you can just say helm status and then provide your release name.
+
+Okay, so I am using helm version.
+
+So recently I updated to 4.0.
+
+So I'll say helm status UI and it will list all the things.
+
+All the Kubernetes resources related to that respective release, whatever it has deployed.
+
+Okay.
+
+See these are the UI related parts.
+
+And this is the horizontal pod autoscaler.
+
+It created in UI and as part of UI it also created a ingress service.
+
+It also created a pod disruption budget with min available to.
+
+It also created a UI service account, UI Configmap and then UI cluster, IP service and UI Kubernetes
+
+deployment.
+
+If you are using helm three dot x CLI version, so then you need to say status UI and hyphen.
+
+Hyphen show resources.
+
+Okay.
+
+So this additional flag is required.
+
+So for four dot x we don't need that okay.
+
+Now we'll say helm status and then catalog service.
+
+And for catalog also you can see the information accordingly.
+
+So these are the things.
+
+So in catalog service we can see it's horizontal pod autoscaler and it's pod disruption budget.
+
+It's service account, its Kubernetes secret Configmap and all the things.
+
+You can see it here.
+
+Okay.
+
+And UI service map uh means like UI cluster, IP service and then deployment.
+
+But this is the catalog DB secret which created whatever we have defined in our values.
+
+Dot values hyphen catalog dot YAML file.
+
+Okay.
+
+Now what we are going to do is if you want you can also run these commands okay.
+
+Right.
+
+So cart checkout and orders you can see and you can also verify the logs if you want.
+
+And also ingress okay.
+
+Right now we'll try to run the command nslookup whatever we have run and see whether it is resolving
+
+or not.
+
+So that's fine if it resolves or not.
+
+But here is the thing.
+
+Right?
+
+Where is it?
+
+It successfully deployed the things and installed helm releases.
+
+These are the helm releases installed installation summary.
+
+And these are the ports parts currently running.
+
+These are the services created.
+
+So the script whatever we have run okay.
+
+And these are the service accounts created.
+
+These are the config maps.
+
+And this is the ingress service okay.
+
+Right now we will go ahead and run the command get ingress and then we'll try to access it via this
+
+address.
+
+This is the main thing which we need to focus on right.
+
+So we'll go here and then access our application.
+
+We'll we can see here our application is accessible.
+
+And what we will do is if you want to verify whether this is adding in the cart or not.
+
+So we can go to US West two region.
+
+Right.
+
+So we can go to DynamoDB.
+
+DynamoDB.
+
+Right.
+
+And before that if you want you can also run the command topology.
+
+Right.
+
+So that is another important thing topology.
+
+And now if you see here catalog is pointing to my database endpoint and DynamoDB is in US West two table
+
+name is items.
+
+And checkout is going to my Redis thing.
+
+Okay this is the one and orders to my orders end point okay.
+
+And messaging provider I am using is SQS.
+
+Okay.
+
+So everything is good here.
+
+Now I will minimize this and minimize this.
+
+And just a quick level check I am trying to do.
+
+I'll try to go to US West two here and in US West two in tables.
+
+Right.
+
+And I'll try to open the items table right.
+
+And in explore items in explore items right I will try to items uh scan and nothing is currently present
+
+here okay I'll try to add to cart here and let's wait for that, okay.
+
+And if I run the run it here it immediately showing here right the record.
+
+So whatever you have added in the cart it is present here I'll try to add one more.
+
+Right.
+
+And then try to refresh this.
+
+Run this again.
+
+Remind me later.
+
+Run this again.
+
+And one more added here.
+
+So which means our catalog, our cart service, whatever we have deployed is successfully pointing to
+
+with helm chart.
+
+Whatever we had deployed is successfully pointing to DynamoDB items table in US West two region.
+
+So high level verification we are trying to do this is checkout.
+
+If you want you can go and then verify the Redis cache.
+
+Those things we have seen in our previous demos.
+
+Right.
+
+How to verify going into each and every service.
+
+Right.
+
+So if you go here retail store microservices with data plane.
+
+And here is the data plane thing.
+
+And here are the verification parts how you want to do.
+
+We have discussed it in our section 14 exclusively.
+
+So you can try all those things now on a high level we can also go to SQS and if any current messages
+
+are there, only when the order is created, that message will be also sent to the SQS.
+
+So that also we are going to verify now.
+
+So this Enqueues we currently we should go to US North or US East one region.
+
+There should be our queue.
+
+And the queue name should be uh retail dev retail dev orders queue.
+
+So this is the queue and we'll go to send and receive messages.
+
+And here we'll try to poll for messages.
+
+Did we receive any messages or not.
+
+We are going to.
+
+No.
+
+So we still didn't create the order.
+
+We are first verifying it later.
+
+If we try to go ahead and then create the order, then we will find those messages here in our queue
+
+also.
+
+So let's wait for that.
+
+Polling in progress zero zero receives zero receives per second.
+
+Okay.
+
+Currently no messages.
+
+Okay.
+
+Now we'll go click on continue.
+
+We are in the checkout process okay.
+
+And checkout process is also successful okay.
+
+So if you want you can also verify the checkout logs okay.
+
+Click on continue.
+
+And now finally we are clicking on purchase and order should be created now.
+
+So let's wait for the purchase to get completed.
+
+Order is created now.
+
+And now if I poll for the messages here right I usually I should get the message here.
+
+See I got the message now see this is the message I got.
+
+And here.
+
+This is the order ID 3494 ending with f six okay right The f nine for ending with f six so that order
+
+information.
+
+You can see it here in detail.
+
+So six verified and even DynamoDB verified.
+
+If you want, you can go to the orders and then even verify the orders.
+
+Also, you can go to orders database, connect to the database and then verify that also.
+
+So you can go to this and deploy the orders Postgres client.
+
+And then uh, and then connect to the database and then verify that record is present or not.
+
+So all these things you can try out but everything is working.
+
+So if any connectivity is missing also then automatically it is going to fail.
+
+Right.
+
+So it is pointing to this database endpoint and it successfully worked.
+
+Okay.
+
+Now let's do one more thing here.
+
+We'll run the command cube CTL get node claims.
+
+We'll also see the check topology report.
+
+We have deployed everything right.
+
+So we'll also say these many things are running.
+
+so be careful if you don't want to implement this demo.
+
+You don't implement it.
+
+Okay so here orders thing is crashing continuously.
+
+So maybe because of I reduced few things here right.
+
+Cube CTL and then logs hyphen f and then orders and cube CTL and then describe pod orders actually needs
+
+more memory.
+
+That is the thing.
+
+It needs minimum three 3350 MB of memory.
+
+And that is my mistake.
+
+I messed it up.
+
+So what I will do is I remember this thoroughly, but I, I forgot somehow.
+
+Okay, so for that purpose only we are seeing that.
+
+So I'll try to put this memory as something around around 400 mi okay.
+
+And then this issue will go away.
+
+So we'll say zero three.
+
+And then here for orders, we will try to reinstall the orders again.
+
+Okay.
+
+So a new release will be installed for orders helm upgrade install.
+
+And we have saved right 400 mi.
+
+And this should fix the issue for us.
+
+Why they are crashing is 256 MB is not sufficient for orders.
+
+It needs minimum 330 to 350.
+
+So that is the thing.
+
+So we can run the command, get HPA right and you can see right even for memory for cards.
+
+Also it is high okay.
+
+Even for cards and then orders.
+
+Here is the problem okay.
+
+Even for cards.
+
+Also we will try and then put this to something around some 400 mi so that the issue will be solved
+
+for us, even for cards.
+
+Also, we'll try and then deploy cards again.
+
+Okay.
+
+Cards.
+
+Okay.
+
+So this is the cards.
+
+I'll go here and then deploy it.
+
+So you can run the command cube CTL get HPA and then verify these things easily for CPUs.
+
+You can see it is good right.
+
+So which means we can further tune these things and then redeploy if we want.
+
+Okay.
+
+Right.
+
+Means like 2% of CPU of is used okay.
+
+So which means CPUs you can reduce in your resources here okay.
+
+So which means like 100 M.
+
+Also you can go for all these things.
+
+So this 100 M and then this 100 M.
+
+Like this we can give and then redeploy everything if we want.
+
+I'm trying okay.
+
+So what's wrong I will try and then reduce all these things to 100 M and then deploy again.
+
+Reinstall I have changed everything to 100 M.
+
+Now what I will do is I'll try to run the command 031 more time 03V11 more time.
+
+Which means all the releases will get redeployed now.
+
+Okay, so it will install the catalog with 100 M of resources so that I think we will be good.
+
+Means like the distribution will be good.
+
+CPU is costly, right?
+
+So if you don't need it even for testing, why to waste the resources.
+
+So we can see catalog is deployed revision two in the same way Cod service.
+
+It is getting deployed.
+
+And you can see the description here right.
+
+Upgrade complete.
+
+That's the interesting part here.
+
+If you go to the script here we didn't use the command directly.
+
+Helm install.
+
+We said that helm upgrade and then hyphen hyphen install.
+
+So this command not only installs the chart but also supports the upgrades also subsequent upgrades.
+
+Also it supports.
+
+So for that purpose we used the command helm upgrade hyphen hyphen install in parallel.
+
+Also verify the Nslookup retail store one and it is also working now, which means using this.
+
+Also we can access our application.
+
+We'll say kubectl get pods and wait for all these things to get realigned.
+
+Okay, so it might take a little bit of time, but all these things with the new things, with the new
+
+CPU and all those things, it is going to adjust for us.
+
+If we don't want to wait long time, the best way is we can go here and then we can directly uninstall
+
+everything and then reinstall all these things, okay, so that it will be quicker with 100 CPU, right?
+
+So all the ports will be removed and then those will be reinstalled again.
+
+Only thing is ingress is going to get recreated.
+
+But that's fine okay.
+
+So let's all the things get uninstalled.
+
+We can see here everything is uninstalled.
+
+I'll run the command cube CTL, get parts, the thing, whatever we have seen earlier.
+
+Right.
+
+So crashing and recreating that is because orders and orders and cart are spring boot applications.
+
+And they need minimum 350 MB of memory and then it is only 256.
+
+We have allocated it.
+
+Throw the error.
+
+We'll try to redeploy everything now and see what happens okay.
+
+So if we want we can run the command cube CTL get pods and nothing is present.
+
+They are getting created.
+
+Let's wait for these things to get created.
+
+It said it's already complete.
+
+Why?
+
+Because VM's are already there, right?
+
+So this time it is going to be quicker.
+
+Okay.
+
+Get node claims you you have multiple nodes available for us and parts will get created faster earlier.
+
+It need to Karpenter need to provision the node and once the node is ready, pod will be scheduled on
+
+that.
+
+So.
+
+So it took a little bit of time earlier, but now it is faster, card catalog is done and cards are
+
+getting created.
+
+Okay.
+
+And once CART is ready, then other things also will move on.
+
+Okay, so let's wait for these things to get created.
+
+The whole idea is once this is deployed, we'll verify the HPA and we'll also verify the check topology
+
+report how the parts are spread across three availability zones.
+
+And then we can close with the 1.0.0 section.
+
+After that we'll go to 2.0.0 section.
+
+We can see here everything is deployed successfully.
+
+All the five helm releases and all the parts are running.
+
+And here is the services and service accounts, config maps, ingress service, everything.
+
+So we'll run the command cube CTL, HPA and we should see that.
+
+Now for cards the memory is 53% and orders is 61%.
+
+Okay.
+
+And now we have three replicas.
+
+here mean parts three and then currently only three replicas are running for each service.
+
+Okay, we'll run the command cube CTL get pods and we can see here orders, UI, checkout catalog and
+
+then carts.
+
+So everything is even stabilized.
+
+We don't see any issues here.
+
+Okay.
+
+Now what we will do is we'll come out of this.
+
+And in section 19 we have a topology report check topology report check topology script okay.
+
+So pod topology distribution.
+
+It is trying to show us now it will verify the pods and then see how the topology is okay.
+
+So in US east 1A1B and one c we have one one pod each for carts okay.
+
+And catalog it's one one pod okay.
+
+And for checkout also it is saying one one pod okay.
+
+And let's see for orders also okay.
+
+Even for orders we can see one one pod and let's see the UI also.
+
+And now you can see topology spread analysis is complete.
+
+And for means like each availability zone for your application you can see one pod okay.
+
+So that's the key thing here.
+
+And the other thing is now we all it already created the ingress.
+
+And now we will go ahead and then access kubectl get ingress.
+
+And if if it gets created and if it is ready to use we can go ahead and then access our application
+
+if you want.
+
+Okay.
+
+So nothing changed right.
+
+Just for topology report we can verify here provided if any.
+
+If the if if it is available means like it's a EC2 instances and we'll go to load balancer just now
+
+got created right ingress.
+
+It might take a little bit of time.
+
+So it is active now.
+
+So let me try to refresh and we can see application is accessible means like topology is working.
+
+We can also run the command.
+
+We can also run the DNS name to access the route context which is our application.
+
+And if you want you can run the use case again.
+
+But this already tested okay.
+
+Only thing is we changed the resources a little bit and then redeployed it.
+
+And we have verified the topology report.
+
+And it is also good which means topology spread constraints, whatever we have defined in these things
+
+right.
+
+So auto scaling node selector and topology spread constraints and pod disruption budget.
+
+Everything looks good.
+
+Means like we have implemented everything production grade.
+
+Now what we will do is we'll go ahead and then uninstall whatever we have deployed.
+
+In our next lecture we will focus on 2.0.0 version okay, which is nothing, but we are going to use
+
+the secret manager secret.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+In this lecture we are building the capability for catalog and order helm charts to support Kubernetes
+
+secrets via AWS Secrets Manager.
+
+So for that purpose we are going to use Catalog and Orders V 2.0.0.0 Helm charts okay.
+
+So we are going to go back here and then use the 05V 2.0 install remote helm charts, which will pick
+
+the catalog and orders these values and then deploy it.
+
+Okay.
+
+So now first go ahead and then review these two value files.
+
+Rest all are same okay.
+
+Now we will close this and we will go to Values catalog v 2.0.0.
+
+And here in in app persistence.
+
+So this part is same and in secret create we are saying false okay.
+
+Don't create any static secret.
+
+Okay.
+
+And name we are giving catalog DB because from here only it will pick the name okay and username password.
+
+We are putting it empty.
+
+Why?
+
+Because we are saying use secret manager.
+
+True.
+
+And we are enabling the secret manager here and secret manager secret name.
+
+We are saying retail store DB secret one.
+
+So this is nothing but your AWS secrets manager.
+
+So if you go here and if you go to the secrets manager here, let me go there.
+
+Secrets manager and here, whatever the object name you have given for that secret.
+
+Okay.
+
+So which means this is the one you will go to us East one North Virginia and then retail DB secrets
+
+one.
+
+So this is the name you need to provide here okay.
+
+So this is the name we need to provide and region.
+
+Also you need to provide in which region it is present, and then it will create a new secret with catalog
+
+DB with username and password.
+
+It will take it from here.
+
+So whatever the username and password present here, using that information it need to it will create
+
+the secret for us.
+
+And now if you that's about catalog okay.
+
+In the same way for orders also you will find the same thing okay.
+
+So let me go up here and you can see in secret create secret false and then secret name is orders db.
+
+And this username password will put empty.
+
+And they will say use secret manager.
+
+True.
+
+And this is the secret name.
+
+And this is the region.
+
+Same thing whatever you have seen there okay.
+
+And then another important thing is in 05V 2.0.0 install remote helm chart.
+
+So it is going to, as usual, install the catalog with version 2.0.0.
+
+Chart okay Catalog is version 2.0.0 chart and again CART is 1.0 and checkout is 1.0 and orders is again
+
+2.0.0.
+
+Chart it is going to use.
+
+And for those things again it need to use the values hyphen catalog hyphen v 2.0.0. YAML file custom
+
+value.
+
+Also it need to use 2.0.0 even for orders.
+
+Also it is the same thing.
+
+Rest all as is.
+
+Okay now if we run the command.
+
+So if we go here and if I say zero five.
+
+So first I'll say cube CTL and then get pods and nothing should be there.
+
+And even nodes Carpenter.
+
+Right.
+
+So those nodes also might have been gone.
+
+Node claims I am saying.
+
+And it's gone.
+
+All nodes are gone now.
+
+05V 2.0.0 install remote helm charts.
+
+And now this will install the application now with catalog with using the secret manager secret.
+
+So that's the thing.
+
+Okay, so let's wait for these things to get created.
+
+And after that we will access the application and then test it.
+
+And after that uninstall it.
+
+You can see here we have successfully deployed our V 2.0.0 for catalog and also for orders and rest.
+
+All everything, all the parts are up and running and even ingress service got created.
+
+So let's go back here and try to refresh and see.
+
+Ingress service is up.
+
+So now the first thing is we'll verify kubectl get HPA and see how are the things here.
+
+Memory 43 three 3150.
+
+So these are good.
+
+Now we will go back here and run the check topology report and see what's happening.
+
+We'll also run the command cube CTL get pods and see if the pods are running right.
+
+So all are running now.
+
+And now we will also access our application.
+
+So I have ensured that in values UI.
+
+So I have given multiple domain names here.
+
+Okay.
+
+So we'll use any one of the domain names to access our application.
+
+Or you can directly use the ingress DNS name.
+
+So get ingress and you can use this DNS name if you didn't use any domain name.
+
+Okay.
+
+So we can also try this if we want.
+
+Okay.
+
+So I'll try to copy this and paste it here and access our application.
+
+Parallelly we'll also check the topology report and we'll also access using any one of the DNS name.
+
+So now with the Alb DNS name application is accessible.
+
+Topology looks good.
+
+Everything is healthy even with the custom DNS name.
+
+Application is accessible.
+
+If you want, we can test the full flow, which means add to cart and start equipment requisition,
+
+and then continue and continue and click on purchase.
+
+Okay.
+
+And if the order ID is generated we are good to go.
+
+Okay.
+
+So that's about uh, uh, the secret whatever we have created.
+
+And if you see here also.
+
+Right.
+
+So if you see here it said that list secret provider classes.
+
+So two classes got created.
+
+So if you say cube CTL get secret provider class and two secret provider classes got created.
+
+And cube CTL get secrets.
+
+And using these secret provider classes equivalent secrets also dynamically created.
+
+So in these secrets the credentials were there and those credentials were brought from the AWS Secrets
+
+Manager.
+
+Okay.
+
+So that's about the overall implementation.
+
+Now we can go ahead and then clean up whatever we have created.
+
+Let's also see the check topology report so we can see everything is distributed properly.
+
+Now we'll go ahead and then uninstall.
+
+So we'll run the command zero one uninstall apps okay.
+
+And this should remove our application.
+
+So we'll clean up everything whatever we have created as part of this demo.
+
+So once we clean up our application we'll go ahead and then delete the AWS data plane.
+
+And we can also destroy the cluster whatever we have created.
+
+Right.
+
+So in our next demo again we can start from the beginning.
+
+Or you can hold your uh, this one and then only make changes.
+
+Whatever we have done in our means like add them okay.
+
+But again next demo is another big demo which is like opentelemetry.
+
+So clean up here, whatever you have done and say this demo is done.
+
+And next demo start freshly on a fresh day.
+
+Why?
+
+Because in the demo we will focus on opentelemetry, log's, opentelemetry, traces and even open means
+
+like how to send logs using Opentelemetry and AWS distro for opentelemetry a dot operator.
+
+So all these things combined, we will ensure that from our application logs are sent to AWS and our
+
+metrics, our, uh, Kubernetes metrics were sent to a P which is Amazon managed Prometheus.
+
+And from there we will also view the dashboard on Amazon managed Grafana.
+
+And in the same way for, uh, traces, we'll send these things to AWS X-ray and we'll see the trace
+
+map and all those things.
+
+So that is another big demo.
+
+It is recommended that we clean up here everything and start freshly that respective demo.
+
+Okay.
+
+So for that purpose Once this uninstallation is done.
+
+So we will come out of this and we'll go to zero to retail store.
+
+AWS data plane.
+
+And we'll say delete AWS data plane.
+
+So remember once the data plane is deleted then only we should delete the EKS cluster.
+
+If not EKS cluster deletion means like in that project VPC deletion might not be successful.
+
+Why?
+
+Because you know right?
+
+When we are creating this AWS data plane, we have created the subnet groups.
+
+And those subnet groups are our VPC subnet groups for our RDS or for our Reddis or for for our PostgreSQL.
+
+We have created the subnet groups.
+
+So if this is present and then if we try to delete the VPC, then there will be a constraint that already
+
+the resources are being used by something and then it will fail.
+
+So for that reason again in the reverse order, uninstall your retail store application which is using
+
+helm.
+
+And now we are removing the AWS data plane, which we have created for our retail store application.
+
+And once this deletion is completed then we will go to our EKS cluster here.
+
+So here in zero one EKS cluster.
+
+So we have something called destroy cluster with Karpenter.
+
+So here we are going to destroy those things.
+
+So let's wait for these things to destroy data.
+
+Once the data plane is destroyed we will also destroy that one okay.
+
+We can see here our data plane is deleted successfully.
+
+Now we are in zero.
+
+One means like in 19 helm retail store, AWS data plane and in zero one EKS cluster environment.
+
+And we are destroying our cluster with Karpenter.
+
+So it will take another 5 to 10 minutes to clean up everything.
+
+So first it is deleting the spark node pool, then on demand node pool ect.
+
+Node class.
+
+First it verified whether any karpenter nodes are running.
+
+If not, then it is saying safe to proceed.
+
+Before that it connected to EKS cluster and then verified Kubeconfig is configured or not.
+
+Now it is destroying the carpenter.
+
+After that it will go to the another project.
+
+So in the reverse order it is going to delete everything.
+
+So if you see here it is destroying the carpenter terraform manifest after that EKS after that.
+
+So let's wait for all these things to get destroyed.
+
+We can see here.
+
+Carpenter Terraform destroyed all the resources.
+
+Destroyed successfully.
+
+It is moving on to destroy the EKS cluster resources.
+
+We can see here EKS cluster deleted successfully.
+
+And now moving on to VPC.
+
+Destroy.
+
+So VPC also destroyed successfully.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you.
+
+

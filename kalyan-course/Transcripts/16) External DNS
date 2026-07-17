@@ -1,0 +1,1738 @@
+Hey everyone!
+
+Today we are diving into external DNS, one of the most powerful automation tools for Kubernetes DNS
+
+management.
+
+So let's break this down into three parts.
+
+So what is external DNS and why do we need this external DNS.
+
+And how does that actually work.
+
+What is external DNS?
+
+External DNS is a Kubernetes controller that automatically synchronizes your Kubernetes resources like
+
+Ingress or Kubernetes services with external DNS provider like AWS route 53, or like a Google Cloud,
+
+DNS, or even Azure DNS.
+
+In very simple terms, it is the bridge between your Kubernetes cluster resources like Kubernetes,
+
+Ingress and Kubernetes Service and your external DNS providers.
+
+So it runs as a Kubernetes deployment in your Kubernetes cluster.
+
+And it constantly watches for DNS related changes and keeping everything in sync.
+
+So why do we need this external DNS controller.
+
+Right.
+
+So let me paint you a picture of life without external DNS.
+
+So what is the typical process like when you deploy an application in your Kubernetes cluster.
+
+Right.
+
+So we deploy our application.
+
+And if we want to add the DNS right.
+
+So for that application if you want to access it with internet so then you need to also add the DNS.
+
+So for that first you need to go to AWS console and go to example if you take AWS, you go to route
+
+53 and there you go to hosted zone where you want to add it.
+
+And there in the hosted zone, again you will add a a record or a CNAME record.
+
+And we also need to ensure that some of our DNS name spelling.
+
+Also we need to cross check.
+
+Right.
+
+And then search for your DNS name or ELB name in the dropdown.
+
+And then add that.
+
+Finally add the A record.
+
+So this is for app one.
+
+So let's say.
+
+So this whole process after deploying your application.
+
+So you have done for app one.
+
+So if it is second app.
+
+Third app fourth app.
+
+So you need to do all this process.
+
+So all these steps need to be implemented.
+
+But if we talk about external DNS here we just need to add an annotation to your ingress or a Kubernetes
+
+service manifest, and the DNS record is created automatically in this AWS route 53 if it is AWS.
+
+If it is Azure DNS or Google Cloud DNS.
+
+So there also it works.
+
+Okay, so now here there is no console, no copy pasting, no manual intervention.
+
+Just add the annotation, external DNS related annotation in your Kubernetes ingress or your Kubernetes
+
+service.
+
+And it takes care of everything.
+
+So it gives you three massive benefits.
+
+One is full automation.
+
+DNS records are created and destroyed as your applications come and go.
+
+And the second benefit is perfect consistency.
+
+Your DNS is always in sync with your cluster state.
+
+So based on the application you have deployed and whatever you have written as external DNS annotation
+
+for that application, it will be always in sync with whatever is present in AWS route 53.
+
+And the third benefit is speed.
+
+You deploy your app and the DNS is live in seconds.
+
+All right.
+
+Now let's talk about how this whole process works under the hood.
+
+So here in our EKS cluster let me walk you through the flow step by step.
+
+So let's start with the step one which is external DNS.
+
+Watches the API server.
+
+So external DNS.
+
+So this external DNS runs a Kubernetes pod right inside your cluster.
+
+So it continuously watches the Kubernetes API server for any changes to either the Kubernetes service
+
+or Kubernetes ingress.
+
+So it it's it keeps constantly asking did someone create a new ingress service or did someone update
+
+any changes to the ingress service in the same way for Kubernetes service also?
+
+And it will also ask for is there any DNS annotation I need to act on?
+
+So it keeps watching the Kubernetes server with these queries.
+
+And finally, if it detects resources with these DNS annotations.
+
+So this DNS annotation, if it detects any resource either it is a ingress or a Kubernetes service.
+
+External DNS knows okay, this resource needs a DNS record created for retail store one dot stack simplify.com,
+
+and then it will go ahead and then create or update the DNS records in route 53.
+
+So here is the magic happens.
+
+External DNS uses the Pod Identity Association to securely authenticate with AWS.
+
+So our standard process what we have done for our previous demos also from EKS cluster, any AWS service
+
+you want to access and perform actions on that we use the Pia pod identity agent.
+
+Right.
+
+And there we create a IAM role plus policy.
+
+So there in this policy we will provide the permissions for this external DNS service account.
+
+Right.
+
+What all actions it can perform on this AWS route 53 service.
+
+After that we will also ensure that we create a pod identity association with external DNS service account
+
+and IAM role, and in which namespace this service account and external DNS pod is running.
+
+Example it is running in external DNS namespace.
+
+Then we will provide with these information we create the Pod identity association.
+
+And how do we run this external DNS.
+
+We run that by installing the external DNS x add on.
+
+So we have the add on available.
+
+So we will directly use it.
+
+So in the whole authentication process all these things are required.
+
+So now once authenticated okay so once all the all these things we have created and it authenticated
+
+external DNS makes a API call to AWS route 53 and creates or updates the DNS records.
+
+So with retail store one dot stack simplify com or your domain.com.
+
+And now you have with with your load balancer endpoint whatever it has created.
+
+And just like that your application is live and accessible via a clean, human readable domain name.
+
+Now one thing we need to know what happens on delete.
+
+So if you delete this ingress service or Kubernetes service which has this annotation related to external
+
+DNS, right.
+
+So the beauty here is if you delete the ingress service or this Kubernetes service, external DNS detects
+
+that too and automatically removes those records from your route.
+
+53 your DNS system stays clean.
+
+No orphaned records, no manual cleanup.
+
+So let's recap whatever we have discussed now.
+
+So what is external DNS a Kubernetes a controller that syncs your cluster resources with external DNS
+
+providers.
+
+And why do we need it?
+
+It eliminates manual DNS management, ensuring consistency, and also makes our deployments faster.
+
+And how does it work?
+
+It watches the API server and detects DNS annotations and automatically creates or updates DNS records
+
+using secure AWS credentials.
+
+So in this section, we are going to install the external DNS as an ECS add on using Terraform.
+
+So we will configure the Pod identity for secure AWS access, set up the necessary IAM policies and
+
+see it in action.
+
+Alright, let's go ahead and then do that now.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+Now let's understand how we are going to create this external DNS controller using Terraform.
+
+So if we remember right as part of section 13 we already added all the EKS add ons and controls you
+
+which need to be installed via helm.
+
+Also, we have taken into consideration and automated them as part of section 13.
+
+So there we have ensured that we have installed pod Identity Agent, EBS, CSI driver and also AWS Load
+
+Balancer Controller, Secrets Store, CSI driver and also ACP.
+
+So all these things we have automated using Terraform as part of section 13.
+
+Now as part of section 15 we are going to automate in our ECS project in our ECS Terraform project.
+
+So we are going to also add this part, which is installing the external DNS add on using Terraform.
+
+So that's what we are going to do.
+
+So for that what we are going to do is we will go to our course GitHub repository and we will enter
+
+into the section 15.
+
+Right.
+
+So and then if we go down here the step here is we will copy our VPC Terraform project and ECS Terraform
+
+project from section 15 to this respective section.
+
+So if we go here right.
+
+So in section 15.
+
+So from section 13 you have zero one VPC and 02X.
+
+So those things will have them here also zero one VPC and zero to x.
+
+And in this zero to x terraform manifest with add ons.
+
+Right.
+
+So if you go here you will have the files c17 zero one, C17 zero 1702 and C17 zero three.
+
+So these are related to our external DNS.
+
+So we are going to review them.
+
+So first is for external DNS three things are important right.
+
+One is IAM role plus IAM policy.
+
+Second is Pod identity association and third is external DNS ICS add on related Terraform code.
+
+So let's start with the IAM policy and IAM role okay.
+
+So now first we will create a external DNS IAM role.
+
+And we will also add the assume role policy.
+
+So if you go here to C 13 right.
+
+So pod identity assume role.
+
+We have already defined common okay to to to access this for all the uh pod identity IAM roles which
+
+we are creating.
+
+So example if we go to LBC related IAM role also.
+
+So you will find the role.
+
+Also, you will find its thing.
+
+Okay, so where is it?
+
+You can see here data dot aws IAM policy document dot Assumerole dot JSON even for ebs csi.
+
+You can find the same thing in the same line for our IAM policy and role for external DNS.
+
+When we are creating the IAM role, its trust policy, its assume role policy, we are going to get
+
+it from our C13, whatever we have defined.
+
+So that's the first thing.
+
+And second thing is we will also create an IAM policy.
+
+Right.
+
+So IAM policy attachment with our IAM role with policy Arn as Amazon Route 53 full access I am giving.
+
+If you want, you can define a custom policy here and give only specific permissions for create, update,
+
+etc. etc. and even do that too.
+
+So here I am giving the service policy which is Amazon Route 53 full access policy.
+
+Right.
+
+so that we are attaching it to the IAM role, what we have created here.
+
+Im role dot external DNS role dot name.
+
+So that is one thing.
+
+And second is policy is full access.
+
+We are giving route 53 full access so that we have attached to this IAM role.
+
+And this is the standard output.
+
+And next is Pod identity association.
+
+So here for pod identity association we provided our cluster name.
+
+And then in which namespace we are installing.
+
+When you install the EKS add on aws EKS add on.
+
+So if you go here, if you go here and if you go to EKS cluster, right.
+
+Let me go here.
+
+Okay.
+
+And if I go to the cluster and if I go to add ons.
+
+And here so far we have X pod identity agent and EBS CSI driver.
+
+If I click on this get more add ons.
+
+And if we go down here right and down, you have the external DNS add on.
+
+Okay.
+
+So when you select this external DNS add on and then install it right.
+
+So either using X pod identity or Irca.
+
+So it will be installed in a namespace by default is external hyphen DNS.
+
+So in that line we are going to also ensure that we are using the namespace external hyphen DNS right.
+
+And the service account.
+
+It is going to have the same service account name, external DNS and role.
+
+We just now created in C17 zero one aws IAM role dot external DNS role dot whatever the thing required
+
+here, which is the a.
+
+So with this we'll create the EKS pod identity association for external DNS.
+
+So namespace is this one and service account name is external DNS.
+
+And this is the role Arn.
+
+Whatever we have created in C17 zero one, it's a standard output external DNS pod identity ID and finally
+
+external DNS add on okay.
+
+So if you see we are giving the cluster name in which we are installing this add on and add on name
+
+is going to be this one, right.
+
+And add on version.
+
+We are trying to use the latest external DNS add on version.
+
+So we are using the data source AWS EKS add on version, external DNS as the local name, external DNS
+
+underscore latest and this is the add on name.
+
+And this is the Kubernetes version.
+
+So for this Kubernetes version what is the external DNS latest supported most recent row.
+
+So that we are using.
+
+So we will say data dot x add on version dot external DNS latest dot version so that we have provided
+
+here and standard resolve conflicts on create or update, overwrite and service account role Arn.
+
+So which we have created in C 17 zero one.
+
+So this is the one right.
+
+So AWS IAM external DNS role are.
+
+And also we have provided and some tags we have provided.
+
+So that's about installing the add on.
+
+So these are the things we are going to use as part of our uh eks terraform manifest with add ons.
+
+So why we have taken as part of section 13.
+
+It is only till C 16.
+
+Now we have added a new thing here.
+
+So I have ensured that both zero one VPC and zero two both copied here.
+
+And in zero two we have added these three files extra.
+
+Okay, so now what we are going to do in our next lecture.
+
+We will go ahead and then create the cluster and then verify.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Now let's go back to our course GitHub repository.
+
+And as part of step zero three we have reviewed the external DNS Terraform files.
+
+Now we'll go ahead and then execute the Terraform commands to install external DNS.
+
+So as you have copied your previous things.
+
+So all these things should be as is.
+
+But if you want you should always verify you are using your own bucket.
+
+So for your state storage.
+
+So if you go to section 15 here and in C1 versions dot your S3 bucket is present here or not.
+
+Please ensure that okay, so if you are using this code and you are inside this section 15, update
+
+your S3 bucket information here in the same line in C1 versions in project zero two.
+
+Also ensure your bucket name is updated here.
+
+And in the same line we also have something called C C3 remote state here.
+
+Also, your bucket name should be updated so that your S3 bucket name so that you will be able to access
+
+your VPC related information in project zero two.
+
+So these things are very important.
+
+So now as part of section 13 you will say I already created a cluster.
+
+So shall I need to delete that and recreate the cluster here.
+
+Or shall I need to move on with applying these changes to the existing cluster?
+
+Anything is fine.
+
+So we will try to.
+
+I already created as part of section 13 same configs.
+
+I have copied here and added three more things extra.
+
+So what's wrong in running Terraform plan, validate and then apply.
+
+Right?
+
+So because our state is in the shared storage location only at the same location, right in the same
+
+bucket, everything.
+
+So we will be able to access the state wherever our Terraform configs are.
+
+So I can directly apply these changes.
+
+So if I go to the terminal here and if I go to.
+
+So if we should go to I am in section 13 earlier okay.
+
+So in section 13 if you go to zero to X terraform manifest there only right in section 13.
+
+If I say terraform state list.
+
+So all my resources, whatever I have created using Terraform will be displayed here.
+
+Okay.
+
+So these are the things I have created okay.
+
+So there is nothing in AWS IAM policy or in EKS add on nothing related to external DNS for now.
+
+Okay, now we will come out of this section 13 right.
+
+We'll go to section 15 and I'll go to zero to X Terraform manifest with add ons.
+
+And I will run the command Terraform and then validate okay.
+
+So if it is not run here or if those things were deleted you can run init if you want, but I can run
+
+again the terraform state list once, so initialization is not present here.
+
+So when copying I didn't copy all those dot terraform folder and everything.
+
+So I can run terraform init one more time.
+
+So it will initialize this folder also.
+
+Right.
+
+And I'll also do the same for even zero one VPC so that when destroying or anything also it will be
+
+useful for me.
+
+Okay, so now let me initialize this folder.
+
+If you copy paste, including your dot terraform folder where your entire things are present.
+
+Right.
+
+So these things less LRT.
+
+So if this dot terraform folder also copied you don't need to initialize.
+
+I'll also go to zero one.
+
+And if it is not present I will run that init here also.
+
+Okay.
+
+And I'll come back to zero to x after this Initialization.
+
+So now let's, uh, come back CD zero to.
+
+We are in our section 15 and in zero to X Terraform manifest.
+
+And I am going to run the command Terraform state list and all the resources, whatever we have earlier
+
+those should be displayed other than external DNS.
+
+Okay.
+
+So those all are present here, which is coming from our remote state where we have show where we have
+
+stored in our S3 bucket.
+
+From there it is getting all the information state information.
+
+Now I will run the command terraform validate first because three new files C17 zero one, zero two
+
+and zero three we have added.
+
+So configuration is valid or not I have verified it is good.
+
+It is saying so.
+
+We'll also run the command terraform plan here and then see what all changes it is going to add for
+
+us as part of this Okay.
+
+So it is saying for resources it is going to add zero to destroy.
+
+So if you go up here it is saying X add on it is going to install and pod identity association.
+
+It will be created and IAM role also it will get created and IAM role policy document.
+
+Also it will get created.
+
+So one thing we missed here in this add on is depends on meta argument.
+
+So if you go here to EBS, CSI also you have like this.
+
+That depends on meta argument okay.
+
+So that also we need to put here okay.
+
+So we'll go to external DNS x add on here and add the meta argument depends on and we will get our IAM
+
+role thing.
+
+So this is the external DNS IAM role.
+
+And add that part here.
+
+And our Pod identity association.
+
+This is our Pod identity association.
+
+So we will add that.
+
+Okay.
+
+And pod identity association.
+
+Where is it.
+
+Pod identity association dot external DNS.
+
+So that one also we need to add.
+
+And next is pod identity agent should be installed.
+
+And your private nodes also should be ready for us.
+
+So these are very important when you run this as a fresh cluster when you are starting it.
+
+Right.
+
+So your private node should be ready so that this ECS add on should be installed and those pods should
+
+be running their your IAM role should be created and ready so that you can install the ECS add on.
+
+And your Pod identity association also should be ready, and your pod identity agent should be installed
+
+and ready.
+
+Even for the creation of cluster and even the order for deletion of the cluster resources, it is good
+
+to have the things which are important.
+
+Okay.
+
+So if most of the time if you see here IAM role which you are already accessing here, you don't even
+
+need to specify also because it takes the dependency automatically.
+
+Because this resource depends on this resource creation.
+
+So it takes care okay.
+
+But for safer side, we are trying to put it so that when we are cleaning up our cluster, it will be
+
+like without any implicit dependencies issues means like there is no due to first role deleted and then
+
+after that it is not able to delete the add on.
+
+So those issues will not come when you explicitly define that.
+
+So I have defined it here.
+
+So that's about that.
+
+Now we will try one more time Terraform validate and no issues.
+
+We'll also run the Terraform plan.
+
+And after that we will go ahead and then run the apply auto approve.
+
+So let's wait for this Terraform plan to get generated.
+
+So we can see here.
+
+Now four resources are going to get added.
+
+Those are these things okay.
+
+So let's go ahead.
+
+See one is pod identity association.
+
+One is external DNS and the other is IAM role.
+
+And with an inline policy whatever we have uh whatever is present and IAM role policy.
+
+Attachment okay.
+
+So with Amazon route 53 full access.
+
+So these four resources it is going to get.
+
+Created.
+
+So let me run the command Terraform apply auto approve.
+
+So let's wait for these things to get created.
+
+And after that we will go ahead and then list the add ons and then verify what all are present.
+
+We can also see the external DNS deployment and its ports.
+
+And if you want we can also verify the service account and external DNS pod logs.
+
+So these things we are going to verify after its installation.
+
+So we can see here changes applied successfully.
+
+And if we go here external DNS related things.
+
+Okay.
+
+So these all are external related things, external DNS uh add on and external DNS, add on ID, external
+
+DNS add on version pod identity association ID.
+
+And then this is the role.
+
+So the first thing is we need to verify whether it is installed or not.
+
+Add on okay.
+
+So using this AWS ECS list add ons and with the cluster name, whatever we have and you can see external
+
+DNS is installed if you want.
+
+You can also go here and then go to retail dev here and go to add ons.
+
+And now if you try to refresh this we should also see external DNS add on is installed and which is
+
+also in active state.
+
+So that's about external DNS installation.
+
+Now the next thing here is we'll also verify whether the namespace is created inside that whatever is
+
+running, including ports and then logs.
+
+Okay.
+
+So we'll say kubectl get ns.
+
+So we'll clear kubectl get ns is list the namespaces it has installed.
+
+Created a external DNS namespace one naught eight seconds before.
+
+So we'll say cube ctl okay.
+
+Hyphen n means like in external DNS namespace okay.
+
+Get deployments okay.
+
+And it should provide us the deployment which is external DNS which is running one pod for us okay.
+
+One by one.
+
+Ready.
+
+So if you say get pods and then you can see external DNS pod is in the running state.
+
+Now if you want you can also say something like service account.
+
+If it is present it will list okay.
+
+So this is the external DNS service account which is running okay.
+
+So if you want you can say get all and whatever is present there will be displayed.
+
+So you have the pod, you have the external DNS, you have the deployment.
+
+And in addition to that you can also check for service account.
+
+So you can see external DNS service account also created.
+
+Now the next thing here is we need to also verify that respect to pod logs.
+
+Okay.
+
+So where is that get pods and this respective pod logs.
+
+You can verify using this pod name.
+
+Or you can use the label here okay.
+
+app.kubernetes.io/name and then external DNS.
+
+So using this label name also you can get the logs and you can see here using in cluster config based
+
+service account token.
+
+So created Kubernetes client applying provider.
+
+So and so so and so and all these are my domains, whatever I have in my, uh, AWS account.
+
+So all those things it has listed here, all records are up to date, uh, and everything it is trying
+
+to show here.
+
+Okay.
+
+So nothing means like no, uh, authorization errors were shown here, any authorization or authentication
+
+errors.
+
+It is able to access all my hosted zones.
+
+The filter here is by default, you can access any hosted zone.
+
+So I didn't specify any domain filter when installing it or we didn't apply anything.
+
+Okay.
+
+So for that purpose, all the domains present in my in my AWS account, all were displayed here.
+
+See every few seconds, see last ping.
+
+All records are uploaded so it is around zero zero 49 and zero 150.
+
+So 300 49 301 50.
+
+So you can see every one minute it is uh trying to verify it is going to check against your Kubernetes
+
+API server and verify if anything is there or not, and then it is trying to say all records are already
+
+up to date.
+
+It is trying to verify that, uh, trigger that sync process and then verify which we have already discussed
+
+that.
+
+Right.
+
+So every few every one minute it is trying to, uh, check external DNS watches for your Kubernetes
+
+API server and then verify whether any changes are present or not.
+
+It is trying to do so.
+
+Those things, we can see them here.
+
+After three 150 it is again 3 to 50 again one more time.
+
+It has done the sync process and verified.
+
+So that's about external DNS install.
+
+Okay, in our next lecture we will focus on or in our next demo we will focus on applying this to our
+
+retail store application.
+
+So I'll see you in the next demo.
+
+Until then bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+In previous lecture we have installed the external DNS using TF configs.
+
+Now we are going to move on to our retail store application in section 16.
+
+So when we deploy this ingress service with the external DNS annotation right.
+
+So when we do that so our DNS record should be successfully added in our route 53 via this external
+
+DNS.
+
+And we should be able to directly access our application.
+
+So using our DNS name.
+
+So that's what we are going to do as part of this demo.
+
+In addition to that for ingress SSL also we are going to implement the same thing.
+
+So without ingress without SSL which is http url, we are going to use retail store one okay.
+
+And for https Us.
+
+We are going to use retail store too as the domain names.
+
+So here the important thing is you also need to have your data plane related services created and ready.
+
+So all these things should be ready.
+
+So this entire data plane which we have implemented in 1401.
+
+So those things means like that TF project should be created and ready for us.
+
+That is one important thing.
+
+And second is as part of section 15 you have installed the external DNS.
+
+So now you can use the external DNS annotation as part of section 16.
+
+And here for ingress SSL you need to also create a SSL certificate using AWS, ACM okay Certificate
+
+Manager.
+
+And then that you need to update in your Ingress Kubernetes resource.
+
+So that also we are going to do now.
+
+So let's go back to our GitHub repository and start entering into the section 16 here.
+
+So this is section 16.
+
+And here as part of this demo.
+
+First things first is we need to do some prerequisite checks.
+
+First thing is we need to ensure that our secrets manager secret exists.
+
+So if we go here to Visual Studio Code and we will close this section 15 related stuff.
+
+And if we go to section 16 in retail store manifest with data plane in zero one secret provider class
+
+for catalog DB or orders DB.
+
+Here the object name is retail store DB secret one right?
+
+So which means in your secrets manager you have your retail store DB secret one or not.
+
+You need to verify so it is present.
+
+So this part is clear.
+
+Now the second thing here is AWS data plane for restore retail store is already provisioned or not as
+
+part of section 14 zero one.
+
+So we can go from here.
+
+Right.
+
+So we can go here.
+
+Two we can come out of section 15 and go to 14 zero one.
+
+And inside that you have the zero three AWS data plane Terraform manifest.
+
+And you need to run the Terraform state list here.
+
+So if if those resources were created you will get the state information of those resources.
+
+So I'll run the command Terraform state list.
+
+And this should show me all the resources created.
+
+Right.
+
+So let me see.
+
+So all these resources were created.
+
+Even if you run Terraform output their endpoint information also will be shown from this data plane
+
+project itself.
+
+So this is your RDS PostgreSQL endpoint.
+
+And you will also find your catalog MySQL related endpoints.
+
+So all these are the endpoint information.
+
+So why do we need this endpoint information.
+
+We need this endpoint information because those information is updated properly or not.
+
+In this zero five catalog.
+
+MySQL name service zero to cart config, map checkout and orders.
+
+We need to verify those things.
+
+I didn't change anything from our previous demos, which is when we have implemented this 14 zero to
+
+whatever is there.
+
+It is the same thing.
+
+So I didn't change anything, so it should be as easy in your case.
+
+Whatever are these endpoints, you need to copy that from your 1402.
+
+So these are the retail store manifests.
+
+Or ensure that here for your external name service your DB endpoint is updated.
+
+Does MySQL db endpoint.
+
+So you can see that here catalog endpoint that is updated in the same way for cart.
+
+If you see the config map, we already using the standard DynamoDB us-west-2 endpoint.
+
+So no changes for that.
+
+Okay.
+
+And for checkout in checkout config map.
+
+So for your checkout you will find here the checkout related endpoint.
+
+So you can come down here.
+
+Check out this end point.
+
+So that information we need to update here.
+
+And in the same way for orders in config map you will find orders related PostgreSQL.
+
+Okay so this is the end point you need to update.
+
+In the same way orders related queue also will be there.
+
+So that information.
+
+So this is the queue name so that you need to provide it here.
+
+So these are very important for your application for your microservice s to be pointing to your AWS
+
+data plane persistent databases.
+
+So that's a very important step you need to follow.
+
+So this prerequisite is very very important.
+
+And another very very important prerequisite is you must own a domain which is super important for external.
+
+Then only external DNS can work for you.
+
+And you have a hosted zone in route 53 created, or your domain is registered elsewhere.
+
+But it's equivalent means like that domain is dedicated to route 53 and it's hosted zone is created
+
+in AWS route 53.
+
+So if those things are present, then only you will be able to execute this demo.
+
+Which means if you go to route 53 service.
+
+So if you go here right, either you should have a domain registered.
+
+So if we go here in route 53, in registered domains, either you should have a domain registered here
+
+or your domain is registered in GoDaddy or Namecheap or somewhere that domain is delegated to AWS route
+
+53.
+
+So anything is fine.
+
+So you can see here for my stack simplify domain, I already have the hosted zone also present.
+
+So it is going to work without any issue.
+
+So you should have a registered domain and its equivalent hosted zone.
+
+So that's the important thing here.
+
+So if these prerequisites are met then only we can implement this demo.
+
+In our next lecture we will move on with implementing next steps to successfully execute this demo.
+
+
+Welcome back.
+
+Let's go to the step zero three here.
+
+So if students don't have the domain dedicated domain.
+
+So just watch the demo.
+
+You really don't need to go and then practically buy a new registered domain to implement this demo.
+
+Now we will move on here and update the HTTP ingress with external DNS annotation.
+
+So if we go back to our Visual Studio Code and in retail store Kate as manifest with data plane in zero
+
+three.
+
+Right.
+
+So in zero three you have the zero one ingress http ip mode.
+
+And here you are adding this external DNS annotation with name as retail store one dot stack simplify.com.
+
+So that's about for the HTTP thing okay.
+
+So by just adding this when this load balancer is created it will also automatically DNS register that
+
+Alb DNS name whatever it generates in AWS With this DNS name in your AWS route 53.
+
+Right.
+
+So now the next thing is Https also, right?
+
+So for https first thing is we'll create a SSL certificate.
+
+So here in https ingress.
+
+Also here we need to ensure that the name of the DNS name we are giving some DNS name which is that
+
+HTTP is retail store one and Https is retail store two.
+
+And here we'll go ahead and then also create a SSL certificate and update that SSL certificates from
+
+Certificate Manager whose Arn here.
+
+Okay.
+
+So now let's go back here and we will go to Certificate manager AWS Certificate Manager.
+
+And we will click on Request Certificate.
+
+And we'll click on next.
+
+And we will provide the DNS name here which is retail store two dot stack Exemplify calm and rest all.
+
+We will leave it to defaults and click on request.
+
+And now we have requested the certificate.
+
+And once we request it here, let me go back here and let me try to open it again.
+
+And it said that retail store.
+
+So without adding the DNS it said that uh it has successfully it became success because already when
+
+I am testing it, I added the entry in route 53 by clicking on this button.
+
+So it is showing as success.
+
+That's fine.
+
+We'll try to create one more to show you what actually we need to do.
+
+I'll click on request and click on next.
+
+And I will say Retail store three dot stack simplify.com and then click on request.
+
+And when we say that you can see here pending validation will be shown.
+
+And when it shows pending validation you need to say create records in route 53.
+
+So CNAME record with this name will be created and it will be validated.
+
+In simple terms we are trying to validate that stack.
+
+simplify.com is a domain of this AWS account.
+
+And in addition to that its hosted zone.
+
+Everything is present.
+
+Okay then only this certificate, this public certificate will be approved and will be active.
+
+So I'll click on Create Records in Amazon Route 53.
+
+So this record will be added okay for validation.
+
+So the CNAME will be added there okay.
+
+So create records and let's wait for a minute or two and we'll click on list certificates.
+
+And it is in the pending validation state.
+
+It will take a little bit of time a minute or two or sometimes even five minutes okay.
+
+So let's wait for that.
+
+So we can see here it is in the issued state.
+
+Now it took a minute to successfully add the DNS and validate stack.
+
+Simplified Com is our domain itself.
+
+And we this certificate can be approved.
+
+And so it got issued for us.
+
+Okay.
+
+So like this it happens.
+
+We can use retail store 2 or 3.
+
+Anything is fine for our demo.
+
+So I'll try to use retail store three which we have done from the uh basic.
+
+Right.
+
+So we'll say retail Store three.
+
+And in addition to that we'll also get the retail store three.
+
+Related.
+
+So this is the Arn for Retail Store three.
+
+So I'll come back here and update that er here.
+
+Okay.
+
+So now you have the certificate er and it's external DNS, DNS name and SSL redirect port 443.
+
+And listen ports 80 and 443.
+
+Whenever the request comes on 80 it will redirect to 443.
+
+So like this in https ingress.
+
+Also you have everything defined.
+
+Now what we will do is we'll go back here and then go ahead and then deploy our retail store application.
+
+So first is we need to deploy our secret provider classes, then our microservices application, then
+
+our ingress services.
+
+So we should be in this folder to do that.
+
+Okay.
+
+So now I'll go here, I will come out of section 14 and I'll go to section 16.
+
+And in that I have the retail store test with data plane.
+
+And inside that you have three folders 0102 and then zero three.
+
+So if you want what is present in that, you can see all of those things here in detail.
+
+This is secret provider class and this is our actual microservice application.
+
+And this is ingress.
+
+Okay.
+
+Now we will say cube CTL cube CTL apply hyphen f and then zero one secret provider class.
+
+So once the secret provider class is created you can say cube CTL get secret provider class and catalog
+
+DB secrets and order DB secrets created.
+
+now.
+
+We'll say cube ctl apply hyphen f, hyphen r, and hyphen f.
+
+Why?
+
+Because you have multiple folders here inside, inside.
+
+If you go up here.
+
+Right.
+
+Or if I say tree hyphen a right under retail store microservices you have catalog card again multiple
+
+folders.
+
+So recursively you need to deploy.
+
+So which means uh YAML files are present in multiple folders.
+
+So we will say cube ctl apply hyphen r, hyphen f and zero to retail store microservices.
+
+So this should deploy the catalog service and then connect to the RDS MySQL database.
+
+And it should deploy the checkout service.
+
+And it should connect to the Reddis Elastic Cache service.
+
+And it should also deploy the card service.
+
+And it should connect to the DynamoDB table present in US West two.
+
+And it should also deploy the order service and should connect to the SQS queue, whatever we have created.
+
+and in addition to that Postgres database.
+
+So now if you say cube, CTL, get pods, deployments, SVC and SCA and CM, all these are the things,
+
+right?
+
+So you can run these things and you can see all the parts currently coming into running state.
+
+These are the deployments.
+
+These are the services.
+
+And these are the uh secrets right.
+
+No these are the service accounts and config maps.
+
+And in addition to that you can also search for Kubernetes secrets and your catalog and then orders
+
+created dynamically when those pods are deployed.
+
+So if I run the command cube CTL get pods so all the pods are running.
+
+And these will be pointing to our equivalent data plane services, something like you can see uh here
+
+one after the other which is arduous, and PostgreSQL databases items DynamoDB table in US West two
+
+and retail dev checkout Redis which is our Redis cache.
+
+And also this is our SQS queue service.
+
+Okay.
+
+Right.
+
+So for all these things this should be pointed.
+
+Now we will say kubectl apply hyphen F03 ingress.
+
+So when we are deploying the ingress we should also monitor our logs for external DNS.
+
+Okay.
+
+So this here we are monitoring our external DNS logs.
+
+See it said that retail store one is already deployed and it is creating the record for those things.
+
+So retail store one related thing is creating and retail store three.
+
+Also it is getting created now.
+
+So let's wait for these things to get created okay.
+
+And now we can also go here and then search for those things okay.
+
+Retail store and you can see retail store related records are created now.
+
+Just now.
+
+Okay.
+
+Retail store one.
+
+So let's refresh again and then search for retail store.
+
+And we can see retail store one and retail store three got created.
+
+And you can see there they are routing to these things.
+
+So let's go back to our EC2 here and we will see those things okay.
+
+So we'll go to EC2 and we'll go to Load Balancers.
+
+And here we can see the retail store HTTP and https.
+
+So we'll start with the HTTP one okay.
+
+And in this HTTP one so we can see the DNS name retail store http ip mode with 182919714 okay.
+
+So
+
+2919714.
+
+That's about retail store one.
+
+So the traffic coming to retail store 1.5.com will go to this load balancer.
+
+Okay.
+
+So if you want.
+
+And next is Retail store three which is mapping to 172065161 okay.
+
+So if we go here and check this okay this one the first one okay https ip mode.
+
+And you can see 172065161.
+
+So it's also 65161 which is mapping properly.
+
+So this whatever you.
+
+So this retail store is a older one which not needed okay.
+
+So this is something like I have created it.
+
+But before deleting the application itself whole cluster I have deleted.
+
+So for that purpose it might have been present here I am removing them.
+
+Okay.
+
+So now you can see both the retail store three and then retail store one and they related information
+
+here okay.
+
+Right now the next thing here is we will go back and access our application.
+
+Okay, so we have already seen the logs.
+
+Now we will see the ingress.
+
+Now once.
+
+Okay.
+
+Kubectl get ingress and you can see the DNS names of load balancer 1829174.
+
+And then 172065161.
+
+And if you want you can also open these things.
+
+Okay.
+
+So you can see here record type A.
+
+And this is the value.
+
+You can see them in detail for retail Store three and also for retail store one.
+
+Also you can see the information.
+
+Now we need to access them before accessing them.
+
+If we want we can also do a Nslookup test okay stack simplify.com.
+
+And it is resolving to an IP address.
+
+And you can see for three.
+
+Also it should be resolving to an IP address.
+
+Now we can go to the browser and then access them.
+
+So let me close these and, uh, data plane endpoint related things.
+
+Right.
+
+And now I will say retail store one dot stack simplify.com.
+
+Okay.
+
+So that's all right.
+
+And then let's access it.
+
+We have our application accessed.
+
+And we can click on add to this one.
+
+And then start equipping equipment requisition and then all these things and click on continue.
+
+Continue and purchase.
+
+It is working and which is not secure.
+
+And in the same line if you want to access retail we will say retail store two.
+
+Right dot stack simplify.com.
+
+It's retail store three.
+
+Sorry.
+
+So now we will go here and three.
+
+And then we'll access http url.
+
+And it should redirect to https.
+
+That is done.
+
+So if you click on here and you can see the connection is secure and certificate is valid, and you
+
+can see the certificate information here.
+
+And all the certificate is generated using Amazon root CA and all the information here.
+
+Now if we want we can explore add to cart.
+
+And we are just testing whether our application is working as expected or not with even the SSL part.
+
+And even this is working as expected.
+
+So which means we have successfully implemented end to end, which means as a user with http URL, right,
+
+you have access to your application wherein your application is hosted in ECS and their persistent data.
+
+Uh, bases are hosted on AWS specific services, and you have your ingress and your DNS is automatically
+
+updated using external DNS.
+
+And then you are able to access via browser your Https URL and access your application end to end and
+
+then test it.
+
+So this whole flow worked without any issues.
+
+So that's the thing we have implemented as part of this demo.
+
+Now we are going to clean up whatever we have implemented.
+
+So we'll go to CD 16 retail store microservices external DNS.
+
+Right.
+
+We'll come out of this.
+
+We should be in the 16 folder and we'll say cube CTL delete hyphen r, hyphen F and retail store CHT
+
+as manifest.
+
+Now in in same time you can also verify the logs here for external DNS and here for retail store one
+
+and retail store three.
+
+It should delete the things.
+
+So just now the request to delete is created.
+
+So let's wait for it.
+
+Alright.
+
+It's been five minutes.
+
+Close to five minutes.
+
+And it didn't delete the records for us.
+
+Those were present.
+
+So let's see why that is happening.
+
+Okay so cube CTL get deploy and then hyphen n external DNS will provide the our Kubernetes external
+
+DNS deployment.
+
+So we will get this deploy external DNS which is present in namespace external DNS in a YAML format.
+
+This whole deployment in a YAML format.
+
+And we will review the arguments whatever is present inside this okay.
+
+So what all arguments we have sent to the pod okay.
+
+So these are the container arguments currently present.
+
+So log level info log format text interval.
+
+Every one minute it will pull right your Kubernetes API server and try to sync okay.
+
+And what all the sources.
+
+One is Kubernetes service and Kubernetes ingress and registries.
+
+TXT.
+
+TXT.
+
+Owner id is retail dev ex demo one and provider is AWS.
+
+So this is another important thing which we need to know.
+
+So they said policy as upsert only.
+
+So this is the default behavior when you are installing your external DNS using ex add on.
+
+And what exactly this upset only means right?
+
+Upset only means create or update DNS records but never delete them.
+
+So if I deploy a service or ingress with a external DNS annotation added, external DNS goes and creates
+
+the route 53 record for us.
+
+Okay, if I later update the hostname, it will go ahead and then update that DNS record for me.
+
+But if I go ahead and then delete that ingress service or Kubernetes service, this upsert only policy
+
+will not touch your route 53 record.
+
+It won't clean up your record.
+
+It won't remove it.
+
+It just leaves it behind.
+
+This is intentional.
+
+AWS keeps the default safe so you never accidentally nuke your DNS entries in production.
+
+So for the safer side option only when you are.
+
+AWS has designed this.
+
+When you install the external DNS using EKS add on, it can only create or update, but it cannot delete
+
+okay.
+
+So if you use policy equal to sync.
+
+So when you use the policy as sync, external DNS switches into a full reconciliation mode, which means
+
+if the Kubernetes resource exists.
+
+Kubernetes resource exists.
+
+Record stays as is if the resource changes.
+
+Means like your ingress resource changes.
+
+It updates the record in route 53.
+
+If the resource if your ingress resource or Kubernetes Service resource is deleted.
+
+Route 53 also gets deleted automatically with the policy equal to sink.
+
+Okay, so that's the difference between Upsert only and then sink.
+
+Okay.
+
+So we are sticking with the default behavior.
+
+Whatever AWS provides, which is policy equal to Upsert only because it is safer for real world clusters
+
+also.
+
+And but it's still important to know the difference.
+
+What is policy equal to Upsert only and what is sink?
+
+So we have discussed that.
+
+Finally, we need to understand that upset only is the default option and which creates updates but
+
+never deletes the records.
+
+and for zinc it creates plus updates, plus deletes records when the Kubernetes resources like ingress
+
+or service are deleted.
+
+So that's the thing here.
+
+So for that purpose only earlier when we have seen in our route 53.
+
+Right.
+
+So if you remember earlier I have deleted Retail store two.
+
+That is because it never deleted it because our option is upsert only now even our ingress resources.
+
+If you refresh here, our load balancers were deleted.
+
+And if I go to the terminal here and if I say get ingress, my ingress resources were deleted.
+
+Still, you will have the retail store one and then retail store three related entries present in our,
+
+uh, route 53.
+
+So that's about the external DNS demo.
+
+Now let's go back here and we have cleaned up whatever is required we have created as part of this demo.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Now let's go back to section 14.
+
+Right.
+
+Section 14.
+
+And in that section 1401 and go to zero three data plane manifest.
+
+And then run the command Terraform destroy or approve.
+
+Okay.
+
+So this data plane is running RDS, PostgreSQL database, all these things right ElastiCache cluster.
+
+So ElastiCache for Redis cluster, all these things and it might cost us currently.
+
+Next demo is primarily related to if you go to our Visual Studio Code here.
+
+So next demo is going to be our auto scaling Carpenter.
+
+And it is going to take some time.
+
+Okay.
+
+So when you are learning also it takes a good amount of time to implement that okay.
+
+So once you implement that and you are ready then when you are implementing demo 18, at that point
+
+of time again you can create this data plane okay.
+
+So till that time you can save money here.
+
+So for that purpose we don't need to run the data plane till our section 17 is completed.
+
+Only when we are playing with our retail store test manifests which are related to with data plane.
+
+Then only we need that.
+
+So for that purpose let's go ahead and then destroy that okay.
+
+So ensure that it is destroyed.
+
+I have run the terraform destroy auto approve and then all the things are getting deleted now.
+
+So ElastiCache DB instances related to orders Mysqldb everything are getting deleted.
+
+So I'll see you in the next lecture.
+
+Our next demo.
+
+Until then, bye bye.
+
+Thank you.
+
+

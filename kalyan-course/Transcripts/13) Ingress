@@ -1,0 +1,2672 @@
+All right.
+
+So far in our previous demos, we have been accessing our catalog microservice or even the entire retail
+
+store sample app.
+
+Wherever we are implementing and accessing the APIs or the application, we are using something called
+
+cube CTL port forward option.
+
+So wherein on our local desktop we are going to access with localhost colon, whatever the port we have
+
+forwarded that to.
+
+Right.
+
+So 7080 is our localhost port and 8080 is our application port which actually running on EKS cluster.
+
+That worked fine for quick local testing.
+
+But there's one big limitation here.
+
+So we cannot access our application via internet.
+
+It's completely isolated inside the Kubernetes cluster.
+
+So in real world production setup, we want users to access our app from anywhere using a public DNS
+
+name.
+
+So for that we need to implement something in our entire implementation.
+
+So there comes the important point called ingress.
+
+Right.
+
+So what exactly is this ingress.
+
+We need to understand that first.
+
+So before going to ingress right.
+
+We need to understand something like.
+
+So ingress is something simply we can say it as a load balancer.
+
+But one thing we need to understand is like if you want to front your application with a load balancer,
+
+so you have something called app one something or some retail store application.
+
+So you your user is sitting here and he want to access this application, right.
+
+Which?
+
+This is present in your ECS cluster.
+
+Right.
+
+So to do so you need to have a load balancer created.
+
+So this is the load balancer.
+
+Then only you can access your application via internet.
+
+So now this load balancer will be of two types.
+
+One is Alb and the another one is NLB.
+
+So Alb is nothing but AWS Application Load Balancer and AWS Network Load Balancer.
+
+And let's talk about these things a little bit more.
+
+Okay.
+
+So when we are talking about this Alb in Kubernetes right in AWS Alb equal to ingress.
+
+So this is another thing we need to remember.
+
+And now when we come to NLB here.
+
+Right.
+
+So in Kubernetes this NLB is equal to right.
+
+Service.
+
+Kubernetes plane service of type equal to load balancer.
+
+So these are the things we need to remember.
+
+Now currently we are focusing on this part which is ingress.
+
+So what is ingress.
+
+So this is the overall flow right.
+
+So if you want to access your application via internet which is present in EKS cluster, you need some
+
+load balancer to be present.
+
+And that load balancer can be of type Alb or NLB.
+
+And in the Alb is equivalent to ingress and NLB equal to service type load balancer.
+
+That's the thing.
+
+So now let's come back to our important point here which is ingress.
+
+And then let's talk discussing about that.
+
+And before that one more thing to remember is Alb is HTTP layer, which is nothing but in ozone layers.
+
+It operates at layer seven and this is TCP layer mostly so which means it operates at ozone layer four.
+
+Okay.
+
+So here we have a lot of flexibility in altering the traffic.
+
+So we will discuss those things one after the other.
+
+So what exactly that means right.
+
+So in HTTP right.
+
+So when you are dealing with HTTP you can do multiple alterations here.
+
+So what are those alterations exactly.
+
+So one is you can do path based routing right.
+
+And second is you can do hostname based routing.
+
+So we will talk about these things one after the other.
+
+And third is you can do something called header based routing.
+
+So what exactly are these routings?
+
+Okay.
+
+So let's start with the first one which is path based routing.
+
+So we'll discuss this path based routing now right.
+
+So path based routing is nothing.
+
+But you have application here like uh you have something called app one okay.
+
+And you have something called app two.
+
+And you have something called app three.
+
+And these three things.
+
+Right.
+
+You want to front it all.
+
+These are hosted in ECS cluster okay.
+
+And for all these things user is sitting here and he want to access it using only something like stack
+
+simplify.com URL on this URL only he want to access.
+
+So what you do is you create a B here which is nothing but ingress in your Kubernetes okay.
+
+So ingress in your Kubernetes cluster.
+
+So that Alb here you define the path based routing logic.
+
+So when slash app one comes when slash app two comes and when slash app three comes okay.
+
+So request should go this way.
+
+So this is the way you can implement the path based routing.
+
+So this is path based routing.
+
+So this can be implemented using Alb which is equal to ingress.
+
+So now in ingress so what exactly is this ingress means.
+
+So declarative way of creating a Alb in a declarative way from Kubernetes is ingress.
+
+Which means you define some YAML file.
+
+Right.
+
+And in that YAML file how your load balancer should be there, you are going to write it.
+
+And then when you deploy that in your Kubernetes cluster, when you deploy that ingress in your Kubernetes
+
+cluster, it will go ahead and then create your a load balancer.
+
+So that's the thing.
+
+Now this is path based routing.
+
+And we also need to know something about hostname based routing.
+
+So it's the again same thing right.
+
+So we will go ahead and then we will take a different color here.
+
+And we have something called again you have App1 here.
+
+So this is hostname based routing.
+
+Again you have something called as one in EKS cluster.
+
+And you have something called app to.
+
+And if you want you can also say app three okay.
+
+Right.
+
+And again user is sitting here and you have your load balancer ELB present here.
+
+And now here you define your routing logic.
+
+So what you define here you say that if it is app one dot pi dns.com.
+
+So DNS can be anything.
+
+Stack simplified.com.
+
+You are decide okay so app 2.my.com and app three dot my dns.com.
+
+So now this is the flow when app one dot when user accesses here app one dot my dns.com and app two
+
+dot and app three dot okay.
+
+So when user accesses app 1.. com the request will go to app one application.
+
+When he accesses app 2.com it goes here.
+
+And app three it goes here.
+
+So this whole routing logic you can implement using hostname based routing.
+
+Again this is again ELB equal to ingress.
+
+In ingress you can define those things.
+
+And equivalent ELB rules in AWS will get created automatically.
+
+So that's the that's the hostname based routing.
+
+In same line we can also implement header based routing.
+
+So there are three examples I am giving you.
+
+But there are many things you can do via ingress.
+
+But these are the three important things I am trying to tell you.
+
+Again you have the same thing.
+
+So let's take app one and we'll also take app two here okay.
+
+That's fine.
+
+And then we have the user sitting here.
+
+And then he is trying to access our load balancer ELB.
+
+And here you define a Routing.
+
+Okay.
+
+And here you will say that, uh, a header name might be anything.
+
+Okay.
+
+So like, uh, my, my header is set to app one.
+
+Then request goes to this.
+
+And if my header in this is the request header equal to app to request goes to this.
+
+As a user I will send the header value in my header.
+
+I will give app one.
+
+And those requests will always go to app one.
+
+And if I give the request with header name my header as app two, then the request will go to app two.
+
+So like this.
+
+Because it is a layer seven, layer seven load balancer means which operates at HTTP layer.
+
+We can implement any type of things here, which means like all the HTTP alterations you can do.
+
+So what?
+
+All we can do in Alb directly equivalent Kubernetes ingress configurations will be there.
+
+Those you can do and deploy in EKS cluster.
+
+And then those will be reflected in the Alb.
+
+So that's about ingress and Alb combination.
+
+How powerful it is.
+
+Now we are talking about a lot about ingress right.
+
+So but one thing we need to understand here is if you want to deploy the ingress resource in your means,
+
+like if you want to deploy this ingress resource in your EKS cluster and if it need to work, then first
+
+thing is you need to deploy your load balancer controller.
+
+So this is the important thing we need to do so that we are going to do in our next lecture.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Alright, welcome to section 1101.
+
+So in this section we are going to install and understand the AWS Load Balancer controller on our EKS
+
+cluster.
+
+So think of this AWS Load Balancer controller as the bridge between Kubernetes and AWS Elastic Load
+
+Balancer.
+
+So this is Kubernetes and this is AWS Elastic Load Balancer.
+
+So whenever we create a ingress resource this controller automatically provisions the application load
+
+balancer in AWS Elastic Load Balancing Service.
+
+And whenever we create a service type of load balancer it provisions the NLB so it can provision NLB
+
+and ELB.
+
+So now our primary focus is on ELB which is nothing but ingress resource.
+
+So let's walk through the big picture first step by step about these things.
+
+So what we will do is we will start by installing the AWS Load balancer controller inside the kube system
+
+namespace.
+
+So this controller continuously watches for ingress and service objects in the cluster.
+
+So what exactly that means?
+
+As a Kubernetes administrator I want to create a ingress resource.
+
+Means like I want to create a load balancer for my retail store application.
+
+So I'll go ahead and then deploy the ingress YAML manifest.
+
+So this ingress YAML manifest is deployed.
+
+So this AWS load balancer is continuously watching.
+
+If there are any ingress ingress YAML manifest deployed or not.
+
+It is watching and it will find that someone deployed it.
+
+And what it will do is it will go ahead and then review that ingress manifest and whatever the configurations
+
+defined inside that ingress manifest.
+
+It will review and it will go ahead and then create the application load balancer.
+
+Right.
+
+So immediately once that ingress resource is deployed.
+
+So basically this controller is the brain that keeps Kubernetes and AWS perfectly aligned from load
+
+balancers perspective perfect perspective.
+
+So that's about load balancer controller from ingress perspective and elastic load balancing perspective.
+
+But to create this Alb it needs permissions right.
+
+So there comes the concept called pod identity agent concept.
+
+Same as what we have seen for EBS, CSI and what we have seen for Secrets store CSI driver.
+
+So we create a service account first means like by default it will get created when we are installing
+
+this load balancer controller and its name is AWS Load Balancer controller.
+
+We just need to remember that name.
+
+And then second is we need to create a IAM role with all required permissions IAM role with all required
+
+permissions to create delete update these load balancers.
+
+Right.
+
+So this role will have the associated policy for it.
+
+And that policy will have all the permissions.
+
+So that is number two.
+
+So this is one.
+
+This is number two.
+
+And the third one is create the EKS pod identity association for this IAM role.
+
+For this IAM role and this service account.
+
+And for we establish the x pod at Identity Association.
+
+So entire thing this X pod identity association whatever we have created and the service account whatever
+
+we have created and load balancer controller, whatever we have deployed, all these things, whether
+
+it is working or not, we are going to deploy a sample ingress resource and then verify.
+
+So that's the thing.
+
+Now, once this x pod identity association is linked, the controller, this AWS load balancer controller
+
+pod can assume this II role automatically.
+
+So no access keys are required, no secrets are required or no, it doesn't need any oidc configurations.
+
+Pure credential security in AWS using Pia.
+
+Exactly the AWS recommended way forward.
+
+Now let's come to this fourth point wherein we create an ingress in Kubernetes.
+
+The controller uses the IAM role to talk to AWS and create a new application load balancer.
+
+ELB is created so you you will literally see it appear in your AWS console, which means you deploy
+
+a YAML manifest here and it creates a Alb here.
+
+And you can see that directly in your, uh, application load balancer section in your EC2.
+
+Right.
+
+And this whole thing, whatever it creates, the target groups, it creates the security groups, listeners,
+
+whatever is required for that load balancer, everything is created and all that is created just by
+
+defining and defining everything in YAML and deploying in EKS cluster.
+
+So no manual setup, no console clicks, fully automated.
+
+So that's what is created in the same line equivalent ingress resource in Kubernetes whatever it creates.
+
+Right.
+
+So that's where we define the routing rules.
+
+So if you want to implement any routing rules like slash app one should go to slash app.
+
+One application slash route should go to some UI service.
+
+So everything whatever you want you can define in the Kubernetes YAML manifest itself.
+
+And it can implement equivalent rules in amb two.
+
+In Alb two, you finish the entire routing process in Alb.
+
+The controller ensures that the Alb listeners and rules always stay in sync.
+
+So whatever is present here, right.
+
+And whatever the thing you have defined here.
+
+Right.
+
+So in ingress service and in Alb.
+
+So this controller will ensure that they are in sync.
+
+So if you change or delete anything inside this ingress resource the Alb updates are be can.
+
+The equivalent changes will be reflected in this elastic load balancing Alb automatically.
+
+It's the controller responsibility to do that.
+
+So all these things happens via this AWS load Balancer controller.
+
+So so let's see the end to end traffic flow.
+
+So once the ingress resource is created which means it created a Alb application load balancer which
+
+means it will have a public DNS.
+
+So using the DNS users can access and the request will come to this ingress service.
+
+And from there it will go to your application whatever you have load balancer there.
+
+So ingress will not directly send to the applications, but ingress can send to the SIP services or
+
+cluster IP services or node port services fronting the application, which means even it is a catalog
+
+microservice if you want to access this catalog.
+
+Microservices related deployment is not the thing ingress is going to directly send to.
+
+Ingress will send to either SIP or a node port service fronting those application deployment pods.
+
+So that's another important thing to remember.
+
+So we'll go ahead and then practically implement it.
+
+So we'll understand more about this SIP node port service why those need to be fronted and from ingress
+
+how the routes are defined.
+
+All those things we are going to see practically.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+So before going to next demo, we also need to install the load balancer controller and all these things
+
+in current demo.
+
+So let's go ahead and then do that.
+
+
+All right.
+
+Now that we clearly understood how the AWS Load Balancer controller fits into our ECS setup, let's
+
+jump right into the hands on implementation.
+
+So we will follow a structured approach starting with IAM setup, then creating the Pod Identity Association
+
+and finally installing the load balancer controller using helm.
+
+So now let's go to section 11 which is Kubernetes Ingress.
+
+And here in 11 zero one load balancer controller install.
+
+Right.
+
+So we are going to install the load balancer controller.
+
+Let's define our environment variables AWS region ECS cluster name and then AWS account ID.
+
+So let's complete those things.
+
+And once that is done let's go ahead and also verify those things okay.
+
+Those were set properly or not.
+
+We are going to verify.
+
+And then we are going to create an IAM policy for the load balancer controller.
+
+So let's do that now right.
+
+So we'll create a folder IAM policy JSON files in 11 Kubernetes ingress and 11 zero one load balancer
+
+controller install.
+
+And we will go inside that IAM policy JSON files.
+
+And here we are going to download the official IAM policy for load balancer controller.
+
+So at this path it is present.
+
+So if we try to open that here so we can open that file.
+
+And this is the complete thing.
+
+So all these permissions are required.
+
+So there are huge amount of permissions.
+
+So all those are needed for us.
+
+So we'll try to download that file here.
+
+And with name as AWS Load Balancer controller policy dot JSON.
+
+Its name is going to look that way.
+
+We are in IAM policy JSON files.
+
+And if you see AWS load balancer controller policy JSON.
+
+So that file got created for us.
+
+So let me go here.
+
+And this is the this is the backup we don't need.
+
+This is the one.
+
+And you have the complete file with what all permissions it needs.
+
+All those are present here.
+
+Now next come back here.
+
+And then we'll move to the next step here which is we will create the IAM policy using these permissions.
+
+And the policy name we are giving is AWS Load balancer controller IAM policy underscore.
+
+And then we are also providing the cluster name.
+
+So let's go ahead and then create that now.
+
+So once this policy is created we'll also create a trust policy with pod eks amazon.com.
+
+So this is again standard what we have done earlier also.
+
+Right.
+
+So this uh means like we will create the trust policy that allows the EKS pod identity agent to assume
+
+this IAM role on behalf of the load balancer controller pod.
+
+So for that purpose we'll go ahead and also create this file okay.
+
+And this trust policy also created now.
+
+So this is the trust policy now.
+
+And next thing is we'll go ahead and then create the Im role with this trust policy.
+
+And then attach the permission policy whatever we have created here.
+
+So let's complete those two steps.
+
+So we are going to create an IAM role named Amazon x LBC role underscore cluster name.
+
+So let's create an Im role first.
+
+And after that we will also attach the permission policy whatever we have created just now okay.
+
+So when creating the IAM role itself we are attaching the Assume Role policy document which is our trust
+
+policy.
+
+Now let's also attach the permission policy to the IAM role.
+
+And then if you want you can list them using these command verify attachment role policies.
+
+Or you can go here, we can go here and we can go to IAM and in IAM we can go to roles and we can say
+
+just retail is our thing.
+
+So you can see Amazon x LBC role load balancer controller role.
+
+And if you open that you can see the permission policy should be attached here.
+
+So let's wait for it so we can see the permission policy attached with all the permissions and trust
+
+relationship also present.
+
+So everything is working as expected so far.
+
+And finally we also need to create the Pod Identity Association.
+
+So we'll create the pod identity association in in the kube system namespace we'll have the will have
+
+the service account name for AWS load balancer controller, as this is the one which is defined in the
+
+documentation AWS Load Balancer controller.
+
+And then our IAM role, whatever we have created.
+
+So this service account this role and in namespace cube system.
+
+So these three things are the important things.
+
+So this step binds our service account to the IAM role securely.
+
+So now let's copy this and come to our terminal here and create the uh create the pod Identity Association.
+
+And we can go here and verify the same thing.
+
+We can go to access and come down.
+
+And in the pod identity associations we we need to refresh here okay.
+
+So try to refresh.
+
+And if we come down we have the pod identity Association x LBC role retail dev.
+
+And in the kube system namespace for the service account AWS Load Balancer controller.
+
+So we have successfully completed the Pod Identity Association step.
+
+Next is we need to install the load balancer.
+
+We are going to do that in our next step.
+
+I'll see you in the next lecture.
+
+Until then bye bye.
+
+Thank you.
+
+
+Let's go ahead and then install the AWS Load Balancer controller.
+
+First we need to add the helm repo and then update the helm repo.
+
+So let's do that now.
+
+So we'll say clear.
+
+And then we'll also run the command helm repo update.
+
+And so X charts a repository is not an issue successfully.
+
+Got an update.
+
+This is related to Azure Application Gateway.
+
+We really don't need to worry whatever is required for us.
+
+It's successfully working.
+
+And then we need to get the VPC ID of our VPC where our EKS cluster is running.
+
+So you can run the command aws, eks describe cluster and provide your cluster name and get the query
+
+cluster dot resources vpc config dot vpc id.
+
+So this will save your VPC id in vpc id variable.
+
+So now let's get that and verify if you already have the VPC ID or not.
+
+So you have the VPC ID now.
+
+Now this is the helm install command.
+
+And the AWS load balancer controller is the name of the thing.
+
+And this is the chart location.
+
+And we are going to install that in kube system namespace.
+
+And the in.
+
+And we are also providing the cluster name here which is EKS cluster name which is retail dev.
+
+Whatever we have set right.
+
+So that one and in region AWS region also we have set the environment variable and VPC id.
+
+Also, just now we have set and whether it need to create a service account or not, it need to create
+
+a service account and when it creates its name looks this way.
+
+This will be the name when it creates default service account name for AWS load Balancer controller.
+
+Okay.
+
+And then you can also define those things here.
+
+Here service account name and AWS load Balancer controller.
+
+So now if we have given a different name here AWS Load Balancer Controller service account name different,
+
+then you can also put that name here.
+
+Okay.
+
+So we are trying to put the defaults here so that there is no confusion and no troubleshooting issues.
+
+Future in future okay.
+
+So now let's go ahead and then install this AWS load balancer controller using helm.
+
+So now once it is installed right.
+
+So we are going to list the releases in kube system namespace using helm list hyphen and kube system.
+
+And it will also show our AWS, EBS, csi driver related helm release and Secrets store CSI driver release
+
+and also secret store with AWS.
+
+Right.
+
+So that plugin release all those things also present in same kube system namespace.
+
+So you can see it is deployed and in namespace cube system.
+
+Now we will list all the releases present in cube system.
+
+Helm releases present.
+
+So you can see AWS load balancer controller is deployed successfully.
+
+Right.
+
+And other things also you can see other things.
+
+Whatever we have deployed earlier.
+
+Now we can go ahead and then also verify the status okay.
+
+Helm status is another command.
+
+And you can run the command to verify.
+
+And it will provide whether it is deployed or it is stuck or failed or anything.
+
+It can show using this helm status command.
+
+Now you can go ahead and then verify the pods for AWS load Balancer controller, whether they are running
+
+or not.
+
+So they are running without any issues.
+
+Okay, now you can verify the logs also.
+
+First you can verify the deployment cube CTL get deployment in kube system namespace whose name is AWS
+
+Load Balancer controller.
+
+And you can also logs hyphen f and you can provide the pod name.
+
+So just now we have listed the pods right.
+
+So these are the parts and copy and hyphen n cube system.
+
+And this should show the logs for our load balancer controller.
+
+So I don't see any errors here.
+
+But usually if there are any authentication authorization errors then it will be showing here.
+
+So even after deploying your ingress resource, if you if it is not able to create any application load
+
+balancer in AWS, you need to come to those respective cubes Kube system namespace and AWS load balancer
+
+controller logs and load balancer controller pod logs and then verify what is happening.
+
+So that's the important thing to remember.
+
+So that's about installing the load balancer controller in our EKS cluster using helm.
+
+I'll see you in the next demo.
+
+Until then bye bye.
+
+Thank you.
+
+
+All right, before we dive into how ingress works, and especially before we talk about IP mode versus
+
+instance mode in ingress service, let's first take a moment to understand one of the core Kubernetes
+
+service types that makes ingress possible.
+
+That is node port service.
+
+So because without understanding node port, the internal flow behind ingress might feel a bit confusing.
+
+So what exactly is a node port service?
+
+So in Kubernetes every pod gets its own IP address.
+
+But remember these pods are ephemeral.
+
+They can restart or move to another node, which means they can be scheduled on other other other nodes
+
+and get a complete new IP address.
+
+So to talk in very simple terms.
+
+Whatever the IP addresses associated to these parts are not permanent.
+
+They can change at any point of time.
+
+So that's where services come in.
+
+They give us stable endpoint that load balancers traffic across a set of pods.
+
+So these IP addresses whatever assigned to these services are stable.
+
+Now there are multiple service types available in Kubernetes.
+
+So one is cluster IP service.
+
+Second is node port service and third is load balancer service.
+
+And fourth is headless service and fifth is external name service.
+
+And we also have something called ingress service.
+
+So so far we have learned about cluster IP service and also headless service.
+
+When we are learning about Statefulset and external name service when we are learning about RDS demo,
+
+which is our previous demo, and now we are focusing on something called Node port Service.
+
+So we are trying to understand the node port service here.
+
+So node port is the one that opens a static port on every worker node.
+
+So how does node port work.
+
+So let's look at this diagram.
+
+Once we have two worker nodes here one is worker node one and worker node two.
+
+So each node has its own IP address.
+
+You can see those IP addresses here right.
+
+And when we create a service of type node port.
+
+So when we create this node port service right.
+
+So when we create this node port service immediately Kubernetes allocates a port number.
+
+So example like this right.
+
+So that can be between these ranges.
+
+So this node port is a optional argument in your Kubernetes service.
+
+If you don't define the node port.
+
+So one port from this range will be dynamically and automatically assigned, so one port will be assigned.
+
+So let's say that port is 30006.
+
+So this is the 30006.
+
+When this node port service is deployed it is allocated on every Kubernetes worker node.
+
+So that means no matter which node receives the request the traffic will be hitting the underlying back
+
+end port.
+
+Which means when you access your application with any of the worker node with that specified port.
+
+So it might be worker node one colon that 30063306 are worker node IP 100.
+
+So it might be a worker node its 100th worker node.
+
+But still when you try and access with 30006 port, then you will be able to access your application
+
+present in your Kubernetes port.
+
+So let's also understand a little bit about port mapping.
+
+So you understood the flow, right?
+
+User will access this.
+
+User will access worker IP colon 306.
+
+And then the request comes this way and then flows this way.
+
+And then your application is accessed which is present inside this container.
+
+Okay.
+
+Now uh, one thing we need to understand is these port mappings.
+
+What all these we need to understand.
+
+Right.
+
+The service this UI node port service is listening on port 80.
+
+That is a service port.
+
+And this is the node port.
+
+So this is the one which we are talking about.
+
+You can either define this or you don't need to define this.
+
+If you don't need if you if you don't define that one IP address, one port from this, this range will
+
+be allocated to this UI node port service.
+
+And each port runs a container listening on port.
+
+So that is this one.
+
+So target port.
+
+And here you can give 8080.
+
+But here we have given HTTP means.
+
+This HTTP is nothing but port name in your deployment.
+
+In your port you will say name equal to HTTP right in your deployment file.
+
+If you have defined the name for your port, right.
+
+So that port also you can reference here that name.
+
+Also you can reference here either you can use directly your container port here 8080 or the name of
+
+the port, whatever you defined in your Kubernetes deployment that also you can give here.
+
+So here we have given HTTP.
+
+Ideally anything is fine.
+
+So that's about the three ports which is one is your node port.
+
+And then another one is service port and another one is target port which is nothing but your container
+
+port.
+
+So the flow is node IP colon 306 goes to service IP colon 80 and which goes to pod IP 8080.
+
+Simple and straightforward.
+
+One thing we need to understand is node port is great for just testing purposes or small clusters where
+
+your ex worker nodes are present in your public cluster so that it creates a public IP for us, but
+
+in our case, in our EKS cluster.
+
+In our architecture, our Kubernetes worker nodes are present in private subnets.
+
+So which means whenever a node port this node IP also is a private IP.
+
+So when it is a private IP you cannot access from even the internet also.
+
+So in simple terms node port is for internal testing or for small clusters and all those things.
+
+But it is not it is not production grade.
+
+So it is not for implementing in production.
+
+That's one thing to remember because you have to manually always access your node IP colon port which
+
+is not recommended.
+
+Right.
+
+And you must open these ports in your security groups or firewalls provided if your worker nodes are
+
+sitting in your public subnets, and those gets the public IPS and those need to be opened in your security
+
+groups.
+
+So which is again a big security risk and you can only use one node port per port number per cluster.
+
+Again, there is a limitation.
+
+So it works, but it's not scalable or user friendly or not even recommended in production.
+
+So why, if it is not even recommended in production, then why do we need to learn about this node
+
+port service?
+
+Because when we talk about ingress ingress instance mode depends on node port service.
+
+So we'll understand that when we are learning about how ingress works in detail.
+
+But for that purpose we are learning about this concept.
+
+So now that you clearly understand how node port works inside a Kubernetes cluster, let's move on and
+
+see how ingress takes this concept one step further.
+
+By automatically creating a AWS Load Balancers and intelligently routing external traffic into our cluster
+
+using IP mode and instance mode.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Hi everyone.
+
+Welcome back.
+
+In this lesson, let's understand how ingress actually works inside ECS.
+
+When we use the AWS Load Balancer controller.
+
+So we will break it down step by step using this diagram.
+
+So let's start with ELB controller.
+
+Watch and react concept.
+
+So our load balancer controller constantly watches for new ingress resources from the Kubernetes API
+
+server.
+
+So whenever a new ingress object is created the controller immediately starts provisioning AWS resources
+
+that can serve it.
+
+So it keeps track of those resources.
+
+And if we later delete or modify the ingress, the controller automatically updates or deletes the corresponding
+
+AWS components.
+
+So once the ingress is detected, the controller creates.
+
+So this controller creates an Alb which is application load balancer in AWS.
+
+This Alb can be a internet facing or internal only.
+
+So we have the option to create a load balancer which is internet or internal.
+
+So anything is defined using annotations here.
+
+So in the annotations you can say your application can be internet facing or internal.
+
+So this is the setting for defining whether you want your load balancer to be in which location it need
+
+to get created.
+
+So it can be it can give a public IP address so you can access from the internet or only internal to
+
+your cluster.
+
+It can be.
+
+So all those things are possible using these annotations.
+
+So we can even control which subnets it's launched in.
+
+So even using these annotations in which subnets this load balancer need to be created also.
+
+We can configure so all the configuration settings in your application load balancer can be done using
+
+these annotations in ingress service.
+
+So that's the concept we need to know.
+
+And next thing is so we learned about configurations how you can do right.
+
+So all the configurations for your load balancer can be done using annotations.
+
+Now let's talk about in Alb what are the key important things right.
+
+So one is configurations.
+
+So that configurations we learned just now.
+
+And the second is target groups is another important concept in application load balancer.
+
+So these target groups how these how does these target groups get created.
+
+So for every unique Kubernetes service referenced in our ingress the controller creates a set dedicated
+
+target group.
+
+So if you see here in this ingress specification, you said default backend and you said here service
+
+and name of your service is UI.
+
+And you can see just now we discussed about this Nodeport service UI.
+
+And so you are referencing a UI with port number 80.
+
+So whatever you are seeing this service right.
+
+So this service are referenced in our ingress.
+
+The controller creates a dedicated target group here.
+
+So that's the thing.
+
+So this is one service.
+
+And you have multiple services like you have defined service B and then service C here in your ingress.
+
+So those services gets their own target groups here.
+
+So each service is pointing to one application.
+
+So this might be something like this.
+
+This might be some accounting app.
+
+Okay.
+
+Something.
+
+Okay.
+
+And this might be some products app.
+
+Some products app.
+
+And again a is that one.
+
+And B is that one.
+
+And C is some catalog app.
+
+Something like that.
+
+Okay.
+
+So all these each product is one target group here.
+
+Each application is one target group here.
+
+And each application how it is referenced in your in your uh load balancer is using target group means
+
+like t g equal to g equal to s.v.c in your Kubernetes K8S.
+
+And this e svc can be c I, p cluster, IP service or node port.
+
+This ah this.
+
+So that is the thing target group equal to service.
+
+And that service can be of CIP or NP.
+
+So there are two things.
+
+So that's the key thing here.
+
+I have just redrawn this picture for you to understand.
+
+Now each target group represents one backend service like service A, service B, and then service C.
+
+So that's about target groups.
+
+So we have seen the configurations.
+
+We have seen the target groups.
+
+Now let's talk about the listeners.
+
+So the controller adds this controller load balancer controller adds listeners to a.
+
+Usually that means HTTP port 80 and port 443.
+
+So default is HTTP port 80 which will get created by default.
+
+Any changes if you want to do or if you want also want Https listener also, then all those things you
+
+can define in this configuration.
+
+So you can see the listen ports here in the configuration.
+
+And you can define https four, four, three and 80 which means in annotations, whatever you define
+
+the listen ports, those will be configured as listeners in your application load balancer.
+
+So if we attach SSL certificates via annotations we can even do that also.
+
+So you can see you can attach your SSL certificate.
+
+This is your AWS Cert Managers SSL certificate.
+
+So you can even do that.
+
+So that's about listeners and also SSL certificates.
+
+And finally we also have something called routing rules in our load balancer.
+
+So the controller sets up rules for each path we specify in ingress resource.
+
+So as we said we can define the path based routing or hostname based routing.
+
+Right.
+
+Or even header based routing.
+
+So all these things we can define all these things will define inside this specification.
+
+So here instead of default backend we can define additional things here.
+
+And using those things we can implement them.
+
+Currently in our use case we have only default backend.
+
+So for that purpose we will have only route routing rule present because for our uh retail store application.
+
+All the requests from the L B goes to UI service and from UI service.
+
+The request will go to catalog and then orders and then checkout.
+
+So it goes that way.
+
+So for that purpose we will have only route routing rule.
+
+And then that is nothing but the default back end whatever we have defined.
+
+So that's about on a very high level how ingress works and how we define the ingress resources in our
+
+ingress manifest using annotations and in the spec using default backend and all those things.
+
+And even for SSL, you can define even for listeners, you can define.
+
+So everything we can define in detail in annotation sections and also in spec.
+
+And equivalently those resources will get created in Alb.
+
+In our next lecture we will focus on understanding about IP mode and instance mode.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Now let's look at the two modes supported by AWS Load Balancer controller.
+
+So why we need to know about these two modes?
+
+Because we need to understand how does the traffic actually reach our Kubernetes pods.
+
+So let's start with the first mode which is the instance mode.
+
+So let's go here and let's talk about the instance mode.
+
+So this is the default mode.
+
+So this is the default mode when you don't specify this configuration also.
+
+So where is this.
+
+This is the one when you don't specify this configuration target type instance.
+
+Even then it will take the default mode which is instance mode.
+
+Instance mode.
+
+In instance mode, the Alb sends traffic to the node port of our Kubernetes service.
+
+That means the Alb first reaches the worker node IP address.
+
+Then the node forwards the traffic to the correct port inside it.
+
+So this is the let's say this application A which is in this green color right.
+
+So this is the service A here it is using instance mode.
+
+So it is sending the traffic to our worker node.
+
+So you can see node port right.
+
+And from there the request will be sent to the pod.
+
+So in instance mode as a user who is sitting here.
+
+So when it comes to the load balancer, from there the request goes here.
+
+And from here it goes to your node port service.
+
+And from there it will go to the pod.
+
+Because of this our service type must be node port.
+
+So the Alb can reach it through the node.
+
+So you will see that in our diagram traffic hits the node port then gets routed to the pod which we
+
+are seeing it in detail.
+
+So you can also see the instance mode setting for target type in our YAML file.
+
+Now when we talk about the IP mode right.
+
+So here we can say we have defined the IP.
+
+Here.
+
+Target type is IP.
+
+In IP mode the Alb directly targets the pod IP address.
+
+There is no node port hop involved here right.
+
+So which means you take this application C service C okay.
+
+So this is the third application.
+
+So here it is using the node port node IP mode.
+
+It is using.
+
+So here you can see as a user request comes to your application load balancer from your target group.
+
+Right.
+
+The request is directly coming here to your pod.
+
+So there is no node port concept here for this one.
+
+So this is very important okay.
+
+So which means there is there are no multiple hops for your request.
+
+So when you are using the IP mode so your performance of your application might be a little better in
+
+high traffic times.
+
+So one important thing is you need to use the aws vpc cni plugin for this okay.
+
+So for this to work we need to use aws vpc cni plugin.
+
+So which is a default one in our EKS cluster.
+
+So it will be anywhere there.
+
+But if it is not there also we need to install it.
+
+It is even available as a add on also if you want to install it.
+
+But in our case when we are creating it via Terraform, it is already present.
+
+So that's about IP mode and how to check if vpc CNI is running on our EKS cluster or not.
+
+So we can go to the terminal here and we can say cube CTL, get pods, hyphen n and cube system.
+
+Right.
+
+And you should see that AWS node.
+
+So these three are the things which are related to VPC.
+
+When you go and then verify kubectl get ds which is daemonset hyphen n kube system.
+
+So aws node daemonset should be running here.
+
+So this is the one.
+
+And here if you want you can do additional check cube CTL describe ds aws node hyphen n kube system
+
+and pipe it with grep image.
+
+Sorry, it should be image and you will see something with related to CNI here.
+
+See it is CNI.
+
+So CNI related things.
+
+So this means our VPC CNI plugin is running in our EKS cluster.
+
+So that's the important thing to use IP mode.
+
+So to quickly understand Right.
+
+So in instance mode.
+
+In instance mode right the flow is like this.
+
+Right.
+
+So the request so user and request goes to Alb.
+
+And from there it goes to node port.
+
+And from there it goes to our port.
+
+So this is the flow but in IP mode right.
+
+So in IP mode.
+
+So as a user you have the user and the request goes to Alb.
+
+And from Alb it goes directly to the pod.
+
+So this harp whatever you are seeing is not present inside this IP mode.
+
+So which is a huge network bandwidth saving when thousands and thousands of requests are coming to your
+
+respective application load balancer.
+
+In our demo we are going to actually create both modes one Alb using instance mode and another using
+
+IP mode.
+
+So you can clearly see the difference in action.
+
+So which means when you see the load balancer.
+
+Target group for IP mode it should have the pod IP for it right.
+
+And when you see load balancer target group for target group for instance mode you should see the worker
+
+node IP.
+
+Means like your worker node p colon node port.
+
+So here also it is worker node ip colon node port.
+
+So we have three worker nodes running.
+
+It should be present.
+
+So in our next demo actually we are going to deploy and then verify those things.
+
+But I already deployed for you to show that actual difference in detail when learning the concept itself.
+
+Okay.
+
+So we will go there and then understand that okay.
+
+So where is that.
+
+So we'll go here and we'll go to our load balancer screen here and see in the EC2 section in the load
+
+balancer section we have two load balancers running.
+
+One is retail store http IP mode and retail store HTTP instance mode.
+
+Okay.
+
+So if you go to this instance mode right.
+
+So this is the instance mode related configurations okay.
+
+And in the network mapping.
+
+So you can see that in resource map you can see the target groups.
+
+So you can see three target groups are present here means like three targets are present in the target
+
+group.
+
+So all these are the targets.
+
+And or you can directly go to target groups and also see that we'll see that a little later.
+
+But now let's come to IP mode and go to Resource map.
+
+And here you can see only one target.
+
+So that's the thing to understand.
+
+Now let's go to the target groups.
+
+And in the target groups let's open instance mode target group.
+
+So this is the instance mode.
+
+And you can see the targets here.
+
+So these three are the instance IDs.
+
+And then this is the node port on our instance.
+
+So if you go and then open that instance here, right in EC2 instances you can see the instance IDs
+
+ending with d f a f a f and f 59.
+
+So d a, f f a f a f and f f 59.
+
+So all the three worker nodes were added as targets in our target group.
+
+So that's the important thing to remember.
+
+And this is the node port it is using.
+
+So why.
+
+Because I didn't define anything anything in our uh in 11 zero two.
+
+If you go to 11 zero two and if you go to our, uh, node port service, I didn't define any specific
+
+port here.
+
+Okay.
+
+So it took dynamically one port from the range, whatever is allocated for node port service, which
+
+is 31131414, it took when you are implementing it might be a different port.
+
+Dynamically it is going to pick.
+
+And if you go to the IP mode.
+
+Related are if you go to target groups and if you go to IP mode.
+
+And here is the IP address.
+
+This is directly the pod IP address.
+
+So you can go here and see the pod IP address cube CTL get pods, hyphen n get pods and hyphen o.
+
+Wide is the command and you have the pod related to UI pod running here and which is ten zero 1279.
+
+So you can see.
+
+Right.
+
+So all these things you can verify after implementing it.
+
+But before that only I am trying to show you how the instance mode and then IP mode is going to work.
+
+So in instance mode you will have all the three worker nodes added in your target group as targets.
+
+And in your IP mode, your pod IP address will be added as a target in your target group.
+
+So that's the important thing to remember.
+
+I'll see you in the next lecture.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+Before going to actual ingress implementation.
+
+So we are going to discuss about the retail store application right.
+
+So this retail store application will have means like which we have already implemented when we are
+
+doing the Docker also.
+
+Right.
+
+So which will have the UI service.
+
+And from UI service the request will be sent to Catalog service.
+
+And then we'll also have the carts microservice and checkout microservice and then orders microservice.
+
+So the requests are sent from UI to all these different microservices.
+
+Now from Kubernetes perspective right.
+
+So when we started the Kubernetes uh section in this course.
+
+Right.
+
+So we started with the following.
+
+So which means we try to understand the Kubernetes pod Replicasets deployments Statefulsets Configmaps
+
+service accounts cluster IP service, Nodeport service storage class, persistent volume claim, persistent
+
+volume.
+
+And even now we are going to implement the ingress also.
+
+So our application here, whatever you see the retail store application.
+
+Right.
+
+So it will not have anything other than these core Kubernetes.
+
+These are the core Kubernetes things.
+
+Okay.
+
+Core K80s.
+
+So these are the things present inside all these applications.
+
+So we have learned end to end about this catalog application currently.
+
+Right.
+
+And if you go and review the carts microservice or checkout or even orders, they are going to have
+
+the same concepts, which is either it might be a deployment or a stateful set, or a configmap or a
+
+service account, or a cluster IP service.
+
+So mostly it will fall under these things.
+
+Okay.
+
+So these five things but you have learned these many things okay.
+
+So which means if we go back to those configurations here right.
+
+So we are entering into the section 11 zero to Kubernetes ingress HTTP.
+
+And in that you have a folder HTTP retail store manifest.
+
+And in that you have from zero 1 to 0 six.
+
+So everywhere it is showing one application in zero one you have the catalog.
+
+So it is the catalog service account catalog secret and catalog Configmap.
+
+So I forgot to mention about the Kubernetes secret also here.
+
+Okay.
+
+So I'll try to add the secrets is another thing which we can add it okay.
+
+So Kubernetes secret and MySQL Statefulset cluster IP service deployment and cluster IP service standard
+
+Kubernetes concepts.
+
+That's what we have learned using one application and same are available in other things.
+
+Also this is a cart service account cards Configmap cards DynamoDB deployment.
+
+So this is another Kubernetes deployment.
+
+And this is DynamoDB cluster IP service cards deployment and class cluster IP service.
+
+Pretty straightforward thing.
+
+So whatever is required we have already learned those things.
+
+So when you review for cards application it will be easy for you to understand.
+
+In the same way if you go to checkout also you see service account config map deployment cluster IP
+
+see same things.
+
+Okay, even if you go to orders also it will be the same thing.
+
+Orders DB secret and RabbitMQ.
+
+Again this is another secret and config map Statefulset cluster IP service, another RabbitMQ Statefulset.
+
+So all the concepts what we learn, it's the same thing in other applications also and in UI.
+
+Also you can see the same thing.
+
+Only thing is in UI.
+
+In config map you are going to have the routing to other applications.
+
+So which means this is the catalog cards.
+
+Checkout orders.
+
+All the information and UI application which is a spring boot application will take those configuration
+
+information and route to those applications.
+
+That's all.
+
+Okay.
+
+So but everything is same means like all the concepts are same.
+
+So that means for these five applications, when we have learned about zero one, you can review from
+
+zero 2 to 0 five and understand the entire application in detail.
+
+So now our focus will be on zero six ingress, where we are going to learn about instance mode and IP
+
+mode and deploy these two load balancers and then access using these two load balancers, entire our
+
+complete Kubernetes application retail store application and then access it, browse it and see everything
+
+is working or not.
+
+And when we go to the catalog also till section ten, right.
+
+So we have implemented with RDS, EBS, EBS, CSI, Kubernetes, Secrets, everything.
+
+Okay.
+
+But here again we are switching back to basic catalogs where we have learned in the foundation sections.
+
+Right.
+
+So here you can see when we have implemented the stateful set, whatever the foundation section is there
+
+there we are going back.
+
+Why.
+
+Because if you want to again implement the catalog with secret store and catalog with EBS, CSI or catalog
+
+with RDS, then you need to install all those things and run it.
+
+But core focus here.
+
+What we are trying to learn in 1102 or 1103 is how to front your application with a load balancer.
+
+So our interest we are trying to put our focus on that one.
+
+So I am not complicating our setup and trying to put it simple.
+
+Even it even then it is still complicated because we already added five apps here instead of simple
+
+catalog.
+
+Okay, so now with these five apps ingress as the front end, we are going to deploy our application.
+
+So now if you come back here so ingress will be here and ingress will route to this UI component.
+
+And this UI from this UI component, all these things are accessible for us because in the UI component
+
+config map, we have all these service information.
+
+And that service information will be passed internally to your Springboot application, those endpoints
+
+and that will pick up the spring boot application will pick up which is present in your Kubernetes pod,
+
+and then route to these respective things, which is internally.
+
+Right.
+
+So now let's go ahead and then understand the ingress manifest in our next lecture.
+
+And then deploy this and verify end to end.
+
+
+So let's go and then review the ingress manifest here.
+
+Right.
+
+So API version is networking dot dot IO v1.
+
+And kind is ingress.
+
+And name of your uh ingress services retail store HTTP instance mode.
+
+And here you are providing the load balancer name also.
+
+So this is one annotation for load balancer name.
+
+So for all the annotations you can take this link here and then try to browse it.
+
+And you will find the all annotations information here okay.
+
+So all the annotations means like all the configurations what all are needed.
+
+You can take it from here and then implement based on your routing.
+
+So if it is for traffic listening, for traffic routing, access control, authentication, health checks,
+
+TLS.
+
+So all the things are available here and you can use it accordingly.
+
+So we are doing a base here wherein we are providing the load balancer name.
+
+That should be shown when you go to the EC2 console.
+
+So this is the one.
+
+And then core settings we are seeing this load balancer should be internet facing.
+
+And here is the target type which is instance mode we are doing.
+
+And from Healthcheck perspective we are saying HTTP and then traffic port.
+
+We are saying uh means like on which port it is accessing.
+
+Okay.
+
+So your back end.
+
+Okay.
+
+And this uh, and this is your actual health check path.
+
+This is a spring boot application.
+
+So this is the actuator.
+
+Health readiness is the path.
+
+And these are some additional settings related to your health check.
+
+So all the information will be provided here.
+
+And you can review those things in detail for health check okay.
+
+And now in the spec in your ingress spec you have defined the ingress class name Alb.
+
+So Alb is the default class name.
+
+So which we are using.
+
+So if you go here to your Kubernetes and say kubectl get ingress class then Alb should be the default
+
+class.
+
+Okay, so this is the Alb.
+
+And now you have defined the default backend here and in the service you said name is UI Nntp and port
+
+is number is 80 right.
+
+So this request will go to your.
+
+In zero five you have the node port service and UI Nntp.
+
+And there the request is going to go.
+
+And here you can see it is a node port service with port 80 target port HTTP.
+
+See this HTTP is nothing, but if you go to your UI deployment right in UI deployment, when you go
+
+to your spec here, right.
+
+So where is it port template spec.
+
+So here in this in container UI.
+
+So if you go down here in the port section.
+
+So this is the name.
+
+So this is the container port 8080 and name of this port is HTTP.
+
+So you are referencing that port name here in the node port service.
+
+or you can directly give instead of HTTP.
+
+You can also remove that and then also give 8080 which is your container port.
+
+Anything is fine.
+
+So this is one fine way of representing okay.
+
+So they have represented this way.
+
+And then you that's about instance mode.
+
+So instance mode will go to UI NP node port service.
+
+So which we have already discussed earlier also.
+
+And when we talk about IP mode right.
+
+So all these settings are same right.
+
+But here it is saying UI UI is nothing.
+
+But if you go to this cluster IP service.
+
+So this is the UI service which is a cluster IP service.
+
+So for IP mode we will use the cluster IP service.
+
+And for instance mode we will use the node port service.
+
+So that's the thing to remember.
+
+So now this ingress service is pointed to your UI service and UI service standard.
+
+It will be pointed to your all other applications using config map.
+
+So you need to define these end points in your config map and reference this config map in your deployment.
+
+So if you go here and then if you go down here env from.
+
+So you are getting these environment variables retail UI endpoint catalog cards, checkout and orders
+
+from the config map name named UI.
+
+And those are set when we are starting the pass those environment variables.
+
+So these three these four environment variables will be set in your UI pod.
+
+So once these are set that spring boot application knows what is my catalog endpoint and how to go there.
+
+So all that will be present in your Spring Boot application.
+
+To take care only, you need to set this environment variable and that you are setting using config
+
+map.
+
+Now that's about UI service and these things.
+
+Now what we need to do is we need to go here and we are in 11 zero two Kubernetes ingress HTTP.
+
+So if you go from DevOps we will go to section 11 which is Kubernetes ingress.
+
+And we'll go to 11 zero to Kubernetes ingress HTTP.
+
+And here you have the retail.
+
+HTTP retail store.
+
+And inside that you have all these files.
+
+So let me come out of it.
+
+And from 11 zero to I'll say kubectl apply and hyphen are recursively in all the folders.
+
+Whatever the Kubernetes manifests are there.
+
+We need to deploy them in hyphen f and HTTP retail store kit as manifest.
+
+So here we are explicitly implementing only HTTP, which means only uh via browser.
+
+Also we are going to access http url.
+
+We are not implementing any HTTP in our next demo.
+
+1103 we will focus on implementing Https.
+
+So let's wait for all these things to get deployed.
+
+So now we can see all the applications got deployed.
+
+So when you say kubectl get deploy right.
+
+So you will see all the deployments, whatever created carts, carts, DynamoDB catalog, checkout,
+
+checkout, Redis orders, and then UI in the same line.
+
+When you say cube CTL, get stateful set STS right.
+
+So you should see catalog MySQL orders PostgreSQL and orders MQ in the same line.
+
+You can also verify SVC services it got created.
+
+Okay.
+
+So these are the cluster IP services it created and one node port service we have created for instance
+
+mode ingress.
+
+And in the same line you can also say what are the configmaps it has created.
+
+So these are the Configmaps cards catalog checkout orders and then UI.
+
+In the same way what all service accounts it has created.
+
+And you can see cards, catalog checkout orders and then UI.
+
+In the same way you can also verify what all secrets it has created.
+
+Okay.
+
+And you can see catalog orders DB and then orders RabbitMQ.
+
+So these are the things it created.
+
+Now we will go here and run the command cube CTL get pods and we should see all the parts are running.
+
+So we'll start with carts and then carts DynamoDB catalog.
+
+And then catalog MySQL means like underlying database.
+
+Checkout and checkout.
+
+Redis.
+
+Orders and orders.
+
+Database.
+
+And in addition to that, in orders we also have a RabbitMQ messaging service.
+
+So all these things are running and this is the final UI service.
+
+Everything is running.
+
+We'll also run the command cube CTL get ingress.
+
+So it should create two ingress services.
+
+You can see it here.
+
+One is retail store HTTP instance mode and the other is retail store http ip mode.
+
+So you can see those things got created and those DNS addresses also you can see them okay.
+
+So now if you go back to our load balancer here right.
+
+So let me go here and in EC2.
+
+Right.
+
+So if we go here to EC2 and we go to load balancers, both load balancers got created.
+
+And that one is in the provisioning state.
+
+So let's wait for it to come to active.
+
+After that we will go ahead and then test those things we can see here.
+
+Both load balancers are active.
+
+We will go to the instance mode.
+
+And here we can see the listeners and rules.
+
+We can see the listener HTTP 80 created default which means we didn't create any listener information
+
+here.
+
+Default it creates 80 okay.
+
+In both the things you see there is no listener related thing, but it created 80 listener default.
+
+And this is the network mapping.
+
+And if you click on the subnets you said internet facing.
+
+So in the same line.
+
+So when you say internet facing it should be created in the public subnets.
+
+Okay.
+
+So this is the subnet.
+
+And when you click on the tags for this subnet you can see here dev public US East one.
+
+See.
+
+So this load balancers got created in the public subnets.
+
+Your public subnets IP ranges we know right ten zero zero.
+
+And then ten zero two and then ten zero one.
+
+And this is the resource map.
+
+We are seeing the instance mode one.
+
+And we are seeing the three worker nodes here all the three worker nodes instance IDs.
+
+And if you want we can go to target groups and also verify those targets here.
+
+So this is the second one which is the instance mode is this one.
+
+So this is the instance mode.
+
+And here you can see these three instance IDs in detail.
+
+And in the same line if you want to see the IP mode related load balancer.
+
+So we can go here and click on that.
+
+And in the in the resource map you can see only one target is added ten zero 1295.
+
+And even if you go to the targets also.
+
+And if you go to that IP mode and you can see ten zero 1279.
+
+How come load balancers?
+
+Let me try to refresh.
+
+And in the network mapping and in the resource map, it should be refresh or we need to refresh okay.
+
+Ten zero 1295 and in target group also why it is showing 79.
+
+So let us see what exactly is the thing.
+
+Cube CTL get pods hyphen o wide.
+
+And we should see for the UI pod.
+
+What is the IP address.
+
+It is 95 okay.
+
+So here we need to refresh it once okay.
+
+Resource is not retrieved or it is coming from the previous cache okay.
+
+So let me try to refresh the target groups once right.
+
+I'll try to go to EC2 and try to refresh the complete page here and go to Target Groups and go to.
+
+This is the IP mode and we should see ten 1295 which should be mapping.
+
+Okay.
+
+So it's coming from the cache okay.
+
+Sorry but we are good now okay.
+
+So for IP mode it should go directly to the IP address.
+
+And it is going everything is good.
+
+Now we'll go here and then access our application.
+
+So how to access our application.
+
+So this is the retail store and this is the DNS name.
+
+So you can see the DNS name here when you open it okay.
+
+For both the things you will have the DNS names and you can access.
+
+Or you can go here and say cube CTL.
+
+Get ingress and you will find the DNS names here.
+
+With that you can access.
+
+So first we will access the instance modes address copy.
+
+And we'll go to the browser here and access our application.
+
+So when we are accessing it.
+
+It is going in and our retail store application is accessible.
+
+So we can say add to add to cart and then go here, go here, continue and purchase.
+
+And this is working as expected.
+
+And if we want we can also go here and run the commands.
+
+Run the URL topology.
+
+Right.
+
+So topology is the thing which will show everything.
+
+So it is saying catalog is healthy, carts is healthy, checkout is healthy and then orders is healthy.
+
+So I instance mode is working as expected.
+
+Now we will also copy the IP mode related URL.
+
+Okay so this is the IP mode related URL.
+
+Let me copy this and access it.
+
+And it should also be successful okay.
+
+Explore add to cart and start equipment process which means checkout process and continue.
+
+And we can see payment is completed and the order ID also got created.
+
+And now if you go here right.
+
+If you go here and also verify the topology for the second one, it should be it should be everything
+
+should be healthy.
+
+So we have successfully fronted means like we have successfully fronted our entire retail store application
+
+with the ingress and then tested.
+
+So the entire thing which we have tested is with HTTP right.
+
+In our next lecture or in our next demo, we will focus on implementing the same thing with Https.
+
+So I'll see you in the next video.
+
+Until then, bye bye.
+
+So before going to the next demo, we also need to clean up delete hyphen r, hyphen f, and HTTP.
+
+So whatever we have created everything, we are deleting it.
+
+I'll see you in the next demo.
+
+Until then, bye bye.
+
+Thank you.
+
+
+Welcome back.
+
+In this lecture we are going to implement http s for our ingress service.
+
+So let's go back to our GitHub repository.
+
+And we are in 11 zero three Kubernetes Ingress Https.
+
+So one of the most important prerequisite for this demo is to follow along with this https demo.
+
+You should already have a registered domain name in your AWS route 53.
+
+This is important because we are going to create a SSL certificate using AWS Certificate Manager.
+
+So for learning purposes, if you don't have any AWS route 53 domain, that's fine means like if you
+
+don't have any dedicated domain in your AWS for learning purposes, that is fine just to go through
+
+this demo and that will be sufficient.
+
+Don't need to register a domain or purchase a domain and then implement this demo.
+
+Okay, so only for this demo only we are going to have this domain name concept.
+
+So for that purpose don't go ahead and then register and waste your money.
+
+Just go through the demo and you will understand the concept and that will be sufficient.
+
+So we are going to create a certificate SSL certificate and register the DNS name in route 53.
+
+And we are also going to deploy the HTTP ingress.
+
+So there are multiple steps involved starting with first creating the SSL certificate and adding that
+
+SSL certificate in the route 53 so that the to validate that the domain name is part of this respective
+
+AWS account.
+
+And then it is already present in route 53.
+
+So that certificate will be issued.
+
+After that we will also deploy the ingress service.
+
+And for that ingress service, whatever the load balancer DNS name is there, that DNS name is not user
+
+accessible.
+
+DNS name right.
+
+So we will give a DNS name with which we have created the SSL certificate.
+
+So those things we are going to do now.
+
+So now let's go back to our AWS.
+
+Right.
+
+And then we will go to the certificate manager.
+
+And we will request a certificate.
+
+And what is the certificate name.
+
+So we will say retail store dot stack simplify.com something like that.
+
+We are going to create.
+
+So request a public certificate click on next and fully qualified DNS name we are going to provide.
+
+So which is retail store dot stack simplify.com.
+
+So I will provide that here.
+
+And if you want add another name to this certificate you can add.
+
+But for me this is sufficient and allow export.
+
+I do not need to export.
+
+This is the validation method I am talking about.
+
+So once this is created, we need to also go ahead and then do a DNS validation by adding a record in
+
+the route 53.
+
+So that's the DNS validation method.
+
+So we'll select DNS validation method.
+
+This is the key algorithm.
+
+We'll leave it to default and click on request.
+
+So once the certificate is created right.
+
+So here for we will get the DNS validation thing.
+
+So let's wait for it.
+
+So you can see here retail store.com pending validation.
+
+So this name will be added when you click on Create Records in Route 53.
+
+Automatically this record will be added there.
+
+So let me click on Create Records.
+
+So once it is added right.
+
+So it will take a little bit of time.
+
+But this validation will be means like once the DNS validation it takes 5 to 10 minutes or sometimes
+
+even 15 minutes.
+
+But very soon the SSL certificate will be issued.
+
+So let's wait for it, okay?
+
+Sometimes it will be pretty quick.
+
+I'll click on list certificates and you can see retail store.com.
+
+Our certificate is issued because we already have the stack simplified in our registered domains and
+
+a hosted zone.
+
+Everything is set up and ready.
+
+So for that purpose it is uh, it created immediately.
+
+Okay, so if not, you need to register a domain and add its hosted zone and then put that ready.
+
+And all those things are going to cost us.
+
+So not a recommended way okay.
+
+We are just testing the SSL approach how we need to implement in ingress.
+
+So we will go here.
+
+And then this is the certificate okay.
+
+So if you go to list certificates and this is the retail store certificate and this is the Arn of the
+
+certificate I have copied.
+
+And if you go to the 11 zero three Kubernetes ingress https and in https retail store kit manifest in
+
+zero six ingress, you will find the instance mode.
+
+And there you have the certificate Arn where you need to update.
+
+So you are specifically defining here SSL settings.
+
+One is if you don't define this.
+
+Listen ports 80 is the default listen port.
+
+But when you are defining it, then you need to define both for 43 and then 80 right in the listen ports.
+
+And this is the certificate air.
+
+And we just now updated.
+
+And we are also adding additional setting.
+
+When you access your URL with HTTP it should auto redirect to Https.
+
+So that's a security setting.
+
+And we can do that.
+
+And it's a standard user friendly setting which means when you access your HTTP URL it should auto redirect
+
+to Https.
+
+So that also we have implemented here SSL redirect.
+
+We'll also do that in IP mode.
+
+And we'll go here and remove this right.
+
+And we will add the new one here.
+
+So that's about it.
+
+So we have added the SSL settings.
+
+So these are the SSL settings.
+
+Listen port certificate Arn and SSL redirect in addition to the previous demo, which is plain http.
+
+Okay, now let's go back to our terminal here and go to 11 Kubernetes and 11 zero three Kubernetes Ingress
+
+and cube CTL apply hyphen capital archive hyphen f and then https retail store cat s manifest.
+
+So this should create a uh this should create as the complete the ingress services.
+
+In addition to the retail store application with Https means like 443 listener which is associated with
+
+the certificate manager certificate, whatever we have created.
+
+So let's wait for it to get created.
+
+It will take some time to create the ingress services.
+
+So I will wait for those ingress services to get created and once they are active.
+
+So we will go to EC2 and this is the EC2.
+
+And here we will go to Load balancers and they should be in the provisioning state.
+
+Let's get them to active state.
+
+We can see here both, uh, things are ready now.
+
+We can go up.
+
+And this is the instance mode.
+
+And we have the HTTP and even the Https 443 listener.
+
+And here you can see it also added the SSL certificate also associated with it in the same line.
+
+If we go to another load balancer also IP mode, it also has the Https 443 with retail store stack simplify.
+
+Com right now we will take any of the one thing okay.
+
+So any we will try to access both the load balancers if you want.
+
+But we are trying to access via DNS name.
+
+Right.
+
+So we will first take the instance mode one right.
+
+And in the instance mode if we click on that this is the DNS name instance mode.
+
+And now we'll go to route 53 and create a record.
+
+And we will see retail store.
+
+And we'll select here Application Load balancer.
+
+And in the region US East one North Virginia.
+
+And in the load balancer you have two one instance mode one we are selecting here.
+
+And we'll put the simple routing and click on Create Records.
+
+Okay.
+
+Now when I say retail store.simplify.com it should uh go to this respective load balancer.
+
+So first I'll say Nslookup retail store.simplify.com.
+
+And it is resolving now.
+
+So I will try to access this URL.
+
+Okay.
+
+Let's come back and access it.
+
+And you can see it is accessible.
+
+So using the domain name, even if you go here and go to connection is secure and certificate is valid.
+
+So you can see retail store link here.
+
+So it automatically from HTTP to Https.
+
+It redirected.
+
+And this is the SSL certificate which we have created in Certificate Manager.
+
+So that is also displayed.
+
+So we can click on add.
+
+And we can test the full application if we want.
+
+But we have successfully created a SSL certificate and associated that in our ingress service in the
+
+annotation.
+
+And also added the HTTP listener related thing also in our annotation in ingress, and then deployed
+
+it and then whatever the retail store related domain name is there.
+
+We have also added that in our route 53 alias to our load balancer, and we have tested and it is working.
+
+And for the retail store, whatever we have just now added.
+
+Right.
+
+So I'll try to delete that.
+
+Right.
+
+So I'll try to delete this record and I'll try to add the same again with another one.
+
+Okay.
+
+So I'll try to create a record and I will say retail store and alias name.
+
+I'll select the end point as load balancer.
+
+And here in region US East one and in the load balancer section we will select the IP mode one okay.
+
+And create records.
+
+And if you try to run the Nslookup again so it is resolving, it might take some time to resolve.
+
+And after that it need to do a DNS caching.
+
+It need to clean up the DNS cache and everything.
+
+So it might take 15 20 minutes or even some more time.
+
+Couple of hours.
+
+Also it will take.
+
+So let's wait for it.
+
+Or we can directly access using this URL okay.
+
+So let me come back here.
+
+So our demo is over.
+
+I'm just trying to also test the IP mode.
+
+Also we can directly test the IP mode URL, but you will get the SSL prompt error because uh domain
+
+name whatever you are accessing doesn't match the certificates key okay.
+
+Right.
+
+So that's the reason it is throwing the error.
+
+But that is fine okay.
+
+So we will try to go here and we will proceed with that okay.
+
+We are have we don't have any issue.
+
+If you go to the certificate you can see the certificate here http to https redirect worked.
+
+But we got the certificate error because whatever the C and common name present in your certificate
+
+not matching with the IP mode related alb ness name.
+
+So that's the problem.
+
+But we have successfully accessed it.
+
+Okay.
+
+So that's about https demo using ingress.
+
+So we can go ahead and then clean up whatever we have implemented just now okay.
+
+And we'll go here and we'll go to route 53 and also remove that retail store related DNS record.
+
+And in addition to that, we'll also remove the certificate, whatever we have created just now which
+
+is retail store.
+
+All these are going to cost us.
+
+So it is good to clean up whatever we have implemented.
+
+So let's wait for it.
+
+Once the it is saying it is not able to delete because it is currently deleting the ingress resources.
+
+So once the ingress resources are deleted, we'll also delete the certificate we have created.
+
+You can see here Ingress resources got deleted.
+
+So we'll go to EC2 and also verify.
+
+We'll go to load Balancers and refresh.
+
+Those were gone.
+
+Now we'll go to certificate and delete the certificate which we have created.
+
+So this is good I'll try to refresh and nothing is there.
+
+So I'll see you in the next demo.
+
+Until then bye bye.
+
+Thank you.
+
+

@@ -1,0 +1,414 @@
+AWS EKS Kubernetes Karpenter DevOps Production Guide
+Course content: 51 sections (raw) / 21 logical modules • 235 lectures • 38h 15m total
+
+=====================================================================
+SECTION 01: PROJECT OVERVIEW
+=====================================================================
+Course Introduction — 41:58
+Course GitHub Repository Links — 0:13
+Step-01: Retail Store Project Introduction — 8:08
+
+=====================================================================
+SECTION 02: DOCKER COMMANDS
+=====================================================================
+Step-01: What all concepts we are going to learn in Docker? — 5:22
+Step-02: Create EC2 Instance and Install Docker — 11:02
+Step-03: Understand Docker Terminology — 4:43
+Step-04: Pull Docker Image from Hub, Run and Access App — 8:29
+Step-05: Learn various Docker Commands — 7:36
+Step-06: Introduction to Build Docker Image and Push to Docker Hub — 1:50
+Step-07: Build Docker Image — 16:22
+Step-08: Run Container, Verify, Tag and Push Docker Image to Docker Hub — 7:52
+
+=====================================================================
+SECTION 03: DOCKERFILE MASTERY
+=====================================================================
+Step-01: Introduction to Docker Files — 2:14
+Step-02: Understand Dockerfile Instructions — 6:30
+Step-03: Understand Multi-stage Docker Builds — 12:09
+Step-04: Understand Docker Build Cache, Builder Prune and System Prune — 18:51
+
+=====================================================================
+SECTION 04: DOCKER COMPOSE
+=====================================================================
+Step-01: Introduction to Docker Compose — 7:21
+Step-02: Review Docker Compose carts-db service — 8:02
+Step-03: Review Docker compose carts service — 8:14
+Step-04: Review Docker Compose Other services — 13:16
+Step-05: Deploy Docker Compose retail store and verify — 11:40
+Step-06: Learn Docker Compose Commands — 11:06
+Step-07: Docker Compose - Explore --force-recreate command — 8:12
+
+=====================================================================
+SECTION 05: DOCKER BUILDKIT / BUILDX
+=====================================================================
+Step-01: Introduction to Docker Buildx Introduction — 4:16
+Step-02: Build Multi-platform Docker Image — 18:07
+Step-03: Create ARM64 VM and verify ARM64 Docker image — 10:02
+Step-04: Build v2 version of docker image and also understand buildx cache — 9:35
+
+=====================================================================
+SECTION 06: TERRAFORM BASICS
+=====================================================================
+--- Sub-module: Tools Installation ---
+Step-01: Why Terraform? — 10:17
+Step-02: Introduction to Install Terraform Tools — 3:33
+Step-03: MacOS: Install Terraform Tools — 4:48
+Step-04: Windows OS: Install Terraform Tools — 6:15
+Step-05: EC2 VM Linux OS: Install Terraform Tools — 3:53
+
+--- Sub-module: Terraform Foundation (Providers, Resources, Variables, Outputs) ---
+Step-01: Understand Terraform Execution Flow — 8:21
+Step-02: Learn about Terraform Block — 12:09
+Step-03: Learn about Terraform Provider Block — 8:11
+Step-04: Learn about Resource Block — 7:39
+Step-05: Learn about Outputs Block — 3:27
+Step-06: Learn about terraform init and validate commands — 12:05
+Step-07: Learn about terraform plan, apply, output, show and destroy commands — 16:11
+
+--- Sub-module: Build Production VPC (Public/Private Subnets) ---
+Step-01: Introduction to VPC Architecture — 11:17
+Step-02: Learn about Terraform Variables — 10:06
+Step-03: Learn about Data block and Locals block — 11:14
+Step-04: Generate Public and Private subnets using cidrsubnet function in locals — 10:45
+Step-05: Create VPC, Internet Gateway, Meta-argument lifecyle — 15:10
+Step-06: Create public and private subnet resources — 7:54
+Step-07: Create EIP and NAT Gateway Resources — 9:16
+Step-08: Create Public and Private Route Table and its associations — 5:31
+Step-09: Create VPC Outputs — 2:14
+Step-10: Execute TF Commands to Create VPC Resources — 6:20
+Step-11: Understand Terraform Local State file concept — 10:51
+Step-12: Learn about terraform drift and terraform show and terraform state comm — 9:39
+Step-13: Destroy VPC resources using terraform — 1:11
+
+--- Sub-module: Variable Precedence ---
+Step-01: Introduction to Precedence of Terraform Variables — 5:33
+Step-02: Terraform Variable Precedence demo — 16:27
+
+--- Sub-module: S3 Bucket for Remote Backend ---
+Step-01: Create S3 Bucket for Remote Backend demo — 7:32
+
+--- Sub-module: Remote Backend with S3 + DynamoDB State Locking ---
+Step-01: Introduction to Terraform Remote Backend — 7:23
+Step-02: Terraform Remote Backend with S3 Bucket demo — 12:41
+
+--- Sub-module: Terraform Modules ---
+Step-01: Terraform Modules Introduction — 11:19
+Step-02: VPC Refactoring to child module — 6:05
+Step-03: Refactor TFConfigs and call child module in root module — 8:42
+Step-04: Execute TFCommands, Verify VPC Module and cleanup — 4:30
+Step-05: Terraform Basics section Summary — 1:35
+
+=====================================================================
+SECTION 07: TERRAFORM EKS CLUSTER
+=====================================================================
+Step-01: Why Kubernetes? And why not Docker? — 6:50
+Step-02: Why Kubernetes? And Why not Docker Swarm? — 6:37
+Step-03: Kubernetes Architecture Discussion — 12:08
+Step-04: AWS EKS Cluster Architecture Discussion — 7:10
+Step-05: Review TF Configs c1-versions.tf, c2-variables.tf — 9:30
+Step-06: Remote State Datasource Introduction — 4:23
+Step-07: Create TFConfig for Remote State Datasource — 4:57
+Step-08: Review TFConfigs for Locals Block and EKS Cluster EC2 Tags — 10:08
+Step-09: Review TFConfig EKS Cluster IAM Role and IAM Policies — 5:58
+Step-10: Review TFConfig EKS Cluster Resource — 12:08
+Step-11: Review TFConfig EKS NodeGroup IAM Role — 5:35
+Step-12: Review TFConfigs EKS NodeGroup and Outputs — 10:13
+Step-13: Execute TFCommands and Verify — 16:45
+
+=====================================================================
+SECTION 08: KUBERNETES FOUNDATION
+=====================================================================
+Step-00: Kubernetes Foundation - Introduction — 2:00
+
+--- Sub-module: Pods ---
+Step-01: Introduction to Kubernetes Pods — 13:21
+Step-02: Review Kubernetes Pod YAML manifest — 9:59
+Step-03: Kubernetes API Reference — 2:50
+Step-04: Kubernetes Pod Deploy and Verify — 16:00
+
+--- Sub-module: Deployments ---
+Step-01: Introduction to Kubernetes Deployments — 10:46
+Step-02: Review Kubernetes Deployment Manifest — 13:35
+Step-03: Kubernetes Deployment Deploy and Verify — 20:12
+
+--- Sub-module: Services (ClusterIP) ---
+Step-01: Introduction to Kubernetes Service — 10:56
+Step-02: Kubernetes ClusterIP Service Demo — 11:38
+
+--- Sub-module: ConfigMaps ---
+Step-01: Introduction to Kubernetes ConfigMap — 14:39
+Step-02: Kubernetes ConfigMap Demo — 5:22
+
+--- Sub-module: StatefulSets ---
+Step-01: Introduction to Kubernetes StatefulSets — 11:55
+Step-02: Understand Headless Service Concept — 12:42
+Step-03: Review StatefulSet YAML Manifest — 7:21
+Step-04: Review Headless Service YAML manifest — 4:19
+Step-05: Deploy and Verify Statefulsets and DNS — 8:45
+Step-06: Verify StatefulSet concepts practical — 11:25
+
+=====================================================================
+SECTION 09: KUBERNETES SECRETS
+=====================================================================
+--- Sub-module: Kubernetes Secrets Basics ---
+Step-01: Introduction to Kubernetes Secrets — 2:45
+Step-02: Implement Kubernetes Secrets Demo — 9:10
+
+--- Sub-module: EKS Pod Identity Agent Setup ---
+Step-00: Pre-requisite Note: Pod Identity Agent — 3:28
+Step-01: Introduction to Pod Identity Agent — 5:33
+Step-02: Pod Identity Agent Demo Part-1 — 6:21
+Step-03: Pod Identity Agent Demo Part-2 — 4:28
+
+--- Sub-module: AWS Secrets Manager Driver Installation ---
+Step-01: Introduction to AWS Secrets Manager for EKS Secrets — 9:35
+Step-02: Why Helm and What are its Benefits? — 7:15
+Step-03: Install Secret Store CSI Driver and ASCP — 12:24
+Step-04: Setup IAM Policy, Role, EKS PIA Association — 10:22
+
+--- Sub-module: AWS Secrets Manager Catalog Service Integration ---
+Step-01: Create AWS Secret Manager Secret and review SecretProviderClass — 8:27
+Step-02: Review Catalog StatefulSet Volume, VolumeMounts and ARGs — 5:51
+Step-03: Review Catalog Deployment, Deploy, Verify and CleanUp — 9:50
+
+=====================================================================
+SECTION 10: KUBERNETES PERSISTENT STORAGE
+=====================================================================
+--- Sub-module: AWS EBS CSI Driver Installation ---
+Step-01: Why AWS EBS Persistent Volumes? — 3:47
+Step-02: EBS CSI Driver, SC, PV, PVC Architecture Review — 11:41
+Step-03: Install EBS CSI Driver — 10:20
+
+--- Sub-module: EBS CSI Integration with Catalog Service ---
+Step-01: Review Custom Storage Class and StatefulSet VolumeClaimTemplate — 7:56
+Step-02: Deploy EBS Volume demo, verify and cleanup — 11:28
+
+--- Sub-module: AWS RDS MySQL Production Database Integration ---
+Step-01: Introduction to RDS and Catalog Microservice Integration — 11:42
+Step-02: Create AWS RDS Database Instance — 10:36
+Step-03: Update k8s yaml, deploy, verify and cleanup — 8:55
+
+=====================================================================
+SECTION 11: KUBERNETES INGRESS
+=====================================================================
+--- Sub-module: AWS Load Balancer Controller Installation ---
+Step-01: What is Kubernetes Ingress? — 11:41
+Step-02: Introduction to AWS Load Balancer Controller — 8:30
+Step-03: Create IAM Policy, Role, PIA Association for LBC — 6:22
+Step-04: Deploy Load Balancer Controller and Verify — 4:56
+
+--- Sub-module: Kubernetes Ingress with HTTP ---
+Step-01: What is a Kubernetes NodePort Service? — 8:35
+Step-02: How Ingress Works? — 8:02
+Step-03: Ingress Instance Mode vs IP Mode — 10:04
+Step-04: Review RetailStore Sample App Kubernetes Manifests — 6:42
+Step-05: Deploy Ingress HTTP in both modes, verify and cleanup — 14:16
+
+--- Sub-module: Kubernetes Ingress with HTTPS/SSL ---
+Step-01: Implement Ingress HTTPS demo — 13:10
+
+=====================================================================
+SECTION 12: HELM PACKAGE MANAGER
+=====================================================================
+--- Sub-module: Helm Basics - Installation and Fundamentals ---
+Step-01: Why Helm and What are its Benefits — 5:18
+Step-02: Understand Helm Workflow — 6:13
+Step-03: Install Helm Chart and Explore Resources — 11:59
+Step-04: Understand Helm upgrade and default values — 12:44
+Step-05: Understand helm rollback, update app theme, helm uninstall — 9:36
+
+--- Sub-module: Helm Custom Values - Customization and Overrides ---
+Step-01: Introduction to Helm Custom Values — 8:03
+Step-02: Understand Helm dry-run with debug command in detail — 8:30
+Step-03: Deploy Helm UI release with custom values and Ingress and Verify — 10:03
+
+--- Sub-module: Helm Chart Exploration - Understanding Chart Structure ---
+Step-01: Explore Helm Chart in detail — 18:52
+Step-02: Understand Helm lint, template and test commands — 14:13
+
+--- Sub-module: Helm Package and Publish - Creating and Publishing Charts ---
+Step-01: Introduction to Helm Package and Publish — 2:09
+Step-02: Create new Helm Template release-info.yaml — 8:12
+Step-03: Create ECR Repo, Helm Package, Publish, Install, Verify and Cleanup — 13:42
+
+--- Sub-module: Helm Retail Store Deployment - Complete Application ---
+Step-01: Introduction to Deployment of RetailStore Application with Helm — 3:15
+Step-02: Download Helm Charts for Retail Store — 3:22
+Step-03: Catalog Microservice Helm Chart - Review and Deploy — 16:23
+Step-04: Carts Microservice Helm Chart - Review and Deploy — 5:05
+Step-05: Checkout Microservice Helm Chart - Review and Deploy — 6:43
+Step-06: Orders Microservice Helm Chart - Review and Deploy — 7:36
+Step-07: UI Application Helm Chart - Review, Deploy, Verify and Cleanup all apps — 18:48
+
+=====================================================================
+SECTION 13: TERRAFORM EKS CLUSTER WITH ADD-ONS
+=====================================================================
+Step-01: Introduction to TFADDONS automate with Terraform — 8:12
+Step-02: TFConfig Review: c11 EKS Pod Identity Agent — 5:48
+Step-03: TFConfig Review: C12 Helm Provider and C13 PIA Assume Role — 8:10
+Step-04: TFConfig Review: 14 AWS Load Balancer Controller — 11:34
+Step-05: TFConfig Review: 15 AWS EBS CSI Driver EKS Addon — 5:09
+Step-06: TFConfig Review: 16 SecretStore CSI Driver and ASCP — 9:41
+Step-07: Execute TFCommands to create VPC and EKSCluster with Addons — 6:08
+
+=====================================================================
+SECTION 14: RETAIL STORE MICROSERVICES - AWS DATA PLANE
+=====================================================================
+--- Sub-module: Retail Store AWS Data Plane Setup ---
+Step-01: Introduction to Retail Store Persistent Dataplane running on AWS Cloud — 3:46
+Step-02: TFConfig Review: C1 to C5 basefiles and create Secret Manager secret — 12:08
+Step-03: TFConfig Review: C6 Catalog to AWS RDS MySQL, IAM Role, Policy, PIA Assoc — 18:36
+Step-04: TFConfig Review: C7 Carts to AWS DynamoDB, IAM Role, Policy, PIA Associ — 5:31
+Step-05: TFConfig Review: C8 Checkout to AWS ElastiCache, Security Group and Sub — 4:26
+Step-06: TFConfig Review: C9 Orders to AWS RDS Postgresql, Orders to AWS SQS — 10:45
+Step-07: Deploy AWS Dataplane using Terraform and Verify — 10:45
+
+--- Sub-module: Microservices with AWS Data Plane Integration ---
+Step-01: Introduction to section Deploy Retailstore Microservices with AWS Dataplane — 4:25
+Step-02: SecretProviderClass: Review and Deploy — 14:51
+Step-03: UI Service and Ingress Service: Review and Deploy — 5:47
+Step-04: Catalog Microservice: Review and Deploy — 11:03
+Step-05: Cart Microservice: Review and Deploy — 9:37
+Step-06: Checkout Microservice: Review and Deploy — 11:51
+Step-07: Orders Microservice: Review and Deploy, verify and cleanup — 12:19
+
+=====================================================================
+SECTION 15: TERRAFORM EKS WITH EXTERNAL DNS
+=====================================================================
+Step-01: Introduction to External DNS — 9:57
+Step-02: Review ExternalDNS TFConfigs — 7:56
+Step-03: Apply TFConfigs, Verify External DNS Logs — 13:39
+
+=====================================================================
+SECTION 16: RETAIL STORE WITH EXTERNAL DNS
+=====================================================================
+Step-01: Review RetailStore pre-requisites for ExternalDNS — 7:16
+Step-02: External DNS RetailStore Ingress HTTP and HTTPS Demo — 19:52
+Step-03: Destroy AWS Dataplane TF project (reused in Demo18) — 1:39
+
+=====================================================================
+SECTION 17: AUTOSCALING - KARPENTER
+=====================================================================
+--- Sub-module: Karpenter Installation with Terraform (Architecture + IAM) ---
+Step-01: Why Karpenter? — 15:19
+Step-02: Karpenter Architecture Part-1 — 16:38
+Step-03: Karpenter Architecture Part-2 — 4:11
+Step-04: Change EKSTags to OWNED in EKS TF Project — 11:46
+Step-05: Karpenter Install using Terraform - Architecture Review — 13:25
+Step-06: Karpenter TF Files Review: c1 to c5 — 4:43
+Step-07: Karpenter TF Files review: c6-01 to c6-03 — 9:41
+Step-08: Karpenter TF Files review: c6-04 and c6-05 — 12:34
+Step-09: Karpenter TF Files review: c6-07 and c6-08 — 12:40
+Step-10: Karpenter TF Files review: c6-06 — 4:05
+Step-11: Execute Terraform Commands and Verify — 4:47
+Step-12: Review IAM Roles, PIA, EKS Access Entry, Queue and Event Bridge Rules — 5:09
+
+--- Sub-module: Karpenter On-Demand Instances (NodePools + EC2NodeClass) ---
+Step-13: Review EC2NodeClass YAML File — 8:17
+Step-14: Review Ondemand and Spot Nodepools YAML Files — 10:08
+Step-15: Deploy EC2Nodeclass, Nodepools and Verify — 4:30
+Step-16: Ondemand Nodepool Demo — 15:57
+
+--- Sub-module: Karpenter Spot Instances ---
+Step-17: Spot Nodepool Demo — 6:52
+
+--- Sub-module: Karpenter Spot Interruption Handling ---
+Step-18: Spot Interruption with PDB Introduction — 18:46
+Step-19: Spot Interruption with PDB Demo — 20:39
+
+=====================================================================
+SECTION 18: AUTOSCALING - HPA (HORIZONTAL POD AUTOSCALER)
+=====================================================================
+Step-01: Why use Horizontal Pod Autoscaler (HPA)? — 8:00
+Step-02: What is Horizontal Pod Autoscaler? — 12:44
+Step-03: Review HPA YAML Manifest — 12:56
+Step-04: Review PDB, TSC and NodeSelectors — 18:24
+Step-05: Metrics Server and AWS Dataplane Terraform Install — 9:18
+Step-06: Deploy and Verify HPA, TSC Zone ScheduleAnyway and DoNotSchedule options — 24:59
+Step-07: CleanUp AWS Dataplane, EKS Cluster and VPC — 3:38
+
+=====================================================================
+SECTION 19: HELM RETAIL STORE WITH AWS DATA PLANE
+=====================================================================
+Step-01: Helm Charts and AWS Dataplane Introduction — 9:07
+Step-02: Create Environment - EKS Cluster and AWS Dataplane — 12:52
+Step-03: Review Helm Chart Source V1.0.0 and V2.0.0 — 12:25
+Step-04: Review V1.0.0 Helm values and Deployment Scripts — 17:41
+Step-05: Deploy V1.0.0 Helm Charts, Verify and CleanUp — 27:38
+Step-06: Deploy V2.0.0 Helm Charts, Verify and CleanUp all resources — 11:45
+
+=====================================================================
+SECTION 20: OBSERVABILITY - OPENTELEMETRY
+=====================================================================
+--- Sub-module: EKS Environment with ADOT (AWS Distro for OpenTelemetry) ---
+Step-01: What is Observability? — 10:01
+Step-02: What is Open Telemetry? — 9:16
+Step-03: What is ADOT and ADOT Architecture? — 8:42
+Step-04: Review Project Folder Structure — 8:56
+Step-05: Open Telemetry Terraform Project Review Part-1 — 6:29
+Step-06: Open Telemetry Terraform Project Review Part-2 — 13:58
+Step-07: OpenTelemetry Terraform Project Review Part-3 — 13:16
+Step-08: Deploy Retail App with Open Telemetry enabled — 15:47
+
+--- Sub-module: OpenTelemetry Traces with AWS X-Ray ---
+Step-01: ADOT Traces Collector Architectural Flow Review — 4:27
+Step-02: ADOT Traces Collector YAML Review Part-1 — 27:29
+Step-03: ADOT Traces Collector YAML Review Part-2 — 12:51
+Step-04: ADOT Traces Collector Instrumentation Review — 15:53
+Step-05: ADOT Traces Collector Implementation Demo - Deploy and Verify — 14:59
+
+--- Sub-module: OpenTelemetry Logs with CloudWatch ---
+Step-01: ADOT Logs Collector Architectural Flow Review — 13:02
+Step-02: ADOT Logs Collector Implementation Demo - Deploy and Verify — 10:17
+
+--- Sub-module: OpenTelemetry Metrics with AMP & AMG ---
+Step-01: ADOT Metrics Collector Introduction — 5:21
+Step-02: ADOT Metrics Collector YAML File Review — 30:01
+Step-03: Deploy ADOT Metrics Collector and Verify — 9:10
+Step-04: Create Identity Center User, Associate to Grafana AMG — 9:23
+Step-05: Login to Grafana, Add Prometheus Datasource and Import Dashboard — 5:16
+Step-06: Cleanup - Delete ADOT Metrics Collector and Retail Apps Uninstall — 1:33
+
+=====================================================================
+SECTION 21: DEVOPS CI/CD PIPELINE (GITOPS)
+=====================================================================
+--- Sub-module: CI with GitHub Actions and AWS ECR ---
+Step-01: DevOps CICD: GitOps Pipeline Full Flow Introduction — 7:48
+Step-02: Create ECR Repo, OIDC IAM Role and Trust Policy — 11:13
+Step-03: Create GitHub OIDC Connect Provider on AWS — 3:01
+Step-04: Review GitHub Actions Workflow YAML file in detail — 14:17
+Step-05: Create GitHub Repo, Copy Files and Verify CI Pipeline V2 — 15:59
+
+--- Sub-module: ArgoCD Installation ---
+Step-01: What is ArgoCD? — 11:54
+Step-02: Install ArgoCD and Access via Browser and CLI — 8:31
+
+--- Sub-module: CD with ArgoCD and Helm ---
+Step-01: Add GitHub Repo to ArgoCD — 5:25
+Step-02: Review ArgoCD Application YAML Manifest — 6:24
+Step-03: Deploy ArgoCD Application and Verify — 4:52
+
+--- Sub-module: Complete CI/CD Flow Testing ---
+Step-01: Deploy other retail apps, test end to end CI CD pipeline — 14:02
+Step-02: CleanUp Retail Store App, AWS Dataplane, EKS Cluster, ECR everything — 5:05
+
+=====================================================================
+COURSE-LEVEL NOTES (for reference, not lecture content)
+=====================================================================
+Stack: Docker, Terraform, Kubernetes (EKS), Karpenter, HPA, Helm, ArgoCD,
+GitHub Actions, OpenTelemetry/ADOT, AWS X-Ray, CloudWatch, AMP, AMG.
+
+Reference project: 5-microservice retail store app
+  - UI Service        (Java Spring Boot)
+  - Catalog Service    (Go)               -> AWS RDS MySQL
+  - Carts Service       (Java Spring Boot) -> AWS DynamoDB
+  - Orders Service      (Java Spring Boot) -> AWS RDS PostgreSQL + AWS SQS
+  - Checkout Service    (Node.js)          -> Amazon ElastiCache (Redis)
+
+Key themes called out by the instructor across sections:
+  - Cost optimization: ~70% savings via Karpenter Spot instances (Section 17)
+  - Zero-downtime patterns: PodDisruptionBudgets + Spot interruption handling (Section 17)
+  - OIDC-based CI auth: no static AWS access keys in GitHub Actions (Section 21)
+  - Observability cost control: ~85% cost reduction by filtering health-check traces (Section 20)
+  - GitOps: GitHub Actions (CI) -> ECR -> Helm values update -> ArgoCD (CD) auto-sync (Section 21)
