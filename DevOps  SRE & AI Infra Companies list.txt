@@ -1,0 +1,121 @@
+(I) DevOps / SRE Companies
+
+Tier 1 — Live openings now
+
+Roku — weareroku.com
+FIS Global — careers.fisglobal.com
+State Street / Charles River — careers.statestreet.com
+Morgan Stanley — morganstanley.com/careers
+CRED — careers.cred.club
+HPE — careers.hpe.com
+Omnissa — omnissa.com/careers
+RingCentral — careers.ringcentral.com
+Société Générale — careers.societegenerale.com
+Apple — jobs.apple.com
+
+Tier 2 — GCCs
+BFSI:
+
+JPMorgan — careers.jpmorgan.com
+Goldman Sachs — goldmansachs.com/careers
+Wells Fargo — wellsfargojobs.com
+Visa — corporate.visa.com/en/jobs
+PayPal — careers.pypl.com
+Intuit — intuit.com/careers
+Fidelity — jobs.fidelity.com
+ANZ — careers.anz.com
+Commonwealth Bank — commbank.com.au/careers
+HDFC Bank — hdfcbank.com/careers
+ICICI Bank — icicicareers.com
+
+Retail:
+
+Walmart Global Tech — careers.walmart.com
+Target India — india.target.com
+Lowe's India — lowes.co.in
+Tesco — tesco-careers.com
+Best Buy — jobs.bestbuy.com
+
+Engineering / Industrial:
+
+Shell — shell.com/careers
+Maersk — maersk.com/careers
+Mercedes-Benz R&D India — mbrdi.co.in
+Bosch — bosch.com/careers
+Philips — careers.philips.com
+GE HealthCare — careers.gehealthcare.com
+Honeywell — careers.honeywell.com
+Airbus — airbus.com/en/careers
+
+New 2026 GCCs (founding platform roles):
+
+Coupang — coupang.jobs
+Intuitive Surgical — careers.intuitive.com
+Carl Zeiss — zeiss.com/careers
+Glean — glean.com/careers
+Revolut — revolut.com/careers
+
+Tier 3 — Global product companies
+
+Elastic — elastic.co/careers
+CrowdStrike — crowdstrike.com/careers
+Harness — harness.io/company/careers
+Cisco — jobs.cisco.com
+Nutanix — nutanix.com/company/careers
+Broadcom (VMware) — broadcom.com/company/careers
+NetApp — careers.netapp.com
+Rubrik — rubrik.com/company/careers
+Pure Storage — purestorage.com/company/careers
+Palo Alto Networks — jobs.paloaltonetworks.com
+Cloudflare — cloudflare.com/careers
+Akamai — akamai.com/careers
+Google — careers.google.com
+Microsoft — careers.microsoft.com
+LinkedIn — careers.linkedin.com
+Uber — uber.com/careers
+Salesforce — careers.salesforce.com
+Adobe — adobe.com/careers
+Twilio — twilio.com/company/jobs
+Okta — okta.com/company/careers
+Databricks — databricks.com/company/careers
+Atlassian — atlassian.com/company/careers
+GitLab — about.gitlab.com/jobs
+
+Tier 4 — Indian product companies
+
+Razorpay — razorpay.com/jobs
+PhonePe — phonepe.com/careers
+Juspay — juspay.in/careers
+Groww — groww.in/careers
+Jupiter — jupiter.money/careers
+CoinDCX — coindcx.com/careers
+Flipkart — flipkartcareers.com
+Swiggy — careers.swiggy.com
+Meesho — careers.meesho.com
+InMobi (incl. Glance) — inmobi.com/careers
+Postman — postman.com/company/careers
+Hasura — hasura.io/careers
+Whatfix — whatfix.com/careers
+=================================================================================
+
+(II) AI Infrastructure Companies
+
+Tier 1 — AI labs & big tech AI infra
+
+Anthropic — anthropic.com/careers
+Google (AI/ML infrastructure roles) — careers.google.com
+NVIDIA — nvidia.com/en-in/about-nvidia/careers
+
+Tier 2 — Indian GPU neoclouds
+
+Neysa — neysa.ai/careers
+Yotta (Shakti Cloud) — yotta.com/careers
+E2E Networks — e2enetworks.com/careers
+Tata Communications (Vayu AI Cloud) — tatacommunications.com/careers
+NeevCloud — neevcloud.com/careers
+
+Tier 3 — AI-native companies
+
+Sarvam AI — sarvam.ai/careers
+Krutrim (Ola) — olakrutrim.com/careers
+Uniphore — uniphore.com/careers
