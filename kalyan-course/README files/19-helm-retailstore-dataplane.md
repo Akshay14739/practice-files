@@ -3,7 +3,7 @@
 > Source: transcript `19) Helm Charts with AWS Dataplane`.
 > Section 12's Helm skills + Section 14's data plane + Sections 17–18's production hardening, converged: the whole retail store now deploys as **five `helm upgrade --install` commands** against charts hosted in a GitHub Helm repo — v1.0.0 with hardcoded DB credentials, then **v2.0.0 where the charts themselves template the SecretProviderClass** and pull credentials from AWS Secrets Manager. This also covers the sub-module `1205` the Section 12 transcript lacked (Helm-deploying the retail store) — in its final, data-plane-connected form.
 >
-> ⚠️ **GAP (repo):** Section 19 folders aren't in the cloned repo snapshot; reconstructed from the transcript. The charts themselves are published at `stacksimplify/helm-charts` on GitHub (browsable — packaged `.tgz` per service, incl. `*-2.0.0` for catalog and orders).
+> ✅ **VERIFIED against the canonical repo:** the code lives in `19_Helm_RetailStore_AWS_Dataplane/` — `01_EKS_Cluster_Environment/` (VPC + EKS-with-add-ons incl. the folded-in `c18_eksaddon_metrics_server.tf` + Karpenter), and the retail-store Helm values/charts — **confirming the S19 note that metrics-server became `c18` inside the main EKS project.** The published charts are also at `stacksimplify/helm-charts` (packaged `.tgz` per service, incl. `*-2.0.0` for catalog and orders). An earlier partial clone had only folders `01–14`. Use the repo files as source of truth.
 
 ---
 

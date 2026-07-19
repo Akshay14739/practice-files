@@ -3,7 +3,7 @@
 > Source: transcript `18) HPA with retail store app`.
 > Pod-level autoscaling layered on top of Section 17's node-level autoscaling — applied to the **real retail store app**, not a toy: HPA v2 with scaling behaviors, PodDisruptionBudgets, **topology spread constraints** (`ScheduleAnyway` vs `DoNotSchedule` compared live), and the metrics-server installed as a Terraform-managed EKS add-on.
 >
-> ⚠️ **GAP (repo):** section 18 folders (`01_metrics_server_terraform-manifests`, `02_AWS_Data_Plane...`, `03/04_RetailStore...`) are not in the cloned repo snapshot; code reconstructed from the transcript walkthrough. The data-plane TF is a verbatim copy of `14_01`'s (which *is* in the repo). Note: the transcript file repeats its deploy lecture verbatim in its second half — same content, processed once.
+> ✅ **VERIFIED against the canonical repo:** the code lives in `18_Autoscaling_HPA/` — `01_Metrics_Server_terraform-manifests/` (`c4_eksaddon_metrics_server.tf`), `02_AWS_Data_Plane_terraform-manifests/` (the full data plane incl. `c6_06`/`c9_05` associations), and `03_RetailStore_k8s_manifests_with_Data_Plane_ScheduleAnyway/` with `04_HPA/01_catalog_hpa.yaml` etc. — **matching the reconstruction below** (the ScheduleAnyway vs DoNotSchedule split is confirmed by the folder name). An earlier partial clone had only folders `01–14`. Note: the transcript repeats its deploy lecture in its second half — same content, processed once. Use the repo files as source of truth.
 
 ---
 

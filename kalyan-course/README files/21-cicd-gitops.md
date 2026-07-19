@@ -3,7 +3,7 @@
 > Source: transcript `21) CICD` (demos 2101–2104).
 > The course finale: a complete **GitOps pipeline**. CI = GitHub Actions builds the UI image on every push and updates the Helm values file with the new tag (keyless, via **OIDC**). CD = **Argo CD** watches that file in Git and syncs the cluster to match — Git is the single source of truth, drift self-heals, rollback is `git revert`.
 >
-> ⚠️ **GAP (repo):** Section 21 folders aren't in the cloned repo snapshot; reconstructed from the transcript. The demo's Git repo is the instructor's `stacksimplify/aws-devops-github-actions-ecr-argocd-3` — you create your own equivalent.
+> ✅ **VERIFIED against the canonical repo:** the code lives in `21_DevOps_CICD/21_01_CI_github_actions_AWS_ECR/github-files/` — the GitHub Actions workflow `.github/workflows/build-push-ui.yaml`, the app source + Helm `chart/`, and the `git-pull.sh`/`git-push.sh` helpers — **matching the reconstruction below**, plus the Argo CD manifests in the later `21_0x` folders. An earlier partial clone had only folders `01–14`. The instructor's own GitOps repo is `stacksimplify/aws-devops-github-actions-ecr-argocd-3`; you create your own equivalent. Use the repo files as source of truth.
 
 ---
 

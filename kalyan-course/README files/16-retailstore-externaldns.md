@@ -3,7 +3,7 @@
 > Source: transcript `16) External DNS` (second half, lecture 16xx demo).
 > The end-to-end payoff demo: the Section 14 retail store, reachable at `https://retail-store3.yourdomain.com` with a valid certificate — DNS registered automatically by the Section 15 ExternalDNS, TLS terminated at the ALB with an ACM certificate.
 >
-> ⚠️ **GAP (repo):** like Section 15, the Section 16 folder isn't in the cloned repo snapshot. It is the Section 14 `RetailStore_k8s_manifests_with_Data_Plane/` tree (see [14-retailstore-aws-dataplane.md](14-retailstore-aws-dataplane.md) §6.6) with the Ingress manifests extended by the annotations shown in §6 below.
+> ✅ **VERIFIED against the canonical repo:** the code lives in `16_RetailStore_Microservices_ExternalDNS/RetailStore_k8s_manifests_with_Data_Plane/` — the same manifest tree as Section 14, with `03_ingress/01_ingress_http_ip_mode.yaml` **and** `02_ingress_https_ip_mode.yaml` present exactly as described below (confirming both the HTTP and the ACM-backed HTTPS ingress). Use the repo files as source of truth.
 
 ---
 

@@ -146,7 +146,7 @@ Two lectures, deliberately ordered *infrastructure → integration*:
 
 > 🐛 **TRANSCRIPT ERRORS (ASR):** "cube CTL" = kubectl; "read this OS cash / reddest" = Redis; "PII/Pia association" = Pod Identity association; "pkg host" = `PGHOST`; "slash DT" = `\dt`; "Aqua Ace GT" = a product name rendering, ignore.
 >
-> ⚠️ **GAP (repo):** `14_02_Microservices_with_AWS_Data_Plane/` contains **only the README** — the `RetailStore_k8s_manifests_with_Data_Plane/` YAML tree it documents is not in the cloned repo snapshot. §6 reconstructs the essential manifests from the transcript + README so you can run the demo; check the instructor's GitHub for updates. Similarly, `c6_06` and `c9_05` (catalog/orders Pod Identity **association** files) are listed in the README but missing from `03_AWS_Data_Plane_terraform-manifests/` — reconstructed in §6 (without them, secret mounts fail with AccessDenied).
+> ✅ **VERIFIED against the canonical repo** ([stacksimplify/devops-real-world-project-implementation-on-aws](https://github.com/stacksimplify/devops-real-world-project-implementation-on-aws)): the full k8s manifest tree lives in `14_RetailStore_Microservices_with_AWS_Data_Plane/14_02_Microservices_with_AWS_Data_Plane/RetailStore_k8s_manifests_with_Data_Plane/`, and the Pod-Identity **association** files `c6_06_catalog_sa_eks_pod_identity_association.tf` and `c9_05_orders_postgresql_sa_eks_pod_identity_association.tf` **do exist** in `14_01_RetailStore_AWS_Data_Plane/03_AWS_Data_Plane_terraform-manifests/` (an earlier partial clone had simply not checked them out). The §6 reconstructions below match the repo — use the repo files as the source of truth and this section as the explanation.
 
 ---
 
@@ -208,7 +208,7 @@ resource "aws_db_instance" "catalog_rds" {
 output "catalog_rds_endpoint" { value = aws_db_instance.catalog_rds.address }
 
 # c6_05: role for the catalog SA (secret-read policy attached)
-# c6_06 (⚠ missing from repo — reconstructed): the association that makes the mount work
+# c6_06 (✅ IN REPO: 14_01/03_AWS_Data_Plane_terraform-manifests/c6_06...): the association that makes the mount work
 resource "aws_eks_pod_identity_association" "catalog_pod_identity" {
   cluster_name    = data.terraform_remote_state.eks.outputs.eks_cluster_name
   namespace       = "default"
@@ -263,7 +263,7 @@ No IAM role at all — plain Redis has no AWS auth; the security group *is* the 
 # c9_03: PostgreSQL 17.6, db.t4g.micro (Graviton), db_name ordersdb,
 #        SAME Secrets Manager values as MySQL (one secret, two databases)
 # c9_04: orders role + the shared secret-read policy
-# c9_05 (⚠ missing from repo — reconstructed): association → SA "orders", default ns
+# c9_05 (✅ IN REPO, same folder): association → SA "orders", default ns
 resource "aws_eks_pod_identity_association" "orders_pod_identity" {
   cluster_name    = data.terraform_remote_state.eks.outputs.eks_cluster_name
   namespace       = "default"
@@ -287,7 +287,7 @@ resource "aws_iam_role_policy_attachment" "orders_sqs_policy_attach" {
 }
 ```
 
-### 6.6 Kubernetes side (folder `14_02`, reconstructed — see ⚠️ GAP)
+### 6.6 Kubernetes side (folder `14_02`, ✅ verified in repo — matches below)
 
 **SecretProviderClass with sync (`01_secretproviderclass/01_catalog_db_secretproviderclass.yaml`):**
 
@@ -432,7 +432,7 @@ Repo: [14_RetailStore_Microservices_with_AWS_Data_Plane/](devops-real-world-proj
     ├── c3_01_vpc_remote_state.tf  c3_02_eks_remote_state.tf
     ├── c5_01 assume-role doc     c5_02 secret-read policy
     ├── c6_01..05 catalog: SG → subnet grp → secret datasource → RDS MySQL → SA role
-    │   (c6_06 association — ⚠ missing in repo, reconstructed in §6.2)
+    │   (c6_06 association — ✅ present in repo, §6.2)
     ├── c7_01..03 carts: policy+role → association → DynamoDB Items (us-west-2)
     ├── c8_01..03 checkout: SG → subnet grp → ElastiCache Redis
     └── c9_01..07 orders: SG → subnet grp → RDS PostgreSQL → role → (c9_05 assoc ⚠) → SQS queue → SQS policy

@@ -25,10 +25,10 @@
 - [x] 12 Helm Package Manager — `14)` (~150 min; 1205 full-app-helm content lives in `15)`, cross-covered in S19)
 - [x] 13 Terraform EKS with Add-Ons — `15)` part 1 (~306 min total in file)
 - [x] 14 Retail Store — AWS Data Plane — `15)` part 2
-  - note: repo `14_02` has only README (k8s YAML tree absent) and TF files c6_06/c9_05 (catalog/orders PIA associations) missing — reconstructed in the .md, flagged ⚠️ GAP
+  - ✅ RECONCILED 2026-07-19 against canonical repo (full clone): `14_02` k8s manifests + `c6_06`/`c9_05` PIA associations ALL exist in the repo (earlier partial clone hadn't checked them out); reconstructions verified to match — flags upgraded to ✅ VERIFIED
 - [x] 15 Terraform EKS with ExternalDNS — `16)` part 1 (~66 min total)
 - [x] 16 Retail Store with ExternalDNS — `16)` part 2
-  - note: repo has NO folders beyond `14_...` — S15 c17 TF files & S16 ingress YAML reconstructed from transcript, flagged ⚠️ GAP
+  - ✅ RECONCILED 2026-07-19: folders `15_…` through `21_…` ALL exist in the canonical repo (the earlier clone's working tree had been wiped to only `01–14` — restored via `git config core.longpaths true` + `git restore`). S15 `c17-*`, S16 http+https ingress, S17 Karpenter `c6_01–08`+CRDs, S18 metrics-server/HPA, S19 `c18` fold-in, S20 ADOT env, S21 CI workflow — all spot-checked to match the reconstructions. Every S14–S21 flag upgraded to ✅ VERIFIED.
 - [x] 17 Autoscaling — Karpenter — `17)` (~229 min; transcript is ~5985 lines, read fully in 3 pages)
 - [x] 18 Autoscaling — HPA — `18)` (~134 min; transcript's 2nd half duplicates the deploy lecture — processed once)
 - [x] 19 Helm Retail Store + AWS Data Plane — `19)` (~102 min; also covers the 1205 gap from S12 in final form)

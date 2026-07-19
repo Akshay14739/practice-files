@@ -3,7 +3,7 @@
 > Source: transcript `17) Karpenter` (demos 1701–1704).
 > The course's flagship cost-optimization section: replace "locked, slow" node-group scaling with Karpenter's just-in-time, right-sized, spot-aware provisioning — installed by Terraform, configured by CRDs, proven with a zero-downtime interruption drill.
 >
-> ⚠️ **GAP (repo):** the cloned repo snapshot ends at `14_...`; the `17_AutoScaling_Karpenter` folders (1701 install TF + k8s manifests, 1702–1704 demos) aren't in it. All code below is reconstructed from the instructor's file-by-file transcript walkthrough (he mirrors the official Karpenter `cloudformation.yaml` for IAM). Check his GitHub for the published version; Karpenter CRD versions used: `karpenter.sh/v1`, `karpenter.k8s.aws/v1`.
+> ✅ **VERIFIED against the canonical repo:** the code lives in `17_Autoscaling_Karpenter/17_01_Karpenter_Install/` — the `03_KARPENTER_terraform-manifests/` folder contains exactly `c6_01_karpenter_controller_iam_role.tf` … `c6_08_karpenter_eventbridge_rules.tf` (controller IAM role/policy, PIA, node role, access entry, helm install, SQS queue, EventBridge rules) and `04_KARPENTER_k8s-manifests/` holds `01_ec2nodeclass.yaml` + the on-demand/spot NodePools — **matching the reconstruction below.** An earlier partial clone had only folders `01–14`. Karpenter CRD versions: `karpenter.sh/v1`, `karpenter.k8s.aws/v1`. Use the repo files as source of truth.
 
 ---
 

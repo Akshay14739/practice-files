@@ -26,9 +26,13 @@
 | 18 | [Autoscaling — HPA](18-hpa-autoscaling.md) | HPA + metrics server, PDB, Topology Spread Constraints, zone-aware scheduling demos | `18)` |
 | 19 | [Helm Retail Store + AWS Data Plane](19-helm-retailstore-dataplane.md) | Versioned Helm charts (v1→v2) deploying the full app against the AWS data plane | `19)` |
 | 20 | [Observability — OpenTelemetry](20-observability-opentelemetry.md) | ADOT: traces→X-Ray, logs→CloudWatch, metrics→AMP+AMG Grafana; cost-filtering health checks | `20)` |
+| 20.5 | [Observability — Prometheus & Grafana](20.5-observability-prometheus-grafana.md) | **Alternative to §20:** self-hosted LGTM — Prometheus (metrics) + Loki (logs) + Tempo (traces) + Grafana, no AWS-managed fees | *extension* |
 | 21 | [DevOps CI/CD Pipeline (GitOps)](21-cicd-gitops.md) | GitHub Actions (OIDC, no keys) → ECR → Helm values bump → ArgoCD auto-sync → EKS | `21)` |
+| 22 | [Production Service Mesh — Istio](22-istio-project.md) | **Capstone extension:** STRICT mTLS, deny-by-default authz, weighted canary, circuit breaking, ACM gateway, Kiali — zero app changes | *extension* |
 
-**Companion files:** [GLOSSARY.md](GLOSSARY.md) — ASR-error map + AWS↔K8s term map · [PROGRESS.md](PROGRESS.md) — checklist / resume point.
+**Companion files:** [GLOSSARY.md](GLOSSARY.md) — ASR-error map + AWS↔K8s term map · [PROGRESS.md](PROGRESS.md) — checklist / resume point · [Istio_Learning_Ladder.md](../../Istio_Learning_Ladder.md) — climb the mesh mechanism before §22.
+
+> **Extension sections (20.5, 22)** aren't from the course transcripts — they're resume-grade additions that reuse the same cluster + retail store app so you follow along hands-on **01 → 22**: §20.5 gives you the *second* (and interview-default) observability toolchain, and §22 puts a production Istio mesh over the whole platform.
 
 ## Key cross-cutting themes (instructor's own emphasis)
 - **Cost:** ~70% savings via Karpenter Spot (S17); ~85% observability cost cut by filtering health-check traces (S20).

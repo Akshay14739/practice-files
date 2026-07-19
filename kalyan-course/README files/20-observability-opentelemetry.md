@@ -3,7 +3,7 @@
 > Source: transcript `20) Observability` (demos 2001–2004, ~270 min).
 > All three observability pillars for the retail store, collected the vendor-neutral way: **AWS Distro for OpenTelemetry (ADOT)** collectors ship **traces → X-Ray**, **logs → CloudWatch Logs**, **metrics → Amazon Managed Prometheus**, visualized in **Amazon Managed Grafana**. Zero application-code changes — one annotation per deployment.
 >
-> ⚠️ **GAP (repo):** Section 20 folders aren't in the cloned repo snapshot; all YAML/TF below reconstructed from the instructor's line-by-line walkthrough. 💰 This is the most cost-sensitive section: the **AMG user costs $9 the moment you associate an Identity Center user** — the instructor explicitly says *watch, don't do* that part unless you want to pay.
+> ✅ **VERIFIED against the canonical repo:** the code lives in `20_Observability_OpenTelemetry/20_01_EKS_Environment_with_ADOT/` (EKS cluster env + Karpenter + the ADOT/AMP/AMG stack) and `.../02_RetailStore_App_Environment/` — **matching the reconstruction below.** An earlier partial clone had only folders `01–14`. 💰 Still the most cost-sensitive section: the **AMG user costs $9 the moment you associate an Identity Center user** — the instructor says *watch, don't do* that part unless you want to pay. (The self-hosted, no-per-user-fee alternative is [Section 20.5](20.5-observability-prometheus-grafana.md).) Use the repo files as source of truth.
 
 ---
 

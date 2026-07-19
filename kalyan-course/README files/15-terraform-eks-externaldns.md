@@ -3,7 +3,7 @@
 > Source: transcript `16) External DNS` (first half, ~lectures 1501–1503).
 > Extends the Section 13 project: same VPC + EKS-with-add-ons code, **plus three new files (`c17_01`–`c17_03`)** installing ExternalDNS as an EKS managed add-on with Pod Identity.
 >
-> ⚠️ **GAP (repo):** the cloned repo snapshot only contains folders up to `14_...` — the Section 15/16 folders the instructor shows on GitHub aren't in it. The transcript walks every file's content, so the code below is reconstructed faithfully from that walkthrough (it follows exactly the c11/c15 patterns from Section 13, which *are* in the repo). Check the instructor's GitHub for the published version.
+> ✅ **VERIFIED against the canonical repo:** the code lives in `15_Terraform_EKS_Cluster_ExternalDNS/02_EKS_terraform-manifests_with_addons/` as `c17-01-externaldns-iam-policy-and-role.tf`, `c17-02-externaldns-pod-identity-association.tf`, `c17-03-externaldns-eksaddon.tf` — **confirmed to match the walkthrough below** (the `depends_on` chain, `most_recent` version lookup, and `AmazonRoute53FullAccess` attachment are byte-for-byte). An earlier partial clone had only checked out folders `01–14`; the instructor's GitHub had 15+ all along. Use the repo files as source of truth.
 
 ---
 
@@ -104,7 +104,7 @@ The **TXT ownership record** matters: ExternalDNS only ever touches records whos
 
 ## 6. Code & Commands — Line by Line
 
-*(reconstructed — see ⚠️ GAP above; patterns identical to `c11`/`c15` in [13_Terraform_EKS_Cluster_with_AddOns/](devops-real-world-project-implementation-on-aws/13_Terraform_EKS_Cluster_with_AddOns/))*
+*(✅ verified — matches `15_Terraform_EKS_Cluster_ExternalDNS/02_EKS_terraform-manifests_with_addons/c17-01…03`; patterns identical to `c11`/`c15` in Section 13)*
 
 ### c17_01 — IAM role + policy for ExternalDNS
 
