@@ -3,6 +3,64 @@
 > Transcript: `14) Helm` · ~2.5h · Repo: [`../devops-real-world-project-implementation-on-aws/12_Helm/`](../devops-real-world-project-implementation-on-aws/12_Helm/) (demos `1201`–`1205`)
 > ⚠️ GAP: the curriculum's final sub-module ("Helm Retail Store Deployment — catalog/carts/checkout/orders/UI charts, ~61 min") is **not** in transcript `14)`; its content is folded into transcript `15)` / repo `1205` — the full-app Helm deployment is additionally covered by [S19](19-helm-retailstore-dataplane.md). Use repo folder `12_Helm/1205…` for those manifests.
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after — it takes one small app (the store's UI) through Helm's whole life: install, upgrade, roll back, uninstall, then modify and publish your own chart version.
+> Tags used below: **[Terminal]** = your Ubuntu laptop's shell · **[Editor]** = editing values-ui.yaml / chart files (VS Code) · **[AWS Console]** = console.aws.amazon.com in the browser · **[Browser]** = the retail-store UI (localhost:3080 or the ALB URL).
+
+### Where you are in the course
+
+```
+S11 Ingress (ALB controller) ──▶ THIS: S12 Helm on the ui chart ──▶ S13 Terraform EKS (full-app Helm returns in S19)
+```
+
+**Must already exist/be running:**
+- [ ] An EKS cluster with `kubectl` pointing at it (runs throughout; demo 1203 alone is fully offline — no cluster needed)
+- [ ] Section 11's Load Balancer Controller installed — check: `kubectl get deploy -n kube-system aws-load-balancer-controller`
+- [ ] `helm` and the AWS CLI installed and configured on your laptop
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| chart | the app as a package: YAML templates + a default settings file |
+| release | one installed copy of a chart, under a name you pick (`ui`) |
+| revision | a numbered history entry — every install/upgrade/rollback adds one |
+| values file (`-f values-ui.yaml`) | your settings; `--set` beats the file, the file beats chart defaults |
+| OCI registry | a Docker-style registry (ECR here) that also stores charts; needs `helm registry login` first |
+| `helm template` / `--dry-run --debug` | print the final YAML without touching the cluster |
+| `helm status <rel> --show-resources` | the gold-standard "what did this release create" command |
+| chart version vs image tag | two different numbers — chart 1.3.1 still runs image 1.3.0 here |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** Log Helm into AWS public ECR: `aws ecr-public get-login-password --region us-east-1 | helm registry login --username AWS --password-stdin public.ecr.aws` → you should see: `Login Succeeded` *(deep dive: §6 1201)*
+2. **[Terminal]** Install: `helm install ui oci://public.ecr.aws/aws-containers/retail-store-sample-ui-chart --version 1.0.0` → you should see: `helm list` shows release `ui` at REVISION 1
+3. **[Terminal] + [Browser]** `kubectl port-forward svc/ui 3080:80` → open http://localhost:3080 → the store loads; `/topology` shows no downstream services (standalone UI = the whole demo app in-memory)
+4. **[Terminal]** Upgrade: `helm upgrade ui oci://…retail-store-sample-ui-chart --version 1.2.4 --set app.theme=orange` → `helm history ui`: rev1 `superseded`, rev2 `deployed`; refresh the browser → orange theme
+5. **[Terminal]** Roll back: `helm rollback ui 1` → you should see: rev3 appears in history, theme back to default
+6. ⚠️ **The trap:** a values-only upgrade (`--set app.theme=green`) bumps the revision but does **not** restart the pod — the browser never changes until `kubectl rollout restart deploy/ui`. Then `helm uninstall ui` *(deep dive: §6 1201, §9)*
+7. **[Editor]** Create `values-ui.yaml`: theme `teal`, `ingress.enabled: true` + the three alb annotations — copy the block from §6 1202
+8. **[Terminal]** Preview first, always: `helm install ui oci://… --version 1.3.0 -f values-ui.yaml --dry-run --debug | less` → you should see: merged values + every rendered manifest (incl. the Ingress), cluster untouched
+9. **[Terminal]** Install for real with `-f values-ui.yaml`, then `helm status ui --show-resources` → svc, deploy, pod, **ingress**, sa, cm — all owned by this release; `kubectl get ingress` → an ALB DNS name → **[Browser]** the teal app via the ALB *(deep dive: §6 1202)*
+10. **[Terminal]** Open the hood: `helm pull oci://public.ecr.aws/aws-containers/retail-store-sample-ui-chart --version 1.3.0 --untar` → `helm lint ui` → you should see: `1 chart(s) linted, 0 failed` *(anatomy: §4; deep dive: §6 1203)*
+11. **[Editor]** Make it yours: bump `ui/Chart.yaml` `version:` 1.3.0 → 1.3.1, add the conditional `release-info.yaml` template from §6 1204, and set `image.tag: "1.3.0"` in your values — no 1.3.1 *image* exists (chart version ≠ image tag)
+12. **[Terminal]** Package and publish to your private ECR (registry login + `aws ecr create-repository` first — §6 1204): `helm package ./ui` → `retail-store-sample-ui-chart-1.3.1.tgz` → `helm push retail-store-sample-ui-chart-1.3.1.tgz oci://$REGISTRY`
+13. **[Terminal]** Consume your own chart: `helm install retail-ui oci://$REGISTRY/retail-store-sample-ui-chart --version 1.3.1 -f values-ui.yaml` → `kubectl get cm retail-ui-release-info -o yaml` → chartVersion `1.3.1` — your template worked
+
+### ✅ Done-check
+
+- [ ] `helm history ui` told the story: install → upgrade → rollback as revisions 1 → 2 → 3
+- [ ] The green-theme upgrade changed nothing in the browser **until** `kubectl rollout restart deploy/ui`
+- [ ] `helm status <rel> --show-resources` listed the Ingress among the release's resources (1202)
+- [ ] `helm lint ui` → `1 chart(s) linted, 0 failed`
+- [ ] `kubectl get cm retail-ui-release-info -o yaml` → chartVersion 1.3.1
+
+🧹 **Teardown before you stop:** `helm uninstall` every release you created (`ui`, `ui-local`, `retail-ui`) → **[AWS Console]** EC2 → Load Balancers shows none left (and `kubectl get ingress` is empty) → delete the demo ECR repo.
+💰 If forgotten: any ingress-enabled release keeps an **ALB** billing hourly ("ingress = ALB = surprise bill"), the private **ECR repo** bills for storage, and the EKS cluster itself bills while it runs.
+
+---
+
 ## 1. Objective
 
 Master Helm end-to-end on the retail UI chart: **install/upgrade/rollback/uninstall** from an OCI registry, **override values** (three ways + precedence), **read a chart like source code** (templates, values, helpers, hooks), **lint/template/dry-run/test** without touching the cluster, and finally **modify → repackage → publish** your own chart version to a private ECR.

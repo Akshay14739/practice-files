@@ -7,6 +7,70 @@
 
 ---
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. In this section you install Karpenter — a controller that creates and deletes EC2 worker nodes by itself — then watch it birth nodes in ~60 s, shrink them away, and survive a fake Spot reclaim with zero downtime.
+> Tags used below: **[Terminal]** = your Ubuntu laptop's shell · **[Editor]** = editing YAML/tf (VS Code) · **[AWS Console]** = console.aws.amazon.com in the browser.
+
+### Where you are in the course
+
+```
+S15/16 cluster + ExternalDNS/HTTPS store  →  THIS: S17 Karpenter (node autoscaling)  →  S18 HPA (pod autoscaling — reuses this cluster)
+```
+
+**Must already exist/be running:**
+- [ ] The Section 15 cluster stack applied (VPC + EKS + add-ons); `kubectl get nodes` shows the 3 managed nodes.
+- [ ] Your S3 state-bucket name pasted into **c1, c3_01, c3_02** of all three Terraform projects (VPC, EKS, and the new `03_karpenter_terraform-manifests`).
+- [ ] AWS CLI signed in — the interruption drill sends a real SQS message from your laptop.
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| Karpenter | a pod in your cluster that creates/deletes EC2 worker nodes on its own, sized to fit your pods |
+| NodePool | the *menu*: which node kinds Karpenter may create (families, sizes, spot/on-demand, CPU cap) |
+| EC2NodeClass | the *blueprint*: which AMI, IAM role, subnets and disk each new node is built from |
+| NodeClaim | one "I'm making a node" ticket — watching these is how you see Karpenter think |
+| Spot | spare EC2 capacity, 70–90% cheaper, but AWS can reclaim it with 2 minutes' warning |
+| consolidation | Karpenter's scale-down: repack pods onto fewer/cheaper nodes, delete the leftovers |
+| cordon & drain | mark a node "no new pods", then politely evict its pods elsewhere |
+| PDB (PodDisruptionBudget) | a rule: "never let Running copies drop below N during voluntary evictions" |
+| nodeSelector | a line in a Deployment that pins its pods to one pool (`on-demand` or `spot`) |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Editor]** In the copied `02_EKS...` project flip the subnet tags `shared`→`owned` in `c5_eks_tags.tf`; **[Terminal]** `terraform plan` → you should see: **"6 to change, 0 to add, 0 to destroy"** → apply. Skipping this is *the* classic Karpenter failure. *(deep dive: §6.0)*
+2. **[Terminal]** In `03_karpenter_terraform-manifests`: `terraform init && terraform validate && terraform plan` → you should see: **21 to add** → `terraform apply -auto-approve`. *(deep dive: §6.1)*
+3. **[Terminal]** `kubectl -n kube-system get pods | grep karpenter` → you should see: the karpenter pod Running; `helm list -n kube-system` lists the release. *(deep dive: §6.1)*
+4. **[Terminal]** `kubectl apply -f 04_karpenter_k8s-manifests/` → `kubectl get ec2nodeclass` READY **True** and `kubectl get nodepools` both **True**. *(deep dive: §6.2)*
+5. **[Terminal]** `kubectl apply -f kube-manifests-ondemand/` (5 replicas, on-demand nodeSelector) → you should see: pods stuck **Pending** — that's Karpenter's cue. *(deep dive: §6.3)*
+6. **[Terminal]** `kubectl get nodeclaims` → you should see: one `t3.small` **and** one `t3a.small` claim (mixed types!); `kubectl get nodes` → 2 new nodes Ready in 30–60 s, all pods Running. *(deep dive: §6.3)*
+7. **[Terminal]** `kubectl scale deploy karpenter-autoscale-demo-ondemand --replicas=10` → 2 more claims → 4 Karpenter nodes, all 10 Running within ~60 s. *(deep dive: §6.3)*
+8. **[Terminal]** `kubectl scale deploy karpenter-autoscale-demo-ondemand --replicas=2`, wait ≥30 s (`consolidateAfter`) → nodes drain one by one down to a single `t3a.small` — the cheaper type survives. *(deep dive: §6.3)*
+9. **[Terminal]** `kubectl delete -f kube-manifests-ondemand/` → ~30 s later only the 3 managed nodes remain. *(deep dive: §6.3)*
+10. **[Terminal]** Spot round: deploy the same test app with `nodeSelector: karpenter.sh/capacity-type: spot`; check with `kubectl get nodes --selector=karpenter.sh/capacity-type=spot`. *(deep dive: §6.4)*
+11. **[Terminal]** Interruption drill: `kubectl apply -f spot-interruption-handling.yaml` (5 replicas + PDB `minAvailable: 3`) → 1 spot node appears. Open the four watch terminals from §6.5 (karpenter logs / `kubectl get nodes -w` / `kubectl get pods -o wide -w` / `kubectl get nodeclaims -w`). *(deep dive: §6.5)*
+12. **[Terminal]** In a fifth terminal run §6.5's block that captures `SPOT_INSTANCE_ID` + `QUEUE_URL` and sends the forged warning via `aws sqs send-message` → you should see: old node cordoned, replacement born, **only 2 pods move first** (the PDB!), then the last 3 — Running count never below 3. *(deep dive: §6.5)*
+13. **[Terminal]** `kubectl delete -f spot-interruption-handling.yaml` → the last spot node vanishes ~30 s later.
+
+### ✅ Done-check
+
+- [ ] `helm list -n kube-system` shows karpenter deployed; controller logs error-free
+- [ ] `kubectl get ec2nodeclass` and `kubectl get nodepools` all READY **True**
+- [ ] You watched `kubectl get nodeclaims` create mixed `t3.small`/`t3a.small` nodes in 30–60 s
+- [ ] During the drill, Running pods never dropped below the PDB's 3
+- [ ] `kubectl get nodes` is back to just the 3 managed nodes
+
+🧹 **Teardown before you stop** (the file's order — keep the cluster, S18 reuses it):
+1. Delete the test apps (each demo's `kubectl delete -f ...`).
+2. Delete the CRDs (the `04_karpenter_k8s-manifests/` files).
+3. `terraform destroy` in `03_karpenter_terraform-manifests`.
+4. **[AWS Console]** sweep: EC2 shows no stray nodes, EBS volumes cleaned (deleteOnTermination), SQS queue and EventBridge rules gone.
+
+💰 **If you forget:** every leftover Karpenter node bills on (t3.small ≈ $0.02/h each — they self-delete only ~30 s *after* their pods are deleted), on top of the usual cluster + NAT hourly charge.
+
+---
+
 ## 1. Objective
 
 Install and operate **Karpenter** on the EKS cluster so worker nodes are provisioned *from pod requirements* rather than pre-defined node groups:

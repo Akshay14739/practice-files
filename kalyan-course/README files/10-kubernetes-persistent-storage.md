@@ -2,6 +2,69 @@
 
 > Transcripts: `10)` tail (1001) + `11) Kubernetes Storage & RDS MySQL` (1002–1003) · ~1.5h · Repo: [`../devops-real-world-project-implementation-on-aws/10_Kubernetes_Storage/`](../devops-real-world-project-implementation-on-aws/10_Kubernetes_Storage/)
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[AWS Console]** = console.aws.amazon.com · **[Editor]** = the YAML files.
+> Two fixes in order: ① give in-cluster MySQL a real disk (EBS) so data survives pod death → ② admit you shouldn't run databases yourself, and swap to RDS with a one-file DNS trick.
+
+### Where you are in the course
+
+```
+S08's MySQL loses data on restart (emptyDir) ─▶ THIS: S10 EBS volumes, then RDS ─▶ S11 Ingress
+```
+
+**Must already exist/be running:**
+```
+[ ] S07 cluster up; kubectl connected
+[ ] S09 completed: Secrets CSI + ASCP helm releases still installed, catalog-db-secret-1 exists
+    (1002/1003 reuse the SAME SecretProviderClass + Pod Identity wiring untouched)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| emptyDir | scratch space that DIES with the pod — why S08's data vanished |
+| EBS | an AWS network disk, tied to ONE availability zone |
+| CSI driver | the plugin K8s uses to create/attach cloud disks |
+| StorageClass | the blueprint: which provisioner, what disk type, WHEN to create |
+| PVC → PV | the request ("10Gi please") → the actual provisioned disk object, bound 1:1 |
+| `WaitForFirstConsumer` | "don't create the disk until the pod picks a node" — so disk and pod land in the SAME AZ |
+| `volumeClaimTemplates` | StatefulSet stamping one personal PVC per replica |
+| `reclaimPolicy: Delete` | deleting the PVC deletes the PV AND the EBS volume |
+| ExternalName Service | a Service that's just a DNS alias — `catalog-mysql` → the RDS hostname |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** 1001 — install the EBS CSI driver with the S09 recipe (identical 4 steps): trust-policy heredoc → role + `AmazonEBSCSIDriverPolicy` → association for `kube-system/ebs-csi-controller-sa` → `aws eks create-addon --addon-name aws-ebs-csi-driver …` (§6 has it verbatim).
+   → **you should see:** `kubectl get pods -n kube-system | grep ebs-csi` — 2 controller pods + one node pod per node. Pod Identity, reuse #1.
+2. **[Editor]** 1002 — exactly TWO changes vs S09's 0904 (diff the folders!): a new `StorageClass` (`ebs-sc`, `WaitForFirstConsumer`) and the STS swap `emptyDir` → `volumeClaimTemplates` mounting `/var/lib/mysql`.
+3. **[Terminal]** Apply (SPC first, then manifests) and watch the objects: `kubectl get sc,pvc,pv`
+   → **you should see:** PVC `data-ebs-catalog-mysql-0` **Bound**; **[AWS Console]** EC2 → Volumes shows a fresh 10 GiB gp3 tagged with the PVC name — YAML became a real disk. `(deep dive: §4 loop)`
+4. **[Terminal]** THE durability proof: insert-check data via `kubectl run mysql-client … mysql -h catalog-mysql -u mydbadmin -pKalyanDB101` (`select * from products;` → 12 rows) → `kubectl delete pod catalog-mysql-0` → re-run the select.
+   → **you should see:** same-name pod returns AND the 12 rows are still there — the EBS volume re-attached. emptyDir could never.
+5. **[Terminal]** The lifecycle/cost lesson: `kubectl delete -f …` the whole app → `kubectl get pvc,pv`
+   → **you should see:** PVC + PV **still exist** (and the EBS volume still bills!) — only `kubectl delete pvc data-ebs-catalog-mysql-0` kills the chain. Deleting apps ≠ deleting data. 💰
+6. **[AWS Console]** 1003 — RDS the right way: SG `rds-mysql-sg` allowing 3306 **only from the EKS cluster SG** → DB subnet group over the 3 PRIVATE subnets → RDS MySQL `mydb101`, master `mydbadmin`/`KalyanDB101` (SAME creds as the S09 secret — so nothing else changes!), db.t4g.micro, Public access **No** (~5–10 min create). `(deep dive: 00B Climb 7 — SG references SG)`
+7. **[Terminal]** Create the schema from inside the cluster: `kubectl run mysql-client … mysql -h <rds-endpoint> …` → `create database catalogdb;`
+8. **[Editor]** The one new manifest: ExternalName Service named `catalog-mysql` (the SAME name the app already dials) pointing at your RDS endpoint. No StatefulSet, no headless service — MySQL left the cluster.
+9. **[Terminal]** Apply → `kubectl get pods` (ONLY catalog — no DB pod!) → logs show "migration complete" → `port-forward 7080:8080` → `/topology`.
+   → **you should see:** the app unchanged, storing rows in RDS — the endpoint moved, the NAME didn't. `(deep dive: 00B Climb 3)`
+
+### ✅ Done-check
+
+```
+[ ] PVC Bound + the gp3 volume visible in the EC2 console by PVC name
+[ ] 12 rows survived kubectl delete pod catalog-mysql-0
+[ ] you saw PVC/PV outlive the app, then deleted the PVC and watched the EBS volume die
+[ ] RDS reachable ONLY from the cluster (SG-from-SG); catalog runs with zero DB pods
+[ ] you can explain WaitForFirstConsumer's AZ logic in one sentence
+```
+
+🧹 **Teardown before you stop (COSTS!):** delete app manifests + SPC → **delete the RDS instance** (it "costs heavily") → DB subnet group → `rds-mysql-sg` (undeleted SGs later BLOCK VPC destroy) → any leftover PVC. Keep the CSI driver + helm releases (S11+ reuse). 💰 RDS ≈ $0.017+/hr, orphaned EBS volumes ≈ $0.08/GB/mo — both bill silently.
+
+---
+
 ## 1. Objective
 
 Make MySQL's data **survive pod restarts and node failures**: install the **EBS CSI driver** (authenticated via Pod Identity), dynamically provision per-pod EBS volumes through a **StorageClass + volumeClaimTemplates**, verify data durability — then take the production step: **replace in-cluster MySQL entirely with Amazon RDS**, reached via an **ExternalName Service**.

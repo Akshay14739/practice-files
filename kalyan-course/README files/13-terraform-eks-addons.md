@@ -5,6 +5,69 @@
 
 ---
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = VS Code on the .tf files · **[AWS Console]** = console.aws.amazon.com.
+> The whole section is one idea: everything you installed BY HAND in S09–11 (add-ons, Helm charts, IAM) becomes code, so one `terraform apply` = a complete platform.
+
+### Where you are in the course
+
+```
+S07 cluster (bare) + S09–11 manual add-on installs ─▶ THIS: S13 the same, AS CODE ─▶ S14 AWS data plane on top
+```
+
+**Must already exist/be running:**
+```
+[ ] S06 tfstate bucket
+[ ] The S07 cluster DESTROYED first if still up (two clusters = double cost, and both use state keys vpc/dev + eks/dev)
+[ ] Bucket name updated in THREE places before any init: 01_VPC/c1 (backend), 02_EKS/c1 (backend), 02_EKS/c3 (remote-state)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| add-on (EKS managed) | a cluster component AWS installs & patches for you (`aws_eks_addon`) |
+| `helm_release` | Terraform acting as your Helm CLI — installs charts as code |
+| Pod Identity Agent (PIA) | the in-cluster agent that hands pods their IAM credentials — everything else authenticates through it |
+| Load Balancer Controller (LBC) | the pod that turns Ingress YAML into real ALBs |
+| EBS CSI driver | the plugin that creates/attaches EBS disks for PVCs |
+| Secrets Store CSI + ASCP | the plugin pair that mounts AWS Secrets Manager values into pods |
+| `syncSecret.enabled=true` | the flag that ALSO mirrors mounted secrets into normal K8s Secrets — S14 depends on it |
+| provider wiring | how Terraform authenticates Helm/kubectl against a cluster it's creating in the SAME apply |
+| `depends_on` | explicit ordering — and it REVERSES on destroy (LBC dies last so it can clean up ALBs) |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Editor]** The ritual first: update the S3 **bucket name in all three files** (VPC c1, EKS c1, EKS c3). Skipping this is the #1 fresh-clone failure.
+2. **[Terminal]** Apply the VPC project: `terraform init && terraform apply -auto-approve` in `01_VPC…`
+   → **you should see:** the familiar 18 resources.
+3. **[Editor]** Read the NEW files c11→c16 in order with §6 open — each maps to a manual step you did before: c11 PIA (was console clicks, S09) → c12 providers (Terraform's kubeconfig) → c13 ONE shared trust policy → c14 LBC in 4 files (was S11's 4 manual steps) → c15 EBS CSI (managed-addon path) → c16 Secrets CSI + ASCP with `syncSecret.enabled=true`.
+   → **you should see:** the rule of thumb: AWS publishes it as managed add-on → `aws_eks_addon`; otherwise → `helm_release`. `(deep dive: §3)`
+4. **[Terminal]** `terraform init && terraform validate && terraform plan` in `02_EKS…`
+   → **you should see:** **~33 to add** (S07's 21 + the add-on layer).
+5. **[Terminal]** `terraform apply` — ~15–20 min. 💰 Meter running from here.
+   → **you should see:** cluster → nodes → PIA → IAM → LBC (waits until its pods are actually Ready — `wait=true`) → EBS CSI → Secrets CSI → ASCP, in dependency order. `(deep dive: §4 ASCII flow)`
+6. **[Terminal]** Connect + verify the platform: `aws eks update-kubeconfig --name retail-dev-eksdemo1 --region us-east-1` then `kubectl get pods -n kube-system`
+   → **you should see:** aws-load-balancer-controller, ebs-csi-controller, csi-secrets-store + ASCP pods, eks-pod-identity-agent DaemonSet — ALL Running, none of them installed by hand.
+7. **[Terminal]** `aws eks list-pod-identity-associations --cluster-name retail-dev-eksdemo1`
+   → **you should see:** associations for `aws-load-balancer-controller` and `ebs-csi-controller-sa` in kube-system — the IAM wiring, also code.
+8. **[Terminal]** Note the wrapper scripts for later sections: `create-cluster.sh` / `destroy-cluster.sh` — from now on the course treats this whole platform as one create/destroy unit.
+
+### ✅ Done-check
+
+```
+[ ] plan showed ~33 resources; apply completed in one shot
+[ ] kube-system shows LBC + EBS CSI + Secrets CSI + ASCP + PIA all Running
+[ ] two Pod Identity associations listed
+[ ] you can state why syncSecret.enabled=true matters for S14
+[ ] you know why the LBC helm_release has depends_on (nodes + PIA + association; and destroy-order for ALBs)
+```
+
+🧹 **Teardown before you stop:** if not continuing straight to S14: `terraform destroy` in `02_EKS…` then `01_VPC…` (or `destroy-cluster.sh`). The `depends_on` chain destroys the LBC BEFORE the cluster so it can deprovision any ALBs — never delete the cluster around it by hand. 💰 Left running ≈ $8–10/day; orphaned ALBs bill separately.
+
+---
+
 ## 1. Objective
 
 Extend the Section 07 Terraform EKS project so that **one `terraform apply` produces a fully production-ready cluster**: EKS + node group **and** Pod Identity Agent, AWS Load Balancer Controller, EBS CSI Driver, Secrets Store CSI Driver, and the AWS Secrets Provider (ASCP) — with all IAM roles, policies, and Pod Identity associations wired automatically (~33 resources total).

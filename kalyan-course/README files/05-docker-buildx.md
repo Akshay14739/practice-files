@@ -2,6 +2,71 @@
 
 > Transcript: `4) Docker Buildx` · ~45 min · Repo: [`../devops-real-world-project-implementation-on-aws/05_Docker_Buildx/`](../devops-real-world-project-implementation-on-aws/05_Docker_Buildx/)
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = a shell (each step says WHICH machine: the amd64 build VM, the arm64 test VM, or your laptop) · **[AWS Console]** = console.aws.amazon.com · **[Browser]** = Docker Hub / the app.
+> ⏳ **Plan your session:** the first multi-arch build takes **37–50 minutes** (emulation is slow — that's the lesson, not a bug). Start it, take a break, come back.
+
+### Where you are in the course
+
+```
+S03/S04 built & composed images ─▶ THIS: S05 ONE tag that runs on amd64 AND arm64 ─▶ S06 Terraform
+Why bother: Graviton (arm64) nodes are cheaper — Karpenter (S17) will want to use them.
+```
+
+**Must already exist/be running:**
+```
+[ ] The S02 amd64 EC2 box (or your laptop with Docker Desktop — binfmt comes preinstalled there)
+[ ] Docker Hub account, logged in (docker login)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| amd64 vs arm64 | two CPU "languages"; a binary built for one won't run on the other |
+| buildx | Docker's builder plugin that can target several CPU types in one command |
+| QEMU / binfmt | an emulator letting your amd64 box pretend to be arm64 during the build (5–10× slower) |
+| builder | the isolated build engine buildx creates (`docker buildx create`) |
+| manifest list | one tag that secretly holds BOTH variants; `docker pull` picks the right one automatically |
+| Graviton / t4g | AWS's cheaper arm64 EC2 family |
+| `uname -m` | asks a machine its CPU type: `x86_64` = amd64, `aarch64` = arm64 |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal: build VM]** Confirm where you are: `uname -m` → `x86_64`, and `docker buildx version` answers.
+   → **you should see:** you're on amd64 with buildx available.
+2. **[Terminal: build VM]** Install the emulator: `docker run --privileged --rm tonistiigi/binfmt --install all` — ⚠️ re-run this after ANY reboot of the box (registration doesn't survive restarts).
+   → **you should see:** a list of installed platforms including arm64.
+3. **[Terminal: build VM]** Create + start the builder: `docker buildx create --name multiarch --driver docker-container --use` then `docker buildx inspect --bootstrap`.
+   → **you should see:** `docker buildx ls` shows `multiarch*` (the ★/`*` = active) with arm64 in its platforms. `(deep dive: §6 setup)`
+4. **[Terminal: build VM]** Set your names once: `export DH_USER=<your-dockerhub-username>; export DH_REPO=retail-ui-multiarch; export TAG=1.0.0; export IMAGE=$DH_USER/$DH_REPO:$TAG` and `docker login`. Then fetch source v1.3.0 and `cd …/src/ui` (§6 "Name, login, source").
+   → **you should see:** `echo $IMAGE` prints `you/retail-ui-multiarch:1.0.0`.
+5. **[Terminal: build VM]** THE build (start it, then go do something else): `docker buildx build --platform linux/amd64,linux/arm64 -t $IMAGE --push .`
+   → **you should see:** both platform stages progressing; 37–50 min first time. `--push` is REQUIRED — a multi-arch result can't live in the local store. `(deep dive: §6 the build)`
+6. **[Terminal: build VM]** Verify the manifest: `docker buildx imagetools inspect $IMAGE` — and **[Browser]** Docker Hub → your repo → Tags.
+   → **you should see:** ONE tag listing BOTH `linux/amd64` and `linux/arm64`.
+7. **[AWS Console]** Launch the proof machine: EC2 → Amazon Linux 2023 **64-bit ARM**, **t4g.large**, 30 GB → then **[Terminal: arm64 VM]** SSH in, `uname -m` → `aarch64`, install docker (§6).
+8. **[Terminal: arm64 VM]** See the PROBLEM first: `docker run -p 8899:8080 -d stacksimplify/retail-store-sample-ui:1.0.0`
+   → **you should see:** `image's platform (linux/amd64) does not match … (linux/arm64/v8)` — the exact pain this section kills.
+9. **[Terminal: arm64 VM]** Now the FIX: `docker pull $IMAGE && docker run --name myapp1-arm64 -p 8889:8080 -d $IMAGE`
+   → **you should see:** it just runs — same tag, arm64 variant auto-selected. Browser :8889 shows the store.
+10. **[Terminal: build VM]** Optional cache payoff (Lab B): make the V2 edit and rebuild as TAG=2.0.0 → ~6 min instead of ~40 (only the jar compile re-runs).
+    → **you should see:** `CACHED` on all the dnf layers in the log.
+
+### ✅ Done-check
+
+```
+[ ] imagetools inspect shows one tag, two platforms
+[ ] the amd64-only image FAILED on the arm64 VM (you saw the mismatch error)
+[ ] your multi-arch tag RAN on both VMs, same tag
+[ ] you know the reboot trap: binfmt must be reinstalled after restarts
+```
+
+🧹 **Teardown before you stop:** **TERMINATE the t4g arm64 VM immediately after the test** (💰 ~$0.067/hr); `docker rm -f` test containers on both machines. The amd64 VM can be stopped/terminated now too — S06 onward is Terraform from your laptop.
+
+---
+
 ## 1. Objective
 
 Build **one image tag that runs on both amd64 and arm64** using `docker buildx` + QEMU emulation, push it to Docker Hub as a multi-platform manifest, and prove it: an arm64 EC2 (Graviton) pulls the same tag and automatically gets the arm64 variant.

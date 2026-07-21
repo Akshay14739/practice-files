@@ -7,9 +7,69 @@
 
 ---
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = VS Code on the .tf files · **[AWS Console]** = console.aws.amazon.com.
+> One sentence: install a robot (ExternalDNS) that watches your Ingresses and writes Route 53 records for `*.devopsinminutes.com` automatically — 3 new .tf files, 4 new resources, done.
+
+### Where you are in the course
+
+```
+S13 platform-as-code (33 resources) ─▶ THIS: S15 + ExternalDNS (37) ─▶ S16 the store on YOUR domain + HTTPS
+```
+
+**Must already exist/be running:**
+```
+[ ] S13 cluster up (or you'll create fresh — both paths below)
+[ ] devopsinminutes.com hosted zone created & GoDaddy delegation verified — one-time setup in
+    [16 §5.5](16-retailstore-externaldns.md): `dig NS devopsinminutes.com +short` must show awsdns servers
+[ ] Bucket name updated in the same THREE files as S13 (VPC c1, EKS c1, EKS c3)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| ExternalDNS | a pod that watches Ingress/Service annotations and writes matching Route 53 records |
+| hosted zone | Route 53's record database for devopsinminutes.com (you made it in 16 §5.5) |
+| hostname annotation | the one YAML line that says "please register this DNS name for me" |
+| A / Alias record | "this name → that load balancer" |
+| TXT ownership record | ExternalDNS's name-tag on records IT created — it never touches others |
+| `upsert-only` vs `sync` | create/update only (default — never deletes) vs full cleanup too |
+| `--domain-filter` | optional fence limiting which zones it may touch (unset here — fine for the course) |
+| state reuse | new folder + same S3 backend = Terraform still knows all 33 existing resources |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Editor]** Copy S13's two projects, update the S3 **bucket name in the three files**, and add the three new files from §6: `c17_01` (IAM role — reusing the SAME shared trust doc as LBC/EBS), `c17_02` (Pod Identity association — namespace `external-dns`, SA `external-dns`, names the ADD-ON dictates), `c17_03` (the add-on + its `depends_on`).
+2. **[Terminal]** The state-reuse lesson — run in `02_EKS…`: `terraform init` then `terraform state list`
+   → **you should see:** all 33 Section-13 resources listed even though this is a fresh folder — **state follows the S3 backend, not the folder**. `(deep dive: §6 state-reuse block)`
+3. **[Terminal]** `terraform plan`
+   → **you should see:** **"Plan: 4 to add, 0 to change, 0 to destroy"** — the platform grows by delta, never rebuilt.
+4. **[Terminal]** `terraform apply -auto-approve` (also `terraform init` the copied `01_VPC` folder once — you'll need it working for destroy later).
+   → **you should see:** role → association → add-on created in order.
+5. **[Terminal]** Verify the ladder (§6): `aws eks list-addons --cluster-name eksdemo-dev --region us-east-1` → `kubectl -n external-dns get pods` → `kubectl -n external-dns logs -l app.kubernetes.io/name=external-dns -f`
+   → **you should see:** the add-on listed; pod Running; logs listing your `devopsinminutes.com` zone (no `--domain-filter` = it sees all zones) and every ~60 s: **"All records are already up to date"** — zero auth errors = the whole Pod Identity chain works.
+6. **[Terminal]** Smoke-test it NOW (Lab B): deploy any S11 Ingress with the one magic line `external-dns.alpha.kubernetes.io/hostname: demo1.devopsinminutes.com` and keep the logs tailing.
+   → **you should see:** within a minute, `CREATE demo1.devopsinminutes.com A` + a TXT record in the logs; **[AWS Console]** the record in your hosted zone; `nslookup demo1.devopsinminutes.com` resolves; browser hits the app.
+7. **[Terminal]** Clean the smoke test: delete the Ingress — and notice the record STAYS (default policy `upsert-only` never deletes). Remove the `demo1` A + TXT records by hand in Route 53. That surprise is Section 16's closing lesson. `(deep dive: S16 §4)`
+
+### ✅ Done-check
+
+```
+[ ] terraform state list showed 33 inherited resources; plan added exactly 4
+[ ] external-dns pod Running; logs show your zone + "All records are already up to date" ticks
+[ ] the demo1.devopsinminutes.com annotation produced a real Route 53 record you saw in the logs AND console
+[ ] you deleted the smoke-test A + TXT records manually (and know WHY they didn't self-delete)
+```
+
+🧹 **Teardown before you stop:** if not continuing to S16 now: destroy EKS then VPC (S13's `destroy-cluster.sh` removes all 37 in the right order). **Keep the hosted zone** (16 §5.5 keep-the-zone rule). 💰 ExternalDNS itself adds no hourly cost; zone = $0.50/mo; cluster costs from S13 continue while up.
+
+---
+
 ## 1. Objective
 
-Add **ExternalDNS** to the Terraform-managed EKS platform so that DNS records in **Route 53 create themselves**: annotate an Ingress or Service with a hostname, and seconds later `retail-store1.yourdomain.com` resolves to your ALB — no console, no copy-paste, no forgotten cleanup. Installed as an **EKS managed add-on** via `aws_eks_addon`, authenticated with **Pod Identity**, fully in Terraform (4 new resources on top of Section 13's 33).
+Add **ExternalDNS** to the Terraform-managed EKS platform so that DNS records in **Route 53 create themselves**: annotate an Ingress or Service with a hostname, and seconds later `retail-store1.devopsinminutes.com` resolves to your ALB — no console, no copy-paste, no forgotten cleanup. Installed as an **EKS managed add-on** via `aws_eks_addon`, authenticated with **Pod Identity**, fully in Terraform (4 new resources on top of Section 13's 33).
 
 ---
 
@@ -77,13 +137,13 @@ flowchart LR
 
 ```
 1. You: kubectl apply ingress with
-        external-dns.alpha.kubernetes.io/hostname: retail-store1.stacksimplify.com
+        external-dns.alpha.kubernetes.io/hostname: retail-store1.devopsinminutes.com
 2. LBC provisions the ALB   →  Ingress status gets ADDRESS = k8s-xxxx.elb.amazonaws.com
 3. external-dns sync tick (≤60s): sees the annotation + the ALB address
 4. Pod Identity: SA external-dns/external-dns → IAM role → temp creds
-5. Route 53 API: UPSERT  A/Alias  retail-store1.stacksimplify.com → k8s-xxxx.elb.amazonaws.com
+5. Route 53 API: UPSERT  A/Alias  retail-store1.devopsinminutes.com → k8s-xxxx.elb.amazonaws.com
                  UPSERT  TXT     (ownership: "external-dns/owner=retail-dev-eksdemo1")
-6. Browser: retail-store1.stacksimplify.com → resolves → ALB → your app
+6. Browser: retail-store1.devopsinminutes.com → resolves → ALB → your app
    (logs each tick: "All records are already up to date" when nothing changed)
 ```
 
@@ -260,13 +320,13 @@ Fresh-cluster path (nothing running): `./create-cluster.sh` equivalent — VPC a
 1. Deploy any Deployment + Service + Ingress from Section 11, adding to the Ingress metadata:
    ```yaml
    annotations:
-     external-dns.alpha.kubernetes.io/hostname: demo1.<yourdomain>
+     external-dns.alpha.kubernetes.io/hostname: demo1.devopsinminutes.com
    ```
-2. `kubectl -n external-dns logs -l app.kubernetes.io/name=external-dns -f` — within a minute you'll see the CREATE for `demo1.<yourdomain>` + its TXT ownership record.
-3. Route 53 console → the A/Alias record exists; `nslookup demo1.<yourdomain>` resolves.
+2. `kubectl -n external-dns logs -l app.kubernetes.io/name=external-dns -f` — within a minute you'll see the CREATE for `demo1.devopsinminutes.com` + its TXT ownership record.
+3. Route 53 console → the A/Alias record exists; `nslookup demo1.devopsinminutes.com` resolves.
 4. Try the same annotation on a `Service type: LoadBalancer` (no Ingress) — ExternalDNS watches Services too.
 
-**Verify:** browsing `http://demo1.<yourdomain>` hits the app.
+**Verify:** browsing `http://demo1.devopsinminutes.com` hits the app.
 🧹 Delete the Ingress/Service; note the Route 53 record **stays** (default `upsert-only` — Section 16 explains) → delete the A + TXT records manually in the console.
 
 ### Lab C — Break-it-and-fix-it

@@ -7,6 +7,71 @@
 
 ---
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = YAML/tf edits · **[Browser]** = the store via its ALB.
+> S17 taught the cluster to grow NODES; this section teaches each service to grow PODS — and you'll fire the whole chain live: utilization climbs → HPA adds pods → pods Pending → Karpenter births nodes.
+
+### Where you are in the course
+
+```
+S17 Karpenter (node autoscaling) ─▶ THIS: S18 HPA + PDB + topology spread on the real store ─▶ S19 Helm-ified
+```
+
+**Must already exist/be running:**
+```
+[ ] The 17_01 stack UP: VPC, EKS+add-ons, Karpenter with its ondemand+spot NodePools (kubectl get nodepools)
+[ ] Secrets Manager secret retailstore-db-secret-1 still exists
+[ ] Data-plane endpoints ready to paste after its apply (same S14 ritual)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| metrics-server | the component that measures each pod's live CPU/memory (powers `kubectl top`) — NOT pre-installed on EKS |
+| HPA (v2) | a loop that recomputes "how many replicas should exist" every 15 s from those metrics |
+| `averageUtilization: 70` | target = 70% of the pod's REQUEST (no request set → HPA shows `<unknown>`!) |
+| `behavior` | HOW fast to scale: up instantly, down only after 5 min of sustained calm |
+| PDB | "during voluntary disruptions, keep at least N pods alive" (`minAvailable: 2`) |
+| topologySpreadConstraints | spread replicas across nodes AND availability zones (`maxSkew: 1`) |
+| ScheduleAnyway vs DoNotSchedule | soft preference vs hard rule — the hard rule + Karpenter = guaranteed 1 pod per AZ |
+| nodeSelector on-demand | pin the revenue path to non-Spot capacity |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** Install metrics-server as a tiny TF project: `cd 01_metrics_server_terraform-manifests && terraform init && terraform apply -auto-approve`
+   → **you should see:** the add-on Active; **`kubectl top nodes` now answers** — the metric feed HPA needs. `(deep dive: §6.1)`
+2. **[Terminal]** Data plane again (copy of 14_01): apply, then `terraform output` and paste endpoints into the ExternalName/ConfigMaps — the S14 ritual, second run.
+3. **[Terminal]** Round 1 — the **ScheduleAnyway** variant: apply SPC → microservices (`-R`) → ingress + `04_HPA/` + `05_PDB/`.
+   → **you should see:** pods Pending → `kubectl get nodeclaims` → ~6 on-demand nodes born (Karpenter!) → all Running in 3–4 min.
+4. **[Terminal]** Run `./check-topology.sh`
+   → **you should see:** the IMBALANCE — e.g. carts with ALL pods in us-east-1b. ScheduleAnyway permitted it; remember this picture.
+5. **[Terminal]** Meet your 5 HPAs: `kubectl get hpa`
+   → **you should see:** TARGETS like `cpu: 1%/70%, memory: 65%/80%`, REPLICAS 3 (the min). `<unknown>` here = missing resources.requests. `(deep dive: §6.2)`
+6. **[Editor+Terminal]** Fire the trigger (the course's no-tooling trick): lower orders' `requests.memory` 512Mi→256Mi, re-apply, then `kubectl get hpa -w`.
+   → **you should see:** orders' memory % climb 36 → 48 → 68 → **92%** (past 80) → `kubectl describe hpa orders-hpa` shows `SuccessfulRescale` → REPLICAS 3→4. Utilization is % of REQUEST — you changed the denominator!
+7. **[Editor+Terminal]** Revert to 512Mi, re-apply, keep watching.
+   → **you should see:** nothing for ~5 minutes (the scale-DOWN stabilization window being skeptical), then back to 3 — asymmetry by design.
+8. **[Terminal]** Round 2 — the **DoNotSchedule** variant: delete apps+HPA+PDB (keep SPC+ingress), **wait until `kubectl get nodeclaims` is EMPTY** (start clean!), then apply the `04_…DoNotSchedule` folder.
+   → **you should see:** node claims appearing across 1a AND 1b AND 1c — Karpenter provisioning nodes to satisfy the hard rule; `./check-topology.sh` now shows **exactly 1 pod per AZ per service**. The section's aha-moment. `(deep dive: §4)`
+9. **[Browser]** Full flow through the ALB: browse → cart → purchase.
+   → **you should see:** order ID — the autoscaled, zone-spread, PDB-protected store still sells things.
+
+### ✅ Done-check
+
+```
+[ ] kubectl top nodes works (metrics-server alive)
+[ ] you watched HPA rescale orders 3→4 on the memory trigger, and settle back after ~5 min
+[ ] check-topology.sh: imbalanced under ScheduleAnyway, perfect 1-per-AZ under DoNotSchedule
+[ ] you saw Karpenter create nodes BECAUSE pods were Pending (the two layers cooperating)
+[ ] you can explain why <unknown> appears when requests are missing
+```
+
+🧹 **Teardown before you stop (scorched earth — S19 rebuilds fresh):** `kubectl delete -R -f .` (apps, HPA, PDB, ingress, SPC) → data plane `terraform destroy` → metrics-server destroy → then the whole 17_01 stack via `destroy-cluster-with-karpenter.sh` (checks no Karpenter nodes remain → NodePools → NodeClass → Karpenter TF → EKS → VPC, reverse order). 💰 Running stack ≈ $0.5–0.7/h; Karpenter-born nodes bill until their pods are deleted.
+
+---
+
 ## 1. Objective
 
 Make every retail-store microservice scale its **pods** automatically on real CPU/memory metrics, while surviving disruptions and zone failures:

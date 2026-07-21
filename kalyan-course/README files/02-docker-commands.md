@@ -2,6 +2,76 @@
 
 > Transcript: `1) Docker Commands` · ~1h12m · Repo: [`../devops-real-world-project-implementation-on-aws/02_Docker_Commands/`](../devops-real-world-project-implementation-on-aws/02_Docker_Commands/)
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = a shell (your laptop, or the EC2 box after you SSH in — each step says which) · **[AWS Console]** = console.aws.amazon.com in the browser · **[Browser]** = the store page you're testing.
+> 💡 **Cheaper option:** every Docker command here runs identically on your own laptop (you installed Docker in S01 §0) — only the EC2 + Security-Group steps disappear. Course-faithful = EC2; zero-cost = laptop. Steps below mark the EC2-only ones.
+
+### Where you are in the course
+
+```
+S01 met the app ─▶ THIS: S02 drive Docker by hand (pull/run/exec/build/push) ─▶ S03 Dockerfiles
+```
+
+**Must already exist/be running:**
+```
+[ ] Docker installed (S01 §0 toolbox) — or an AWS account if doing the EC2 path
+[ ] A free Docker Hub account (hub.docker.com) — needed for the push step
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| image | the frozen, packaged app — a template |
+| container | one running copy of an image |
+| registry (Docker Hub) | the online library images are pushed to / pulled from |
+| tag | the version label after the colon (`:1.0.0`, `:2.0.0`) |
+| `-p 8888:8080` | "host doorway 8888 forwards into the container's 8080" — host first, container second |
+| Security Group | AWS's firewall on the EC2 box — must ALSO open the host port |
+| `-d` detached | run in the background, give my terminal back |
+| `docker exec` | open a shell INSIDE a running container to poke around |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[AWS Console]** *(EC2 path only — skip all EC2 steps if working locally)* Launch the host: EC2 → Launch instance → Amazon Linux 2023, **t3.large**, 30 GB disk, key pair downloaded → SSH(22) open. `(deep dive: §6 host setup)`
+   → **you should see:** instance state Running with a public DNS name.
+2. **[Terminal]** *(EC2 only)* SSH in and install Docker: `chmod 400 key.pem && ssh -i key.pem ec2-user@<dns>`, then `sudo dnf install docker -y && sudo systemctl enable docker && sudo systemctl start docker && sudo usermod -aG docker ec2-user`, then `exit` and SSH back in (the group needs a fresh login).
+   → **you should see:** `docker version` prints BOTH a Client and a Server section.
+3. **[Terminal]** Smoke-test: `docker run hello-world`
+   → **you should see:** "Hello from Docker!" — engine works; now on to the real app.
+4. **[Terminal]** Pull the retail UI: `docker pull stacksimplify/retail-store-sample-ui:1.0.0`
+   → **you should see:** layers downloading; `docker images` lists it. (Rate-limited? `docker login`, or pull from ghcr.io — §9.)
+5. **[Terminal]** Run it: `docker run --name myapp1 -p 8888:8080 -d stacksimplify/retail-store-sample-ui:1.0.0`
+   → **you should see:** a long container ID; `docker ps` shows it Up with `0.0.0.0:8888->8080`.
+6. **[AWS Console]** *(EC2 only)* Open the doorway: the instance's Security Group → Edit inbound rules → Custom TCP **8888** from 0.0.0.0/0. `(deep dive: §4 port-mapping picture)`
+   → **you should see:** rule saved. Skipping this = browser spins forever (the #1 gotcha).
+7. **[Browser]** Visit `http://<EC2-public-IP>:8888` (laptop path: `http://localhost:8888`).
+   → **you should see:** the demo retail store rendering.
+8. **[Terminal]** Go inside: `docker exec -it myapp1 /bin/sh`, then `whoami` (→ `appuser`, not root), `curl http://localhost:8080`, `exit`. `(deep dive: §6 "Inside a running container")`
+   → **you should see:** the app answering from within its own little world.
+9. **[Terminal]** Lifecycle: `docker stop myapp1` (browser dies) → `docker start myapp1` (same container, same mapping, back up).
+   → **you should see:** status flip Exited ⇄ Up in `docker ps -a`.
+10. **[Terminal]** Build your own v2: download the source (§6 build block), make the visible edit (`sed -i 's/The Most Public Secret Shop/…V2 version/' …home.html`), then `docker build -t stacksimplify/retail-store-sample-ui:2.0.0 .`
+    → **you should see:** a 1–2 min multi-stage build ending "naming to …:2.0.0".
+11. **[Terminal]** Run v2 beside v1: `docker run --name myapp1-v2 -p 8889:8080 -d …:2.0.0` (+ SG rule for 8889 on EC2).
+    → **you should see:** `:8889` shows "V2 version", `:8888` still shows v1 — two containers, one host.
+12. **[Terminal]** Publish: `docker login` → `docker tag retail-store-sample-ui:2.0.0 <your-dockerid>/retail-store-sample-ui:2.0.0` → `docker push <your-dockerid>/retail-store-sample-ui:2.0.0` — your Hub username IS your namespace; untagged pushes are denied. `(deep dive: §6 build→tag→push)`
+    → **you should see:** layers pushing; the 2.0.0 tag on hub.docker.com in your repo.
+
+### ✅ Done-check
+
+```
+[ ] docker version shows Client AND Server sections
+[ ] store renders at :8888 (v1) and :8889 shows "V2 version"
+[ ] you exec'd inside and saw whoami = appuser
+[ ] your Docker Hub repo shows tag 2.0.0
+```
+
+🧹 **Teardown before you stop:** `docker rm -f $(docker ps -aq) && docker rmi $(docker images -q)`; **[AWS Console]** STOP the EC2 instance (it's reused through S05 — stop between sessions, terminate after S05). 💰 t3.large ≈ $0.08/hr while running; laptop path bills nothing.
+
+---
+
 ## 1. Objective
 
 Stand up a Docker host on an EC2 instance and drive the full image lifecycle by hand: **pull → run → exec → stop/start → rm/rmi → build → tag → push** — using the real retail-store UI image, not hello-world.

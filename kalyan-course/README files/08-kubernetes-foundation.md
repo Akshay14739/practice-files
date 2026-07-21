@@ -2,6 +2,73 @@
 
 > Transcript: `8) …` (foundation portion) · ~3h · Repo: [`../devops-real-world-project-implementation-on-aws/08_Kubernetes_Foundation/`](../devops-real-world-project-implementation-on-aws/08_Kubernetes_Foundation/) (demos `0801`–`0805`). All demos use the **catalog microservice** (Go + MySQL) on the S07 EKS cluster.
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell (kubectl talks to the EKS cluster from here) · **[Editor]** = the YAML files in VS Code · **[Browser]** = the catalog app via port-forward.
+> This is THE core Kubernetes section. One microservice (catalog) meets five resource kinds, each solving one failure of the previous: Pod → Deployment → Service → ConfigMap → StatefulSet.
+
+### Where you are in the course
+
+```
+S07 gave you an empty cluster ─▶ THIS: S08 run catalog the right way, layer by layer ─▶ S09 Secrets → S10 Storage → S11 Ingress
+```
+
+**Must already exist/be running:**
+```
+[ ] S07 cluster up and connected: kubectl get nodes shows 3 Ready nodes
+[ ] Repo folder 08_Kubernetes_Foundation/ (demos 0801–0805)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| Pod | the smallest unit K8s runs — a wrapper around your container (never ship bare ones) |
+| Deployment | keeps N copies of a pod alive, replaces them safely on updates, can roll back |
+| ReplicaSet | the Deployment's helper that holds each VERSION's pods — kept at 0 = instant rollback |
+| Service (ClusterIP) | a stable internal name+IP in front of churning pod IPs |
+| EndpointSlices | the live list of pod IPs behind a Service — updates itself when you scale |
+| probe (readiness/liveness) | "ready for traffic?" / "still alive?" — HTTP GETs kubelet runs on your app |
+| ConfigMap | key/value config injected as env vars (`envFrom`) — same YAML, per-env values |
+| StatefulSet + headless service | ordered startup + stable names (`catalog-mysql-0`) + per-pod DNS — for databases |
+| `port-forward` | temporary tunnel laptop:7080 → cluster, for testing before Ingress exists |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** 0801 — a bare Pod: `kubectl apply -f 01-catalog-pod.yaml` → `kubectl get pods` → `kubectl describe pod catalog-pod` (read the **Events**: Scheduled → Pulled → Started — describe is "the most important command").
+   → **you should see:** Running 1/1; then `kubectl port-forward pod/catalog-pod 7080:8080` and **[Browser]** `localhost:7080/health` + `/catalog/products`. `(deep dive: §6 0801)`
+2. **[Terminal]** Kill it: `kubectl delete pod catalog-pod`
+   → **you should see:** nothing recreates it — THE reason Deployments exist.
+3. **[Terminal]** 0802 — Deployment: `kubectl apply -f 01-catalog-deployment.yaml` → `kubectl get deploy,rs,pods` (the 3-level hierarchy).
+   → **you should see:** Deployment → ReplicaSet → Pod chain in the names.
+4. **[Terminal]** Scale + self-heal: `kubectl scale deployment catalog --replicas=3` → `kubectl get pods -o wide` (spread across nodes); delete one pod → a replacement appears.
+   → **you should see:** desired state enforced without you.
+5. **[Terminal]** Rolling update + instant rollback: `kubectl set image deployment/catalog catalog=…:1.3.0` → `kubectl rollout status` → `kubectl get rs` (**old RS kept at 0** — that IS the rollback) → `kubectl rollout undo deployment/catalog`.
+   → **you should see:** pods replaced one at a time (`maxUnavailable: 1`), undo near-instant. `(deep dive: §4 RS mechanic)`
+6. **[Terminal]** 0803 — Service: apply it, then `kubectl get svc` + `kubectl get endpointslices`; scale to 8 and describe the slice again.
+   → **you should see:** the slice tracking pod IPs live; from a test pod (`kubectl run test --image=curlimages/curl -it --rm -- sh`) `curl http://catalog-service:8080/health` works BY NAME. `(deep dive: 00B Climb 10)`
+7. **[Terminal]** 0804 — ConfigMap: apply the CM + the `envFrom` Deployment → `kubectl exec -it <pod> -- env | grep RETAIL`.
+   → **you should see:** the CM's keys as real env vars in the container. `(deep dive: 00A Climb 1 — frozen at creation!)`
+8. **[Terminal]** 0805 — StatefulSet + headless: apply → `kubectl get sts,pods`
+   → **you should see:** the pod named **catalog-mysql-0** (ordinal!, not random); `nslookup catalog-mysql` from busybox:1.28 returns the POD's IP (headless = per-pod DNS, no load-balancing of DB writes).
+9. **[Terminal]** Prove stable identity: `kubectl delete pod catalog-mysql-0` → same NAME resurrects. Scale sts 1→3→1 and watch `-w`: created 0→1→2, killed 2→1→0 (ordered both ways).
+10. **[Terminal]** End-to-end: switch the CM to `PROVIDER: mysql` + endpoint `catalog-mysql-0.catalog-mysql…:3306`, restart, then `kubectl port-forward svc/catalog-service 7080:8080` → **[Browser]** `/topology`.
+    → **you should see:** provider=mysql with the pod-0 DNS endpoint — app + real DB wired by names only. (Data still dies with the pod — `emptyDir`; EBS fixes that in S10. Passwords in plain YAML — S09 fixes that.)
+
+### ✅ Done-check
+
+```
+[ ] deleted bare pod stayed dead; deleted Deployment-pod was replaced
+[ ] after set image: old RS at 0, new RS at 3; undo flipped back instantly
+[ ] curl by service NAME worked from inside; EndpointSlices grew when you scaled
+[ ] env | grep RETAIL showed ConfigMap values inside the container
+[ ] catalog-mysql-0 kept its name across delete; /topology showed provider=mysql
+```
+
+🧹 **Teardown before you stop:** `kubectl delete -f catalog-k8s-manifests/` for the last demo you ran (each demo cleans before the next). Cluster stays for S09 — or destroy EKS→VPC if ending the session. 💰 No new billers in this section; the cluster's ~$0.35–0.40/hr continues while up.
+
+---
+
 ## 1. Objective
 
 Run the catalog microservice on Kubernetes the *right* way, layer by layer: a **Pod** (and why you never ship bare pods), a **Deployment** (scaling, rolling updates, rollback via ReplicaSets), a **ClusterIP Service** (stable internal endpoint + EndpointSlices), a **ConfigMap** (externalized DB config), and a **StatefulSet + headless service** (ordered, stably-named MySQL).

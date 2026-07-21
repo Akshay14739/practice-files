@@ -34,6 +34,8 @@
 
 **Companion files:** [GLOSSARY.md](GLOSSARY.md) — ASR-error map + AWS↔K8s term map · [PROGRESS.md](PROGRESS.md) — checklist / resume point · [Istio_Learning_Ladder.md](../../Istio_Learning_Ladder.md) — climb the mesh mechanism before §22.
 
+> 🧭 **New to all this? Every section file (01–22) now opens with a "§0 Beginner Follow-Along Guide":** where-you-are map, prerequisites checklist, plain-English glossary, a numbered "do this → see that" play-by-play with **[Terminal]/[AWS Console]/[Editor]** location tags, a ✅ done-check, and the teardown + 💰 cost box. Read §0, do the steps, then dive into the deep sections. (§16 carries this as its §5.5 domain-setup guide for `devopsinminutes.com` instead.)
+
 > **Extension sections (20.5, 22)** aren't from the course transcripts — they're resume-grade additions that reuse the same cluster + retail store app so you follow along hands-on **01 → 22**: §20.5 gives you the *second* (and interview-default) observability toolchain, and §22 puts a production Istio mesh over the whole platform.
 
 ## Key cross-cutting themes (instructor's own emphasis)

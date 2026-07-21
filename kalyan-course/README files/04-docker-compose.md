@@ -2,6 +2,72 @@
 
 > Transcript: `3) Docker Compose` · ~74 min · Repo: [`../devops-real-world-project-implementation-on-aws/04_Docker_Compose/`](../devops-real-world-project-implementation-on-aws/04_Docker_Compose/)
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your shell (laptop or the EC2 box) · **[Editor]** = editing docker-compose.yaml (VS Code/vi) · **[Browser]** = the store at :8888.
+> The big idea: one YAML file + one command replaces ten `docker run` commands — and databases start BEFORE the apps that need them, automatically.
+
+### Where you are in the course
+
+```
+S03 built one image ─▶ THIS: S04 run ALL 10 containers as one system ─▶ S05 Buildx → S06 Terraform
+```
+
+**Must already exist/be running:**
+```
+[ ] Docker working (laptop or EC2; if EC2 — start it and remember SG rule for 8888)
+[ ] Nothing else — Compose pulls all 10 images itself
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| Compose file | one YAML declaring all 10 containers (5 apps + 5 data stores) |
+| service | one container's entry in that file |
+| `depends_on` + healthcheck | "don't start me until my database reports HEALTHY" |
+| shared network | all 10 join one network; each is reachable by its service NAME (DNS) |
+| `${DB_PASSWORD}` | filled in from your shell's exported variable at `up` time — no password in the file |
+| `ports: []` | internal-only, no doorway from outside (every service except ui) |
+| `--force-recreate` | rebuild a container so it re-reads the YAML — stop/start does NOT |
+| `down` vs `stop` | down = stop AND delete containers+network; stop = just pause them |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** Install the compose plugin if missing: `docker compose version` — if "not a docker command", run the 3 install lines in §6. (Laptop installs from get.docker.com already include it.)
+   → **you should see:** a version number.
+2. **[Terminal]** Get the file: `mkdir demo-compose && cd demo-compose && wget https://github.com/aws-containers/retail-store-sample-app/releases/download/v1.3.0/docker-compose.yaml`
+   → **you should see:** the YAML; skim ONE pair in it (carts-db then carts) with §4 open — the other 8 repeat the pattern.
+3. **[Terminal]** THE gotcha, handled first: `export DB_PASSWORD='Mydb101'` then `echo $DB_PASSWORD` to prove it's set. Forget this and all four databases crash-loop. `(deep dive: 00A Climb 1)`
+   → **you should see:** Mydb101 echoed back — in the SAME terminal you'll run `up` from.
+4. **[Terminal]** Lift the whole store: `docker compose up -d`
+   → **you should see:** 10 images pull, network created, DBs start first, then apps, then ui last (`depends_on` gates working). `docker compose ps` → everything Up (healthy).
+5. **[Browser]** `http://localhost:8888` (EC2: `http://<EC2-IP>:8888` + SG rule) → open **`/topology`**.
+   → **you should see:** every service green with its store's endpoint; complete one full purchase (browse → cart → checkout → purchase → order ID).
+6. **[Terminal]** Operate it like an SRE: `docker compose logs -f checkout` while you click checkout in the UI; `docker compose exec ui sh` (whoami → appuser); `docker compose stats`.
+   → **you should see:** your clicks landing live in the logs. `(deep dive: §6 operating commands)`
+7. **[Terminal]** Break it on purpose: `docker compose stop orders` → **[Browser]** purchase FAILS and /topology shows orders unhealthy → `docker compose start orders` → recovery.
+   → **you should see:** the microservices are genuinely interconnected — one dead service = one broken user action.
+8. **[Editor]** The force-recreate lesson: add `RETAIL_UI_THEME: green` under ui's `environment:` in the YAML.
+9. **[Terminal]** Prove the trap: `docker compose stop ui && docker compose start ui` → `docker compose exec ui env | grep RETAIL` → **theme var MISSING** (start reused the old container, env frozen at creation!). Now the fix: `docker compose up -d --force-recreate ui`.
+   → **you should see:** `RETAIL_UI_THEME=green` in env, and the UI turns green in the browser. This trap-then-fix IS the section's #1 lesson. `(deep dive: §6 force-recreate)`
+10. **[Terminal]** Bring it all down: `docker compose down`
+    → **you should see:** all 10 containers + the network removed; `docker ps -a` empty.
+
+### ✅ Done-check
+
+```
+[ ] docker compose ps showed all 10 Up (healthy), ui LAST to start
+[ ] /topology all green and a full purchase completed
+[ ] stop orders broke purchases; start orders fixed them
+[ ] you saw stop/start NOT apply the theme, and --force-recreate apply it
+[ ] docker compose down left docker ps -a empty
+```
+
+🧹 **Teardown before you stop:** `docker compose down` (always), optional `docker system prune -a --volumes -f`; EC2 path: STOP the instance. 💰 Laptop = free; EC2 t3.large bills ~$0.08/hr while running.
+
+---
+
 ## 1. Objective
 
 Bring the **entire 10-container retail store up (and down) with one command**, with correct start ordering via `depends_on` + health checks — and operate it: per-service stop/start/restart, logs, exec, stats, top, and **`--force-recreate`** for config changes.

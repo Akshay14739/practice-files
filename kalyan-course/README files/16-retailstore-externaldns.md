@@ -1,7 +1,8 @@
 # Section 16 — Retail Store with ExternalDNS, Custom Domain & HTTPS
 
 > Source: transcript `16) External DNS` (second half, lecture 16xx demo).
-> The end-to-end payoff demo: the Section 14 retail store, reachable at `https://retail-store3.yourdomain.com` with a valid certificate — DNS registered automatically by the Section 15 ExternalDNS, TLS terminated at the ALB with an ACM certificate.
+> The end-to-end payoff demo: the Section 14 retail store, reachable at `https://retail-store3.devopsinminutes.com` with a valid certificate — DNS registered automatically by the Section 15 ExternalDNS, TLS terminated at the ALB with an ACM certificate.
+> 🏠 **Your domain:** this file is personalized for **`devopsinminutes.com`** (purchased at GoDaddy). The one-time GoDaddy → Route 53 delegation it needs is **§5.5** — do it once, before §6, and every command below works verbatim.
 >
 > ✅ **VERIFIED against the canonical repo:** the code lives in `16_RetailStore_Microservices_ExternalDNS/RetailStore_k8s_manifests_with_Data_Plane/` — the same manifest tree as Section 14, with `03_ingress/01_ingress_http_ip_mode.yaml` **and** `02_ingress_https_ip_mode.yaml` present exactly as described below (confirming both the HTTP and the ACM-backed HTTPS ingress). Use the repo files as source of truth.
 
@@ -10,8 +11,9 @@
 ## 1. Objective
 
 Serve the full retail store (UI + 4 microservices + AWS data plane) on **your own domain over HTTPS**:
-- `http://retail-store1.<domain>` — HTTP Ingress, DNS record auto-created by ExternalDNS.
-- `https://retail-store3.<domain>` — HTTPS Ingress with an **ACM public certificate**, HTTP→HTTPS redirect, DNS auto-created.
+- One-time: delegate **`devopsinminutes.com`** from GoDaddy to a Route 53 hosted zone (§5.5) so ExternalDNS and ACM can manage its records.
+- `http://retail-store1.devopsinminutes.com` — HTTP Ingress, DNS record auto-created by ExternalDNS.
+- `https://retail-store3.devopsinminutes.com` — HTTPS Ingress with an **ACM public certificate**, HTTP→HTTPS redirect, DNS auto-created.
 - Understand the ExternalDNS **`upsert-only` vs `sync`** deletion policies — and why deleted apps leave DNS records behind by default.
 
 ---
@@ -97,7 +99,7 @@ kubectl delete ingress ─▶ LBC deletes the ALB      ✅ (stops billing)
    - Secrets Manager secret `retailstore-db-secret-1` exists (Section 14 manual step).
    - **Data plane provisioned**: `terraform state list` + `terraform output` in `14_01/03_AWS_Data_Plane_terraform-manifests` — endpoints must exist and be pasted into the catalog ExternalName, checkout CM, orders CM (carts needs nothing: DynamoDB endpoint is regional).
    - Section 15 ExternalDNS installed and healthy.
-   - **You own a domain** with a Route 53 hosted zone (registered in Route 53, or registered at GoDaddy/Namecheap and delegated). Explicit note: students without one should *watch only* — don't buy a domain for a demo.
+   - **You own a domain** with a Route 53 hosted zone (registered in Route 53, or registered at GoDaddy/Namecheap and delegated). Explicit note: students without one should *watch only* — don't buy a domain for a demo. ✅ **You're covered:** you own `devopsinminutes.com` at GoDaddy — complete the one-time delegation in **§5.5 below** and you can do this section fully hands-on.
 2. **HTTP first**: add just the ExternalDNS annotation to the Section 14 HTTP Ingress → `retail-store1`.
 3. **Certificate before HTTPS Ingress**: request in ACM → shows the `Pending validation` state deliberately (his first cert auto-validated because a prior CNAME existed — so he requests a *second* one, `retail-store3`, to show the real flow: "Create records in Route 53" → CNAME → Issued in ~1–5 min). Lesson: DNS validation = proving zone ownership.
 4. Paste the cert **ARN** into the HTTPS Ingress; walk the annotation trio (cert ARN, listen-ports, ssl-redirect).
@@ -106,6 +108,163 @@ kubectl delete ingress ─▶ LBC deletes the ALB      ✅ (stops billing)
 7. **Cost discipline epilogue**: destroy the 14_01 data plane now — Section 17 (Karpenter) doesn't need it and takes a long time; recreate the data plane when Demo 18 needs it.
 
 > 🐛 **TRANSCRIPT ERRORS (ASR):** "stack simplify calm" = stacksimplify.com; "zinc/sink" = `sync` (the ExternalDNS policy); "Reddis" = Redis; "Irca" = IRSA; "CHT as manifest" = k8s manifests; "ECS add on" = EKS add-on (recurring).
+
+---
+
+## 5.5 One-Time Setup — Point `devopsinminutes.com` (GoDaddy) at Route 53
+
+> The course assumes your hosted zone already exists (§5 step 1) but never shows how to get there from GoDaddy. This section is that missing step, personalized for **`devopsinminutes.com`**. Do it **once**; after this, Sections 15/16 (ExternalDNS, ACM) work exactly as written, forever. Time: ~15 minutes of clicking + up to an hour of DNS propagation.
+>
+> 🧭 **How to read the steps — every action is tagged with WHERE it happens:**
+> **[AWS Console]** = your browser at console.aws.amazon.com · **[GoDaddy]** = your browser at godaddy.com · **[Terminal]** = the terminal on your Linux laptop.
+> `CLI equivalent` blocks are **optional** — the console clicks alone are enough; the CLI versions are there for when you're comfortable.
+
+### Where this fits in the course (you can do §5.5 anytime — even today, before any cluster exists)
+
+```
+S06–07 cluster ─ S13 add-ons ─ S15 ExternalDNS ─ S14 data plane   (course infrastructure)
+                                      │
+        §5.5  ◀── YOU ARE HERE: one-time domain plumbing, independent of all of the above
+                                      │
+        §6.2 ACM cert → §6.1/6.3 Ingress YAMLs → §6.4 deploy → §6.5 verify → §6.6 teardown
+```
+
+### Step 0 — Understand what you're about to do (registrar ≠ DNS host)
+
+Two different jobs are in play, and today they're both at GoDaddy:
+
+```
+WHO SELLS/RENEWS THE NAME (registrar)      WHO ANSWERS DNS QUERIES (DNS host)
+GoDaddy — you pay yearly; you control  ──▶ today: GoDaddy's nameservers (ns0X.domaincontrol.com)
+ONE thing that matters here: the           after §5.5: a Route 53 HOSTED ZONE — the record
+NAMESERVER (NS) pointers                   database ExternalDNS & ACM will write into
+        │                                            ▲
+        └───── "for devopsinminutes.com, ask these 4 AWS servers" ─────┘
+```
+
+You are **not** transferring the domain to AWS (that's a different, slower, unnecessary process). You're **delegating DNS**: GoDaddy keeps the registration; Route 53 takes over answering. The NS values at GoDaddy are the *only* link between the two — you'll change them once and never touch GoDaddy again for this course.
+
+⚠️ **Before you start:** delegation moves **ALL** DNS authority for `devopsinminutes.com` to Route 53. Anything currently configured at GoDaddy — parked page, domain forwarding, email/MX records — stops working unless you recreate those records in the hosted zone. For a fresh/unused domain this is a non-issue; if you've attached email to this domain, note the MX records first.
+
+**Four words, one line each (so nothing below is jargon):**
+
+| Word | Plain meaning |
+|---|---|
+| nameserver (NS) | the server the whole internet asks: "what's the address for this domain?" |
+| hosted zone | Route 53's folder holding all DNS records for one domain |
+| delegation | telling the registrar (GoDaddy): "my nameservers are now these 4" |
+| propagation | the wait while old cached answers expire across the internet |
+
+### Step 1 — [AWS Console] Create the public hosted zone in Route 53
+
+1. Log in to the AWS console → type **Route 53** in the top search bar → click the service.
+2. Left menu → **Hosted zones** → orange **Create hosted zone** button.
+3. **Domain name:** `devopsinminutes.com` — exactly that: no `www.`, no `https://`, no trailing dot.
+4. **Description:** leave empty. **Type:** *Public hosted zone* (the default). **Tags:** none.
+5. Click **Create hosted zone**.
+
+**What you'll see:** the zone's page with **2 records already inside** — one **NS** record (4 values) and one **SOA** record. These two are the zone's plumbing: **never edit or delete them**.
+
+💰 Cost: **$0.50/month** per hosted zone + ~$0.40 per million queries — pennies.
+
+CLI equivalent (optional):
+```bash
+aws route53 create-hosted-zone --name devopsinminutes.com \
+  --caller-reference "devopsinminutes-$(date +%s)"
+# confirm + grab the zone id (format /hostedzone/Z0123456789ABCDEFGHIJ):
+aws route53 list-hosted-zones \
+  --query 'HostedZones[?Name==`devopsinminutes.com.`].[Id,Name]' --output text
+```
+
+### Step 2 — [AWS Console] Copy the zone's 4 nameservers
+
+1. Still on the zone's page: click the row whose **Type** is **NS** (name = `devopsinminutes.com`).
+2. The **Value** column / right-hand panel shows **4 server names**. They look like this (yours **will** differ — AWS assigns a random set per zone):
+
+```
+ns-1234.awsdns-12.org
+ns-567.awsdns-34.com
+ns-890.awsdns-56.net
+ns-2345.awsdns-78.co.uk
+```
+
+3. Copy all 4 somewhere handy (or just **keep this browser tab open** — you'll paste them into GoDaddy in the next step).
+4. If a value shows a trailing dot (`ns-1234.awsdns-12.org.`), **drop the dot** when pasting into GoDaddy.
+
+CLI equivalent (optional):
+```bash
+aws route53 get-hosted-zone --id <ZONE_ID> --query 'DelegationSet.NameServers'
+```
+
+### Step 3 — [GoDaddy] Paste them into GoDaddy (the only GoDaddy step, ever)
+
+1. Go to **godaddy.com** → **Sign In** → open **My Products** (under your profile/account menu).
+2. Find `devopsinminutes.com` in your domain list → click **DNS** next to it (or the **⋯** three-dots menu → **Manage DNS**).
+3. On the DNS page, find the **Nameservers** box → click **Change Nameservers**.
+4. GoDaddy asks which kind — choose **"I'll use my own nameservers"** (GoDaddy sometimes words it *"Enter my own nameservers (advanced)"* — same thing).
+5. You'll see 2 pre-filled boxes with GoDaddy's own servers (`ns0X.domaincontrol.com`) — **delete both**.
+6. Paste AWS value 1 into box 1, value 2 into box 2, then click **Add Nameserver** twice to get boxes 3 and 4 and paste the rest. All 4 must be entered, no trailing dots.
+7. **Save** → GoDaddy shows a scary warning ("changing nameservers may make your website and email unavailable") and may ask you to tick a consent box → confirm. That warning *is* the authority transfer you want. (GoDaddy may also email you a "nameservers changed" notice — it's informational, nothing to click.)
+8. If GoDaddy shows a **DNSSEC** section, it must be **OFF** (the default). DNSSEC enabled at GoDaddy while unconfigured in Route 53 breaks all resolution for the domain.
+
+**What you'll see after saving:** the Nameservers box now lists the 4 `awsdns` names, and GoDaddy's DNS-records table may show a banner like *"We can't display your DNS information because your nameservers aren't managed by us"* — that is **correct and expected**: it's GoDaddy telling you Route 53 is in charge now.
+
+### Step 4 — [Terminal] Verify the delegation took (predict first — 00B Climb 3 habit)
+
+> **My prediction:** `dig NS` will return the 4 `awsdns` servers and no `domaincontrol.com` — because the registrar now points resolvers at Route 53; until caches expire, different resolvers may briefly disagree (TTL, not failure).
+
+```bash
+# one-time: dig lives in the 'dnsutils' package — install it if missing:
+command -v dig >/dev/null || sudo apt-get install -y dnsutils
+
+dig NS devopsinminutes.com +short              # via your laptop's resolver
+dig NS devopsinminutes.com @8.8.8.8 +short     # via Google's resolver — should agree once propagated
+```
+
+**Expected output (your values, any order):**
+```
+ns-1234.awsdns-12.org.
+ns-567.awsdns-34.com.
+ns-890.awsdns-56.net.
+ns-2345.awsdns-78.co.uk.
+```
+**Bad output (not propagated yet, or Step 3 didn't save):** `ns05.domaincontrol.com.` / `ns06.domaincontrol.com.`
+
+- No `dig`? `nslookup -type=NS devopsinminutes.com` shows the same answer and is pre-installed almost everywhere.
+- Propagation is typically **10–60 min** (GoDaddy says "up to 48 h" — rare in practice). If the two digs disagree, wait 15 minutes and re-run — that's caching doing its job, not an error.
+
+### Step 5 — [AWS Console + Terminal] Smoke-test with a throwaway record
+
+1. **[AWS Console]** Route 53 → Hosted zones → `devopsinminutes.com` → **Create record**.
+2. Fill in: **Record name** `test` (the console shows it becomes `test.devopsinminutes.com`) · **Record type** `A` · **Value** `1.2.3.4` · **TTL** `300` · **Routing policy** *Simple* → **Create records**.
+3. **[Terminal]** give it a minute, then ask the internet:
+
+```bash
+sleep 60; dig +short test.devopsinminutes.com
+# → 1.2.3.4   = the FULL chain works: internet → GoDaddy's NS pointers → Route 53 → your record
+```
+
+4. **[AWS Console]** tick the `test` record → **Delete record** → confirm. (Only ever delete records *you* created — never NS/SOA.)
+
+From this moment on, everything in §6 works as written: S15's ExternalDNS runs with **no `--domain-filter`**, so it discovers this zone automatically, and ACM's *"Create records in Route 53"* button can plant validation CNAMEs directly.
+
+### Step 6 — The keep-the-zone rule (course teardown discipline, amended for your domain)
+
+- **Never delete the hosted zone between course sessions.** A recreated zone gets **4 NEW nameservers** → your GoDaddy delegation silently points at a dead set → the domain goes dark until you repeat Steps 2–4. Keeping the zone costs $0.50/month — leave it.
+- **Cleaned every session:** the `retail-store*` A + TXT records (manually — §6.6's `upsert-only` lesson) and the ALBs.
+- **Kept forever:** the zone itself, its NS/SOA records, and the ACM **validation CNAME** (§6.2 — deleting it breaks auto-renewal ~13 months later).
+- **GoDaddy afterwards:** you only ever return there to renew the domain registration itself.
+
+### ✅ Done-check — §5.5 is complete when all four are true
+
+```
+[ ] Route 53 → Hosted zones shows devopsinminutes.com containing its NS + SOA records
+[ ] GoDaddy → Nameservers box lists the 4 awsdns values (custom nameservers)
+[ ] dig NS devopsinminutes.com +short  → only awsdns names, no domaincontrol.com
+[ ] test.devopsinminutes.com resolved to 1.2.3.4, and the test record was deleted after
+```
+
+**What's next:** follow the course order in the **§7 one-page runbook** — cluster + ExternalDNS (S13/S15), data plane (S14), then come back here to §6.2 (request the ACM cert for `retail-store3.devopsinminutes.com`) → §6.3/6.4 (ingress + deploy) → §6.5 (verify in the browser) → §6.6 (teardown). You will not need GoDaddy again.
 
 ---
 
@@ -123,7 +282,7 @@ metadata:
     alb.ingress.kubernetes.io/target-type: ip            # pods as targets (Section 11 lesson)
     alb.ingress.kubernetes.io/healthcheck-path: /actuator/health
     # THE one-line change that replaces the whole manual Route 53 workflow:
-    external-dns.alpha.kubernetes.io/hostname: retail-store1.stacksimplify.com   # ← your domain
+    external-dns.alpha.kubernetes.io/hostname: retail-store1.devopsinminutes.com   # ← YOUR domain (zone from §5.5)
 spec:
   ingressClassName: alb
   defaultBackend:
@@ -133,19 +292,21 @@ spec:
 ### 6.2 Request the ACM certificate (console, one-time per hostname)
 
 ```
-ACM → Request certificate → Public → Fully qualified domain name: retail-store3.<yourdomain>
+ACM (region us-east-1 — must match the ALB's region!) → Request certificate → Public
+    → Fully qualified domain name: retail-store3.devopsinminutes.com
     → DNS validation (default) → Request
 Status: Pending validation
-    → button "Create records in Route 53"   ← adds the validation CNAME into your hosted zone
+    → button "Create records in Route 53"   ← adds the validation CNAME into your §5.5 hosted zone
 Wait 1–5 min → Status: Issued → copy the ARN
 ```
 CLI equivalent:
 ```bash
-aws acm request-certificate --domain-name retail-store3.<yourdomain> --validation-method DNS
+aws acm request-certificate --domain-name retail-store3.devopsinminutes.com --validation-method DNS
 aws acm describe-certificate --certificate-arn <arn> \
   --query 'Certificate.DomainValidationOptions[0].ResourceRecord'   # CNAME to create
 aws acm wait certificate-validated --certificate-arn <arn>
 ```
+💡 Because §5.5 delegated the domain to Route 53 in *this* account, the "Create records in Route 53" button just works — no manual CNAME at GoDaddy, ever. (A wildcard `*.devopsinminutes.com` cert also works and covers every `retail-storeN` hostname at once — see Lab B.)
 What DNS validation proves: only someone controlling the zone can plant that CNAME → ACM will issue (and silently **auto-renew** while the CNAME stays in place — never delete it).
 
 ### 6.3 HTTPS Ingress (`03_ingress/02_ingress_https_ip_mode.yaml`)
@@ -166,7 +327,7 @@ metadata:
     # 3. bounce all :80 traffic to :443 at the edge:
     alb.ingress.kubernetes.io/ssl-redirect: '443'
     # 4. and register the name automatically:
-    external-dns.alpha.kubernetes.io/hostname: retail-store3.stacksimplify.com
+    external-dns.alpha.kubernetes.io/hostname: retail-store3.devopsinminutes.com
 spec:
   ingressClassName: alb
   defaultBackend:
@@ -189,21 +350,22 @@ kubectl get secrets                                # catalog-db + orders-db (CSI
 # tail ExternalDNS BEFORE applying ingress — watch the records get created live:
 kubectl -n external-dns logs -l app.kubernetes.io/name=external-dns -f &
 kubectl apply -f 03_ingress/
-# logs: "Desired change: CREATE retail-store1.<domain> A" + TXT ... same for retail-store3
+# logs: "Desired change: CREATE retail-store1.devopsinminutes.com A" + TXT ... same for retail-store3
 ```
 
 ### 6.5 Verify end to end
 
 ```bash
 kubectl get ingress            # both ALBs' DNS names in ADDRESS
-# Route 53 console → hosted zone → search "retail-store" → A records exist,
+# Route 53 console → devopsinminutes.com zone → search "retail-store" → A records exist,
 #   values = the two ALB DNS names (match the EC2 → Load Balancers view)
-nslookup retail-store1.<yourdomain>     # resolves to ALB IPs
-nslookup retail-store3.<yourdomain>
+nslookup retail-store1.devopsinminutes.com     # resolves to ALB IPs
+nslookup retail-store3.devopsinminutes.com
+dig +short retail-store3.devopsinminutes.com   # same answer, scriptable
 # Browser:
-#   http://retail-store1.<domain>  → app works (Not secure — expected)
-#   http://retail-store3.<domain>  → 308 → https://retail-store3.<domain>, padlock:
-#       "Connection is secure", cert issued by Amazon RCA
+#   http://retail-store1.devopsinminutes.com  → app works (Not secure — expected)
+#   http://retail-store3.devopsinminutes.com  → 308 → https://retail-store3.devopsinminutes.com,
+#       padlock: "Connection is secure", cert issued by Amazon RCA
 # Full flow on both: browse → add to cart → checkout → purchase ✔ (data plane confirmed live)
 ```
 
@@ -239,8 +401,8 @@ Section 16 folder = Section 14's RetailStore_k8s_manifests_with_Data_Plane/ PLUS
 ```
 
 One-page runbook:
-1. Prereqs: cluster w/ add-ons + ExternalDNS (S13+S15) · data plane applied (S14 `terraform state list` non-empty) · endpoints pasted into ExternalName/CMs · Secrets Manager secret exists · hosted zone exists.
-2. ACM: request cert for `retail-store3.<domain>` → Create records in Route 53 → wait Issued → copy ARN into HTTPS Ingress.
+1. Prereqs: cluster w/ add-ons + ExternalDNS (S13+S15) · data plane applied (S14 `terraform state list` non-empty) · endpoints pasted into ExternalName/CMs · Secrets Manager secret exists · **`devopsinminutes.com` hosted zone exists & GoDaddy delegation verified (§5.5 — one-time; `dig NS devopsinminutes.com +short` shows `awsdns`)**.
+2. ACM: request cert for `retail-store3.devopsinminutes.com` → Create records in Route 53 → wait Issued → copy ARN into HTTPS Ingress.
 3. `kubectl apply -f 01_secretproviderclass/` → `kubectl apply -R -f 02_RetailStore_Microservices/` → `kubectl apply -f 03_ingress/`.
 4. Verify: ExternalDNS logs → Route 53 records → `nslookup` → browser HTTP + HTTPS + purchase.
 5. Teardown: `kubectl delete -R -f .` → confirm ALBs gone → **manually delete the DNS records** (upsert-only) → `terraform destroy` the data plane.
@@ -251,15 +413,15 @@ One-page runbook:
 
 ### Lab A — Reproduce the HTTPS storefront
 
-> 💰 **Cost warning:** everything from Section 14 (≈$0.40–0.50/h) **plus a second ALB** (~$0.02/h + LCU). ACM public certs are free. Requires a domain (~$3–12/yr if you must buy one — the instructor says don't, just for a demo). **Teardown same session; remember DNS records don't self-delete.**
+> 💰 **Cost warning:** everything from Section 14 (≈$0.40–0.50/h) **plus a second ALB** (~$0.02/h + LCU). ACM public certs are free. Domain: you already own `devopsinminutes.com` — the only recurring DNS cost is the hosted zone's **$0.50/month** (keep it between sessions, §5.5 Step 6). **Teardown same session; remember DNS records don't self-delete.**
 
-**Prerequisites / Steps / Expected output / Verify:** §7 runbook; success = padlocked `https://retail-store3.<domain>` completing a purchase that lands in PostgreSQL + SQS.
+**Prerequisites / Steps / Expected output / Verify:** §7 runbook; success = padlocked `https://retail-store3.devopsinminutes.com` completing a purchase that lands in PostgreSQL + SQS.
 🧹 **Teardown:** §6.6 in full — the three-step check is ALBs gone, DNS records manually removed, data plane destroyed.
 
 ### Lab B — Variation: one ALB, host-based routing, sync policy
 
 1. Merge both Ingresses into one HTTPS Ingress and add a second host rule (`retail-store1` → ui, `retail-store3` → ui) — or keep two Ingresses but give both `alb.ingress.kubernetes.io/group.name: retail` → **one shared ALB**, half the cost.
-2. Request a **wildcard cert** `*.yourdomain.com` instead of per-host certs; reuse one ARN for all hostnames.
+2. Request a **wildcard cert** `*.devopsinminutes.com` instead of per-host certs; reuse one ARN for all hostnames.
 3. Reconfigure the ExternalDNS add-on with `policy: sync` (add-on configuration values / `--set policy=sync` if Helm-installed), redeploy an annotated Ingress, delete it, and watch the record disappear this time.
 
 **Verify:** both hostnames serve from a single ALB DNS (compare `kubectl get ingress` ADDRESS values); after step 3's delete, Route 53 is clean with no manual work.
@@ -280,8 +442,11 @@ One-page runbook:
 
 | Symptom | Likely cause | Command to confirm | Fix |
 |---|---|---|---|
-| Record never appears in Route 53 | annotation typo / hostname not under any hosted zone in this account | `kubectl -n external-dns logs -l app.kubernetes.io/name=external-dns` | Correct `external-dns.alpha.kubernetes.io/hostname`; must be a subdomain of your zone |
-| Cert stuck `Pending validation` | validation CNAME never created (or zone is elsewhere) | `aws acm describe-certificate --certificate-arn <arn>` | "Create records in Route 53" button; if domain is at GoDaddy etc., create the CNAME there or delegate the zone |
+| `dig NS devopsinminutes.com` still shows `domaincontrol.com` | GoDaddy nameserver change not saved, typo'd, or still propagating | `dig NS devopsinminutes.com @8.8.8.8 +short` | Re-open GoDaddy → Nameservers: exactly 4 `awsdns` values, no trailing dots; wait up to 1 h (§5.5 Step 4) |
+| Whole domain suddenly dead weeks later | hosted zone was deleted & recreated → **new** NS set; GoDaddy points at the old one | compare `dig NS` answer vs the zone's NS record in Route 53 | Update GoDaddy to the current 4 values; adopt the keep-the-zone rule (§5.5 Step 6) |
+| Old GoDaddy stuff (parked page, email) stopped working | expected — delegation moved ALL DNS authority to Route 53 | — | Recreate needed records (MX etc.) inside the hosted zone (§5.5 Step 0 warning) |
+| Record never appears in Route 53 | annotation typo / hostname not under any hosted zone in this account | `kubectl -n external-dns logs -l app.kubernetes.io/name=external-dns` | Correct `external-dns.alpha.kubernetes.io/hostname`; must be a subdomain of `devopsinminutes.com` |
+| Cert stuck `Pending validation` | validation CNAME never created, or the "Create records in Route 53" button can't see your zone (zone in a different AWS account) | `aws acm describe-certificate --certificate-arn <arn>`; `aws route53 list-hosted-zones` with the same credentials | Click "Create records in Route 53" (works after §5.5); zone must live in the SAME account as ACM — else add the shown CNAME manually |
 | Ingress created but no ALB, events mention certificate | cert ARN invalid / wrong region (ACM cert must be in the ALB's region) / not yet Issued | `kubectl describe ingress <n>` | Use the Issued ARN from the same region as the cluster |
 | Browser `ERR_CERT_COMMON_NAME_INVALID` | cert CN/SAN ≠ hostname | click the padlock → cert details | Per-host cert or wildcard `*.domain` |
 | `http://` on the HTTPS host doesn't redirect | `ssl-redirect` annotation missing or listen-ports lacks HTTP 80 | `kubectl get ingress <n> -o yaml` | Need **both** `listen-ports: '[{"HTTP":80},{"HTTPS":443}]'` and `ssl-redirect: '443'` |

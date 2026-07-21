@@ -5,6 +5,71 @@
 
 ---
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[AWS Console]** = console.aws.amazon.com · **[Editor]** = pasting endpoints into YAML · **[Browser]** = the store + `/topology`.
+> This is the course's **capstone integration**: every microservice gets a REAL AWS backend (RDS ×2, DynamoDB, ElastiCache, SQS), with zero credentials in YAML. Two halves: 1401 Terraform builds the data plane; 1402 deploys the services one by one while you watch `/topology` go green.
+
+### Where you are in the course
+
+```
+S13 platform-as-code cluster ─▶ THIS: S14 real AWS databases for all 5 services ─▶ S15/16 domain+DNS
+```
+
+**Must already exist/be running:**
+```
+[ ] Section 13 cluster UP (PIA, LBC, Secrets CSI with syncSecret.enabled=true, ASCP — all of it)
+[ ] MANUAL STEP FIRST: Secrets Manager secret `retailstore-db-secret-1`
+    (console → Secrets Manager → Store new secret → key/value: username=mydbadmin, password=<yours>)
+[ ] S3 bucket name updated in THREE files: c1_versions.tf + c3_01 (VPC remote state) + c3_02 (EKS remote state)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| data plane | the set of databases/cache/queue the apps depend on — now AWS-managed |
+| RDS | AWS runs MySQL/PostgreSQL for you (backups, patching, HA) |
+| DynamoDB / ElastiCache / SQS | AWS's NoSQL table / managed Redis / message queue |
+| ExternalName Service | in-cluster DNS alias (`catalog-mysql` → the RDS hostname) |
+| SecretProviderClass + sync | fetches the AWS secret AND mirrors it into a normal K8s Secret the pod reads |
+| Pod Identity association | pod's ServiceAccount ↔ IAM role — how carts/orders call AWS with no keys |
+| SG references SG | "port 3306 open ONLY to things carrying the EKS cluster's security group" |
+| provider alias (us-west-2) | Terraform trick to create ONE resource in another region |
+| verification pod | a throwaway mysql/redis/psql client pod to prove connectivity from inside |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[AWS Console]** THE manual step (do it first, on purpose): create secret `retailstore-db-secret-1` with `username=mydbadmin` + a password. Credentials must never be born in Git/Terraform — IaC only READS this. `(deep dive: §4 the secret's journey)`
+2. **[Terminal]** 1401 — build the data plane: `cd 14_01_…/03_AWS_Data_Plane_terraform-manifests && terraform init && terraform apply -auto-approve` (~24 resources, **~12 min** — RDS is slow; read §6 while it runs).
+   → **you should see:** per service the same 4-step pattern repeat: SG → subnet group → instance → IAM role+association.
+3. **[Terminal]** Capture the outputs you'll paste: `terraform output` → catalog RDS endpoint, Redis endpoint, PostgreSQL endpoint, SQS queue name.
+4. **[Editor]** Paste them in THREE places: catalog's **ExternalName** service (RDS MySQL endpoint), checkout's ConfigMap (Redis `:6379`), orders' ConfigMap (PostgreSQL `:5432` + SQS queue **NAME**, not URL). Carts needs nothing (DynamoDB endpoint is regional).
+5. **[Terminal]** 1402 — deploy incrementally, the instructor's teaching device: `kubectl apply -f 01_secretproviderclass/` then `kubectl apply -f 02_RetailStore_Microservices/05_ui/ -f 03_ingress/` → **[Browser]** open the ALB `/topology`.
+   → **you should see:** everything RED — correct! Now watch it turn green service by service.
+6. **[Terminal]** Catalog: `kubectl apply -f 02_…/01_catalog/` → verify with the mysql client pod (§6.7): `select * from products;`
+   → **you should see:** 12 rows (auto-migrated on first boot); `/topology` catalog green. Also `kubectl get secrets` → `catalog-db` EXISTS — the CSI sync created it on first mount.
+7. **[Terminal]** Carts: apply → add items in the UI → **[AWS Console]** DynamoDB → **⚠️ switch region to us-west-2** → Items table.
+   → **you should see:** your cart rows live. (The app hardcodes us-west-2 — the course created the table where the app looks. Real-world workaround lesson.)
+8. **[Terminal]** Checkout: apply → verify via the redis client pod: `redis-cli -h $REDIS_HOST ping` → `PONG`, `keys *` shows session JSON. Purchase still fails — orders isn't there yet. Failure as checkpoint.
+9. **[Terminal]** Orders (slow — Spring Boot): apply → wait Ready → **[Browser]** complete a purchase → verify BOTH sides: psql client pod `select * from orders;` AND **[AWS Console]** SQS → poll messages.
+   → **you should see:** the same order ID as a PostgreSQL row AND an SQS message — the database+event double-write from S01, real.
+10. **[Browser]** `/topology` fully green + one complete purchase end-to-end.
+
+### ✅ Done-check
+
+```
+[ ] terraform output shows all endpoints; ~24 resources applied
+[ ] /topology went red → green in YOUR apply order
+[ ] products=12 rows (RDS), cart rows in us-west-2 DynamoDB, PONG from ElastiCache
+[ ] purchase → row in psql AND matching SQS message
+[ ] kubectl get secrets shows catalog-db + orders-db (the sync worked)
+```
+
+🧹 **Teardown before you stop (ORDER MATTERS):** `kubectl delete -R -f .` (all k8s incl. Ingress) → `kubectl get ingress` MUST be empty (ALB bills!) → `terraform destroy -auto-approve` in the data-plane folder (RDS takes 5–10 min — normal) → keep the S13 cluster only if continuing to S15. Console sweep: RDS ×2, ElastiCache, **DynamoDB in us-west-2**, SQS. 💰 Running data plane ≈ **$0.40–0.50/h**; same-session teardown is the rule.
+
+---
+
 ## 1. Objective
 
 Replace every in-cluster database (the MySQL/DynamoDB-local/Redis/PostgreSQL pods you ran as StatefulSets/Deployments in Sections 08–12) with **fully managed AWS services**, provisioned by Terraform (~24 resources), and wire each microservice to its backend with **zero credentials in Kubernetes YAML or Terraform state**:

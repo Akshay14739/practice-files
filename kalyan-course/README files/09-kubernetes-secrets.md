@@ -2,6 +2,72 @@
 
 > Transcripts: `8)` tail (0901) + `9) Pod Identity` (0902) + `10) CSI Driver & AWS Secret Manager` (0903–0904) · ~2.5h · Repo: [`../devops-real-world-project-implementation-on-aws/09_Kubernetes_Secrets/`](../devops-real-world-project-implementation-on-aws/09_Kubernetes_Secrets/)
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[AWS Console]** = console.aws.amazon.com · **[Editor]** = the YAML files.
+> Three rungs in one section: ① K8s Secrets (and why they're not enough) → ② EKS Pod Identity (how ANY pod gets AWS permissions — the concept the whole course reuses) → ③ credentials mounted straight from AWS Secrets Manager.
+
+### Where you are in the course
+
+```
+S08 left passwords in plain YAML ─▶ THIS: S09 move them out, step by step ─▶ S10 Storage → S11 Ingress
+The Pod Identity mechanism you learn here re-appears in S10 (EBS CSI), S11 (LBC), S13–15 (everything).
+```
+
+**Must already exist/be running:**
+```
+[ ] S07 cluster up, kubectl connected (kubectl get nodes → 3 Ready)
+[ ] S08's catalog manifests understood (this section edits them)
+[ ] helm installed (S01 §0) — first Helm use in the course
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| K8s Secret | like a ConfigMap but base64-encoded — ENCODED, not encrypted (anyone with access can decode) |
+| base64 | a reversible text wrapping: `echo <val> \| base64 -d` reveals it |
+| Pod Identity (PIA) | the modern way a pod gets an IAM role — agent add-on + an "association", zero stored keys |
+| association | the EKS object binding {cluster + namespace + ServiceAccount} → IAM role |
+| ServiceAccount (SA) | the pod's identity card inside Kubernetes |
+| Secrets Store CSI Driver | plugin that mounts EXTERNAL secrets into pods as files |
+| ASCP | the AWS provider plugin for that driver (talks to Secrets Manager) |
+| SecretProviderClass (SPC) | the YAML saying WHICH secret to fetch and what filenames its keys become |
+| Helm chart/release | an installable package of K8s YAML / one installed instance of it |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** 0901 — native Secret first: `echo -n 'catalog' | base64` (the `-n` matters — a smuggled newline breaks logins!), put both values in the Secret YAML, swap the ConfigMap keys for `secretRef`/`secretKeyRef`, apply.
+   → **you should see:** app still works via `port-forward 7080:8080`; `kubectl describe secret catalog-db` hides values… but `base64 -d` reveals them — hence rungs ② and ③. `(deep dive: §6 0901)`
+2. **[Terminal]** 0902 — Pod Identity drill, fail FIRST: apply the aws-cli pod + SA, then `kubectl exec -it aws-cli -- aws s3 ls`
+   → **you should see:** **AccessDenied** — the pod only has the node's role. The wrong default, experienced.
+3. **[AWS Console]** Install the agent (EKS → cluster → Add-ons → "Amazon EKS Pod Identity Agent"), create the IAM role (use case "EKS - Pod Identity", policy AmazonS3ReadOnlyAccess), then Access → Pod Identity associations → Create: role + namespace `default` + SA `aws-cli-sa`.
+4. **[Terminal]** Restart the pod (`kubectl delete -f kube-manifests/ && kubectl apply -f kube-manifests/` — associations apply at pod START) → `aws s3 ls` again.
+   → **you should see:** ✅ your buckets listed. No keys anywhere. This 4-ingredient recipe (role → agent → SA → association) repeats all course long. `(deep dive: §4)`
+5. **[Terminal]** 0903 — Helm debut, install the two DaemonSets: `helm repo add` both repos, then `helm install csi-secrets-store …` and `helm install secrets-provider-aws … --set secrets-store-csi-driver.install=false` (separate installs — combined "sometimes fails").
+   → **you should see:** `helm list -n kube-system` two deployed releases; `kubectl get ds -n kube-system` two new DaemonSets.
+6. **[Terminal]** Wire IAM for the real thing (§6 heredocs): name-scoped policy (`Resource: …secret:catalog-db-secret*`), trust policy for `pods.eks.amazonaws.com`, role, and the association for SA `catalog-mysql-sa` (SA doesn't exist yet — that's fine, it binds when it appears).
+7. **[Terminal]** 0904 — create the secret in AWS: `aws secretsmanager create-secret --name catalog-db-secret-1 …` (name MUST match the policy's `catalog-db-secret*` scope).
+8. **[Editor]** Read the SPC (§6): `objects:` names the secret, `jmesPath` splits its JSON, each `objectAlias` becomes a FILE; `usePodIdentity: "true"` picks the auth path. Then the pod spec: CSI volume + `args` that `export MYSQL_USER=$(cat /mnt/secrets-store/MYSQL_USER)` before starting — file names ≠ env names; the args bridge them (the instructor's own live mistake).
+9. **[Terminal]** Apply in order: `kubectl apply -f 01-secret-provider-class/` THEN `kubectl apply -f 02-catalog-k8s-manifests/`.
+   → **you should see:** pods Running; `kubectl exec -it catalog-mysql-0 -- cat /mnt/secrets-store/MYSQL_USER` → `mydbadmin` — a value that exists NOWHERE in Git or etcd, only in AWS.
+10. **[Browser]** `kubectl port-forward svc/catalog-service 7080:8080` → `/topology`, `/catalog/products`.
+    → **you should see:** the app fully working with vault-delivered credentials.
+
+### ✅ Done-check
+
+```
+[ ] you decoded a K8s Secret with base64 -d (and can say why that's the problem)
+[ ] aws s3 ls: AccessDenied BEFORE the association, bucket list AFTER the restart
+[ ] two helm releases + two DaemonSets in kube-system
+[ ] /mnt/secrets-store/MYSQL_USER readable in both pods; app healthy on /topology
+[ ] you can recite the 4 Pod Identity ingredients in order
+```
+
+🧹 **Teardown before you stop:** `kubectl delete -f 02-catalog-k8s-manifests/ && kubectl delete -f 01-secret-provider-class/`, delete the 0902 pod/SA/association/role — but **KEEP the two Helm releases** (S10+ reuse them) and keep the Secrets Manager secret if continuing. 💰 Secrets Manager ≈ $0.40/secret/month; cluster hourly cost continues while up.
+
+---
+
 ## 1. Objective
 
 Take the MySQL credentials from *hardcoded YAML* to a **zero-trust production setup**: first native K8s Secrets (and see exactly why they're insufficient), then **EKS Pod Identity** (how any pod gets AWS permissions without keys), then **Secrets Store CSI Driver + ASCP** mounting credentials **directly from AWS Secrets Manager** into the catalog and MySQL pods.

@@ -7,6 +7,68 @@
 
 ---
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after — this section redeploys the whole retail store as five Helm commands: two scripts rebuild the cluster and the AWS data plane, then values files + `helm upgrade --install` replace the ~30 raw YAMLs of S18 — first with passwords in values (v1.0.0), then pulled from Secrets Manager (v2.0.0).
+> Tags used below: **[Terminal]** = your Ubuntu laptop's shell · **[Editor]** = editing values-*.yaml files (VS Code) · **[AWS Console]** = console.aws.amazon.com in the browser · **[Browser]** = the retail-store app pages.
+
+### Where you are in the course
+
+```
+S18 HPA autoscaling ──▶ THIS: S19 Helm charts + AWS data plane ──▶ S20 Observability
+```
+
+**Must already exist/be running:**
+- [ ] Nothing running — the scripts rebuild the cluster AND the data plane from scratch this session
+- [ ] YOUR S3 bucket name updated in every project's `c1`/`c3` files (cluster environment + data plane) — the ritual first step
+- [ ] Secrets Manager secret `retailstore-db-secret-1` still exists (created manually in S14) — v2.0.0 needs it
+- [ ] The course repo cloned (`19_Helm_RetailStore_AWS_Dataplane/`); `helm`, `terraform`, `kubectl`, AWS CLI working
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| chart repo | a GitHub-hosted index of packaged charts; `helm repo add` registers it, `helm repo update` refreshes your local copy |
+| `helm upgrade --install` | one idempotent command: installs if absent, upgrades if present (revision goes up) |
+| values file | per-service settings file — here it IS the deployment: endpoints, replicas, hardening, all knobs |
+| release / revision | an installed chart under a name you pick / its numbered history entry (rollback target) |
+| data plane | the S14 AWS backends (RDS, DynamoDB, Redis, SQS), recreated by script |
+| SecretProviderClass (v2) | chart-rendered object that pulls DB creds from Secrets Manager — no password left in Git |
+| Karpenter nodeclaims | the nodes Karpenter births on demand; `kubectl get nodeclaims` lists them |
+| chart version vs appVersion | 1.0.0 → 2.0.0 = new templates; appVersion stays 1.3.0 = same app image |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Editor]** Bucket names first: put YOUR S3 bucket into every project's `c1`/`c3` files (cluster environment and data plane)
+2. **[Terminal]** `./create-cluster-with-karpenter.sh` → VPC → EKS + all add-ons (38 resources, incl. the new `c18` metrics-server) → Karpenter TF (21 resources) → NodePools; ends with your kubeconfig set — a long run *(deep dive: §4, §7)*
+3. **[Terminal]** `./create-aws-dataplane.sh` → the S14 data plane again (24 resources; RDS makes it slow) → then `terraform output` → copy every endpoint
+4. **[Editor]** Paste the outputs into the five `values-*.yaml` — the values files ARE the product here: catalog = RDS MySQL endpoint; carts = `dynamodb: create: false` + endpoint `https://dynamodb.us-west-2.amazonaws.com` + region; checkout = Redis endpoint`:6379`; orders = Postgres endpoint + `queueName: retail-dev-orders-queue` (the NAME, not the URL); ui = backend endpoints + ingress — for its `external-dns.alpha.kubernetes.io/hostname` annotation you own `devopsinminutes.com`, so set a hostname under it (e.g. `retail-store.devopsinminutes.com`) instead of commenting it out *(deep dive: §6.2)*
+5. **[Editor]** Memory gotcha BEFORE installing: the Spring Boot services (orders, carts) need `requests: { cpu: 100m, memory: 400Mi }` — 256Mi means CrashLoopBackOff; the instructor hit it live *(deep dive: §5.5, Lab C1)*
+6. **[Terminal]** `helm repo add stacksimplify https://stacksimplify.github.io/helm-charts && helm repo update` → you should see: repo added + index refreshed
+7. **[Terminal]** Run `03_v1.0.0_install_remote_helm_charts.sh` — per service it runs `helm upgrade --install $SVC stacksimplify/retailstore-sample-${SVC}-chart --version 1.0.0 -f values-${SVC}.yaml --wait --timeout 5m` → you should see: "installed successfully" five times; `helm list` → 5 releases `deployed` *(deep dive: §6.3)*
+8. **[Terminal]** `kubectl get nodeclaims` → Karpenter nodes across 1a/1b/1c (the values' topology spread + minReplicas 3 force it); `kubectl get hpa` → 5 HPAs live
+9. **[Browser]** `/topology` → all green → add to cart → **[AWS Console]** DynamoDB **us-west-2** rows appear → purchase → SQS message whose order ID matches *(deep dive: §6.5)*
+10. **[Terminal]** `helm status ui` (Helm 4.x; on 3.x add `--show-resources`) → pods, HPA, PDB, SA, CM, Service, Ingress — one release owns them all
+11. **[Editor]** v2 encore (a 10-minute change): in `values-{catalog,orders}-v2.0.0.yaml` set `secret: { create: false, name: catalog-db, username: "", password: "" }`, `useSecretsManager: true`, `secretsManagerSecretName: retailstore-db-secret-1` — nothing sensitive left in Git *(deep dive: §6.4)*
+12. **[Terminal]** Run `05_v2.0.0_install_remote_helm_charts.sh` → catalog + orders now at chart `2.0.0`, the rest stay 1.0.0 → `kubectl get secretproviderclass` → two, rendered by the charts; `kubectl get secrets` → `catalog-db` + `orders-db` synced from Secrets Manager
+13. **[Browser]** Full purchase flow once more → still works end to end — same app, zero passwords in any file
+
+### ✅ Done-check
+
+- [ ] `helm list` → five releases `deployed`; after script 05, catalog/orders show chart 2.0.0
+- [ ] `/topology` all green; purchase → SQS message with a matching order ID
+- [ ] `kubectl get hpa` → 5 HPAs with sane memory numbers (the 400Mi fix held)
+- [ ] `kubectl get secretproviderclass` → 2, created by the charts, with their synced Secrets present
+
+🧹 **Teardown before you stop (STRICT order — reversing it wedges the destroy):**
+1. **[Terminal]** `./01_uninstall_retail_apps.sh` — helm-uninstalls in reverse order (ui first, so its Ingress/ALB dies)
+2. **[Terminal]** `./delete-aws-dataplane.sh` — the data plane must go **before** the cluster: its DB/ElastiCache subnet groups live inside the VPC
+3. **[Terminal]** `./destroy-cluster-with-karpenter.sh` — clean slate for S20
+
+💰 If forgotten: full platform + data plane + ~6–9 Karpenter nodes ≈ **$0.6–0.8/h** — full teardown same session (cheaper test runs: `nodeSelector: spot`, `minReplicas: 1`, per Lab A)
+
+---
+
 ## 1. Objective
 
 - Rebuild the platform **with one script** (`create-cluster-with-karpenter.sh`: VPC → EKS+add-ons — now including a `c18` **metrics-server** add-on folded into the main project as promised in S18 — → Karpenter TF → Karpenter CRDs; 38 EKS-project resources), plus the data plane via its own script.

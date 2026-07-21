@@ -3,6 +3,69 @@
 > Transcript: `7) EKS cluster with TF` Â· ~2h Â· Repo: [`../devops-real-world-project-implementation-on-aws/07_Terraform_EKS_Cluster/`](../devops-real-world-project-implementation-on-aws/07_Terraform_EKS_Cluster/) â€” two projects: `01_vpc-terraform-manifests` (the S06 VPC module) + `02_eks-terraform-manifests`.
 > ðŸ› ASR NOTE: the transcript says "ECS cluster" and "Z / asset database" constantly â€” it always means **EKS** and **etcd**. "P3 medium" = **t3.medium**; "EMI type" = **AMI type**. Normalized throughout.
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = VS Code on the .tf files · **[AWS Console]** = console.aws.amazon.com (for verifying).
+> Nothing new to WRITE here — you review two ready Terraform projects (the S06 VPC + a new EKS one), apply them, and connect kubectl. The skill is reading the pieces and knowing why each exists.
+
+### Where you are in the course
+
+```
+S06 built the VPC with Terraform ─▶ THIS: S07 put an EKS cluster IN it ─▶ S08 run the app on Kubernetes
+```
+
+**Must already exist/be running:**
+```
+[ ] S06 finished: tfstate S3 bucket exists; you understand init/plan/apply
+[ ] kubectl installed (S01 §0)
+[ ] aws configure working (aws sts get-caller-identity answers)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| EKS control plane | the Kubernetes "brain" (API server, etcd…) that AWS runs FOR you — you never SSH to it |
+| managed node group | the worker EC2s AWS creates/patches/replaces per your spec — your pods run here |
+| remote-state datasource | how the EKS project READS the VPC project's outputs (vpc id, subnet ids) from S3 |
+| IAM roles (cluster + node) | permissions: the cluster's right to touch your account; the nodes' right to join/network/pull images |
+| EKS subnet tags | labels on subnets telling EKS where load balancers may go — miss them and Ingress never gets an address |
+| access entry / bootstrap admin | who may administer the cluster; the identity running apply becomes admin |
+| `update-kubeconfig` | the command that writes ~/.kube/config so kubectl can talk to YOUR cluster |
+| private nodes | workers in private subnets: internal IPs only, internet via NAT — the security posture |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** Bring back the VPC: `cd 01_vpc-terraform-manifests && terraform init && terraform apply -auto-approve`
+   → **you should see:** the familiar 18 resources, ~3 min. (Same S06 module, backend key `vpc/dev/…`.)
+2. **[Editor]** Open `02_eks-terraform-manifests/` and read c1→c10 IN ORDER with §6 beside you. Before touching anything: update the **S3 bucket name** in `c1` (backend) AND `c3` (remote-state datasource) to YOUR 0605 bucket — the ritual for every project from now on.
+   → **you should see:** c3 is the bridge: `data.terraform_remote_state.vpc.outputs.private_subnet_ids` — project 2 reading project 1's outputs. `(deep dive: §6 c3)`
+3. **[Editor]** Skim the two IAM roles by the failure each prevents (§5.4): cluster role = "cluster exists but can't touch your account"; node role's 3 policies = "nodes can't join / can't network / can't pull images".
+4. **[Terminal]** `cd ../02_eks-terraform-manifests && terraform init && terraform validate && terraform plan`
+   → **you should see:** **21 to add** — tags, roles, cluster, node group, nothing else.
+5. **[Terminal]** `terraform apply` and wait ~10–15 min (cluster ~8, node group ~3). 💰 The meter starts NOW: control plane $0.10/hr + 3× t3.medium.
+   → **you should see:** apply complete; outputs include a ready-made `configure_kubectl` command.
+6. **[Terminal]** Connect: `aws eks --region us-east-1 update-kubeconfig --name retail-dev-eksdemo1`
+   → **you should see:** "Added new context … to ~/.kube/config" — kubectl now aims at YOUR cluster. `(deep dive: 00A Climb 2 — it's just a file)`
+7. **[Terminal]** Verify like the instructor — three ways: `kubectl get nodes -o wide` (3 Ready nodes, INTERNAL-IP only, no EXTERNAL-IP = private ✓), `kubectl get all -n kube-system` (aws-node + kube-proxy DaemonSets, coredns).
+   → **you should see:** the cluster's plumbing pods all Running.
+8. **[AWS Console]** Cross-check: EKS → your cluster → Compute (node group, 3× t3.medium) / Networking (private subnets, public endpoint) / Access (your IAM user as admin entry) — and any private subnet's Tags tab shows the `kubernetes.io/…` tags.
+   → **you should see:** console agreeing with kubectl — same truth, two windows. `(deep dive: §4 subnet tags)`
+
+### ✅ Done-check
+
+```
+[ ] plan said 21 to add; apply completed without errors
+[ ] kubectl get nodes shows 3 Ready nodes with ONLY internal IPs
+[ ] kube-system has aws-node, kube-proxy, coredns running
+[ ] subnet tags (elb / internal-elb / cluster=shared) visible in the console
+[ ] you can say what the remote-state datasource in c3 does
+```
+
+🧹 **Teardown before you stop:** `terraform destroy -auto-approve` in `02_eks…` FIRST, then in `01_vpc…` — ALWAYS this order (EKS lives inside the VPC). **[AWS Console]** confirm: no EC2 instances, no NAT GW, no EIP left. 💰 Left running ≈ **$8–10/day** (control plane + 3 nodes + NAT). The course deliberately recreates this cluster per section — destroying is part of the workflow, not a loss.
+
+---
+
 ## 1. Objective
 
 Stand up a **production-shaped EKS cluster with Terraform**: managed control plane, worker node group in **private subnets** of your own VPC, correct IAM roles, EKS subnet tags for load balancers, control-plane logging, and modern access entries â€” then connect `kubectl` to it.

@@ -2,6 +2,70 @@
 
 > Transcript: `13) Ingress` Â· ~1h42m Â· Repo: [`../devops-real-world-project-implementation-on-aws/11_Kubernetes_Ingress/`](../devops-real-world-project-implementation-on-aws/11_Kubernetes_Ingress/) (demos `1101`â€“`1103`)
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[AWS Console]** = console.aws.amazon.com · **[Editor]** = the YAML files · **[Browser]** = the store via the ALB.
+> Until now only `port-forward` reached the app. This section gives it a real front door: an ALB built FROM Ingress YAML by a controller — plus HTTPS. Good news: the "watch-only if you don't own a domain" caveat doesn't apply to you — you own `devopsinminutes.com` (set up in [16 §5.5](16-retailstore-externaldns.md)), so you can do the HTTPS demo hands-on.
+
+### Where you are in the course
+
+```
+S08–10 app reachable only by port-forward ─▶ THIS: S11 internet-facing ALB + HTTPS ─▶ S12 Helm
+```
+
+**Must already exist/be running:**
+```
+[ ] S07 cluster up (the S07 subnet TAGS are what let the ALB pick public subnets!)
+[ ] helm installed; S09/S10's PIA ritual familiar (this is reuse #3)
+[ ] For the HTTPS part: devopsinminutes.com hosted zone delegated (16 §5.5)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| Ingress (resource) | YAML rules: "route web traffic like this" — does NOTHING alone |
+| ingress controller (LBC) | the pod that reads those rules and builds a real ALB to match |
+| ALB | AWS's L7 load balancer — understands paths/hosts/headers |
+| NodePort | a service type opening the SAME high port (3xxxx) on every node — instance mode's plumbing |
+| instance vs ip target-type | ALB → node:nodePort → pod (extra hop) vs ALB → pod IP directly |
+| target group | the ALB's health-checked backend list (nodes or pod IPs) |
+| annotation | `alb.ingress.kubernetes.io/…` lines — ALL the ALB's config lives here |
+| ACM | AWS's free TLS certificates, proven via a DNS record |
+| `ssl-redirect` | the annotation bouncing http:// → https:// at the edge |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** 1101 — install the controller with the by-now-familiar recipe (§6): download AWS's official policy JSON → create policy → trust policy → role → attach → association (`kube-system` / SA `aws-load-balancer-controller` — the chart's default name, keep it) → `helm install aws-load-balancer-controller eks/aws-load-balancer-controller -n kube-system --set clusterName=… --set region=… --set vpcId=… --set serviceAccount.create=true …`
+   → **you should see:** the LBC deployment Running in kube-system. Remember: `kubectl logs -n kube-system <lbc-pod>` is THE debug surface for every Ingress problem.
+2. **[Terminal]** 1102 — deploy all five microservices + both Ingresses in one shot: `kubectl apply -R -f HTTP-retail-store-k8s-manifests/` (`-R` = recurse the per-service folders).
+   → **you should see:** `kubectl get ingress` → BOTH Ingresses get an ALB DNS name in ADDRESS within ~2 min.
+3. **[AWS Console]** Watch YAML become infrastructure: EC2 → Load Balancers → two ALBs (provisioning → active), in the PUBLIC subnets (the S07 tags at work).
+4. **[AWS Console]** The instance-vs-ip proof: open both Target Groups. Instance TG = your **3 node IDs + a 3xxxx port**; IP TG = the **UI pod's IP** (cross-check `kubectl get pods -o wide`).
+   → **you should see:** the two request paths §4 diagrams, as real console rows. `(deep dive: 00B Climb 8)`
+5. **[Browser]** Open BOTH ALB DNS names → full purchase flow + `/topology` all healthy on each.
+   → **you should see:** the store on the internet, twice — no port-forward anywhere.
+6. **[Terminal]** Clean before HTTPS: `kubectl delete -R -f HTTP-retail-store-k8s-manifests/` (deleting the Ingress deletes the ALBs).
+7. **[AWS Console]** 1103 — request the cert: ACM → Request public certificate → `retailstore.devopsinminutes.com` → DNS validation → **Create records in Route 53** → wait for **Issued** (~1–5 min, since your zone is delegated).
+8. **[Editor]** The ONLY manifest change — three annotations on the Ingress: `listen-ports: '[{"HTTP":80},{"HTTPS":443}]'`, `certificate-arn: <your Issued ARN>`, `ssl-redirect: '443'`. Apply the HTTPS bundle.
+9. **[AWS Console]** Route 53 → your zone → Create record: `retailstore` → **Alias** → the ALB → save. (In S15/16 ExternalDNS does this line automatically — feel the manual pain once.)
+10. **[Browser]** `https://retailstore.devopsinminutes.com`
+    → **you should see:** padlock ✓ (Amazon-issued cert), and `http://` auto-redirecting to `https://`. Bonus lesson: hit the OTHER ALB by its raw DNS name → cert-mismatch warning — certs bind to NAMES, not load balancers. `(deep dive: 00B Climb 5)`
+
+### ✅ Done-check
+
+```
+[ ] LBC Running; its logs clean
+[ ] both ALBs went active; instance TG = 3 nodes, IP TG = the UI pod IP
+[ ] full purchase completed through an ALB DNS name
+[ ] https://retailstore.devopsinminutes.com shows the padlock; http:// redirects
+[ ] you know where to look first when an Ingress gets no ADDRESS (controller logs)
+```
+
+🧹 **Teardown before you stop:** `kubectl delete` the Ingresses FIRST and confirm **[AWS Console]** the ALBs are gone (💰 each ALB ≈ $0.0225/hr + LCUs — the classic forgotten biller), then delete the Route 53 alias record and (optionally) the ACM cert. Keep the LBC helm release — everything from S13 on expects it. Cluster costs continue while up.
+
+---
+
 ## 1. Objective
 
 Expose the **whole retail store to the internet**: install the **AWS Load Balancer Controller** (via Helm + Pod Identity), understand **NodePort** (the prerequisite), deploy Ingress in **instance mode AND IP mode** side-by-side, then add **HTTPS** with an ACM certificate, Route 53 alias, and automatic HTTPâ†’HTTPS redirect.
@@ -175,7 +239,7 @@ kubectl delete -R -f HTTP-retail-store-k8s-manifests/    # cleanup before 1103
 
 ```bash
 # prerequisite: a Route 53 registered domain + hosted zone (watch-only if you don't own one!)
-# â‘  ACM: Request public cert â†’ retailstore.stacksimplify.com â†’ DNS validation
+# â‘  ACM: Request public cert â†’ retailstore.devopsinminutes.com â†’ DNS validation
 #        â†’ "Create records in Route 53" â†’ status Issued (minutes if the zone is ready)
 # â‘¡ the ONLY manifest change â€” three annotations on both Ingresses:
 #    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
@@ -183,8 +247,8 @@ kubectl delete -R -f HTTP-retail-store-k8s-manifests/    # cleanup before 1103
 #    alb.ingress.kubernetes.io/ssl-redirect: '443'      # HTTP auto-redirects to HTTPS
 kubectl apply -R -f HTTPS-retail-store-k8s-manifests/
 # â‘¢ Route 53 â†’ hosted zone â†’ Create record: retailstore â†’ Alias â†’ ALB (instance mode) â†’ us-east-1
-nslookup retailstore.stacksimplify.com          # resolves to the ALB
-# browse https://retailstore.stacksimplify.com â†’ padlock âœ“, cert = ACM cert, http:// auto-redirects âœ“
+nslookup retailstore.devopsinminutes.com          # resolves to the ALB
+# browse https://retailstore.devopsinminutes.com â†’ padlock âœ“, cert = ACM cert, http:// auto-redirects âœ“
 # hitting the OTHER ALB by its RAW DNS name â†’ cert-mismatch warning (CN â‰  hostname) â€” expected lesson
 # ðŸ§¹ delete ingresses (waits for ALB teardown) â†’ delete the Route 53 record â†’ delete the ACM cert
 ```

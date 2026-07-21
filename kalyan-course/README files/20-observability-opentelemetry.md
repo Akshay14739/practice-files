@@ -7,6 +7,72 @@
 
 ---
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = collector YAML / values files · **[AWS Console]** = X-Ray, CloudWatch, AMP/AMG consoles · **[Browser]** = Grafana + the store.
+> One idea: instrument NOTHING in the app code — an operator injects the OpenTelemetry SDK via one annotation, and three "collector" pipelines ship traces→X-Ray, logs→CloudWatch, metrics→Prometheus/Grafana.
+> 💰 **Read before starting:** the Grafana (AMG) user costs **$9 the moment you associate it** — the instructor says *watch that part, don't do it*. The free self-hosted alternative is [Section 20.5](20.5-observability-prometheus-grafana.md) — consider doing 20.5 hands-on and this one read-only.
+
+### Where you are in the course
+
+```
+S19 Helm-ified store ─▶ THIS: S20 see inside it (traces/logs/metrics) ─▶ S21 CI/CD GitOps
+```
+
+**Must already exist/be running:**
+```
+[ ] The 20_01 cluster env (script: create-cluster-with-karpenter-and-opentelemetry.sh)
+    — note: cluster PINNED to K8s 1.33 (ADOT didn't support 1.34) and T3.LARGE nodes
+[ ] Data plane + S19 low-cost Helm values (1 replica, spot) with opentelemetry.enabled=true
+[ ] Secrets Manager secret present; bucket names updated (the usual trio)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| three pillars | metrics = what/when · logs = what broke where · traces = the request's journey across services |
+| OpenTelemetry (OTel) | the vendor-neutral standard — swap backends by editing YAML, never app code |
+| ADOT | AWS's packaged OTel (operator installed as an EKS add-on) |
+| operator vs collector | the manager watching CRs vs the actual data pipeline it creates |
+| receiver → processor → exporter | data in → transform/filter/batch → data out; unwired components do NOTHING |
+| Deployment vs DaemonSet mode | central collector vs one-per-node (logs are files on each node → DaemonSet) |
+| Instrumentation CR + inject-sdk | the annotation that auto-attaches the SDK to your pods at startup |
+| X-Ray / AMP / AMG | AWS's trace viewer / managed Prometheus / managed Grafana |
+| sampler | keep all traces (learning) vs a % (production cost control) |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** Build the platform layer: the 19 new Terraform resources (§6.1) — collector IAM+PIA, then FOUR add-ons in order: cert-manager → **ADOT** (depends_on cert-manager!) → kube-state-metrics → node-exporter, plus SA/ClusterRole via the kubernetes provider, plus AMP + AMG workspaces.
+   → **you should see:** `kubectl get pods -A` showing the operator + exporters healthy.
+2. **[Terminal]** Deploy the store with the low-cost profile and the one flag that matters: `opentelemetry.enabled=true` in every values file.
+   → **you should see:** deployments carrying the `instrumentation.opentelemetry.io/inject-sdk` annotation — that's the whole app-side change.
+3. **[Terminal]** TRACES (2002): `kubectl apply -f 01_adot-collector-traces.yaml` then `02_adot-instrumentation-traces.yaml`, then `./restart-retail-app.sh` (SDK injects at pod START — restart is mandatory).
+   → **you should see:** new pods with `OTEL_*` env vars inside (`kubectl exec … env | grep OTEL`).
+4. **[Browser]** Buy something, then **[AWS Console]** X-Ray → Trace map.
+   → **you should see:** client→ui→catalog→carts→checkout→orders as a live graph with per-hop latency; open one trace's segment timeline. (carts→DynamoDB etc. spans are absent — app quirk, noted in §4.)
+5. **[Editor]** Read the traces pipeline (§6.2) for the two money lessons: the **filter processor** dropping `/actuator/health` + ELB-HealthChecker noise ("80–90% filtered" = the cost cut), and **batch 50/10s** (one HTTPS call instead of fifty). Then delete both CRs — "we learned it, why keep paying."
+6. **[Terminal]** LOGS (2003): apply the logs collector — a **DaemonSet** (logs are files under `/var/log/pods` on EACH node; root read-only mount; tolerations so no node is missed).
+   → **you should see:** one collector pod per node (`kubectl get ds`); **[AWS Console]** CloudWatch → log group `/aws/eks/retail-dev-eksdemo1/application` filling; Logs Insights query filtering `/catalog/` returns your lines.
+7. **[Terminal]** METRICS (2004): paste YOUR AMP workspace ID into the exporter, apply the prometheus collector (9 scrape jobs), then `./verify-amp-metrics.sh`.
+   → **you should see:** the script list scrape jobs, retail services, and ~1259 unique metrics — AMP is receiving.
+8. **[AWS Console]** 💰 The $9 gate (watch-only is fine): Identity Center user (+MFA app) → associate to the AMG workspace → admin → sign in → add the AMP data source → **import dashboard `15661`**.
+   → **you should see:** cluster-wide CPU/memory/workload panels — the payoff picture. (Doing this hands-on for free is exactly §20.5.)
+
+### ✅ Done-check
+
+```
+[ ] X-Ray trace map showed the full purchase journey with latencies
+[ ] OTEL_* env vars present in app pods after the rollout restart
+[ ] one log-collector pod PER node; Logs Insights returned your query
+[ ] verify-amp-metrics.sh listed 9 jobs and 1000+ metrics
+[ ] you can say why logs need DaemonSet mode but traces don't
+```
+
+🧹 **Teardown before you stop:** delete the metrics collector CR, uninstall the retail apps, then data plane + cluster (keep BOTH only if going straight to S21 — it reuses this exact cluster). 💰 X-Ray bills per trace (the health-check filter is your bill-guard), AMG bills $9/user/month once associated, cluster ≈ $0.5–0.7/h while up.
+
+---
+
 ## 1. Objective
 
 - Understand the three pillars (metrics = *what/when*, logs = *what went wrong where*, traces = *where/why across services*) and why **OpenTelemetry** kills vendor lock-in.

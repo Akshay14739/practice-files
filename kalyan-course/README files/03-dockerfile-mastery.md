@@ -2,6 +2,68 @@
 
 > Transcript: `2) Docker Files` · ~44 min · Repo: [`../devops-real-world-project-implementation-on-aws/03_Docker_Files/`](../devops-real-world-project-implementation-on-aws/03_Docker_Files/)
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your shell (laptop Docker or the S02 EC2 box — both work identically here) · **[Browser]** = the app pages you'll check.
+> The whole section is one loop: build the image fresh, prove what's inside it, rebuild to see the cache magic, then clean up the debris.
+
+### Where you are in the course
+
+```
+S02 ran images by hand ─▶ THIS: S03 BUILD the image properly (multi-stage) ─▶ S04 Compose (all 10)
+```
+
+**Must already exist/be running:**
+```
+[ ] Docker working (S02) — laptop or the EC2 box (if EC2: start it again)
+[ ] The app source v1.2.4 downloaded & extracted (S02 §6 build block) — you need src/ui/
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| Dockerfile | the recipe: each line = one step of building the image |
+| multi-stage build | stage 1 = fat kitchen that compiles; stage 2 = clean plate shipping ONLY the result |
+| layer | the saved output of one Dockerfile line — reused ("CACHED") if its inputs didn't change |
+| build cache | Docker's memory of past layers — the 95 s → 0.02 s trick |
+| build context | the folder you send to Docker with the trailing `.` in `docker build … .` |
+| `.dockerignore` | list of files to NOT send in the context (like .gitignore) |
+| non-root user | the image creates `appuser` (uid 1000) so the app never runs as root |
+| prune | delete Docker leftovers (cache/images) eating your disk |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** Start honest: `docker builder prune --all -f` (empty the build cache so your timings mean something).
+   → **you should see:** "Total reclaimed space: …".
+2. **[Terminal]** `cd retail-store-sample-app-1.2.4/src/ui` — the Dockerfile lives here. Skim it side-by-side with the annotated copy in §6.1: find the TWO `FROM` lines (that's "multi-stage").
+   → **you should see:** stage 1 `AS build-env` (Maven+JDK), stage 2 fresh base + `COPY --from=build-env`.
+3. **[Terminal]** First build, timed: `docker build -t retail-ui:9.0.0 .`
+   → **you should see:** ~95 s; both stages' `dnf install` running in parallel. `(deep dive: §4 anatomy)`
+4. **[Terminal]** Run + probe it: `docker run --name myapp1-v9 -p 8080:8080 -d retail-ui:9.0.0`, then `curl localhost:8080/actuator/health` and `curl localhost:8080/topology`.
+   → **you should see:** `{"status":"UP"}`, and topology showing the UI alone (its friends arrive in S04).
+5. **[Terminal]** Prove the multi-stage claim from inside: `docker exec -it myapp1-v9 /bin/sh` → `ls /` (no `/src`!), `which mvn` (nothing!), `ls /app` (just app.jar + licenses), `id` (uid=1000 appuser) → `exit`.
+   → **you should see:** no build tools, no source, non-root — the whole point of stage 2.
+6. **[Terminal]** The cache lesson, three timings: rebuild unchanged `docker build -t retail-ui:9.0.0 .` (→ ~0.02 s, all CACHED) then `docker build --no-cache -t retail-ui:10.0.0 .` (→ ~95 s again).
+   → **you should see:** 95 s / 0.02 s / 95 s — those three numbers ARE the lesson. `(deep dive: §4 layer caching)`
+7. **[Terminal]** Feel WHY layer order matters (Lab B): touch a file in `src/`, rebuild → fast (deps layer still CACHED); add a blank line to `pom.xml`, rebuild → slow (`dependency:go-offline` re-runs).
+   → **you should see:** the build log's `CACHED` markers stop exactly at the first changed input.
+8. **[Terminal]** Clean up the debris: `docker system df` (see what's eating disk) → `docker builder prune --all -f` → and know the ☢️ option `docker system prune -a --volumes -f` deletes EVERY image no container uses — only when you mean it. `(deep dive: §6 cleanup)`
+   → **you should see:** reclaimed space reported.
+
+### ✅ Done-check
+
+```
+[ ] you recorded ~95 s fresh / ~0.02 s cached / ~95 s --no-cache
+[ ] /actuator/health returned UP; /topology showed UI only
+[ ] inside the container: no /src, no mvn, id = appuser (uid 1000)
+[ ] docker history retail-ui:9.0.0 shows no Maven layer in the final image
+```
+
+🧹 **Teardown before you stop:** `docker rm -f myapp1-v9; docker rmi retail-ui:9.0.0 retail-ui:10.0.0; docker builder prune --all -f`. 💰 Local = free; if on the EC2 box, STOP the instance (it's needed once more in S04–05).
+
+---
+
 ## 1. Objective
 
 Read and write a **production-grade multi-stage Dockerfile** for a Java Spring Boot microservice (the retail UI): non-root user, `.dockerignore`, layer caching that turns a 95-second build into a 0.02-second one — and clean up build debris with `builder prune` / `system prune`.

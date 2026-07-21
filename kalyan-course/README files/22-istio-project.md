@@ -10,6 +10,75 @@
 
 ---
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = the mesh YAML (folders 00–08) · **[Browser]** = the store at `https://retail-store.devopsinminutes.com` + the Kiali dashboard.
+> The capstone's one idea: put a smart proxy (Envoy) BESIDE every pod, and suddenly encryption, canaries, retries, and access policy are platform YAML — zero app-code changes. Before starting, climb the [Istio Learning Ladder](../../Istio_Learning_Ladder.md) and [00B Climb 10](00B-networking-foundations-learning-ladder.md) — the mesh makes sense in one pass if the sidecar model already does.
+
+### Where you are in the course
+
+```
+S21 GitOps-shipped store ─▶ THIS: S22 Istio mesh over everything — the capstone ─▶ (course complete)
+```
+
+**Must already exist/be running:**
+```
+[ ] The S13-style cluster with the retail store running (S14/19 form)
+[ ] LBC (S11/13) — the gateway's NLB comes from it; ACM cert + ExternalDNS (S15/16) — reused for HTTPS + DNS
+[ ] devopsinminutes.com zone live (16 §5.5) — the gateway hostname rides it
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| service mesh | a proxy next to every pod + a control plane telling all proxies what to do |
+| sidecar / Envoy | that per-pod proxy — shares the pod's network, sees every request in/out |
+| istiod | the control plane pushing routing rules + certificates to every Envoy |
+| injection label | `istio-injection=enabled` on the namespace → new pods get the sidecar automatically |
+| mTLS STRICT | both sides prove identity by certificate; plaintext refused (PeerAuthentication) |
+| Gateway / VirtualService | the mesh's front door / the routing rules (hosts, weights, header matches) |
+| DestinationRule + subsets | named pod groups by label (v1/v2) + per-destination policy |
+| canary weight | "90% → v1, 10% → v2" — shift live traffic, roll back by editing a number |
+| outlierDetection | the circuit breaker: eject a failing pod from the pool automatically |
+| AuthorizationPolicy | who may call whom, by cryptographic ServiceAccount identity |
+| Kiali | the live service map (who calls whom, mTLS locks, error rates) |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** Install: `curl -L https://istio.io/downloadIstio | sh -` → `export PATH=$PWD/istio-*/bin:$PATH` → `istioctl install -y -f 00-install/istio-install.yaml` (default profile; NLB annotations on the gateway).
+   → **you should see:** `kubectl -n istio-system get pods` — istiod + istio-ingressgateway Running; an NLB provisioning in EC2. `(deep dive: §6.1)`
+2. **[Terminal]** Mesh the store: `kubectl label namespace default istio-injection=enabled && kubectl rollout restart deploy -n default`
+   → **you should see:** every pod go **2/2** — your app + its Envoy. `describe pod` shows the istio-init container (the iptables interception). Sidecars = 00A Climb 8's shared netns, live.
+3. **[Terminal]** Zero-trust on: `kubectl apply -f 02-mtls/` (PeerAuthentication STRICT).
+   → **you should see:** service-to-service still works (Envoys handshake mTLS invisibly) but a NON-meshed probe pod's call is refused — plaintext is dead. `(deep dive: §6.3)`
+4. **[Terminal]** The front door: `kubectl apply -f 03-edge/` — Gateway + ui VirtualService for `retail-store.devopsinminutes.com`; ExternalDNS writes the Route 53 record to the NLB automatically (your S15/16 machinery, reused).
+   → **you should see:** **[Browser]** the store over HTTPS at your domain, now THROUGH the mesh.
+5. **[Terminal]** THE canary (§6.5): deploy catalog v2 (labels `version: v2`), apply `04-traffic/` — DestinationRule subsets v1/v2 + VirtualService 90/10 with the `x-canary` header pin.
+   → **you should see:** `for i in $(seq 20); do curl -s https://retail-store.devopsinminutes.com/... ; done` → ~2 of 20 hit v2; `curl -H "x-canary: true"` ALWAYS hits v2. Rollback = set v1 weight 100 — no redeploy. (You rehearsed exactly this in 00B Climb 10's nginx lab.)
+6. **[Terminal]** Resilience: `kubectl apply -f 05-resilience/` — retries/timeouts on ui→catalog, outlierDetection circuit breaker on orders.
+   → **you should see:** fault-inject 5xx on orders (Lab B) → the failing instance gets EJECTED from the pool; the store stays up instead of hanging.
+7. **[Terminal]** Lock it down: `kubectl apply -f 06-authz/` — deny-all first, then explicit allows per real call path (ui→catalog by ServiceAccount principal).
+   → **you should see:** an unauthorized pod's `curl orders` → **`RBAC: access denied`** — rejected by orders' Envoy before the app ever sees it.
+8. **[Terminal]** Eyes on: `kubectl apply -f 07-observability/` (Kiali + Jaeger) → `istioctl dashboard kiali`.
+   → **you should see:** the LIVE service graph — ui→catalog→carts→checkout→orders with request rates, p95s, and mTLS lock icons on every edge. Golden signals for free, from the Envoys.
+9. **[Terminal]** Sanity + sync checks the pros run: `istioctl analyze -n default` (config mistakes) and `istioctl proxy-status` (every Envoy SYNCED with istiod).
+10. **[Terminal]** Record Lab B's 5-capability demo — canary, mTLS locks, circuit break, authz denial, Kiali map. That walkthrough IS the resume artifact this capstone exists for.
+
+### ✅ Done-check
+
+```
+[ ] all services 2/2 with sidecars; istioctl proxy-status all SYNCED
+[ ] non-meshed pod refused under STRICT mTLS; meshed calls fine
+[ ] ~90/10 split measured with curl; x-canary header always hit v2; weight-flip rollback worked
+[ ] RBAC: access denied from an unauthorized caller
+[ ] Kiali showed the live graph with mTLS locks; a full purchase still completed
+```
+
+🧹 **Teardown before you stop:** `kubectl delete -f 02..07` folders → `istioctl uninstall --purge -y` → `kubectl label ns default istio-injection-` → confirm the gateway's **NLB is gone** in EC2 (it bills!). Then the usual store/cluster teardown if ending. 💰 Istio is free; the costs are the NLB (~$0.02/h) + sidecar CPU/RAM headroom + the cluster itself.
+
+---
+
 ## 1. Objective
 
 Wrap the retail store in a mesh so that **networking behavior — security, routing, resilience, observability — is controlled by the platform from outside the apps**, and make every piece *production-grade*, not a demo:
@@ -251,10 +320,10 @@ spec:
   selector: { istio: ingressgateway }
   servers:
     - port: { number: 443, name: https, protocol: HTTPS }
-      hosts: ["retail-store.stacksimplify.com"]      # your ExternalDNS-managed domain (S16)
+      hosts: ["retail-store.devopsinminutes.com"]      # your ExternalDNS-managed domain (S16)
       tls: { mode: SIMPLE, credentialName: retail-tls }  # or terminate at NLB with the ACM cert
     - port: { number: 80, name: http, protocol: HTTP }
-      hosts: ["retail-store.stacksimplify.com"]
+      hosts: ["retail-store.devopsinminutes.com"]
       tls: { httpsRedirect: true }                   # HTTP → HTTPS
 ---
 # ui-virtualservice.yaml — route the domain to the ui service
@@ -262,14 +331,14 @@ apiVersion: networking.istio.io/v1
 kind: VirtualService
 metadata: { name: ui, namespace: default }
 spec:
-  hosts: ["retail-store.stacksimplify.com"]
+  hosts: ["retail-store.devopsinminutes.com"]
   gateways: [retail-gateway]
   http:
     - route:
         - destination: { host: ui, port: { number: 80 } }
 ```
 
-> ExternalDNS (S15/16) sees the ingress gateway's NLB and creates the Route 53 record for `retail-store.stacksimplify.com` automatically — the mesh reuses the course's DNS + ACM machinery.
+> ExternalDNS (S15/16) sees the ingress gateway's NLB and creates the Route 53 record for `retail-store.devopsinminutes.com` automatically — the mesh reuses the course's DNS + ACM machinery.
 
 ### 6.5 Traffic management — the canary (richer than S21's replica canary)
 
@@ -405,7 +474,7 @@ istioctl proxy-status                  # are all Envoys in sync with istiod?
 
 ### Lab B — The capability demo (the resume video)
 
-1. **Canary:** with the 90/10 split live, `for i in $(seq 20); do curl -s https://<domain>/... ; done` and observe ~2 in 20 hit catalog v2 (Kiali shows the split); then `curl -H "x-canary: true"` always hits v2; then set v1 weight 100 → instant rollback, no redeploy.
+1. **Canary:** with the 90/10 split live, `for i in $(seq 20); do curl -s https://retail-store.devopsinminutes.com/... ; done` and observe ~2 in 20 hit catalog v2 (Kiali shows the split); then `curl -H "x-canary: true"` always hits v2; then set v1 weight 100 → instant rollback, no redeploy.
 2. **mTLS:** show the Kiali lock icons; run the non-meshed probe (refused) vs a meshed call (succeeds).
 3. **Circuit breaking:** fault-inject 5xx on `orders` (`VirtualService` fault) → watch `outlierDetection` eject the instance and the store stay up instead of hanging.
 4. **Authorization:** from a pod *not* allowed to call `orders`, `curl orders` → `RBAC: access denied` at the Envoy.

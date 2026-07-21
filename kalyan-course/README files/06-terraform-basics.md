@@ -2,6 +2,75 @@
 
 > Transcripts: `5) Terraform Basics, Foundation, Advanced, Variables` + `6) Terraform State & Modules` · ~5.4 h — the biggest section. Repo: [`../devops-real-world-project-implementation-on-aws/06_Terraform_Basics/`](../devops-real-world-project-implementation-on-aws/06_Terraform_Basics/) (sub-demos `0601`–`0607`).
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your Ubuntu laptop's shell (Terraform runs from your LAPTOP now, not the EC2 box) · **[Editor]** = VS Code editing .tf files · **[AWS Console]** = console.aws.amazon.com (mostly for VERIFYING — Terraform does the creating).
+> This is the biggest section (~5.4 h). Do it as 4 sittings: ① S3-bucket starter → ② the VPC → ③ state & precedence → ④ remote backend + modules.
+
+### Where you are in the course
+
+```
+S02–05 Docker on one box ─▶ THIS: S06 learn Terraform + build the course VPC ─▶ S07 EKS on that VPC
+Everything from here to S21 is Terraform projects layered on what you build NOW.
+```
+
+**Must already exist/be running:**
+```
+[ ] terraform + aws CLI installed (S01 §0 toolbox)
+[ ] An AWS IAM user with AdministratorAccess + access keys → run: aws configure
+[ ] VS Code with the HashiCorp Terraform extension (autocomplete)
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| IaC / HCL | infrastructure described in text files instead of console clicks |
+| provider | the plugin that translates your .tf files into AWS API calls |
+| `init` / `plan` / `apply` / `destroy` | download plugins / preview the diff / do it / undo it |
+| state file (terraform.tfstate) | Terraform's memory of what it built — lose it and it forgets everything |
+| drift | someone changed AWS by hand; next `apply` reverts it to match the .tf files |
+| variable / tfvars | the knobs (region, CIDR, env name) and the files that set them per environment |
+| remote backend | state stored in S3 (shared, versioned, locked) instead of on your laptop |
+| module | a reusable folder of resources you call like a function |
+| NAT Gateway / IGW | private subnets' outbound-only door / public subnets' two-way door |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** Prove your setup: `terraform version` and `aws sts get-caller-identity`
+   → **you should see:** a TF version and your AWS account ID (credentials work).
+2. **[Editor]** Starter project (0602): create the 3 files from §6.2 — `c1-versions.tf` (pinned `~> 6.0` provider), `c2-s3bucket.tf`, `c3-outputs.tf`.
+3. **[Terminal]** The lifecycle you'll run for EVERY project in this course: `terraform init` → `terraform validate` → `terraform plan` → `terraform apply` (type yes) → `terraform output`.
+   → **you should see:** init downloads providers into `.terraform/`; plan says "2 to add"; apply prints your bucket name. `(deep dive: §6.2)`
+4. **[Terminal]** Undo it: `terraform destroy`
+   → **you should see:** "2 destroyed" — creation AND deletion are both one command. This create/destroy rhythm is the course's cost-control discipline.
+5. **[Editor]** The real project (0603): build the production VPC from §6.3 — variables, `data` for AZs, `locals` with `cidrsubnet()`, `for_each` subnets. Test the functions FIRST in `terraform console` (`cidrsubnet("10.0.0.0/16", 8, 11)` → `10.0.11.0/24`).
+   → **you should see:** how 6 subnets (3 public 10.0.0-2, 3 private 10.0.10-12) come from ONE line of math, not copy-paste.
+6. **[Terminal]** `terraform plan` → **"18 to add"** → `apply` → **[AWS Console]** VPC → your dev-vpc → Resource map.
+   → **you should see:** public subnets routing to the IGW, private to the NAT GW — the exact layout every later section assumes. 💰 NAT GW + EIP are now billing (~$0.045/hr) — destroy when done today.
+7. **[Terminal]** The drift lesson (§6.4): **[AWS Console]** hand-add a tag to the VPC → `terraform plan` flags it → `terraform apply -auto-approve` erases it.
+   → **you should see:** console edits LOSE; .tf files are the only truth.
+8. **[Terminal]** Variable precedence (§6.5): defaults → `export TF_VAR_environment_name=predev` → `terraform.tfvars` → `-var-file=prod.tfvars` — run `terraform plan` after each.
+   → **you should see:** each layer override the last; then `unset TF_VAR_…` (leftover env vars bit the instructor!).
+9. **[Editor+Terminal]** Remote state (0605/0606): build the tfstate S3 bucket project, then add the `backend "s3"` block (§6.6 — literal values only, NO variables) to the VPC project → `terraform init` migrates state.
+   → **you should see:** "Successfully configured the backend s3"; during apply a `.tflock` object appears in the bucket (locking!), and S3 versions grow per apply.
+10. **[Editor]** Module refactor (0607): move the VPC resources into `modules/vpc/` and call it with a `module "vpc" {}` block (§6.7).
+    → **you should see:** `terraform plan` names resources `module.vpc.aws_vpc.main…` — same 18 resources, now reusable.
+
+### ✅ Done-check
+
+```
+[ ] you ran init/validate/plan/apply/destroy on the starter and can say what each does
+[ ] the VPC applied with 18 resources and the console resource-map matches §4's diagram
+[ ] you watched drift get reverted, and precedence layers override each other
+[ ] state lives in S3 with versioning + .tflock during applies
+[ ] plan shows module.vpc.* prefixes after the refactor
+```
+
+🧹 **Teardown before you stop:** `terraform destroy -auto-approve` in the VPC project (and starter), then **[AWS Console]** verify NO NAT Gateway and NO EIP remain (the two silent billers). KEEP the tfstate bucket — every later section uses it. Optional: `rm -rf .terraform` (~800 MB, recreated by init). 💰 Forgotten NAT GW ≈ $1+/day.
+
+---
+
 ## 1. Objective
 
 Go from zero Terraform to a **production-grade, module-ized VPC with S3 remote state + locking**: HCL blocks, all core commands, input-variable precedence, `for_each`/functions/locals, drift, and the root→child module refactor. Everything Sections 07–20 build on.

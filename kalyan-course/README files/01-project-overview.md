@@ -2,6 +2,64 @@
 
 > Transcript: `0) Intro to retail Microservice project` · ~8 min · Repo: [`../devops-real-world-project-implementation-on-aws/01-Project-Files/`](../devops-real-world-project-implementation-on-aws/01-Project-Files/)
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> This section has no commands to run — it's the map of the app you'll deploy 22 different ways. So this guide does the one thing you SHOULD do before Section 02: **install and verify every tool the whole course needs, once**. Tags used in every file's §0: **[Terminal]** = your Ubuntu laptop's shell · **[Editor]** = editing a file in VS Code · **[AWS Console]** = console.aws.amazon.com in the browser · **[Browser]** = any other web page.
+
+### Where you are in the course
+
+```
+YOU ARE AT THE VERY START ─▶ THIS: S01 meet the app ─▶ S02 Docker ─▶ … ─▶ S22 Istio
+Foundations first: read 00A (Linux) + 00B (Networking) ladders alongside S01–S04.
+```
+
+**Must already exist/be running:** Nothing — this is a fresh start. (An AWS account is needed from S06 onward, not yet.)
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| microservice | one small app owning one job (e.g. "carts") with its own database |
+| polyglot | the services are written in different languages (Go, Java, Node.js) |
+| data plane | the group of databases/cache/queue the services depend on |
+| in-cluster vs AWS managed | you run the DB in a container yourself vs AWS runs it for you (RDS etc.) |
+| message broker/queue | a mailbox (RabbitMQ/SQS) where one service drops events for others to read later |
+| cache | fast temporary storage (Redis) — speed, not the system of record |
+
+### The simplified play-by-play (set up your toolbox once)
+
+Every step is **[Terminal]** unless tagged otherwise. Each install is skipped automatically if already present.
+
+1. **Update apt + basics** — `sudo apt-get update && sudo apt-get install -y git curl unzip jq dnsutils`
+   → **you should see:** apt finish without errors; `git --version` and `jq --version` answer.
+2. **Docker Engine** — `command -v docker >/dev/null || (curl -fsSL https://get.docker.com | sudo sh && sudo usermod -aG docker $USER)` — then **log out & back in** once so the group applies.
+   → **you should see:** `docker run --rm hello-world` prints "Hello from Docker!" *without* sudo. (Used from S02.)
+3. **kubectl** — `command -v kubectl >/dev/null || (curl -LO "https://dl.k8s.io/release/$(curl -Ls https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" && sudo install kubectl /usr/local/bin/ && rm kubectl)`
+   → **you should see:** `kubectl version --client` prints a version. (Used from S07.)
+4. **helm** — `command -v helm >/dev/null || (curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash)`
+   → **you should see:** `helm version` prints a version. (Used from S12.)
+5. **terraform** — install via HashiCorp's apt repo (their official Ubuntu instructions), or: `command -v terraform || (curl -fsSLo tf.zip https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip && unzip tf.zip && sudo install terraform /usr/local/bin/ && rm -f tf.zip terraform)`
+   → **you should see:** `terraform -version`. (Used from S06.)
+6. **AWS CLI v2** — `command -v aws >/dev/null || (curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o awscliv2.zip && unzip -q awscliv2.zip && sudo ./aws/install && rm -rf aws awscliv2.zip)`
+   → **you should see:** `aws --version` prints `aws-cli/2.x`. (Configured with credentials in S06.)
+7. **Clone the course repo** — `git clone https://github.com/stacksimplify/devops-real-world-project-implementation-on-aws.git` (into a folder you like)
+   → **you should see:** folders `01-Project-Files/ … 21_DevOps_CICD/` — the source of truth every section's README points into.
+8. **[Browser] Read the app's story in THIS file** — §4's inventory table + the user-journey block. Then do Lab A (map the repo folders) and Lab B (redraw the diagram from memory).
+   → **you should see:** you can name all 5 services, their languages, and their datastores without looking. That's this section's real deliverable.
+
+### ✅ Done-check
+
+```
+[ ] docker run hello-world works WITHOUT sudo
+[ ] kubectl, helm, terraform, aws, git, jq, dig all answer --version/-version
+[ ] course repo cloned; you matched its folders to sections via 00-INDEX.md
+[ ] from memory: 5 services → 5 stores, including BOTH Orders→PostgreSQL and Orders→RabbitMQ arrows
+```
+
+🧹 **Teardown before you stop:** nothing — everything here is local and free. 💰 Nothing bills yet; the first AWS money appears in S06 (and every section from there has its own 💰 warning — read them).
+
+---
+
 ## 1. Objective
 
 Know the **reference application** used in every demo of this course cold: its 5 microservices, 3 databases, cache, and message broker — and the exact user-journey each service handles. Every later section (Docker → Terraform → EKS → Helm → Karpenter → ADOT → CI/CD) deploys *this same app* in progressively more production-grade ways.

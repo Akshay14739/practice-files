@@ -7,6 +7,71 @@
 
 ---
 
+## 0. 🧭 Beginner Follow-Along Guide (start here)
+
+> Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[GitHub]** = github.com in the browser · **[AWS Console]** = console.aws.amazon.com · **[Browser]** = the Argo CD UI + the store.
+> The finale's one idea: **CI never touches the cluster, CD never builds anything — Git is the only interface.** A push builds an image (GitHub Actions→ECR) and writes its tag into a values file; Argo CD, living IN the cluster, notices and syncs.
+
+### Where you are in the course
+
+```
+S20 observable platform ─▶ THIS: S21 GitOps pipeline (Actions + ECR + Argo CD) ─▶ S22 Istio capstone
+```
+
+**Must already exist/be running:**
+```
+[ ] The S20 cluster (T3.large, all add-ons) + data plane + Secrets Manager secret
+[ ] A GitHub account + a NEW PRIVATE repo you'll populate from 21_01's github-files/
+[ ] Docker not needed locally — GitHub's runners build; your laptop only edits + pushes
+```
+
+### Words you'll meet (plain English)
+
+| Word | Plain meaning |
+|---|---|
+| CI vs CD | build & publish the image (Actions) vs make the cluster match Git (Argo CD) |
+| OIDC (keyless auth) | GitHub proves its identity to AWS per-run; STS hands out 1-hour credentials — no stored keys |
+| trust policy | the AWS-side rule "tokens from exactly THIS repo may become THIS role" |
+| `sha-<7 chars>` tag | image tag = the commit — immutable, traceable, diff-able |
+| GitOps | cluster state = Git state, continuously reconciled |
+| Argo CD Application | the CR pointing Argo at your repo/path/values file |
+| `prune` / `selfHeal` | deleted-from-Git → deleted from cluster / hand-edits reverted automatically |
+| PAT (classic) | the read-only token Argo CD uses to see your private repo |
+| poll interval (~3 min) | how often Argo re-checks Git — your deploy latency |
+
+### The simplified play-by-play (do this → see that)
+
+1. **[Terminal]** CI prerequisites, once (§6.1): create the ECR repo `retail-store/ui`, export the four env vars, generate `trust-policy.json` with the heredoc (repo-scoped `sub`!), create the IAM role + attach ECR power-user, and create the **OIDC provider** (without it the whole chain is inert).
+   → **you should see:** role + provider in IAM; the trust policy naming YOUR repo exactly.
+2. **[GitHub]** Populate your new private repo from `21_01/…/github-files/`: the workflow, `source/ui/` (app + chart), and the helper scripts. **THE one manual edit everyone forgets:** set `image.repository` in `values-ui.yaml` to YOUR ECR URI.
+3. **[Terminal]** First push → **[GitHub]** Actions tab: watch the run — checkout → OIDC auth (no secrets!) → build → push `sha-…` + `latest` to ECR → `sed` the tag into values-ui.yaml → commit as **ci-bot**.
+   → **you should see:** a green run; **[AWS Console]** ECR shows both tags; the values file shows a ci-bot commit from a minute ago. `(deep dive: §6.2)`
+4. **[Terminal]** ⚠️ The lesson he repeats three times: the remote is now AHEAD of your laptop — **always `./git-pull.sh` before your next change** or your push is rejected.
+5. **[Terminal]** Install Argo CD (§6.3): `kubectl create namespace argocd`, apply the official manifest, `kubectl -n argocd port-forward svc/argocd-server 8080:443 &`, get the password: `kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d`.
+   → **you should see:** **[Browser]** `https://localhost:8080` (accept the self-signed warning — that's 00B Climb 5's `--insecure` case) → login admin/<password>.
+6. **[GitHub→Browser]** Private-repo access: create a **PAT (classic)** with `repo` + `read:packages` only, then `argocd repo add <your-repo-url> --username <you> --password <PAT>`.
+   → **you should see:** Settings → Repositories → CONNECTION STATUS: **Successful**.
+7. **[Terminal]** The contract: `kubectl apply -f argocd-manifests/application-ui.yaml` — read it first (§6.4): repo, path `source/ui/chart`, `valueFiles: [values-ui.yaml]`, `automated + prune + selfHeal`.
+   → **you should see:** **[Browser]** Applications → ui → Healthy/Synced, with the whole resource tree (Deploy, RS, Pod, HPA, Ingress…). UI pod may error until backends exist — expected.
+8. **[Terminal]** Backends via the S19 script with UI commented out ("UI belongs to Argo CD now") → topology green.
+9. **[Terminal]** THE full loop (§6.5): `./git-pull.sh` → `./update-ui-home-html.sh V904` → `./git-push.sh "V904 commit"` → wait ≤3 min after the Actions run.
+   → **you should see:** Argo's sync animation — new ReplicaSet, pods rotating — then **[Browser]** the store footer shows **V904**. No human touched the cluster.
+10. **[Terminal]** Prove the GitOps properties (Lab B): `kubectl scale deploy ui --replicas=5` → watch Argo snap it back (selfHeal!); edit minReplicas 1→3 in the values file and push → syncs with NO build (values-only change). Rollback = `git revert` (the UI rollback button requires disabling auto-sync first — selfHeal would undo it).
+
+### ✅ Done-check
+
+```
+[ ] Actions run green with ZERO stored AWS keys (OIDC federation)
+[ ] ECR holds sha-* + latest; values-ui.yaml carries a ci-bot commit
+[ ] Argo CD app Healthy/Synced; browser footer tracked V-numbers within ~3 min of each push
+[ ] kubectl scale got reverted by selfHeal (you watched drift die)
+[ ] you can say where CI ends and CD begins (the values file — nothing else crosses)
+```
+
+🧹 **Teardown before you stop (dependency chain):** Argo CD UI → delete app `ui` with **Foreground** cascade (non-cascading leaves the Deployment/Ingress!) → `kubectl get ingress` MUST be empty (ALB!) → uninstall the 4 helm releases → data plane → the S20 cluster stack → **[AWS Console]** sweep ECR repo + IAM role + OIDC provider. 💰 Cluster+data plane ≈ $0.5–0.7/h; Actions minutes and ECR storage are pennies.
+
+---
+
 ## 1. Objective
 
 Build and prove, end to end:
