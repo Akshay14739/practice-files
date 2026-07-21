@@ -49,6 +49,26 @@ Everything derives from "answer from nearby, and use that chokepoint":
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Your website lives on one computer far away (the "origin" — the master copy). Distance itself makes things slow, so the fix is a chain of local branches holding copies near your customers. Here are the pieces:
+>
+> - A **PoP** ("point of presence") is one local branch — a small warehouse of copies in a city near users. A big provider has hundreds worldwide.
+> - The **edge cache** is the branch's shelf of copies, filed by web address. If the item is on the shelf, you get it instantly.
+> - The **origin** is head office — the one true source everything else copies from.
+> - **Anycast** is a routing trick where every branch advertises the exact same street address, and the internet's postal system automatically delivers each customer to the *nearest* branch. One address, many locations.
+> - A **TTL** ("time to live") is the sell-by date stamped on each copy — how long a branch may hand it out before checking with head office again.
+> - **Invalidation (purge)** is a recall notice: "throw away that copy now," used when something changes before its sell-by date.
+> - A **WAF** ("web application firewall") is a security guard at the branch door who actually reads each incoming letter and turns away known scams before they ever travel to head office.
+>
+> **The hit-or-miss game:** you ask your local branch for something. If it's on the shelf (a "cache hit"), you're served in milliseconds and head office never hears about it. If it isn't (a "cache miss"), the branch orders it from head office, keeps a copy, then serves you — slower once, but the *next* person in your city gets it instantly. The score that matters is the **hit ratio**: at 95%, only 1 request in 20 ever bothers head office.
+>
+> **Where the guard stands:** at the door, *before* anyone checks the shelf. Bad requests get rejected on the spot. Because this guard reads the whole letter (the actual content of the request), it can spot trickery that a basic gate — which only checks the envelope's addresses — structurally cannot.
+>
+> **Absorbing floods:** if attackers pointed a flood of junk traffic at your one head office, its single doorway would jam. But since the world only ever sees the branches' shared address, the flood lands spread across hundreds of branches with enormous combined capacity, where it's filtered and absorbed long before a drop reaches you.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### The pieces
 
 - **PoP (Point of Presence):** an edge data center — a cluster of cache servers in a city. A big CDN has hundreds worldwide.

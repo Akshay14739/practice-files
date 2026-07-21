@@ -61,6 +61,22 @@ Once you see **every change is "edit the pod template, Kubernetes reconciles,"**
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works — go slow*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Think of your app as a restaurant kitchen staffed by several identical cooks, all trained from one **master recipe card** (the "pod template"). This section is about five things: how the kitchen switches to a new recipe without closing, how you tell a cook exactly what to do, how you hand cooks their settings and passwords, how helper staff work, and how you add more cooks.
+>
+> **(A) Switching recipes without closing (rollouts).** When you update the recipe, the kitchen doesn't fire everyone at once. It hires one new-recipe cook, waits until that cook proves they can actually cook (passes a health check), then lets one old-recipe cook go — and repeats, batch by batch, so the restaurant never stops serving. Every recipe version is kept in a filing drawer (a "revision"), so if the new dish is a disaster you say "go back to yesterday's recipe" (rollback) and the swap runs in reverse. There's also a blunt alternative — fire everyone, then hire the new crew ("Recreate") — which closes the restaurant briefly and is only for when old and new can't work side by side. Crucially, if the new cooks turn out to be broken, the old crew keeps serving: a bad update stalls instead of taking you down.
+>
+> **(B) Telling the cook what to do (command and args).** Each cook runs exactly one job, and quits when it ends. The training manual (the app's packaged image) has a default job and default instructions; the recipe card can override either. The classic trap: the two override fields don't line up with the names people expect from the packaging tool (Docker) — one replaces the *program*, the other its *arguments*.
+>
+> **(C) Settings and passwords (ConfigMaps and Secrets).** Instead of laminating settings into the training manual (rebuilding the image for every change), you keep them on separate slips of paper: a pinboard note for ordinary settings (a "ConfigMap") and a sealed envelope for sensitive ones (a "Secret"). Either can be handed to a cook three ways: pin the whole sheet up, copy out one line, or leave it as a file in their station. One big warning: the "sealed" envelope is only *scrambled in a reversible way* (base64 encoding), not locked — anyone with access to the record room can read it. Real protection means locking the record room itself ("encryption at rest") and controlling who may enter.
+>
+> **(D) Helper staff (multi-container patterns).** A cooking station (pod) can hold more than one worker, sharing the same counter and phone line: a **prep worker** ("init container") who must finish setup — e.g. wait until the pantry is stocked — before the cook may start; and a **standing assistant** ("sidecar") who works alongside the cook the whole shift, e.g. carrying notes to the office.
+>
+> **(E) More cooks (scaling).** You can simply order five cooks instead of three, or install a thermostat (an "autoscaler") that hires and releases cooks automatically based on how busy the kitchen gets.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ## (A) The rollout engine
 
 A Deployment version = **rollout → new ReplicaSet → revision**. Kubernetes scales the new RS up while scaling the old down, one batch at a time.

@@ -75,6 +75,27 @@ Once you see that **every object is just "desired state I handed to a controller
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Picture a big shipping company. It has a **head office** (Kubernetes calls this the "control plane") that makes decisions and keeps records, and a fleet of **warehouses** (the "worker nodes") where the actual work — running your apps — gets done. This section covers three things: how those two halves are organized, what happens step by step when you ask for something, and the machine at the bottom that actually runs your apps.
+>
+> **The head office (the brain):**
+> - **The record book (etcd):** one master ledger holding everything the company knows — every order, every worker, every status. A fact is only "real" once it's written here.
+> - **The front desk (the API server):** the ONLY person allowed to write in the ledger. Every request — from you or from any staff member — must go through this desk. It checks your ID, checks you're allowed to ask, checks the request makes sense, then records it.
+> - **The dispatcher (the scheduler):** looks at new jobs with no assigned warehouse and *decides* which warehouse should take each one. Important: it only decides and reports back to the front desk — it never delivers anything itself.
+> - **The supervisors (the controller manager):** a room full of clerks who constantly compare "what was promised" against "what's actually happening" and raise fixes whenever the two differ.
+>
+> **Each warehouse (the muscle) has three staff:**
+> - **The foreman (kubelet):** receives jobs assigned to this warehouse, gets them running, and reports progress back to the front desk. Notably, the foreman is hired directly at the building (installed on the machine itself), not managed like the jobs he runs — so if *he* collapses, nobody automatically revives him.
+> - **The mailroom (kube-proxy):** sets up the local delivery routes so customer requests reach the right running copies of an app.
+> - **The forklift (the container runtime):** the actual machine that starts and runs your app's packages ("containers" — sealed boxes holding an app and everything it needs).
+>
+> **The step-by-step flow when you ask for something:** you hand a request to the front desk → it's recorded in the ledger with "no warehouse assigned yet" → the dispatcher notices, picks a warehouse, and that choice is recorded → the foreman at that warehouse notices, has the forklift fetch and start the app → he reports "running," and that goes in the ledger too. Every change in Kubernetes follows this exact shape.
+>
+> **About the forklift brand:** Kubernetes was originally built around one brand (Docker). It later created a **universal socket (called CRI)** so any compatible brand plugs in, and dropped the special adapter it had kept just for Docker. Apps packaged with Docker's tools still run fine — the boxes follow the universal standard even if that brand of forklift is gone. There are also three handheld inspection gadgets people confuse; the one worth knowing (**crictl**) is like a flashlight that lets you inspect a warehouse directly when the front desk isn't answering.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We open the hood. Three things to hold: **(A) the two-plane architecture, (B) how a pod actually gets created, and (C) what runs the containers (the runtime).**
 
 ## (A) The two planes: brain vs muscle

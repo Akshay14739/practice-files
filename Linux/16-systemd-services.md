@@ -61,6 +61,20 @@ If you remember only one thing: **a service is a declared desired-state document
 
 ## Rung 3 — ⚙️ The Machinery (the important one — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Imagine a big apartment building. When the power comes on in the morning, one person — the **building manager** — unlocks the doors, turns on the elevators, and wakes up all the staff. On a Linux computer, that manager is a program called **systemd**. It is literally the first worker the computer hires (its employee badge is number 1), and every other program on the machine works under it.
+>
+> - **The manager's binder (3.1).** The manager doesn't memorize anything — every staff member (each background program, called a "service") has a one-page job sheet in a binder. There are different kinds of pages: some describe a worker, some describe a schedule ("do this every night"), some describe a milestone ("building fully open"). Crucially, there are **two binders**: the one the builders shipped with the building, and the manager's own binder. If both have a page for the same job, **the manager's own binder always wins**. So you never scribble on the builders' pages (a renovation would replace them and erase your notes) — you put your changes in the manager's binder.
+> - **What's on a job sheet (3.2).** Each sheet has three parts: who this worker is and who must clock in before them ("don't start the cook until the kitchen lights are on"), exactly how to start their work, and what to do if they collapse — such as "always send them back to work after 10 seconds."
+> - **Two different requests (3.3).** Telling the manager "put this person to work *right now*" and "add this person to *every future* morning routine" are two separate requests. The first changes today only; the second just pins a note into tomorrow's checklist without touching today. You can ask for both at once.
+> - **Milestones (3.4).** The morning routine drives toward named milestones like "building open for residents." Workers' sheets say which milestone they belong to.
+> - **Constant supervision (3.5).** The manager puts each worker's whole team in its own labeled room (so no helper can wander off untracked), watches them, and restarts anyone who collapses.
+> - **One shared diary (3.6).** Everything every worker says is written into one big indexed diary by a dedicated note-taker, stamped with who said it and when — so later you can ask "show me only what the doorman said in the last hour." One catch: unless a permanent diary shelf exists, the diary is kept on a whiteboard that gets wiped when the building loses power.
+> - **The wall chart (3.7)** simply draws all of this as one picture: manager reads binders, wakes workers in order, tracks their rooms, and the note-taker records everything.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### 3.1 The big picture: PID 1 and the unit database
 
 At boot, the kernel mounts the root filesystem and executes one program as **PID 1**: `/sbin/init`, which on Ubuntu/RHEL/most modern distros is a symlink to `/lib/systemd/systemd`. From that instant, systemd owns userspace.

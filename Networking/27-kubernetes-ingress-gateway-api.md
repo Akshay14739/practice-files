@@ -48,6 +48,23 @@ Everything derives from "one L7 front door, split into a rule and an implementat
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Imagine a big hotel with hundreds of rooms (your apps) but only **one front entrance**. This section explains how that front entrance works.
+>
+> **The rulebook vs. the doorman.** There are two separate things here, and mixing them up causes most confusion:
+>
+> - The **Ingress resource** is just a **written rulebook**: "guests asking for the spa go to floor 2; guests asking for the restaurant go to floor 5." Writing rules down does nothing by itself — paper can't escort anyone.
+> - The **Ingress Controller** is the actual **doorman** who reads that rulebook and physically directs each visitor. He's real staff (running software inside the cluster). No doorman, and your rulebook is just decoration — nothing gets routed.
+>
+> **The full journey of a visitor:** they arrive from the internet at one shared street entrance (a single rented gate from the cloud provider — one gate for the whole building instead of one per room, which saves a lot of money). The doorman looks at *what they asked for* — the website name and the part of the address after the slash, like `/api` — and sends them toward the right department. That department's internal reception desk (a "Service") then picks one of several identical staff members (pods — the little worker units that actually run your app) to help them.
+>
+> **Handling the secret handshake (TLS termination).** Visitors arrive speaking in code (encrypted HTTPS, the padlock in your browser). Rather than teaching every room to decode it, the doorman decodes it once at the entrance, using a certificate (an ID document proving "yes, this really is our hotel"). A helper called **cert-manager** automatically renews that ID before it expires — so the hotel never gets caught with an out-of-date license.
+>
+> **The newer system: Gateway API.** The old rulebook format was cramped — fancy instructions had to be scribbled in the margins (non-standard "annotations"), and everyone edited one shared page. The replacement splits responsibilities like a well-run building: management decides what *kind* of entrance exists (GatewayClass), facilities staff install and own the actual door (Gateway), and each department writes its own directions for its own visitors (HTTPRoute). Cleaner, more capable, and where everything is heading — though the old system is still everywhere today.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### Resource vs Controller — the crucial split
 
 Ingress has two halves, and confusing them causes most beginner grief:

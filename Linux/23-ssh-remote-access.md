@@ -75,6 +75,22 @@ If you internalize "**tunnel first, mutual identity second, arbitrary channels t
 
 ## ⚙️ Rung 3 — The Machinery (the important one — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **SSH is a secure phone line into a distant building (another computer).** The pieces below, in order:
+>
+> - **The cast (3.1).** The distant machine runs a permanent receptionist program that listens for calls; your machine runs the caller program. Two little address books do the trust work: on *your* side, a list of buildings you've visited before (so you'd notice if an impostor answered the line); on *their* side, a guest list of people allowed in. Same idea, opposite directions.
+> - **Key pairs (3.2).** Instead of a password, you carry two linked items: a private stamp you never show anyone, and a public sample of its mark that you hand out freely. Anyone holding the sample can confirm a mark came from your stamp — but can't forge one. Nothing secret ever travels over the line. Two stamp styles exist: a modern compact one (today's default) and an older, bulkier one kept only for antique equipment.
+> - **The handshake (3.3).** When you call: first the line gets scrambled so no eavesdropper can listen; next the *building* proves its identity to you (checked against your address book — that's the "are you sure?" question on a first visit); only *then* do you prove yourself, by stamping a random challenge they send. The order matters: the line is already scrambled before you offer any credential, and you verify the building before showing your ID.
+> - **Tidiness rules (3.4).** SSH refuses to work if your private stamp is left where housemates could copy it — a stamp others can read is treated as already stolen.
+> - **One line, many conversations (3.5).** The single scrambled call carries several independent streams at once: your typed commands, file transfers, forwarded traffic.
+> - **Forwarding (3.6), three flavors:** pull one distant internal service onto your own desk (-L); push something of yours over to their side (-R); or turn the call into a general switchboard (-D) so *anything* their building can reach becomes reachable through it.
+> - **Copying files (3.7).** Two couriers ride the same line: a simple one that recopies everything each time, and a clever one that sends only what changed.
+> - **The stamp-holder (3.8).** A helper keeps your unlocked stamp in memory so you don't retype its passphrase; "forwarding" the helper lets a middle stop ask *your* machine to stamp things, so the stamp never leaves home — but only through buildings you trust.
+> - **Hardening (3.9).** On real servers you turn off password entry entirely (stamps only) and forbid calling in directly as the all-powerful account — and you test new rules before hanging up your current call, so a typo can't lock you out.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### 3.1 The cast: client, server daemon, and the files they read
 
 SSH has a strict client/server split.

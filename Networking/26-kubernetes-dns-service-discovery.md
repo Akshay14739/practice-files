@@ -48,6 +48,23 @@ Everything derives from "a cluster-internal DNS that knows every Service":
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> The cluster runs its own internal phone directory (DNS — the system that turns names into numbers) so apps can dial each other by name.
+>
+> - **The naming scheme:** every Service gets a full formal name like `payments.prod.svc.cluster.local`. Read it right to left, like a postal address: the company's own domain (`cluster.local`), the division ("svc" — meaning this entry is a Service), the department (the namespace, here `prod`), and finally the name (`payments`). Think: "Payments desk, Prod department, Services division, OurCompany." Individual pods can get directory names too, and "Headless" Services list each worker individually (more below).
+>
+> - **How each pod looks names up:** when a pod starts, Kubernetes slips a lookup card into its pocket (a file called `/etc/resolv.conf` — the note saying which directory desk to call and how). Three things on the card:
+>   - **nameserver**: the directory desk's own hotline number (CoreDNS's stable address — which, neatly, is itself a hotline forwarded to a real directory clerk by the previous chapter's machinery).
+>   - **search**: permission to use short names. Ask for just "payments" and the system automatically tries "payments *in my own department*" first. That's why a short name works within your namespace, but calling another department requires the longer "payments.prod."
+>   - **ndots:5** — the famous gotcha. Any name with *fewer than five dots* is presumed to be an internal short name, so even an obviously external one like `api.github.com` (only 2 dots) gets tried with every internal suffix first — several guaranteed-to-fail lookups before the real answer. Multiply that by every outside call your app makes and the directory becomes a genuine source of slowness — the "ndots tax."
+>
+> - **What the directory can answer:** for a normal Service, one entry: its hotline number (an "A record" — a simple name-to-address entry). For named ports, entries that also tell you the extension to dial ("SRV records"). For Headless Services, one entry per healthy pod — direct numbers instead of a hotline. For ExternalName, a note saying "see this outside company instead" (a "CNAME" — an alias entry).
+>
+> - **The directory desk itself (CoreDNS):** it's just ordinary software running inside the cluster, in the system's own department (`kube-system`), reachable behind a Service historically named `kube-dns` at a well-known number. It watches Kubernetes' live records so answers are always current, and when asked about outside names it simply forwards the question to the internet's regular directory service.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### The naming scheme
 
 Every Service gets a fully-qualified name:

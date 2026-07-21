@@ -81,6 +81,18 @@ If you internalize "root = a pile of bits; the kernel checks one bit at a time,"
 
 ## ⚙️ Rung 3 — The Machinery (the important one — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Picture a big office building where, for decades, there was only one kind of key: the master key. Either you had the key that opened *everything* — every office, the vault, the electrical room — or you had nothing special at all. This section explains how the building switched to a **keyring of about forty separate little keys**, one per door.
+>
+> - **The new question at every door (3.1).** The security guards used to ask "are you the boss?" (in computer terms: "is this the all-powerful root account?"). Now every door has its own guard who asks a narrower question: "do you carry the *specific* key for *this* door?" The boss still normally carries all the keys, so nothing feels different for them — but the keys are what matter now, not the job title. Take the keys away from the boss and the boss gets turned away at doors too.
+> - **Everyone carries five keyrings (3.2).** Each worker (each running program) actually holds five lists of keys, used at different moments: the keys **in their hand right now** (the only ones guards accept); the keys **in their pocket** they're allowed to take out; a small **hand-me-down** list of keys that can pass to a program they launch (an older, fiddly system); a **hard outer limit** — keys that were confiscated from this worker can never be gotten back by them *or anyone they hire*, ever; and a **modern hand-me-down** list that makes passing keys to launched programs actually work for ordinary, non-boss workers.
+> - **The keys are a punch card (3.3).** Under the hood, each keyring is just a row of forty-ish on/off holes, written as a compact code number. More holes punched = more power; all punched = full boss power; none punched = a "boss" in name only. A little translator tool turns the code back into readable key names.
+> - **Special tools with a key taped on (3.4).** The old trick for letting ordinary staff do one privileged task was: "while using this tool, you temporarily *become the boss*" — dangerous, because a flaw in the tool made you fully boss. The modern trick: tape **one specific key** to the tool itself. Use the tool, get that single key, nothing more.
+> - **How container platforms use this (3.5).** When Kubernetes (the software that runs apps in sealed boxes) starts an app, it can say "confiscate ALL keys, then hand back just this one" — so even a break-in only steals one key. The setting called "privileged" does the opposite: it hands the box the entire master keyring, which is why security reviewers hunt for it first.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### 3.1 The kernel check that changed everything
 
 Deep in the kernel, the old code looked morally like this:

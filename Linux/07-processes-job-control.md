@@ -57,6 +57,20 @@ If you remember only one thing: **you control processes by sending signals, not 
 
 ## Rung 3 — ⚙️ The Machinery (the important one — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Think of the computer as a busy restaurant, and each running program (a "process") as one worker on shift.
+>
+> - **How a worker is hired (3.1).** Oddly, the kitchen never hires a stranger directly. An existing worker first makes an exact *photocopy of themselves* (called "fork"), and then that copy *swaps in a whole new job description* (called "exec") — same employee number, brand-new role. When you ask for something at the counter, the counter clerk clones themself, the clone becomes the dish-runner, and the clerk waits for the clone to report back.
+> - **The manager's index card (3.2).** For every worker, the restaurant manager (the "kernel" — the core program running everything) keeps one index card: their ID number, who cloned them, what they're doing right now, which drawers they have open, who they work for, and their priority. You can peek at anyone's card through a public noticeboard (a folder called `/proc`).
+> - **Five things a worker can be doing (3.3).** At any moment a worker is exactly one of: actively working (R), napping until something arrives — wakeable (S), stuck waiting inside a locked storeroom where *nobody* can interrupt them, not even the boss (D), already dead but their timecard hasn't been collected yet — a "zombie," which takes up a locker but nothing else (Z), or frozen mid-task until told to resume (T).
+> - **The family tree and Employee #1 (3.4).** Since every worker was cloned by another, the staff forms a family tree. At the root sits Employee #1, hired at opening time. Employee #1 has two duties: everyone descends from them, and they *adopt* any worker whose "parent" quit — and collect the timecards of adopted workers who die, so zombies don't pile up.
+> - **Why this is the big container question (3.5).** A "container" (a boxed-off mini-restaurant inside the big one) makes your app believe *it* is Employee #1 of its own little world. But ordinary apps were never trained for #1's duties: they don't collect orphan timecards (zombies pile up), and #1 also *ignores polite shutdown requests it wasn't trained to hear*. The fixes: a tiny professional stand-in called `tini` who takes the #1 seat, passes messages to your app, and collects timecards; and a "pause" placeholder worker who keeps the mini-restaurant's shared rooms open.
+> - **Signals: the only way to talk to a worker (3.6).** You never grab a worker mid-task; you pass them a numbered note (a "signal"). Most notes they can respond to, ignore, or handle their own way. Two notes are unrefusable, enforced by the manager himself: #9 "you're fired, immediately" and #19 "freeze." Kubernetes shutting down a pod is exactly: polite note #15 ("please wrap up"), wait 30 seconds, then note #9.
+> - **Who gets counter time (3.7).** The manager shares the counter among workers using a politeness score called "niceness," from -20 (pushy, gets more time) to +19 (very polite, gets less). Only the boss may make someone pushier.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### 3.1 Birth: fork + exec
 
 There is no "run this program" syscall that does it in one step. Unix splits it in two, and this split explains almost everything downstream.

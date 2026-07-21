@@ -61,6 +61,20 @@ Read a failure by asking *which layer*: no IP → CNI; VIP forwards nowhere → 
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Picture the cluster as a city, and each running app (a "pod") as a shop that opens and closes at unpredictable addresses. This section explains the four layers that let anyone find and reach any shop — plus, first, a short list of official phone lines (fixed port numbers — think of them as well-known extensions the city's departments always answer on, which the security guards must not block).
+>
+> **Layer 1 — Streets and addresses (the "CNI," the city's road contractor).** Kubernetes itself doesn't pave roads; you hire a contractor (a network plug-in) that gives every shop its own unique street address and builds roads so any shop can reach any other directly — even in another district (another computer) — with no detours or address-translation tricks. The contractor's tools and blueprints live in two known filing drawers on each computer. If a new district shows up as "NotReady," it usually means no road contractor was hired yet. One rule: the shops' address range and the phone-number range (next layer) must never overlap.
+>
+> **Layer 2 — One stable phone number per business ("Services" and "kube-proxy").** Shops move constantly, so each business gets a permanent phone number that isn't attached to any physical shop — it's a virtual number. A switchboard operator on every corner ("kube-proxy") keeps rewiring that number to whichever shop branch is currently open, using the building's wiring rules (kernel rules called iptables). That's why you can *call* the number but can't *knock on its door* — there's no building there (why the address won't answer a "ping").
+>
+> **Layer 3 — The phone book ("CoreDNS").** Nobody memorizes numbers; you ask directory assistance for "mysql" and get the virtual number back. Every shop is automatically given the directory's contact card. Handy shortcut: within your own neighborhood (a "namespace" — a walled-off area) first names work; to call another neighborhood you must use the full name, like "mysql.payroll."
+>
+> **Layer 4 — The city's front gate ("Ingress").** For visitors from outside the city, instead of building a separate private tollbooth per business (one paid load balancer each), you build one smart front gate that reads the visitor's destination — which website name and which page path — and directs them to the right business. Crucially, the gate needs a gatekeeper actually hired ("an Ingress controller" — software you must install); the rulebook alone does nothing. And sometimes the gate must trim the path off the address before forwarding, or the shop won't recognize it (the "rewrite" fix for 404 not-found errors).
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 **Ports to know first (firewall/SG):** apiserver **6443**, kubelet **10250**, scheduler **10259**, controller-mgr **10257**, etcd **2379/2380**, NodePort **30000–32767**.
 
 ## (A) Layer 1 — pod IPs via the CNI

@@ -52,6 +52,27 @@ Every mesh feature is one pattern applied many ways: **the proxy is a chokepoint
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Imagine every important guest in a city gets a **personal bodyguard** who handles all their conversations for them. This section explains how that bodyguard system works.
+>
+> **Two layers: the muscle and the brain.**
+>
+> - The **data plane** is the muscle: one bodyguard (a small proxy program called Envoy) standing beside every app. Every message the app sends or receives passes through its bodyguard, who encrypts it, delivers it, retries it if it fails, and keeps notes.
+> - The **control plane** is the head office (called istiod): it writes the bodyguards' standing orders, issues their ID cards, and radios updates to all of them. Crucially, head office **never carries messages itself** — if it goes offline, the bodyguards keep working from their last orders; you just can't issue new ones.
+>
+> **The invisible-escort trick.** Here's the clever part: the apps don't know the bodyguards exist. When an app's room is set up, a one-time setup crew (an "init container") quietly **rewires the room's doors** (the pod's internal traffic rules, called iptables) so everything going in or out passes through the bodyguard first. The app thinks it's calling its colleague directly; the call is silently intercepted, secured, and forwarded. That's why every room shows "2 occupants" (2/2) — the app plus its bodyguard.
+>
+> **Three things bodyguards give you for free, everywhere at once:**
+>
+> - **Traffic management** — the escort can reroute: "send 10% of visitors to the new office to test it" (a canary), retry failed deliveries, give up on hung ones, and stop hammering an office that's clearly down.
+> - **Security** — every bodyguard-to-bodyguard conversation is encrypted, and both sides show ID cards issued by head office (that's mTLS — mutual proof of identity plus encryption). No app had to learn any of this.
+> - **Observability** — since bodyguards see every conversation, they file reports on all of them: who called whom, how long it took, whether it succeeded. You get a live map of the whole city without installing anything in the apps.
+>
+> **The honest downside:** a bodyguard for every guest costs money — extra computer memory and processing, a tiny delay added to every message, and a head office to staff. Newer designs ("ambient" or sidecarless meshes) use one shared guard per building, or build the guard into the walls, to cut that cost.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### Two planes
 
 - **Data plane** — the **Envoy** sidecar proxies, one per pod, that carry every request. They do the actual work: encrypt, route, retry, measure.

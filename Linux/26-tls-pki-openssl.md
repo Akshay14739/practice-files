@@ -67,6 +67,20 @@ Notice the split baked into that one sentence: **asymmetric crypto (slow, for id
 
 ## Rung 3 — ⚙️ The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **Four ideas, in the order this section presents them.**
+>
+> **(A) Two kinds of locks.** *Shared-key* locking: one key both locks and unlocks — very fast, but how do two strangers each get a copy without a thief intercepting it on the way? *Pair* locking: everyone has a mailbox with a public slot (anyone can drop a message in) and a private key (only the owner can open the box); the private key can also make a tamper-proof signature that anyone can check. Pair locking solves "how do strangers start trusting each other," but it's slow. The trick of TLS (the standard for secure connections): use the slow pair method *once, at the start*, just to secretly agree on a fast shared key — then use the fast method for all the real traffic.
+>
+> **(B) What a certificate is.** Think of a passport: it states *who this is*, includes their public mailbox slot, names *who issued it*, carries an expiry date (a hard wall — one second past it, everyone refuses the passport, no grace period), and lists exactly which names and addresses it's valid for (show up under a name not on that list and you're turned away). Crucially, the passport contains only *public* information — the matching private key stays home in a separate, closely guarded file and is never sent anywhere. The bottom of the passport carries the issuer's signature over everything above it.
+>
+> **(C) The chain of trust.** The issuer (a "Certificate Authority" — think passport office) is nothing magical: just its own certificate plus a signing key. "Signing" means the office takes a fingerprint of your document and seals it with its private key; "verifying" means anyone holding the office's public copy checks that the seal matches. The magic is scale: you don't pre-trust thousands of servers individually — you trust *one* passport office, and it vouches for everyone. In a Kubernetes cluster, one such office file is copied to every machine; its private key is the crown jewel, because whoever holds it can forge any identity in the cluster. A "CSR" is the application form: your public key plus your desired name, sent to the office (never your private key!), returned as a signed passport.
+>
+> **(D) The handshake.** When two programs connect: they say hello and compare options; the server shows its passport; the client checks the seal, the dates, and the name; in *mutual* TLS the client shows its own passport too — and inside Kubernetes, both sides always do; then both derive the same fast shared key without ever sending it across; and from that moment all traffic flows over the fast lock.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 This is the rung to go slow on. There are four pieces to hold: **(A) the two kinds of crypto and why TLS needs both, (B) what's actually inside a certificate, (C) the chain of trust and how signing/verifying works, and (D) the handshake, hop by hop.**
 
 ### (A) Symmetric vs asymmetric crypto — the two tools

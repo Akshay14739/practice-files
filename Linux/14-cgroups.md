@@ -70,6 +70,22 @@ If you remember nothing else, remember: **box of PIDs + dials + tree.** Read on 
 
 ## ⚙️ Rung 3 — The Machinery (the important rung — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> The topic here is how a computer puts groups of running programs into "boxes" with dials — a budget for memory, a budget for computing time — so no group can hog everything. Five ideas, in order.
+>
+> - **You control it through folders, not a special app.** There is no control program. The whole system appears as a filing cabinet: every folder is one box (one group of programs), and every paper in the folder is either a dial you can write a number on ("this group may use at most this much") or a gauge you can read ("this is how much it's using right now"). One quick check tells you which edition of the cabinet a machine uses.
+>
+> - **Old edition vs. new edition — the big source of confusion.** The old version kept a *separate* cabinet for each kind of budget (one for memory, one for computing time, ...), and one program could sit in different folders in each cabinet — chaos. The new version has ONE cabinet: each program lives in exactly one folder, and a couple of special papers in each folder say which budget types are switched on for the subfolders. Kubernetes doesn't invent this layout — it asks the machine's building manager (systemd, the program that starts everything) to create the folders, and your number from the pod recipe ends up literally written in a text file.
+>
+> - **How a dial actually bites.** The memory dial: every scrap of memory a program in the box grabs is charged to the box's tab; when the tab would exceed the limit, the system first tries to free things up, and if it can't, a bouncer (the "OOM killer" — out-of-memory killer) removes the biggest spender *in that box only*. That's the famous "OOMKilled." The computing-time dial works differently: it's an allowance per time slice — "you may work 50 milliseconds out of every 100" — and going over just means being made to *wait*, never killed. So memory overruns crash, CPU overruns merely slow down. A third dial caps how many programs the box may spawn, which stops runaway self-copying programs.
+>
+> - **The pressure gauge (PSI).** Beyond "how much is being used," there's a smarter gauge: "how much time did programs spend *stuck waiting*?" A busy kitchen isn't a problem if no order is late. Kubernetes reads this early-warning gauge to gently move tenants out before the bouncer has to act.
+>
+> - **The whole chain, left to right.** The number an app team types in their config travels through several messengers and ends its life as digits in one of those cabinet files — where the operating system enforces it automatically.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 This is where you build the real mental model. Let's open the hood.
 
 ### The filesystem IS the API

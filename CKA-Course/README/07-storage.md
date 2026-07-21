@@ -58,6 +58,21 @@ Once you see **PVC = a request, PV = a supply, binding = matchmaking**, "why is 
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works — go slow*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Imagine each running app (a "pod") as a hotel guest. Anything the guest leaves in the room is thrown out at checkout — apps normally lose all their files when they stop. This section explains the storage system that lets a guest keep belongings safely between stays.
+>
+> **(A) Volumes — the basic idea.** A "volume" is simply a storage box attached to the room instead of keeping things in the wastebasket-by-default room itself. There are three kinds:
+> - A scratch box (`emptyDir` — everyday words: a temporary bin) that's tossed when the guest leaves.
+> - A box bolted to one specific hotel building (`hostPath` — a folder on one particular computer). Trap: if the guest is moved to a different building, their box stays behind — it only works when there's just one building.
+> - Professional off-site storage from any vendor, connected through a universal adapter socket (called "CSI") so the hotel can work with any storage company.
+>
+> **(B) Supply, request, and matchmaking.** The clever part: guests never name a specific storage unit. Instead, the facility manager stocks a supply of storage units (each is a "PersistentVolume," or PV), and a guest files a claim ticket (a "PersistentVolumeClaim," or PVC) saying "I need at least this much space, with this kind of access." The system then plays matchmaker: a claim gets a unit only if three things line up — the unit is big enough, the access style matches (one user at a time vs. shared, like a private locker vs. a shared garage), and they're in the same service tier. A small claim can win a bigger unit — the extra space is just wasted — and each unit serves exactly one claim. No match? The ticket sits in the "Pending" tray. There's also a policy for what happens to a unit when its claim is cancelled: keep the contents for manual cleanup ("Retain") or shred everything ("Delete").
+>
+> **(C) StorageClasses — storage on demand.** Rather than the manager pre-building every unit by hand, a "StorageClass" is like a standing contract with a storage company: when a claim ticket names that tier, a brand-new unit is built automatically. One smart option ("WaitForFirstConsumer") delays building the unit until we know which building the guest will actually stay in — so the unit is built nearby. That's why some tickets sit in Pending on purpose: the system is just waiting to see where the guest lands. It's normal, not a fault.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ## (A) Volumes — the raw form
 
 A **volume** stores data outside the container's writable layer. Kubernetes generalizes Docker's mounts and adds cloud/network backends via the **CSI (Container Storage Interface)** so any vendor plugs in.

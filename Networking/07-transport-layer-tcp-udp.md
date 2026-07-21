@@ -73,6 +73,24 @@ If you ever get lost below, come back to this sentence and re-derive. TCP is "th
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **Street address vs. apartment number.** Getting data to the right *machine* is like getting mail to the right building. But a computer runs many programs at once, so each piece of data also carries an apartment number — called a **port** — that says which program inside the building it's for. This section is about the two delivery services that handle that last step: **TCP** (certified mail, with receipts) and **UDP** (a plain postcard).
+>
+> **What each service writes on its envelope.** TCP's envelope label is big and detailed: apartment numbers, a running count of every letter sent, confirmations of what arrived, and a note about how much room the receiver has left. UDP's label is tiny — just the apartment numbers, the size, and a smudge-check. That's why UDP is faster: there's simply less bookkeeping.
+>
+> **The handshake.** Before TCP sends anything real, the two sides exchange three quick messages — like a phone call opening with "Can you hear me?" / "Yes, can you hear me?" / "Yes." — so both sides agree the line is open in *both* directions. Each side also picks a random starting number for its letter-count; the randomness matters because a predictable count would let a stranger forge letters that look like part of your conversation.
+>
+> **How nothing gets lost.** Every chunk TCP sends is numbered, and the receiver keeps sending back receipts ("got everything up to #1099"). If a chunk goes missing, the repeated "still waiting!" receipts — or a timer running out — tell the sender to mail that chunk again. Numbering also lets the receiver put chunks back in order and throw away accidental duplicates.
+>
+> **Two different brakes.** TCP slows down for two separate reasons: **flow control** protects the *receiver* ("my mailbox is full, pause"), while **congestion control** protects the *roads in between* ("the highway looks jammed — I'll ease off and speed up gradually"). The sender always obeys whichever brake is firmer.
+>
+> **Hanging up politely.** Closing takes four messages — each side separately says "I'm done talking" and hears "noted" — and the closer then waits about a minute so any stragglers from the old call can't be confused with a new one. UDP has none of this: no hello, no goodbye, no receipts. It just sends and hopes.
+>
+> **The payoff:** your apps never see any of this machinery — they just get a clean, complete stream of data.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 This is the rung to go slow on. Let's open the hood on both protocols.
 
 ### Where the transport layer sits

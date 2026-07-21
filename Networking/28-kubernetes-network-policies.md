@@ -48,6 +48,25 @@ Everything derives from "label-selected allow-list, deny-by-selection":
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Picture an office building where, by default, **every door is unlocked** — anyone can wander into any room. This section explains how the locking system works.
+>
+> **The strange light-switch rule.** The security system has one subtle trick at its heart:
+>
+> - A room that **no security rule mentions** stays completely **open** — that's the building's default.
+> - The moment **any** rule mentions a room, that room's door **locks to everyone** — except the specific people the rules explicitly let in.
+>
+> So to lock down a whole floor, you post one rule that *mentions every room but lets nobody in*. That's called **default-deny**: everything locked, no exceptions yet. Then you add separate "guest passes" on top — "the accountants may enter the vault room, but only through the delivery hatch" (a specific port — a numbered doorway a program listens on). Passes only ever *add* permission; they stack up, and whatever any pass allows is allowed.
+>
+> **How you name who's allowed.** You don't write rules using room numbers (network addresses), because in this building the occupants constantly move around. Instead you use **name badges (labels)**: "anyone wearing an 'api' badge," "anyone from the 'monitoring' department" (a whole namespace — a named section of the building), or "visitors arriving from these specific outside street addresses" (IP ranges). You can also restrict *which* doorway (port) they may use.
+>
+> **What the locks can and can't check.** These locks only read the badge, the address, and the doorway number. They **cannot** understand *what someone says once inside* — like which form they're filling in (a web request's path or method) — and they can't verify identity cryptographically. For that deeper inspection you need a different system (a service mesh, covered in the next chapter).
+>
+> **The catch: who actually installs the locks.** Writing a security rule is just filing paperwork. The actual lock installation is done by the cluster's networking plumbing (the CNI — the software that wires pods together). Some plumbers, like Calico and Cilium, install real locks. One popular one, plain Flannel, **quietly ignores the paperwork entirely** — your rules are accepted, filed, and enforced by no one. Always check your plumber actually installs locks, and always test that a door is really locked.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### The default-deny switch
 
 The key mechanism is subtle: **selection flips the default.**

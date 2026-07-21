@@ -58,6 +58,17 @@ If you can derive those five bullets from the one sentence, you understand AppAr
 
 ## ⚙️ Rung 3 — The Machinery (the important one — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Imagine an office building where every door already has an ordinary lock (the classic "do you have the right key?" permission system). This section explains a **second, stricter security desk** that questions you *after* your key already worked.
+>
+> - **The built-in checkpoint system.** The building was constructed with inspection stations at every sensitive spot — every filing-room door, every mailroom window, every phone line. At each station, first the normal lock is checked. Only if your key works does the station then radio the **security desk** (AppArmor) and ask: "this worker wants to open this drawer — approve?" Both must say yes; either one can refuse. Important detail: this security desk judges you by the **room's address** ("cabinet 3, hallway B"), while a rival system (SELinux) judges by a **sticker glued onto each item**. That's why, under AppArmor, renaming or moving an item changes which rules apply — the rules follow the address, not the item.
+> - **The moving parts.** The security desk's rulebooks start life as plain-text documents in a filing cabinet on disk (one rulebook per program, e.g. "the web server may read its settings, write its logs, and nothing else"). Editing those papers does *nothing by itself* — a special clerk (a "parser," i.e. a compiler/loader) must read the papers, condense them into a fast lookup chart, and hand that chart to the guards' live memory. Only then are they in force. Each worker in the building wears a **badge** you can read that names which rulebook currently governs them. And because most workers need the same basics (the cafeteria, the restroom, the supply closet), rulebooks can "include" shared starter-packs instead of listing everything from scratch.
+> - **The worker never knows.** When the security desk refuses something, the worker just hears the same bland "permission denied" they'd get from a failed key. No mention of the security desk at all. The *only* place the real reason is written is the building's **incident logbook** — which is why these denials feel so mysterious until you read the log.
+> - **Where Kubernetes fits.** Kubernetes (the software that runs apps in sealed boxes on many machines) can assign a rulebook to each app as it starts — but it only passes along the rulebook's *name*. The rulebook itself must already have been loaded into that particular machine's guard desk, or the app simply won't start.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### The Linux Security Module (LSM) framework
 
 The kernel doesn't hardcode AppArmor. Instead it exposes **LSM hooks**: hundreds of checkpoints sprinkled through the kernel at security-relevant moments — `open()`ing a file, `bind()`ing a socket, `execve()`ing a binary, using a capability. At each hook the kernel first runs its normal **DAC** check (the `rwx` bits from [permissions](05-permissions-ownership.md)). *If DAC passes*, it then calls out to whatever LSM is loaded and asks: "This task wants to do this thing — allow?" AppArmor (or SELinux) answers.

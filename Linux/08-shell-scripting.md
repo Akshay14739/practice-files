@@ -92,6 +92,20 @@ Once you see that **the exit code is the atom** — every command emits one, and
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> A "script" is just a to-do list of instructions the computer works through, line by line. Think of it as a recipe card handed to a kitchen. Five ideas, in the order the section explains them:
+>
+> - **(A) The first line says which chef reads the card.** The very first line of the card (the "shebang" — just the two symbols `#!` followed by a name) isn't an instruction at all. It's a label the *building manager* (the "kernel," the core program in charge) reads to decide which chef to hand the card to. Different kitchens employ different chefs: hand a card written for the fancy chef (bash) to a diner cook (a stripped-down one), and steps fail. Labeling the card correctly is what makes it work anywhere.
+> - **(B) Every finished step reports a verdict number.** Whenever any task finishes, it hands back a small number: **0 means "went fine," anything else means "something failed"** (specific numbers name specific failures). This is the secret heart of everything: all the "if this, then that" decisions in a script read this *verdict number* — never the words printed on screen. Even a comparison like "are these equal?" is itself just a tiny task that reports 0 or 1.
+> - **(C) Labeled jars hold your values.** A "variable" is a labeled jar holding a piece of text (a name, a number, a setting). The script can peek in a jar, and also *reshape* what it finds on the way out — uppercase it, take just the first few letters, or say "if the jar is empty, use this default instead." You can also do whole-number math, run a task and pour its printed output into a jar, glue a jar's lid shut so nothing can change it (`readonly`), and use racks of many jars at once ("arrays").
+> - **(D) Teaching the kitchen to stop when a step fails.** By default the kitchen has a dangerous habit: if step 4 fails, it shrugs and does step 5 anyway. Three safety switches, set at the top of the card, fix this: **stop immediately if any step fails**; **treat asking for a jar that doesn't exist (a typo!) as an error** instead of silently getting nothing; and **if any station in an assembly line fails, count the whole line as failed** — not just the last station. One caveat: steps deliberately placed inside an "if" test are allowed to fail without stopping the show.
+> - **(E) Reusable mini-recipes, private jars, and the cleanup promise.** A "function" is a named mini-recipe you can call from anywhere on the card, handing it its own ingredients. The word `local` gives it *private* jars so it can't accidentally overwrite jars the rest of the card is using. Complaints go on a separate channel from results (so error messages don't get mixed into data being collected). And a "trap" is a promise to the kitchen: "whenever this card ends — finished, failed, or cancelled — always do this cleanup," so temporary messes get wiped up no matter how things went.
+>
+> A real deploy script is simply all five wired together: the right chef, checking every verdict, with safe defaults, safety switches on, and a cleanup promise.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We open the hood. There are five things to understand: **(A) what the shebang does at exec time, (B) the exit-code substrate everything sits on, (C) how variables and expansion produce values, (D) how `set -euo pipefail` rewires the shell's default "barrel past failure" behavior, and (E) how functions, scope, and traps work.**
 
 ## (A) The shebang — what actually happens when you run `./deploy.sh`

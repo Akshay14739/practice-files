@@ -83,6 +83,20 @@ Once you see that **mount is one universal graft operation and the only thing th
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> This section explains how a computer turns "raw storage hardware" into the tidy folders-and-files world you see. Four ideas, in order.
+>
+> - **(A) The delivery chain from disk to folder.** When a program asks for a file, the request passes down through layers, like a request in a big library. At the top sits a universal front desk (called VFS — the virtual file system) that doesn't know or care how any shelf is organized; it just checks "which department handles this address?" and forwards the request. The department (a filesystem driver — the software that knows one particular shelving scheme) looks up the file's index card (an **inode** — the record holding a file's owner, size, and where its contents physically live; notably, the file's *name* is not on the card — names live in folder listings that point at card numbers). At the bottom, warehouse staff fetch the actual boxes of data from the physical drive. Because of the universal front desk, programs never need to know what kind of shelf their files sit on.
+>
+> - **(B) The graft list (mount table).** A computer shows you ONE folder tree, but different branches of that tree can be served by entirely different storage. "Mounting" is grafting: attach a whole drive (or something else) onto an ordinary folder, and from then on everything under that folder comes from the graft. The computer keeps a live list of all current grafts. Each graft can carry house rules ("read-only," "no running programs from here") that even the administrator can't sidestep. The list is forgotten at shutdown, so a settings file tells the machine which grafts to redo at every startup.
+>
+> - **(C) Two unusual things you can graft.** You can graft a folder made of pure short-term memory (RAM) — blazing fast, but its contents vanish on restart; Kubernetes uses this for secrets so they never touch a disk. And you can graft an *existing* folder onto a second location (a "bind mount") — like two doorways into the same room: not a copy, the very same files seen from two paths.
+>
+> - **(D) The layered see-through stack (OverlayFS) — how container images work.** Imagine a stack of transparencies on a projector: several locked, read-only sheets at the bottom (the container image), one blank writable sheet on top, and you view them all merged from above. Reading finds the topmost version of anything. Writing to a locked sheet is impossible — so the system first *copies* that item onto the top sheet, then edits the copy ("copy-up"). "Deleting" a locked item just places an opaque sticker over it. That's why ten containers can share one image cheaply (each keeps only its own top sheet), why a container can't damage its image, and why a container's own changes vanish when it's thrown away — the top sheet goes in the bin, which is exactly why real data needs separately grafted storage (volumes).
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We open the hood now. There are four things to understand: **(A) the stack from disk to path, (B) the mount table — the graft list, (C) the exotic sources — tmpfs and bind, and (D) OverlayFS in depth, because that IS your container images.**
 
 ## (A) The stack: from dumb blocks to a path you can `cd` into

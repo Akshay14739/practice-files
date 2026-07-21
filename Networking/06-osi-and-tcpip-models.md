@@ -74,6 +74,27 @@ Everything below is just *this one idea*, slowed down.
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **The big move: envelopes inside envelopes.** When you send something over the internet, your message doesn't fly straight to the other computer. Think of mailing a letter through a very organized postal system. Your letter (the actual message) gets put in an envelope, that envelope goes inside a bigger envelope, and that goes inside an even bigger one — each envelope has a different label meant for a different postal worker. On the receiving end, the envelopes are opened in reverse order, outermost first, and each worker only reads the label meant for them. The letter that comes out at the end is exactly, word-for-word, the letter that went in.
+>
+> **What each "envelope" (layer) is for.** There are seven jobs, from top to bottom:
+> - **Layer 7 (Application):** writing the letter itself, in a language both sides speak.
+> - **Layer 6 (Presentation):** sealing the letter in a coded, locked pouch so nobody in transit can read it (encryption) and making sure both sides use the same alphabet.
+> - **Layer 5 (Session):** keeping the ongoing conversation organized — "this letter is part of the same back-and-forth we started earlier."
+> - **Layer 4 (Transport):** the apartment number — making sure the letter reaches the right *program* inside the computer, and (optionally) getting delivery receipts so lost letters get resent.
+> - **Layer 3 (Network):** the street address — getting the letter across town, or across the world, from building to building.
+> - **Layer 2 (Data Link):** the local courier's hand-off — moving the letter just to the *next* stop on the route (the next machine on the same local wire).
+> - **Layer 1 (Physical):** the actual truck, wire, or radio wave carrying it.
+>
+> **A key trick:** each worker treats everything inside their envelope as a sealed package — they never peek. That's why you can swap Wi-Fi for a cable, or send any kind of message, without any other layer caring.
+>
+> **Two maps of the same city.** The 7-layer picture (called OSI) is the textbook version. The internet really uses a simpler 4-layer version (called TCP/IP) that merges the top three layers into one and the bottom two into one. Same journey, fewer boxes.
+>
+> **Names for the package at each stage.** As the message gets wrapped, its nickname changes: Data → Segment → Packet → Frame → Bits. When engineers say "packet," they're telling you exactly which wrapping stage they mean.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 This is the important rung. Go slow.
 
 ### The core move: encapsulation going down, decapsulation going up

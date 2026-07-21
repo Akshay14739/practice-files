@@ -75,6 +75,18 @@ Once you hold "the name is not the file," hard links, symlinks, instant renames,
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **A. Every saved file is really three separate things — think of a library.** There's the card in the catalog drawer (the *name*), the numbered index card it points to (the "inode" — a record holding all the file's details: size, owner, permissions, a count of how many names point to it, and where the contents sit on the shelves — everything *except* the name), and the actual book on the shelf (the *data*). A folder is nothing but a drawer of name-cards. The key fact to sear in: the index card does not know its own name — names live only in folders.
+>
+> **B. Hard links: two catalog cards for one book.** A "hard link" is simply a second name-card pointing at the *same* index-card number. Neither card is the "original" — they're equals, and the index card keeps a tally (the "link count") of how many names point to it. Tear up one card and the book survives through the other; the shelf space is reclaimed only when the tally hits zero. Two rules follow naturally: a hard link can't reach into a different library branch (index-card numbers only make sense inside their own branch — their own disk area), and you can't hard-link folders (it would create loops that trap anyone walking the shelves). One more twist: a program that currently has the file *open* counts as an invisible extra card. Delete every name and the space *still* isn't freed until that program lets go — the classic "I deleted the huge log but the disk is still full" mystery.
+>
+> **C. Symbolic links: a sticky note with an address on it.** A "symlink" is a different creature: its own tiny file whose entire contents are a *written path* to something else. The address is re-read and re-followed fresh every single time. Because it stores words rather than an index-card number, it can point across disks and at folders — but if the target is deleted or renamed, the note "dangles," pointing at a name that no longer exists, and following it fails.
+>
+> **D. Three ways to search.** The `find` tool walks the entire cabinet live, opening every drawer and checking each card against your filters (name, type, size, date) — always accurate, sometimes slow. Its cousin `locate` instead reads a pre-built catalog that gets refreshed on a schedule — instant answers, but possibly out of date (a file created ten minutes ago won't be listed yet). And `which` searches only the short list of tool drawers where runnable programs live (your PATH). One spectrum: live and thorough, cached and fast, or tools-only.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We open the hood now. There are four things to understand: **(A) the three-layer structure — directory entry → inode → data blocks; (B) hard links; (C) symbolic links and how they differ; (D) how `find` walks this structure.**
 
 ## (A) The three layers: name → inode → data

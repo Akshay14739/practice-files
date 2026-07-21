@@ -67,6 +67,24 @@ If you get lost below, come back to this sentence and re-derive. The rest is tha
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **HTTP is just the words of a conversation** — the web's standard way of phrasing "please send me this page" and "here it is." It doesn't worry about how the words get delivered; a lower service (TCP — think certified mail that guarantees everything arrives complete and in order) handles delivery, and for secure sites an extra sealed envelope (TLS encryption) keeps eavesdroppers out. HTTP just fills that reliable pipe with a structured message.
+>
+> **What a request looks like.** It's a short, rigidly formatted letter: an opening line ("GET this page, using this version of the language"), then labeled notes ("here's who I am," "here's the format I'd like back"), then a blank line meaning "notes finished," then — only when you're sending something in — the actual contents.
+>
+> **What a reply looks like.** The mirror image: a verdict line with a result number ("200 OK"), then notes describing what's attached, a blank line, then the attachment itself.
+>
+> **The verbs.** Requests start with an action word: GET (just read it), POST (submit something new), PUT (replace it), PATCH (edit part of it), DELETE (remove it), HEAD (send only the notes, not the contents). A key idea: some actions are safe to *repeat* — deleting twice is the same as deleting once — but submitting twice creates two things. That decides what a system may automatically retry.
+>
+> **The result numbers.** The first digit tells the whole story: 2xx "it worked," 3xx "it moved, go over there," 4xx "*you* made a mistake" (401 "who are you?" — no valid ID; 403 "I know who you are, and no"; 404 "no such thing here"), 5xx "*we* broke." Two cousins worth separating: 502 means the doorman reached the office but got gibberish back; 503 means there was *nobody* healthy to hand the request to at all.
+>
+> **The server has no memory.** Each request is a fresh encounter — the clerk forgets you the moment you leave. Staying "logged in" works via a claim ticket (a **cookie**): the server hands you a ticket once, your browser attaches it to every later request, and the clerk looks the ticket up. The forgetfulness is a feature — any of ten identical clerks can serve you.
+>
+> **Three delivery generations, same language.** Version 1.1 handles one request at a time per line, like a single-file checkout queue. Version 2 interleaves many conversations over one line at once. Version 3 rebuilds the delivery layer itself so one lost package no longer holds up all the other conversations sharing the line.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 This is the rung to go slow on. Let's open the hood on what an HTTP exchange *actually looks like on the wire.*
 
 ### HTTP rides inside the TCP stream

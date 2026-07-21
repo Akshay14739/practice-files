@@ -84,6 +84,22 @@ Hold the one sentence. We now go under the hood.
 
 ## ⚙️ Rung 3 — The Machinery (the important one — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> A load balancer is the host at a busy restaurant's front door: guests arrive at one entrance, and the host seats each party at a good table. The technical section breaks the host's job into four parts, then shows how Kubernetes (the software that runs apps across many servers) stacks several hosts in a row.
+>
+> **Part 1 — The front door (the "listener"), and two kinds of host.** The host waits at one known address. A "Layer 4" host is quick but doesn't chat: they glance only at the outside of your envelope — where you're from and which numbered service window ("port") you want — and wave your whole visit through to one table, just readdressing the envelope. Fast, works for any kind of traffic, but it can't make decisions based on what you're actually asking for. A "Layer 7" host is a concierge: they stop you, open the envelope, read your actual request ("I want the orders page"), and can route by what it says — send order questions to one kitchen and photo requests to another. This concierge also handles the secrecy step ("TLS termination" — unlocking the encrypted message at the door so it can be read), and then walks your request to the kitchen as a brand-new, separate conversation. Smarter, but more work per guest. AWS sells both: NLB is the quick doorman, ALB is the concierge.
+>
+> **Part 2 — The seating chart (the "pool").** The host keeps a live list of open tables — the servers or "pods" (small app containers) that can take work. The key word is live: tables are added and removed constantly. AWS calls this list a "target group"; Kubernetes calls it "Endpoints."
+>
+> **Part 3 — How to pick a table (the "algorithm").** Simple policies: take turns in rotation ("round-robin"), seat at the emptiest table ("least-connections"), give bigger tables more parties ("weighted"), or always seat repeat guests at their usual table ("IP-hash").
+>
+> **Part 4 — Checking tables are okay (the "health check").** On its own timer, the host walks the floor asking each table "you good?" A shallow check just knocks on the door; a deep check asks a real question and expects a proper answer — which catches a kitchen that's open but burning the food. A few failed checks in a row and the table is pulled from the seating chart, so no guest is ever sent there. There's always a short detection window, though — a table that just broke gets a few guests before the host notices.
+>
+> **The Kubernetes payoff — three hosts stacked up.** One request can pass through three seatings: first the cloud's own load balancer at the building entrance; then a hidden host on each server called "kube-proxy," which does its seating purely by readdressing envelopes using rules built into the operating system; and optionally a third, per-app concierge (Envoy) if you run a service mesh. And who updates the seating chart? Each pod has a "readiness probe" — a self-check saying "I'm ready for customers." When it fails, the pod is scratched off every list automatically. That's the whole answer to "why is the broken pod still getting traffic": either its self-check doesn't detect the actual problem, or you're inside that detection window.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 A load balancer has four moving parts. Learn these and you can reason about any LB, from an F5 appliance to AWS ALB to kube-proxy.
 
 ```

@@ -76,6 +76,22 @@ If you remember nothing else: **signed catalog → resolver → local receipt �
 
 ## ⚙️ Rung 3 — The Machinery (the important rung — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **Installing software works like ordering from a trustworthy mail-order warehouse.** Five parts hand off to each other:
+>
+> - **The warehouse (the "repository").** A website holding two things: a *catalog* (a list of every product, its version, and what other products it needs) and the *boxes* themselves (the actual software). At the top sits a master table of contents carrying a **wax seal** — a digital signature from the warehouse — that vouches for everything below it. Like a notarized cover page, one trusted seal secures every item you'll download.
+> - **Your book of trusted seals (the "keyring").** For the seal check to work, your computer keeps a copy of each warehouse's official stamp. The old habit was one big book where any stamp could vouch for any warehouse — dangerous, because one crooked stamp could then fake anything. The modern way: each warehouse gets its own page, and its stamp can vouch only for *its own* catalog.
+> - **Your list of approved warehouses.** A small file naming which warehouses you shop from at all — the only place that list lives.
+> - **The "update the catalog" step.** One command fetches a fresh catalog from every warehouse and checks each seal — but downloads *no products yet*. Skip it and you're shopping from last month's catalog: newer items simply aren't offered to you.
+> - **The personal shopper and the delivery man.** The high-level tool is the shopper: it reads the catalog, works out everything your order requires, downloads the boxes, and verifies each one against the catalog. It then hands them to the low-level tool — the delivery man — who unpacks, runs the setup chores, puts every file in its place, and writes a detailed **receipt** listing exactly what was installed where. The delivery man is honest but not clever: he never fetches missing pieces himself, which is why you almost always talk to the shopper instead.
+>
+> **The "do not replace" sticker.** The receipt book also stores a little flag per product: mark something as "held," and future upgrades will leave it untouched — essential when a program must stay at one exact version.
+>
+> **The Kubernetes tie:** every important program on a cluster machine arrived through exactly this chain — checked seal, planned order, written receipt, and (done right) a hold sticker so nothing swaps it out behind your back.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 Let's open the hood. There are **five moving parts**, and the magic is in how they hand off to each other.
 
 ```

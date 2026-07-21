@@ -79,6 +79,18 @@ Your `chmod 777` fixed the **top** gate. The `Permission denied` came from the *
 
 ## Rung 3 — ⚙️ The Machinery (go slow here)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Picture a high-security warehouse where every worker and every box wears a **name badge**, and one central rulebook — owned by management, untouchable by workers — says exactly which badge may touch which badge.
+>
+> - **What's on a badge (3.1).** Each badge has four lines: an identity line, a role line, a **job-title line**, and a clearance line. The job title is the star — almost every decision comes down to it (for example, "container worker" vs "container storage box"). The fourth line holds clearance stamps: on ordinary setups, its little category codes are what keep two neighboring tenants' workers out of each other's boxes even when everything else about them looks identical.
+> - **The rulebook (3.2).** The rulebook is a long list of one-shape sentences: "a worker with job title A may do these specific actions to a box with job title B." If no sentence covers your exact combination, the answer is **no** — there is no "otherwise, allow" page. That's why a box wearing the *wrong* badge blocks even a perfectly well-behaved worker: the rules mention the right badge, not the wrong one the box accidentally got.
+> - **How a check actually happens (3.3).** When a worker reaches for a box, the ordinary door lock (classic file permissions) is checked first. If that passes, a built-in checkpoint quietly asks the security office: "worker badge X, box badge Y, action Z — allowed?" To stay fast, the office keeps a **cheat sheet of recent answers** (a cache) and only consults the full rulebook for brand-new combinations. On a "no," the worker just gets a bland "permission denied," and the real reason is written in the **incident logbook** — the only place the truth appears. The warehouse also has a training mode: same questions, same log entries, but nothing actually blocked — perfect for discovering what a new worker needs before enforcement is switched on.
+> - **Where badges come from (3.4).** A box's badge is written on a sticker glued to the box itself (so it travels with the box), and new boxes inherit a badge from the shelf they're created on. There's also a master registry of "what badge each shelf's boxes *should* wear." Two ways to fix a wrong badge: scribble a new one by hand (quick, but the next registry-based re-check erases it) or update the registry and then re-stamp (permanent).
+> - **The switches (3.5).** Some rule bundles have an on/off switch so managers can enable optional behaviors without rewriting the rulebook — but flip the switch the non-permanent way and it resets after a building restart.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### 3.1 The label: `user:role:type:level`
 
 Every context has **four fields**, colon-separated:

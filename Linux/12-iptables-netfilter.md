@@ -59,6 +59,24 @@ If you internalize "hooks → chains → rules(matches) → targets, grouped int
 
 ## ⚙️ Rung 3 — The Machinery (the important one — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Picture a big mail-sorting facility. Every letter (a packet of network data) passing through gets inspected at fixed checkpoints, following a rulebook. This section explains six things.
+>
+> - **The inspectors vs. the rule-writers (3.1).** The actual inspecting is done by built-in staff deep inside the facility (netfilter, part of the operating system's core). The famous tool `iptables` is just a clerk who hands new pages to that staff's rulebook. That's why the rules keep working even after the clerk goes home — the rulebook stays in the facility.
+>
+> - **Five checkpoints and one big sorting question (3.2).** There are exactly five checkpoint locations. Right after arrival there's a sorting desk that asks one question: "is this letter FOR this building, or just passing THROUGH?" One key trick: if you're going to rewrite the letter's *destination* address (say, swap a fake front-desk address for a real employee's office), you must do it *before* the sorting desk reads it — otherwise it gets sorted to the wrong place. Rewriting the *return* address, by contrast, is done at the very last checkpoint on the way out, so it can't confuse the sorting.
+>
+> - **Different departments at the same checkpoints (3.3).** Several departments post rules at the same checkpoints, each with one job: one only allows/blocks (the firewall proper), one only rewrites addresses, one tweaks small markings, one handles special exemptions. They always take their turns in a fixed order. Clever detail: the address-rewriting department only handles the *first* letter of a conversation — after that, a memory system applies the same rewrite automatically.
+>
+> - **How a rule is written (3.4).** Every rule is a checklist plus an action: "IF it's this kind of letter, to this address → THEN allow it / block it / rewrite it / send it to a specialist sub-team." Rules are read top to bottom; the first full match wins, and there's a default verdict if nothing matches.
+>
+> - **The memory system (3.5).** The facility keeps a logbook of every ongoing conversation. Letters belonging to an already-approved conversation skip re-inspection. If the logbook fills up, letters mysteriously get dropped — a classic outage cause.
+>
+> - **Who writes the Kubernetes rules (3.6).** A caretaker program (kube-proxy) on each machine watches the cluster's directory of services and keeps rewriting the rulebook: "mail to this service's phone-number-style address → flip a coin, deliver to worker A or worker B." It never touches the mail itself — it only writes rules. A *different* program (your network plugin) writes the allow/block rules.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### 3.1 Netfilter is *in* the kernel; iptables just writes to it
 
 Netfilter is C code compiled into the kernel's networking stack. As a packet moves through the stack, the code calls out to five **hooks**. At each hook, the kernel walks whatever rules have been registered there and acts on the packet. `iptables` is a *user-space* command that serializes your rules and pushes them into the kernel via the `setsockopt`/netlink interface. The kernel does the per-packet work; iptables just installs the rulebook. This is why adding a rule is instant and why the rules survive even after the `iptables` process exits — they live in the kernel, not in your shell.

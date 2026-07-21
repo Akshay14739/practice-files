@@ -113,6 +113,19 @@ THE ONE LOOP, three tools climbing the same skeleton:
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Picture a mail-sorting room in a post office. Text pours in as a long paper tape, and a set of specialist clerks each do one simple job to it, passing the result to the next clerk down the belt.
+>
+> - **(A) The conveyor belt everyone shares.** All the clerks work the same way: the incoming tape is cut into individual **lines** (each line is one "record" — one item on the belt), and, for clerks who care about columns, each line is further cut into **fields** (the words/columns on that line, split wherever there's a gap). Each clerk handles one line at a time: look at it, maybe act, pass it on. You can tell a clerk to cut columns at a different mark (say, at colons instead of spaces) when the paperwork uses a different layout.
+> - **(B) The gatekeeper clerk (`grep`).** The simplest clerk holds a description of what to look for and does one thing: if a line matches the description, pass it through untouched; otherwise, bin it. It never edits, never counts columns — it only *selects*. The description is written in a compact pattern shorthand (called a "regular expression" — symbols meaning things like "starts with," "any character," "this OR that"). Little switches flip its behavior: keep only NON-matches, just count matches, ignore capital-vs-small letters, and so on.
+> - **(C) The correction clerk (`sed`).** This clerk has a tiny desk that holds exactly one line at a time. For each line: place it on the desk, apply corrections ("replace this word with that word," "throw this line away"), then send the line onward. Fine print worth knowing: by default it fixes only the *first* occurrence per line unless told "fix them all"; you can restrict it to certain lines only ("only lines 5 through 10," "only lines starting with #"); and it can mark up the original document directly — ideally after making a backup copy first.
+> - **(D) The accountant clerk (`awk`).** The powerhouse. This clerk automatically splits every line into columns, keeps a running notebook (variables it can do real math in), and follows a rulebook of "if the line looks like this, do that" instructions. It can also do something once before the tape starts and once after it ends — which is how it can *total up a column* and announce the sum at the end. Rule of thumb: the moment your task involves a column or a number, this is your clerk.
+> - **(E) The matched pair: the alphabetizer (`sort`) and the stacker (`uniq`).** The stacker collapses duplicate items into "3 x apple" — but it has a one-item memory: it only merges duplicates that arrive *back to back*. So you must send the pile through the alphabetizer first, so identical items become neighbors. That's why they're always used together. (Small helpers nearby: one snips out a single column, one swaps or deletes individual letters, one just counts lines.)
+> - **(F) The one thing the mail room can't handle.** Some documents arrive not as flat lines but as nested folders-within-folders (a format called JSON). Line-based clerks shred those. For that you call a specialist (`jq`, or its lightweight cousin "jsonpath") who actually understands the folder structure and can walk straight to the item you need.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We open the hood. Five things to understand: **(A) the stream/record/field model that's shared by all of them, (B) grep's mechanism, (C) sed's line-editor mechanism, (D) awk's pattern-action loop, and (E) why `sort`/`uniq` are a matched pair.** This is where the mental model gets built — go slow.
 
 ## (A) The shared substrate: records and fields

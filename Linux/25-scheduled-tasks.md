@@ -68,6 +68,20 @@ Kubernetes tie-in, stated once and precisely: a **Kubernetes CronJob** is this e
 
 ## Rung 3 — ⚙️ The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **The big picture: a clock-watching secretary runs your errands on schedule.**
+>
+> - **The secretary (3.1).** A small always-on program wakes once a minute, checks its appointment books, runs anything due, and dozes off again. Its finest tick is one minute — it simply cannot do anything faster than that.
+> - **The appointment books (3.2).** Jobs live in four different places: each person's private book (edited only through a safe front-desk command, and always run as that person); one shared building-wide book (with an extra column saying *who* performs each errand); a drawer of drop-in pages (how installed software adds its own errands without scribbling in the shared book); and four folders labeled hourly/daily/weekly/monthly — drop a to-do script into one, and a helper simply runs everything in that folder at the right interval, no schedule syntax needed at all.
+> - **The stranger problem (3.3).** The secretary doesn't know your personal shortcuts. When she runs your errand, it happens in a bare-bones setting — your custom search paths and nicknames don't exist there. That's why a command that works when *you* type it can fail for her with "can't find that." The fix: write full street addresses (complete file paths) in every job.
+> - **Mail to a dead mailbox (3.4).** Whatever a job prints, the secretary tries to *mail* to its owner — but modern servers have no mail system, so complaints vanish silently into the void. The disciplined fix: tell every job to write its output into a log file you can actually read.
+> - **The catch-up assistant (3.5).** If the machine is off when a job was due, the job is simply lost. A helper (anacron) instead tracks "days since last done" and runs missed daily/weekly chores shortly after the machine wakes up — that's how a laptop asleep at 2 AM still gets its maintenance. It can't do anything finer than one day.
+> - **The modern system (3.6).** Alongside all this runs a newer scheduler built into the machine's main manager. Each chore is a *pair* of cards: one says *what* to do, the other says *when*. It can go finer than a minute, has built-in catch-up after downtime, can wait for things like "network is up," respects resource limits, and — the big one — every run's output lands in a searchable logbook, with its result recorded. No silent failures, which is why server operators prefer it.
+> - **One-off reminders (3.7).** For "do this once, five minutes from now," a separate little tool queues a single job, runs it at the appointed time, and forgets it.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 Go slow here. This is where the mental model gets built.
 
 ### 3.1 The cron daemon — what's actually running

@@ -49,6 +49,26 @@ Everything derives from "private namespace + a bridge + NAT + port maps":
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Picture your computer as an office building, where every container is a sealed private office.
+>
+> - **The default setup ("bridge"):** when Docker starts, it installs an internal switchboard called `docker0` (a virtual network switch — the building's private phone exchange). Every new office gets a two-ended cable (a "veth pair"): one end inside the office, the other plugged into the switchboard. That's how sealed offices get connected at all.
+> - **Office to office:** containers plugged into the same switchboard can call each other directly. On networks *you* create, Docker also runs a tiny receptionist directory (an "embedded DNS server" — a name-to-number lookup desk) so one container can dial another by name, like "get me `api`," instead of memorizing an extension that changes whenever the office is re-let. The out-of-the-box default network is the old model and lacks this directory — hence the advice to make your own network.
+> - **Calling out to the internet:** allowed, but the front desk rewrites the caller ID. Outgoing traffic is stamped with the *building's* public number instead of the office's internal one (that's "SNAT/masquerade" — address rewriting, like all company mail carrying one shared return address). The outside world sees the building, never the individual office.
+> - **Calls coming in:** blocked by default. To be reachable, you must deliberately "publish a port" — a standing instruction to reception like "any call to the building's extension 8080 goes to the web office's extension 80" (a "DNAT" rule — a destination-rewriting forward).
+>
+> **The driver menu** — Docker offers a few wiring styles:
+>
+> - **bridge** (default): the private switchboard plus front desk, described above.
+> - **host**: the office skips the switchboard and uses the building's own phone line directly — fastest, but zero privacy or separation.
+> - **none**: no phone at all; the office can only talk to itself.
+> - **overlay**: one virtual switchboard stretched across *several buildings* (multiple machines).
+>
+> **Overlay is the clever one:** to connect offices in different buildings, each building wraps the internal call inside an ordinary parcel addressed building-to-building (VXLAN — "tunneling," a package inside a package), ships it over the normal network, and the receiving building unwraps it and delivers internally. That trick — one seemingly local network spanning many machines — is exactly what Kubernetes needs next.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### The default bridge model
 
 When Docker starts, it creates a virtual switch called **`docker0`** — a Linux bridge ([13-network-devices.md](13-network-devices.md)). Each container gets a **veth pair**: one end (`eth0`) inside the container's namespace, the other end plugged into `docker0`. The bridge switches L2 frames between all attached containers, exactly like a physical switch.

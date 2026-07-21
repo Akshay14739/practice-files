@@ -63,6 +63,24 @@ Watch the whole section fall out of it:
 # RUNG 3 — The Machinery ⚙️
 ### *How placement ACTUALLY works — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Think of a hotel front desk assigning guests (your apps, called "pods") to rooms (the computers, called "nodes"). The desk clerk is the **scheduler**.
+>
+> **(A) How assigning works.** Every guest card has a blank "room number" line. The clerk watches for blank cards and does four things in order: take guests from the **waiting line**, **cross off** rooms that won't work at all, **rank** the rooms that remain, and finally **write the room number** on the card. That last pen-stroke is literally all "scheduling" is — someone else (the room's own staff) actually moves the guest in. If *every* room gets crossed off, the guest waits in the lobby indefinitely ("Pending"). If the clerk is off sick, everyone waits with no explanation. You can also skip the clerk by writing a room number on the card yourself before handing it in — but once a guest is settled, you can't move them; you check them out and check them in fresh.
+>
+> **(B) Three ways rooms get crossed off:**
+> - **"Staff only" signs (taints):** a *room* can post a keep-out sign; only guests carrying a matching pass (a "toleration") may enter. Signs come in strengths: block newcomers, merely discourage them, or even evict guests already inside. Note: a sign only keeps others *out* — it doesn't pull your guest *in*.
+> - **Guest requirements (nodeSelector / nodeAffinity):** a *guest* can demand "only rooms with a sea view." You must first put the "sea view" sticker on the room (a label). Demands can be hard ("no such room? I'll wait forever") or soft ("nice to have, but I'll take anything"). Either way, once the guest is inside, a later sticker change doesn't kick them out.
+> - **Fitting (resource requests):** each guest declares the minimum space they need; the clerk only considers rooms with that much free. Guests also declare a maximum (a "limit"): overuse of shared time (CPU) just slows the guest down, but overuse of space (memory) gets them thrown out abruptly. The hotel can also set per-floor default and total space rules (LimitRange and ResourceQuota).
+> - The classic combo: a sign keeps strangers out of your room, AND a requirement keeps your guest in it — you need **both** to truly reserve a room for one guest.
+>
+> **(C) Guests who skip the front desk:** some staff must be in *every* room — cleaners, smoke detectors — placed automatically one-per-room (a **DaemonSet**). And a few live-in maintenance staff are hired directly by each room's caretaker from a folder of instructions on-site, with no front desk involved at all (**static pods** — this is actually how the hotel's own management offices get started).
+>
+> **(D) The line and the door:** VIP status (**PriorityClass**) moves a guest up the waiting line and can even bump a lesser guest out of a full room (**preemption**). The hotel can employ several clerks with different rulebooks (multiple schedulers/profiles). And before any of this, a **doorman (admission controllers)** inspects each request at the entrance — he can adjust it or turn it away before it's even recorded.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ## (A) The core loop — what "scheduling" physically is
 
 Every pod has `spec.nodeName`, normally empty. The scheduler watches for empty-`nodeName` pods and runs four phases, then writes the name:

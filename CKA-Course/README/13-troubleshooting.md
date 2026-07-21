@@ -58,6 +58,22 @@ The golden rule: **draw the map, then walk every link.**
 # RUNG 3 — The Machinery ⚙️
 ### *The four checklists — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Think of a detective investigating a building where "something is wrong," ruling out suspects floor by floor. There are four floors — the app, the management office, the worker rooms, and the phone system — and each floor has its own fixed checklist, so you never guess.
+>
+> - **(A) The app floor: follow the customer's path.** A customer's request travels a known route: front door → receptionist → the app itself → its assistant → the filing room (database). You check each handoff in order until one fails. The classic culprits are all mix-ups: the receptionist's contact list points at nobody (the **Service** — the internal switchboard — has labels that don't match any app, so its list of destinations is empty); someone wrote down the wrong department name; the call is forwarded to the wrong extension (port number); or the database password on file is wrong. When a program keeps crashing over and over, the crucial trick is reading the *previous* attempt's diary (logs), because the current one hasn't failed yet.
+>
+> - **(B) The management office: the symptom names the culprit.** Kubernetes has a few manager programs, and each failure style points at exactly one. New work sits waiting and never gets assigned to a room? The **scheduler** (the room-assigner) is down. Nothing scales up or heals itself? The **controller manager** (the supervisor who notices gaps and fills them) is down. Your own command tool won't connect at all? The **API server** (the front desk everything talks through) is down. Twist: if the front desk is dead, your usual tool is blind — so you use a backstage tool (`crictl`) that talks directly to the machinery running the programs. The managers are started from plain instruction files in one folder; fix a typo in the file and the manager restarts itself automatically.
+>
+> - **(C) The worker rooms: go there in person.** If a whole machine reports "NotReady," check its status report first, then walk to the machine itself (log in remotely) and interrogate its caretaker program, the **kubelet**: Is it even running? What do its diary entries (system logs) say? Its mistakes live in one of exactly two settings files — one governing *how it behaves*, one holding *the address it uses to phone headquarters* — and the error message tells you which file to open.
+>
+> - **(D) The phone system: three suspects only.** Network trouble comes down to a trio: the wiring installer that gives every app an internal number (the CNI), the call-router that forwards switchboard calls to the right app (kube-proxy), and the phone book that turns names into numbers (CoreDNS, the cluster's directory service). Everything unreachable right after setup? Wiring never installed. Name lookups failing everywhere? Phone book down. Apps fine but the switchboard number dead? Call-router.
+>
+> Method over memory: match the symptom to the floor, then run that floor's checklist top to bottom.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ## (A) Application failure — walk the request map
 
 ```

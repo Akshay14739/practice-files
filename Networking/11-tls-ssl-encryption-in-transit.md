@@ -96,6 +96,24 @@ Three guarantees fall out, and it's worth naming them as the acronym **C-I-A**:
 
 ## ⚙️ Rung 3 — The Machinery (the important one — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **Two kinds of secret-keeping.** Imagine two ways to lock a box. Way one: you and your friend share an identical key — fast and easy, but how do you hand your friend the key in the first place without a thief seeing it? Way two: your friend mails you an *open padlock* that only *their* key can open. Anyone can snap it shut, but only they can open it. That's slower to use, but it solves the "handing over the key" problem. TLS (the technology that puts the lock on web traffic) combines both: it uses the padlock trick *once* to secretly agree on a shared key, then uses the fast shared key for everything after. A bonus of the modern version: even if the friend's padlock key is stolen later, old conversations stay unreadable — like burning the notes after each meeting.
+>
+> **The certificate — an ID card.** A secret conversation is useless if you're secretly talking to an impostor. So the website shows an ID card (called a certificate) that says "this public padlock really belongs to shop.example.com." Like a passport, it lists the exact names it's valid for and has an expiry date — and expired ID cards are the number-one cause of real-world outages.
+>
+> **The chain of trust — why you believe the ID card.** Anyone can print a fake ID. What makes it trustworthy is the *stamp* on it: a well-known notary office (a "Certificate Authority") vouched for it, and a small list of ultra-trusted head notaries is pre-installed on your computer. Trust flows in a chain: head notary vouches for a branch office, the branch office vouches for the website. Companies (and Kubernetes clusters) can also run their own private in-house notary for internal IDs.
+>
+> **The handshake — the opening conversation.** Before any real data flows, the two sides have a quick ritual: "Here's what languages/locks I can use, and here's who I want to talk to." — "Fine, let's use this lock; here's my ID card; here's my half of the secret." Each side contributes half, and both compute the same shared key without ever sending it — an eavesdropper watching every message still can't work it out.
+>
+> **TLS 1.3 — the same ritual, fewer trips.** The newest version trims the back-and-forth from two round trips to one (the client guesses well and sends its half immediately), and it threw out all the old weak locks. Result: faster, safer connections.
+>
+> **Where does the envelope get opened?** Somewhere, the sealed envelope must be opened so the actual server can read the letter. Open it at the front desk (the load balancer) and the mailroom hallway behind it carries open letters — simple, but auditors may object. Or keep it sealed all the way to the recipient's own desk. Or use a "service mesh": every worker gets a personal assistant who seals and unseals mail automatically, so every hallway hop is sealed with *both* sides showing ID (mutual TLS).
+>
+> **SNI — telling the front desk who you want.** One building (one internet address) hosts hundreds of websites, each with its own ID card. So the very first message says, in the open, "I'm here to see shop.example.com" — letting the front desk pick the right ID card to show you.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### 3.1 Two kinds of crypto, and why we need both
 
 **Symmetric encryption** — *one* shared key both encrypts and decrypts. Think of a padlock where the same key locks and unlocks. Algorithms: **AES-256-GCM**, **ChaCha20-Poly1305**. It is *fast* — hardware AES does gigabytes per second — but it has one fatal chicken-and-egg problem: **how do two strangers agree on the shared key without an eavesdropper seeing it?** You can't email the key; the eavesdropper reads the email.

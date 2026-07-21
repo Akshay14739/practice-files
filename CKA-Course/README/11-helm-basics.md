@@ -57,6 +57,20 @@ Derivations:
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works — go slow*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Helm is like a recipe-book system for setting up complicated software. This section covers four things: the vocabulary, an old-vs-new design change, what's inside a recipe book, and the everyday commands.
+>
+> - **(A) The vocabulary.** A **chart** is the recipe book itself — full instructions with fill-in-the-blank amounts. A **release** is one actual meal cooked from that book; you can cook the same book many times, and each meal gets its own name. A **revision** is a photo of the meal taken every time you change it — install it, update it, or undo an update, and a new numbered photo goes in the album. A **repository** is the library where recipe books are published (with a big catalog called Artifact Hub listing them all). Finally, Helm keeps its record of each release inside the cluster itself (stored as **Secrets** — Kubernetes' locked filing drawers), so the whole team sees the same history, not just the person who ran the command.
+>
+> - **(B) Old Helm vs. new Helm (version 2 vs. 3).** Old Helm needed a butler program called **Tiller** living inside the cluster with master keys to everything — a security risk. New Helm fired the butler: it acts with *your* keys and *your* permissions, just like your normal tools. New Helm is also smarter about updates: before changing anything it compares **three** things — the old recipe, the new recipe, and what's *actually* running right now — so hand-made tweaks someone applied directly don't get silently steamrolled. (A version label in the recipe book's cover page tells you which era it belongs to: "v2" on the label, confusingly, means new Helm 3.)
+>
+> - **(C) What's inside a chart.** Four parts: a cover page with metadata (including two different version numbers — the recipe book's own edition number, and the version of the app it cooks); a **values file** listing all the default fill-in-the-blank amounts (this is the file you usually edit); the **templates** folder of instruction pages with blanks in them; and a folder for sub-recipes the main recipe depends on.
+>
+> - **(D) The commands, and who wins an argument.** There are one-line commands to subscribe to a library, search it, install, list, upgrade, view history, roll back, and uninstall. When you customize amounts, there's a pecking order: a value typed directly on the command line beats a value in your own custom file, which beats the book's printed default. Two gotchas: **undoing never erases history** — rolling back to photo 1 just takes a *new* photo 3 that looks like photo 1; and a rollback restores the *setup instructions*, not your data — like rebuilding a kitchen to an old floor plan without restoring what was in the fridge.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ## (A) The model
 
 | Term | What it is |

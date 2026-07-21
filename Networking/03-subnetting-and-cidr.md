@@ -111,6 +111,20 @@ THE ONE TRICK, VISUALLY (for a /26):
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> This section shows four things about how address blocks are carved up. In everyday terms:
+>
+> **A. Every address has a dividing line.** An internet address is a string of 32 on/off switches ("bits"). A marker like `/24` draws a line through it: everything left of the line is the *neighborhood name* (shared by every house on that block), and everything right of it is the *house number*. Two devices are "neighbors" exactly when the part left of their line matches.
+>
+> **B. You can slide the line.** Move the line to the right and you leave fewer digits for house numbers — so each neighborhood gets smaller, but you can make more of them. Move it left and neighborhoods get bigger but fewer. That's all "subnetting" is: sliding the line right to split one big neighborhood into several small ones — like dividing one long street into four short cul-de-sacs. Two borrowed digits = four smaller blocks.
+>
+> **C. Two addresses in every block are off-limits.** The very first address in a block is the *street sign* — it names the neighborhood itself, so no house can have it. The very last is the *megaphone* — sending mail there means "deliver to everyone on this street," so no house can have that one either. That's why the usable count is always "total minus two." (Cloud providers like AWS reserve a few extra for their own housekeeping — so minus five there.)
+>
+> **D. How the mail gets sorted.** A router (the mail-sorting office between neighborhoods) keeps a list of rules like "anything for Maple Street district goes out door 1." For each letter, it checks which neighborhood name the destination address starts with. If more than one rule matches, the *most specific* rule wins — "23 Maple St, Springfield" beats plain "Springfield." And this explains a famous cloud failure: if two connected networks both claim the *same* neighborhood name, the sorter can't tell whose "23 Maple St" a letter means — so the cloud simply refuses to connect them rather than deliver mail to the wrong place. Lastly, a "subnet mask" (like `255.255.255.0`) is just the same dividing line written in a different notation — no new idea, same fact in a second costume.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We now open the hood and look at the **bits**, because that's where subnetting literally happens. There are four things to see: **(A) the network/host boundary in binary, (B) how the prefix slides that boundary, (C) network vs broadcast addresses, and (D) how a router uses the prefix to make a forwarding decision.**
 
 ## (A) The 32 bits and the boundary line

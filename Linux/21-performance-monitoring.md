@@ -71,6 +71,20 @@ If you remember nothing else: **for each resource, measure U, S, and E — and n
 
 ## ⚙️ Rung 3 — The Machinery (the important rung — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **The computer is always keeping score.** Deep inside, the operating system's core (the "kernel" — think of it as the building manager) constantly updates tally sheets: how busy the processor is, how memory is being used, how much work the disk has done. All the "monitoring tools" you'll meet below are just clerks who walk over and read those tally sheets — they don't measure anything themselves.
+>
+> **The tally sheets are running totals, like a car's odometer.** A sheet doesn't say "the disk is busy right now"; it says "since the machine was switched on, the disk has done this much total work." To learn what's happening *now*, a tool must read the sheet twice, a second apart, and subtract — like checking your odometer at 2:00 and again at 2:01 to work out your speed. That's also why the very first number these tools print is misleading: it's the average since the machine turned on (ancient history), not the present. Always skip the first reading.
+>
+> **"Load average" is a headcount of who's waiting — not a busyness percentage.** It counts two kinds of tasks: those actively using (or lined up for) the processor, and those frozen in place waiting for the disk to answer. So a machine can look "overloaded" even when the processor is bored — fifty tasks might all be stuck waiting on one slow disk. The diagram in this section simply maps which clerk (tool) reads which tally sheet.
+>
+> **PSI — a newer, sharper measure: time actually spent stuck.** The old sheets can say "the disk was busy," but busy isn't the same as anyone suffering. PSI is like a complaint log: it records what fraction of the time at least one task ("some") — or every task ("full") — stood around waiting for something it couldn't get. That measures real pain directly, not just activity.
+>
+> **Why this matters for Kubernetes** (the software that runs apps across many machines): its caretaker program reads these very same tally sheets to decide when a machine is unhealthy and which apps to move off it; the "out of memory" killer writes a confession into a system logbook you can read afterward; and the cluster's record-keeper slows down the instant the disk does — the tally sheet shows trouble before the visible symptoms appear.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 This is where you build the model. The big realization: **you are never really running a tool — you are reading a counter the kernel already maintains.** The kernel is *constantly* keeping score in memory. The tools are pretty-printers over `/proc` and `/sys`.
 
 ### The kernel is always keeping score

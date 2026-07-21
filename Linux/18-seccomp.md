@@ -62,6 +62,18 @@ If you hold "**one default action + a list of per-syscall overrides, enforced in
 
 ## ⚙️ Rung 3 — The Machinery (the important rung — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Think of the operating system's core (the "kernel") as a busy government office. A program can't do anything real — open a file, send mail, start a helper — without walking up to the service counter and filing a request. There are about 400 different request forms. **Seccomp** is a security screener standing at the counter with a checklist for each visitor, deciding which request forms that visitor is even allowed to submit.
+>
+> - **Where the screener stands (3.1).** The screener is positioned at the *very front door* of the office — before any clerk even looks at whether you have the right permissions for a request. If your checklist says "no 'create folder' forms," you're turned away at the door with a polite "not allowed," and the deeper permission checks never happen. So there are layers: the door screener (seccomp) first, then the permission clerks (capabilities and other guards) behind them.
+> - **What the checklist really is (3.2).** The screener doesn't read a wordy policy document. The rules are compiled into a tiny, ultra-fast flip-book of yes/no checks — deliberately simple so it can screen millions of requests per second and can never misbehave. One important limit: the screener can only look at the *form number* and a few numbers written in its boxes — they cannot open attached envelopes. So the rule can be "no 'open file' forms at all," but never "no opening *this particular* file." There's also an ancient, ultra-strict version of the screener that allows only four forms total — basically a historical curiosity; the flexible "checklist" version is what everyone actually uses.
+> - **The badge on the visitor (3.3).** Every program wears a badge you can read that says which screening it's under: 0 = no screening at all, 1 = the ancient four-form jail, 2 = a checklist is active. Auditors love this: "is this app confined?" becomes "read the badge — is it a 2?"
+> - **How a checklist is written (3.4).** Every checklist has just two parts: a default answer ("deny everything…" or "allow everything…") plus a list of exceptions. The standard built-in checklist says "deny by default, but allow the ~300 everyday forms" — which quietly bans the ~44 most dangerous ones.
+> - **How it reaches your apps (3.5).** In Kubernetes (the software that manages apps in sealed boxes), the node's caretaker reads your app's settings, hands the checklist down a short chain of helpers, and the last helper pins it on the program just before it starts. You can pick: the sensible built-in checklist, a custom one you wrote and stored on the machine, or — the bad option — no screening at all.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We now open the hood. Three things to understand: **(A) where the filter physically sits, (B) what a filter actually *is* (BPF), and (C) the three modes and the `Seccomp:` field that reports them.**
 
 ### 3.1 Where the check lives: the syscall entry gate

@@ -89,6 +89,26 @@ Everything else — DORA, T1/T2 timers, reservations, relay — is just the mech
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **The setup.** A new computer on a network is like someone who just woke up in a strange town with no name and no address. To function it needs an address — but to *ask* for one by normal mail, you'd need a return address, which it doesn't have. The trick: it stands in the town square and *shouts*. Everyone nearby hears; only the town's address office answers. (This also explains why DHCP uses the quick, no-setup delivery style called UDP — the "formal introduction first" style, TCP, requires both sides to already have addresses.)
+>
+> **The DORA handshake — four shouts.** Getting an address is a four-step call-and-response, remembered by the word DORA:
+> - **Discover** — newcomer shouts: "Any address office out there? It's me!" (identified by the serial number stamped on its network card).
+> - **Offer** — the office calls back: "I can lend you house number 157, plus the map details you'll need — which streets are local, where the town exit is, and where the phone directory lives."
+> - **Request** — the newcomer shouts its acceptance *publicly*, because a town can have *several* address offices, and the losers need to hear "I picked the other one" so they can put their tentatively-held numbers back on the shelf.
+> - **Acknowledge** — the winning office confirms: "It's yours. Move in."
+>
+> **The pool and the ledger.** The address office owns a shelf of lendable house numbers (the "pool"), with some numbers deliberately kept off the shelf — the town gate, the directory office, and other fixtures that must never move. It records every loan in a ledger: which number, to which serial-numbered device, until when. It can also pin a note: "this particular printer always gets number 150" — a *reservation*, giving a stable address while keeping all records centralized.
+>
+> **Leases — loans with a clock.** Addresses aren't given, they're *lent* for a set time. Halfway through, a well-behaved device quietly phones the same office directly: "May I keep my number?" — a quick two-message renewal, no shouting needed. If the office has vanished, at about seven-eighths of the loan the device starts shouting to *any* office; if nobody ever answers, at expiry it gives the number up and starts over. This clock is why numbers borrowed by devices that leave town without saying goodbye eventually return to the shelf.
+>
+> **Relay — shouting across town lines.** Shouts don't carry past the town border (routers deliberately don't forward broadcasts). So each neighborhood's border post employs a messenger (the "relay agent"): it hears the local shout, writes on the envelope "this request came from neighborhood 2" (a field called giaddr), and carries it as normal addressed mail to one central office, which uses that note to lend from the *right* neighborhood's shelf. One office can thus serve many neighborhoods.
+>
+> **The cloud twist.** In AWS, your virtual machines still go through this ritual — but Amazon runs the invisible address office, and the number is actually pre-decided before the machine even boots (there's also a side window, the "metadata service," where a machine can just look up its identity without shouting). And Kubernetes **pods skip all of this entirely**: the cluster's plumbing simply *writes* an address into each pod directly — no shouting, no offers, no leases — because a system creating dozens of pods per second can't wait around for a town-square ritual.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We open the hood. DHCP has four moving parts to understand: **(A) the DORA handshake**, **(B) the pool and the lease database**, **(C) lease timers and renewal**, and **(D) relay across subnets**. Everything runs over **UDP** — port **67** (server) and port **68** (client). Why UDP and not TCP? Because you can't do a TCP handshake when you don't have an IP address yet; TCP needs both endpoints addressed. Broadcast + connectionless UDP is the only thing that works from a standing start.
 
 ## (A) DORA — the four-packet handshake

@@ -104,6 +104,20 @@ Once you see that **SG, NACL, and iptables are the same guard with different mem
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Picture a nightclub with bouncers. Every piece of internet traffic is a guest trying to get in or out, and the bouncers work from lists. This section explains four things:
+>
+> **A. What the bouncer actually looks at (the "5-tuple").** Every message on a network carries five facts: what kind of message it is, who sent it (their address and door number), and who it's for (address and door number). Those door numbers are called "ports" — think of them as numbered service windows on a building. Famous windows have fixed numbers everyone knows (like window 443 for secure websites); the sender, meanwhile, uses a random high-numbered window (an "ephemeral port") just for that one conversation. Rules are written against these five facts: "secure-web traffic, to window 443, from anywhere — let it in."
+>
+> **B. Bouncers with memory vs bouncers with amnesia ("stateful" vs "stateless").** A stateful bouncer keeps a notebook. When he lets a guest in, he writes it down — so when the reply walks back out, he recognizes the conversation and waves it through without re-checking. A stateless bouncer has no notebook: every guest, coming or going, gets checked against the list from scratch. That means with a stateless bouncer you must write TWO rules — one letting the request in, and one letting the reply back out through those random high-numbered windows — or replies get silently thrown away. This one difference IS the difference between AWS's two products: a "Security Group" is the bouncer with the notebook; a "NACL" is the one with amnesia.
+>
+> **C. Two doors, and what happens to strangers.** There's an entry door (who may reach me?) and an exit door (where may I reach?), each with its own list. And there's a house policy for anyone matching no rule: the safe policy is "not on the list, not getting in" ("default-deny"). AWS's out-of-the-box stance for a new machine: nobody gets in, but the machine may call out to anywhere (except sending old-style email, which AWS blocks for everyone to fight spam).
+>
+> **D. Layers of bouncers ("defense in depth").** A message reaching your app actually passes THREE checkpoints in a row: first the neighborhood gate guard (the NACL, watching the whole subnet — a block of addresses), then the front-door bouncer on the machine itself (the Security Group), then a final check inside the house by the operating system's own built-in filter (called "iptables"). Any one of them can reject the message, so one team's mistake is caught by another layer. Two quirks worth knowing: the Security Group's list is allow-only and unordered — if ANY rule says yes, you're in, and there's no "ban" rule at all (you ban by simply not inviting). The NACL's list IS ordered — rules are numbered, the first match wins, and it can hold explicit bans, with a catch-all "deny everyone else" at the bottom.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We now open the hood. This is the rung that makes everything else obvious, so go slow. Four things to understand: **(A) the 5-tuple a rule matches, (B) stateful vs stateless — the connection-tracking table, (C) inbound vs outbound and default-deny, and (D) how AWS SGs and NACLs actually layer.**
 
 ### (A) What a rule actually matches: the 5-tuple

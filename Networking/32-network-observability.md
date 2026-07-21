@@ -51,6 +51,31 @@ No single signal is enough; together they cover health, history, and causality.
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Imagine running a city where deliveries keep arriving late and you must figure out why. This section is about the three kinds of records you keep, plus the street-level tools for when you need to watch the traffic yourself.
+>
+> **The three kinds of records:**
+>
+> - **Metrics** are like the city's **dashboard of gauges**: average trip times, how many deliveries per hour, what fraction fail. Cheap to collect, great for spotting trends and sounding alarms ("trips are getting slower this week!"). Tools with names like Prometheus and Grafana draw these gauges and graphs.
+> - **Logs** are the **doorman's ledger**: one line per event — who visited whom, when, and whether they were let in or turned away. Essential after a burglary or an outage, when you must reconstruct exactly what happened. In the cloud these include "flow logs" — a ledger of every network connection.
+> - **Traces** follow **one single delivery** door-to-door with a stopwatch, recording how long it spent at each stop. When one trip took 800 milliseconds, the trace shows *which* stop ate the time. Tools: Jaeger, OpenTelemetry — and a service mesh (last chapter's bodyguards) produces these automatically.
+>
+> **The street-level toolbox** — for when records aren't enough and you need to stand on the corner watching actual vehicles (packets — the little parcels all internet data travels in):
+>
+> - **tcpdump / Wireshark** — film the traffic itself, parcel by parcel: watch two computers shake hands, or see a "go away" note that explains a refused connection.
+> - **ss** — list every conversation your machine currently has open, and who's waiting for calls.
+> - **mtr** — send test cars along the route and report the delay at *each* junction, so you see exactly where the road degrades.
+> - **iperf3** — a stopwatch-and-scale test of how much a road can really carry.
+> - **dig** — check the address-lookup service (DNS, the internet's phone book) — is it right, and is it slow?
+> - **curl -w** — time one single trip with a breakdown: address lookup, connecting, secure handshake, first byte back.
+>
+> **The clever modern shortcut: eBPF.** Old-style traffic filming is expensive and only shows anonymous license plates (IP numbers). eBPF plants tiny safe observers *inside* the engine of the operating system, so tools like Cilium Hubble can report, cheaply and by name: "the frontend app asked the api app for the orders page — allowed — took 12 ms."
+>
+> **How the records work together:** the dashboard says something's slow → the stopwatch trace points to the database stop → the ledger shows repeated retries there → filming the parcels confirms some were being lost. Each layer narrows the search; the street-level view proves the cause.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### The three pillars and their tools
 
 ```

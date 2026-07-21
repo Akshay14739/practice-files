@@ -58,6 +58,24 @@ If you ever get lost below, come back to this sentence and re-derive. The rest o
 
 ## ⚙️ Rung 3 — The Machinery
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> This section explains how one computer keeps a hundred conversations separate. In everyday terms:
+>
+> - **The office building.** A computer's internet address is like a building's street address; a "port" is like a room number inside it. The combination — address plus room — is called a "socket," and it points to the exact person (program) you're talking to. The mail truck only needs the street address; the lobby clerk (the computer's operating system) uses the room number to deliver each envelope to the right desk.
+>
+> - **A port isn't a physical thing.** There's no actual jack or wire labeled "port 80." It's just a number written on each envelope, plus a note in the lobby clerk's ledger saying "mail for room 80 goes to that program over there."
+>
+> - **Two labels on every envelope.** Each packet carries the street addresses (sender's and receiver's machines) in one layer of the envelope, and the room numbers (sender's and receiver's programs) in an inner layer. Machine first, then program — two questions, one envelope.
+>
+> - **Mixing and un-mixing.** Everything leaving the computer travels down one shared wire, all conversations mixed together ("multiplexing" — combining streams). Incoming mail gets sorted back out ("demultiplexing") using a four-part label: sender's address, sender's room, receiver's address, receiver's room. If any one of the four differs, it's a different conversation. That's how a single website room (say, room 443) can host thousands of visitors at once — each visitor's own address-and-room combination makes their conversation unique.
+>
+> - **Three kinds of room numbers.** Low numbers (0–1023) are famous, reserved rooms everyone knows — like "the front desk is always room 22." Middle numbers are registered to well-known applications. High numbers are a scratch pad: when *you* call someone, your computer grabs any free high number as your temporary return address, and throws it away afterward.
+>
+> - **Rooms can forward to other rooms.** Sometimes the room number on the envelope isn't where the program really sits — a doorman quietly rewrites "room 8080" to "room 80 in the annex" mid-delivery. Docker and Kubernetes do this constantly; the sender never notices.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 This is the rung to go slow on. Let's open the hood.
 
 ### The building analogy, made precise

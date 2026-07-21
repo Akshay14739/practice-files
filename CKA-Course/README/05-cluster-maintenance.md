@@ -56,6 +56,20 @@ Derivations:
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works — go slow*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Think of the cluster as a hotel that must stay open while you renovate it. This section covers four things: emptying one wing safely, the rule for renovating in the right order, the actual renovation procedure, and the fireproof safe holding the hotel's only master ledger.
+>
+> **(A) Emptying a wing (cordon, drain, uncordon).** If a wing (a "node" — one computer) suddenly goes dark, head office waits a few minutes before declaring its guests lost; guests who belong to a group booking get rebooked into other wings automatically, but walk-ins with no booking record are simply gone. For *planned* work you don't wait for a surprise: you can put up a "no new check-ins" sign (**cordon**), or politely move everyone out AND put up the sign (**drain**), then take the sign down when the work is done (**uncordon**). Wrinkles: some staff are stationed one-per-wing by design and can't move (you must tell the drain to skip them); walk-in guests need a forceful eviction; and taking the sign down does NOT bring the old guests back — the wing just becomes available for new arrivals.
+>
+> **(B) The renovation-order rule (version skew).** Hotel systems come in numbered editions, and the strict rule is: **no department may run a newer edition than head office's front desk** (the API server). Assistants can be one edition behind, wing staff up to two behind — but never ahead. That's why you always modernize head office FIRST, then the wings, and always **one edition at a time** (no jumping from edition 27 to 30). While head office is being switched over, the phones are briefly down — but guests already in rooms are completely unaffected.
+>
+> **(C) The renovation procedure (the kubeadm upgrade flow).** A foreman tool called kubeadm swaps out head office's own machinery, but it deliberately **never touches each wing's caretaker (the kubelet)** — you must update every caretaker yourself, by hand, wing by wing: empty the wing, install the caretaker's new edition, restart them, reopen the wing. This explains a famous surprise: right after upgrading head office, the status board still shows the OLD edition next to each wing — because that board reports the *caretakers'* editions, which only change after you restart each one.
+>
+> **(D) The master ledger (etcd backup and restore).** One book records everything the hotel is — every booking, key, and rule. Lose it with no copy, and the hotel effectively ceases to exist even while guests still sit in their rooms. So: periodically **photocopy the ledger** (take a snapshot — this works while it's in use, though you must present four security credentials to do it). To recover from disaster, you rebuild a fresh ledger **in a new cabinet** from the photocopy, then change one line in the record-keeper's standing instructions telling it which cabinet to read from. The record-keeper's minder notices the changed instructions and restarts it automatically. Everything as of photocopy time comes back; anything written after the photocopy is gone. Two copier models exist — one for ledgers in use, one for ledgers taken offline — and note that your blueprints-in-a-filing-cabinet (YAML files in Git) are NOT a substitute: they miss everything that was ever arranged verbally.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ## (A) Node maintenance — cordon, drain, uncordon
 
 When a node goes `NotReady`, the control plane waits the **pod eviction timeout** (~5 min, on the controller-manager; modern K8s applies a `NoExecute` taint and evicts after a grace period). Then: **ReplicaSet-backed pods are recreated elsewhere; bare pods are gone forever.** To do maintenance *deliberately* rather than by surprise:

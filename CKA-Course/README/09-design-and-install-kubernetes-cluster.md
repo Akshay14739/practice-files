@@ -58,6 +58,20 @@ The whole section is: *replicate everything, but respect that a consensus store 
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works — go slow*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> This section is about designing a cluster's "management office" so no single failure shuts the whole operation down — and one surprising piece of math about voting.
+>
+> **(A) Picking the right size of setup.** Like choosing office space: a home desk for learning (a tiny one-computer setup), a small rented office you furnish yourself for testing, and for real business either a professionally built multi-office headquarters or renting a fully serviced building from a big provider (a "managed" cluster, where a cloud company runs the management for you). One house rule: the management floor is kept clear of regular work — everyday workloads are deliberately kept off the managers' computers so the managers are never crowded out.
+>
+> **(B) Duplicating the managers — two different styles.** The management team has three kinds of roles, and you can't duplicate them all the same way:
+> - The **front desk** (the "API server," which takes every request) keeps no personal notes, so you can simply staff several receptionists at once, with a greeter at the entrance (a "load balancer") sending each visitor to whichever desk is free. All work simultaneously.
+> - The **decision-makers** (the "scheduler," which assigns work to computers, and the "controller manager," which fixes things that break) must NOT act in duplicate — two people assigning the same task twice causes chaos. So the copies play understudy: only the one holding a signed permission slip (a "lease" — a short-term lock that must be renewed every few seconds) acts; if the holder goes silent, an understudy picks up the slip within seconds and takes over.
+>
+> **(C) The record vault and the voting rule.** The cluster's entire memory lives in a record-keeping committee ("etcd"). You can house the record-keepers with the managers ("stacked" — cheaper, but losing one machine loses both a manager and a record-keeper) or in their own separate building ("external" — sturdier, more machines). The committee only accepts a change when a **majority** of members vote yes (that's "quorum"). The math: majority = half the members, rounded down, plus one. This creates the famous trap — a 2-person committee needs both votes, so losing one person halts everything: two is no safer than one! Three members can lose one and keep going; five can lose two. And **odd numbers beat even**: if a phone outage splits an even committee exactly in half, neither half has a majority and all record-keeping stops; an odd committee always leaves one side able to vote.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ## (A) Design choices
 
 | Goal | Recommended |

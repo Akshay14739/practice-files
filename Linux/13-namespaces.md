@@ -70,6 +70,20 @@ If you remember only one thing: **a container is a process the kernel lied to ab
 
 ## Rung 3 — ⚙️ The Machinery (the important one — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> The big idea: a "container" is just an ordinary program that the operating system politely lies to, so it believes it has a whole computer to itself. Think of it like a guest in a hotel suite who's been convinced the suite is the entire building. The lie is told one topic at a time — there are eight separate topics you can fake. This section covers four things.
+>
+> - **The eight kinds of lie (3.1).** Each "namespace" (a private, faked-up view of one thing) covers one topic: the guest's own phone directory of who's around (process IDs — the guest sees only their own family, numbered from 1); their own mailroom and street address (networking); their own furniture layout and front door (which folders and drives are visible); their own name on the door (hostname); their own internal memo system; their own idea of who's the boss (a guest can feel like the building owner while actually being nobody special outside — that one is powerful and risky); their own floor map; and their own "how long has this place been running" clock (note: NOT the wall clock — a common surprise).
+>
+> - **Every lie has a room number (3.2).** Each private world gets an ID number you can look up in a public registry. To check whether two programs share the same private world, you just compare their two numbers — no guessing. And a private world only exists while *someone* is still inside it or holds a key to it; when the last reference is gone, it vanishes.
+>
+> - **Two ways in (3.3).** You can *build* a brand-new private world and step into it, or *join* one that already exists (that joining trick is exactly what happens when an admin "steps inside" a running container). There's one famous quirk: with the process-directory kind, the builder themselves can't move in — only their newly-born child can, which is why the standard command needs extra flags.
+>
+> - **How Kubernetes builds a pod (3.4).** A pod is a shared suite: one tiny do-nothing caretaker (the "pause" container) checks in first and simply *stays*, holding the suite's shared address, name, and memo system open. The real apps then join the caretaker's suite — sharing its address and phone line — while each keeps a private furniture layout. Apps can crash and restart all day; because the caretaker never leaves, the suite (and its address) survives.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We now open the hood. There are four things to understand: **(A) the eight kinds and exactly what each privatizes, (B) how a namespace is represented as a file you can inspect and compare, (C) how a process gets into a new or existing namespace, and (D) how this composes into a Kubernetes pod.**
 
 ### 3.1 The eight namespace kinds — what each one actually isolates

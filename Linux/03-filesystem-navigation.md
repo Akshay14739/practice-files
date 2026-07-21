@@ -91,6 +91,16 @@ Once you see that **a path is just a route through one purpose-organized tree**,
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **A. The floor plan.** Linux keeps everything under one top-level folder, written `/`, like one big office building where every room has an assigned purpose (the FHS is simply the written floor plan). The rooms you'll meet: `/etc` is the filing cabinet of settings; `/var` holds records that grow while the system runs (logs, databases) and survive restarts; `/usr` is the installed software itself; `/run` is a whiteboard kept in memory and wiped clean at every reboot — live connections and notes about what's running right now; `/proc` and `/sys` are live dashboards the system invents on the fly, taking no disk space at all (one about running programs, one about hardware); `/dev` holds the doors to devices like disks and screens; `/opt` is where third-party vendors drop self-contained apps; `/tmp` is a scratch table anyone may use; `/home` holds each person's private room; `/boot` is the gear needed just to start the machine. Four buckets cover most troubleshooting: settings (`/etc`), long-lived data (`/var/lib`), logs (`/var/log`), and this-moment-only stuff (`/run`).
+>
+> **B. One building stitched from several plots.** Your machine may have several separate storage areas — different disks, partitions, even a chunk of memory — yet you walk around as if it were one seamless building. A "mount point" is a doorway where a whole separate structure has been grafted onto the main one. Stepping through, you never feel the seam. The dashboard folders (`/proc`, `/sys`) are grafted in the same way, except there's no disk behind them at all — the system writes the answers the instant you look.
+>
+> **C. How an address finds a file.** A path like `/var/lib/kubelet/config.yaml` is a set of walking directions. Under the hood, each folder is nothing but a table matching *names* to *record numbers*; the numbered record (an "inode" — the file's index card, holding its size, owner, permissions, and where its contents sit, but NOT its name) is the real file. The system starts at the building entrance and follows the directions one name at a time until it reaches the final index card. An address beginning with `/` always starts from the entrance (an "absolute" path); anything else starts from wherever you're currently standing (a "relative" path). Every folder contains two built-in signposts: `.` means "right here" and `..` means "one level up." And "where you're standing" isn't written anywhere on disk — it's a note the system pins to your running program, which is why the `cd` command must be part of the shell itself rather than a separate program.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We now open the hood. Three things to understand: **(A) the FHS map itself, (B) how one tree is stitched from many filesystems via mount points, and (C) how the kernel actually turns a path string into a file.**
 
 ## (A) The FHS map — what lives where, and the *rule* behind each

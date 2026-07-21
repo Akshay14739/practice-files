@@ -91,6 +91,25 @@ Once you see that a permission check is just *"match the process's numeric ident
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **A. Where the rules are written down.** Every file's true identity is an index card the system keeps for it (the "inode"); the filename is just a label pointing at that card. On the card live the owner's ID number, a group ID number, and a row of permission switches (who may read, change, or run the file). Everything is stored as *numbers*; the friendly names you see in listings are looked up in a phone book (`/etc/passwd`). If a number has no phone-book entry — common inside containers — you just see the raw number.
+>
+> **B. The bouncer's checklist.** Every time a program tries to open a file, the system's core runs a strict checklist, top to bottom, stopping at the FIRST line that fits:
+>
+> - Are you the superuser (root, the all-access administrator)? Come in.
+> - Are you the file's *owner*? Then ONLY the owner's three switches apply — even if other rows are more generous, the bouncer never reads further down.
+> - Are you in the file's *group* (a named team of users)? Only the group row applies.
+> - Otherwise, the "everyone else" row applies.
+>
+> Two traps: the rows never combine — an owner denied by their own row stays denied, no matter what the other rows say; and "you" means the ID numbers of the *running program*, not any name — which is exactly the dial Kubernetes turns when it sets what user a container runs as.
+>
+> **C. The "run" switch means different things on files and folders.** On a file: read = see the contents, write = change them, execute = run it as a program. On a folder: read = see the *list of names* inside, write = add, remove, or rename entries (so deleting a file needs write permission on its *folder*, not on the file!), execute = permission to *walk through* the doorway to reach anything inside. Odd combos follow: you can be allowed to walk through a folder yet not list what's in it, or list names you can't reach. This is why your secret-keys folder is locked to you alone — outsiders can't even step inside.
+>
+> **D. Three special switches.** Beyond the basic nine there are three extras. SUID: while the program runs, it temporarily *wears the file owner's badge* — how an ordinary user can change their own password even though the password file belongs to the administrator. SGID on a folder: anything created inside automatically joins the folder's team, keeping shared project folders consistent. The "sticky" switch: in a shared room like the public scratch folder, anyone may add items, but only an item's owner may throw it out. In listings, a capital letter versus lowercase warns you whether the underlying run-switch is also on.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We open the hood. Four things to understand: **(A) where permissions physically live (the inode), (B) how the kernel checks them, (C) why `x` means opposite things on files vs directories, and (D) the special bits.**
 
 ## (A) Where the bits actually live: the inode

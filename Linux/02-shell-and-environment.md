@@ -94,6 +94,20 @@ So: builtins, `PATH`, `export`, inheritance, quoting, subshells, and why aliases
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> **The shell is a receptionist, not a wizard.** This section explains four things about how it works.
+>
+> **A. Its whole life is one loop.** The shell (bash) is an ordinary program, no more privileged than any other. All day it repeats: show a prompt, read your typed line, *rewrite* the line (fill in variable values, turn wildcard patterns like `*.yaml` into actual matching filenames, run any embedded mini-commands and paste in their output — with quote marks controlling how much rewriting is allowed), split the result into words, figure out what the first word is, run it, and go back to the prompt. When one name could mean several things, there's a fixed pecking order: personal nickname (alias) → shell function → built-in ability → a program file found on disk.
+>
+> **B. Two kinds of commands.** Some commands are abilities the receptionist has personally ("builtins" like `cd` and `export`) — no helper needed. Others are separate programs on disk; to run one, the shell hires a temporary assistant (a "child process" — a new, separate copy of a program). To find the program file, the shell checks a fixed list of storerooms called PATH, left to right, and takes the *first* match. Why must `cd` be built-in? Because an assistant who changes *their own* desk location and then goes home changes nothing about the receptionist's desk. Anything that must change the current shell itself simply cannot be done by a helper.
+>
+> **C. Two pockets of variables.** The shell keeps private sticky notes ("shell variables") and a briefcase labeled "environment." Only the briefcase gets *photocopied* and handed to every assistant it hires. The command `export` moves a note into the briefcase. Because assistants only ever get a photocopy: (1) order matters — export *before* launching the helper; (2) helpers can never change your originals, only their own copy; (3) writing `X=hello` alone makes a private note, not a briefcase item — children won't see it until you export it.
+>
+> **D. Welcome instructions.** When a new shell starts, it reads certain setup files — but *which* files depends on how it started. Coming in the front door (logging in over SSH) reads the "profile" files; merely opening a new terminal tab reads a different file, `~/.bashrc`; running a script reads neither. That's why a nickname saved in the wrong file mysteriously vanishes in your next window: put everyday shortcuts in `~/.bashrc`, the file every interactive window reads.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We open the hood. There are four things to nail: **(A) the read-eval loop and where the shell sits, (B) builtins vs external commands and PATH lookup, (C) shell variables vs the environment and how `export` and inheritance work, and (D) the startup files that pre-load your environment.**
 
 ## (A) Where the shell sits, and its loop

@@ -55,6 +55,22 @@ Derivations:
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works — go slow*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Kustomize solves a simple problem: you run the same app in three settings (a practice kitchen, a rehearsal kitchen, and the real restaurant), and each needs tiny differences. Instead of keeping three full copies of the instructions — which slowly drift apart — you keep **one master copy plus a short "what's different here" note for each kitchen**. This section covers three things: the folder layout, broad changes, and surgical changes.
+>
+> - **(A) The layout: base, overlays, and the instruction card.** The **base** folder holds the shared master instructions. Each **overlay** folder (one per environment — dev, staging, prod) doesn't copy anything; it just says "start from the master copy, then change these one or two things" (for example, run 2 copies of the app instead of 1). The tool only reads a specially named file, `kustomization.yaml` — think of it as the index card on the front of each folder listing (1) which instruction sheets belong here and (2) what tweaks to apply. One gotcha: the "build" command only *prints* the final combined instructions on screen — it doesn't do anything to your cluster. A separate apply command actually deploys them, and it's built into the normal Kubernetes tool, no extra software needed. The index card can also point at whole sub-folders, so one command can deploy everything at once.
+>
+> - **(B) Transformers: broad, blanket changes.** A **transformer** stamps the *same* change onto *every* item at once — like a rubber stamp across a whole stack of paperwork. Examples: add the company name to every document (labels), add a prefix to every name, file everything under one department (namespace), or swap out which brand of ingredient is used everywhere (container images). Placement matters: a stamp on the top-level index card hits everything; a stamp on a sub-folder's card only hits that folder.
+>
+> - **(C) Patches: surgical, one-item changes.** A **patch** edits one field on one specific item — tweezers instead of a rubber stamp. There are two writing styles:
+>   - **Strategic merge**: you write a mini-version of the document showing only the part that changes (plus the name, so the tool knows which one you mean). Easy to read — usually the go-to.
+>   - **JSON 6902** (a precise edit-list format): you write step-by-step edit instructions — "replace this exact field with this value," "add," or "remove." It shines when editing *lists*, because you can point at "item number 0" or say "append to the end."
+>
+> The rule of thumb the section builds to: **blanket change for everything = transformer; one-off change to one object = patch.**
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ## (A) base + overlays + `kustomization.yaml`
 
 ```

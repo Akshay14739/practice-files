@@ -95,6 +95,17 @@ Once you see that **there is no such thing as "printing to the screen"** — onl
 # RUNG 3 — The Machinery ⚙️
 ### *How it ACTUALLY works under the hood — the most important rung. Go slow.*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Four ideas, using one picture: every running program is an office worker who never mails anything directly — they just drop letters into numbered mail slots on their own desk, and the building's mail system decides where each slot's letters actually go.
+>
+> - **(A) The numbered mail slots.** Each worker's desk has a small row of numbered slots (each number is a "file descriptor" — just an index, not the destination itself). Three come standard: slot 0 is the **in-tray** (where instructions arrive), slot 1 is the **results out-tray**, and slot 2 is a separate **complaints out-tray**. Fresh out of the box, all three are connected to you — the person at the screen and keyboard. Why two out-trays? So results and complaints can be routed to different places independently — keep one, bin the other.
+> - **(B) The dispatcher rewires the slots before the worker sits down.** When you ask for "run this and save the results in a file," the worker is never told about the file. Instead the dispatcher (your "shell" — the program that reads what you type) quietly re-plumbs the desk *first*: it connects slot 1's tube to the file, *then* seats the worker. The worker drops letters in slot 1 as always, blissfully unaware they now land in a file. Because rewiring steps are applied one at a time, left to right, **order matters** — and the instruction "make slot 2 go wherever slot 1 goes" copies slot 1's *current* destination, like photographing a signpost: if slot 1 is re-aimed afterwards, slot 2 doesn't follow. That snapshot-not-a-live-link detail is the single most common gotcha here.
+> - **(C) What a pipe really is.** The vertical bar `|` between two commands asks the building to install a short **pneumatic tube with a small holding tank**: worker A's results out-tray feeds the tank, worker B's in-tray drains it. Three consequences: only the *results* tray goes through the tube (complaints still land on your desk unless you merge them in first); both workers are on shift *at the same time* — if the tank fills up, A simply waits until B catches up; and the pair's official "did it succeed?" verdict is, by default, only the *last* worker's — the first one may have failed silently.
+> - **(D) Faking a file for workers who insist on one.** Some workers refuse loose letters and demand "a document." Two tricks satisfy them: a **heredoc** lets you dictate a block of text on the spot, which gets fed straight into the worker's in-tray as if it were a document (never touching the filing cabinet); and **process substitution** goes further — it hands the worker a *document name* that is secretly the end of a live tube from another worker. That's how a compare-two-things worker can be fed *two* live outputs at once, something an ordinary single tube can't do.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 We now open the hood. There are four things to understand: **(A) the file-descriptor table, (B) how the shell rewires it before exec, (C) what a pipe physically is, and (D) how heredocs and process substitution fake a file.**
 
 ## (A) The file-descriptor table: what a process actually holds

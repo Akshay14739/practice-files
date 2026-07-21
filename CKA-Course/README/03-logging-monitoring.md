@@ -55,6 +55,24 @@ Derivations:
 # RUNG 3 — The Machinery ⚙️
 ### *The two data paths — go slow*
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> Imagine you manage a large apartment building and want to know two different things: **how much electricity and water each apartment is using right now**, and **what the tenants have been saying**. Kubernetes gives you one separate system for each — and neither keeps any history.
+>
+> **(A) The usage-meter path (metrics).** Every floor of the building has a caretaker (the "kubelet" — the worker program on each computer), and each caretaker has a built-in meter reader (called "cAdvisor") that constantly measures how much power and space every apartment (each running app) is using. A single clerk for the whole building (the "Metrics Server") walks around, reads every floor's meters, and adds it all up on a whiteboard in his head. When you ask "who's using the most memory right now?" (the `kubectl top` command), you're asking that clerk. Three things follow:
+> - The clerk isn't hired by default — you must bring him in yourself (install the Metrics Server), and give him a minute or two to do his first rounds before he can answer.
+> - He keeps everything **in his head only** — no notebook. So there are no charts of yesterday, no trends. If you want recorded history and graphs, you hire a full bookkeeping firm (add-on tools like Prometheus or EFK). An older clerk named Heapster was retired.
+> - In practice labs, the clerk sometimes needs permission to skip a strict ID check at each floor's door (a certificate setting) — fine for practice, never for a real building.
+>
+> **(B) The message path (logs).** Whatever an app "says" — its printed output — is caught by the machine running it (the container runtime) like an answering machine taping every word. Asking for a pod's logs replays that tape. Key wrinkles:
+> - If an apartment houses **two tenants** (a pod with multiple containers), you must say *which* tenant's tape you want.
+> - If a tenant **stormed out and was replaced** (the container crashed and restarted), the new tenant's tape is nearly blank — the useful complaint is on the **previous** tenant's tape, which you must ask for specifically (the `--previous` flag). This is the number-one trick for debugging crash loops.
+> - And note: the tape only records what's spoken aloud (standard output) — if the app writes its diary in a private file instead, the tape has nothing.
+>
+> The two systems share no plumbing: the meters need a special install; the tapes work from day one.
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ## (A) The metrics path
 
 ```

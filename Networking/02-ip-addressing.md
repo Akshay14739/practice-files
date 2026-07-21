@@ -70,6 +70,24 @@ Three separate address pools, each a "network + host" scheme. Master the one ide
 
 ## ⚙️ Rung 3 — The Machinery (the important one — go slow)
 
+> ### 🧸 Plain-English first (read this before the technical version)
+>
+> This section walks through six ideas. In everyday terms:
+>
+> **1. An address is just a number with a size limit.** An IPv4 address (the classic kind, like `192.168.1.20`) is really one number made of 32 tiny on/off switches ("bits"). For readability we group them into four chunks of eight and write each chunk as a normal number. Eight switches can only count from 0 to 255 — that's why you never see a chunk like "256." And 32 switches total can only make about 4.3 billion different addresses. That ceiling matters later.
+>
+> **2. Every address has two halves: street and house.** The front part of the number names *which network* (the street), and the back part names *which device* on it (the house number). A little marker written like `/24` tells you where the street name ends and the house number begins. Devices on the same street talk directly; anything else goes through the gate (the router).
+>
+> **3. Public vs private addresses.** Because 4.3 billion isn't enough for the world, certain ranges are set aside as "private" — like internal room numbers in an office building. Millions of buildings can reuse the same room numbers because they never appear on outside mail. When a private device talks to the internet, a concierge at the front desk (called NAT — network address translation) swaps its room number for the building's one public street address, and swaps it back for replies.
+>
+> **4. Special addresses.** A few numbers are reserved for odd jobs. The most famous, `127.0.0.1` ("localhost"), means "this very machine talking to itself" — a letter you mail to yourself without it ever leaving the house.
+>
+> **5. IPv6: the bigger address book.** We ran out of 4.3 billion addresses, so IPv6 uses 128 switches instead of 32 — enough addresses for every grain of sand on Earth, many times over. They're written in a longer lettered format with colons, with shortcuts to skip long runs of zeros. Same street-plus-house idea, just a vastly bigger number. (Each envelope also carries a hop counter that ticks down at every post office, so a lost letter can't circle forever — IPv6 just gave this counter a more honest name.)
+>
+> **6. Why the opening incident happened.** In this cloud setup, every small program ("pod") gets a *real* address from a limited pool — like a hotel with a fixed number of rooms. Book enough guests and the hotel simply runs out of rooms: new programs can't start because there are no addresses left. The fixes all amount to "get a bigger address pool."
+
+*Now the original technical deep-dive — the same ideas, in precise form:*
+
 ### 3.1 What an IPv4 address really is: 32 bits
 
 An **IPv4 address is 32 bits** long. Humans can't read 32 raw bits, so we chop them into **four groups of 8 bits**. Each 8-bit group is called an **octet** (octet = 8 bits). We write each octet as a decimal number and separate them with dots — **dotted-decimal notation**:
