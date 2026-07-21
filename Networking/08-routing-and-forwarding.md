@@ -452,3 +452,17 @@ Routing is the slow "figure out the map of all networks" job; forwarding is the 
 - [NAT & PAT](14-nat-and-pat.md) — what happens to the source address as your packet leaves the VPC (the NAT GW step in the Trace).
 - [AWS VPC](20-aws-vpc.md) — route tables, IGW, NAT Gateway targets: static routing in the cloud.
 - [Kubernetes pod networking & CNI](24-kubernetes-pod-networking-cni.md) — Flannel routes, Calico BGP, veth gateways: routing wearing Kubernetes clothes.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** A switch floods a frame to every port when it doesn't know the destination MAC. Why can't a router just "flood a packet to every network" when it doesn't know the destination IP? What would that cost, and what fact about IP addresses makes a smarter choice possible?
+
+**A:** Flooding works for a switch because its scope is one broadcast domain — a bounded set of wires it can physically see. A router's "every network" is potentially the whole internet (~75,000 autonomous systems), so flooding every unknown packet everywhere would be a planet-scale broadcast storm: bandwidth on every link consumed by copies of every packet, exactly the flat-network collapse that routing was invented to prevent. The smarter choice is possible because IP addresses, unlike flat 48-bit MACs, are **hierarchical**: the CIDR prefix splits an address into a network portion and a host portion, so a router can match just the network portion against a table of known prefixes (longest-prefix match) and send the packet one hop closer — no flooding, and whole swaths of the internet summarize into a single table entry or the `0.0.0.0/0` default route.
+
+### Before Rung 7
+**Q:** Two pods on the *same* node talk to each other. Does TTL get decremented? Does any routing table lookup happen, or is it pure switching?
+
+**A:** Both pods sit in the node's local pod CIDR (e.g. `10.244.1.0/24`), which the node's table lists as **directly connected** (`scope link` on `cni0`) — so no packet crosses a network boundary and no router forwards it. Delivery is essentially L2: the veth pairs and the Linux bridge move the frame by MAC address (after ARP), which is switching, and since **only routers decrement TTL — switches never touch the IP header** — TTL stays at 64. Strictly, the kernel still does a route lookup on the destination, but it hits the directly-connected entry ("next-hop = self, just ARP and deliver"), so no *routing between networks* occurs. TTL decrement only starts the moment traffic must leave for another network — e.g. another node's pod CIDR via a `via <node-IP>` route.

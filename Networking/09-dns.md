@@ -479,3 +479,22 @@ DNS is the internet's phone book: you know a name like `google.com`, but compute
 - [Kubernetes DNS & service discovery](26-kubernetes-dns-service-discovery.md) — CoreDNS, `svc.cluster.local`, resolv.conf and ndots in full depth.
 - [Kubernetes Services & kube-proxy](25-kubernetes-services-kube-proxy.md) — the ClusterIP (`10.96.0.10`) that fronts CoreDNS and how DNAT reaches a real pod.
 - [HTTP & HTTPS](10-http-and-https.md) — what happens *after* the name resolves and the connection begins.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** If DNS is a distributed tree where each owner runs their own server, what problem does that create that a single `HOSTS.TXT` never had — and what must the system add to make the tree usable?
+
+**A:** A single file had one trivial property the tree loses: you always knew where to look — the answer was right there in your local copy. Once the namespace is split across thousands of independently-run servers, you face a discovery problem (which server owns the answer for this name?) and a cost problem (walking servers for every single lookup would be slow and would melt the top of the tree). So the system must add two things: **delegation pointers (NS records)** at every level — root points to the TLD, the TLD points to the authoritative server — so a resolver can find the right server by walking right-to-left down the chain; and **caching with a TTL** at every layer, so nobody re-walks the tree for an answer they saw recently. Caching absorbs ~99% of the traffic and is the single feature that makes the distributed tree fast enough to exist.
+
+### Before Rung 5
+**Q:** If you ask a resolver for the A record of a name that is actually a CNAME, what extra work must the resolver do before handing back an IP — and how does that relate to Kubernetes `ExternalName`?
+
+**A:** The resolver gets back a CNAME ("this name is really that other name") instead of an address, so it must **re-resolve the alias target**: it starts a fresh lookup for the canonical name — potentially walking the delegation chain again for a completely different zone — until it reaches a real A record, then returns both the CNAME line and the final A record (as seen with `www.github.com` → CNAME `github.com.` → A `140.82.112.3`). A Kubernetes `ExternalName` Service is exactly this mechanism grafted into the cluster: CoreDNS answers the Service name with a **CNAME to the external name** (no ClusterIP at all), and the pod's resolver must then chase that CNAME out through the upstream/VPC resolver to get the actual IP.
+
+### Before Rung 7
+**Q:** A pod's `/etc/hosts` has `10.0.0.5 payments` but CoreDNS says `payments.shop.svc.cluster.local` is `10.100.42.7`. Which IP does `curl payments` hit, and why — search domains or `nsswitch` order?
+
+**A:** It hits **`10.0.0.5`**, and the deciding mechanism is **`nsswitch.conf` lookup order**, not search domains. The resolver library checks `hosts: files dns` — the static `/etc/hosts` file is consulted *first*, and the literal name `payments` matches the entry there exactly, so resolution ends before any DNS query is ever sent. Search-domain expansion (appending `shop.svc.cluster.local`, etc.) is part of the DNS path, which is only reached if the hosts file has no match — so CoreDNS's `10.100.42.7` never gets a chance to answer. This is precisely why a stale `/etc/hosts` entry silently overrides healthy DNS and produces the maddening "only on this machine" bug.

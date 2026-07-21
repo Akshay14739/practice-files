@@ -403,3 +403,37 @@ k config use-context <ctx> ; k config set-context --current --namespace=dev
 - [Section 13 — Troubleshooting](13-troubleshooting.md) — cert/control-plane recovery with `crictl`.
 - [../../Linux/26-tls-pki-openssl.md](../../Linux/26-tls-pki-openssl.md) · [../../Linux/17-capabilities.md](../../Linux/17-capabilities.md) — the OpenSSL/PKI and Linux capabilities under certs and security contexts.
 - [../../Networking/28-kubernetes-network-policies.md](../../Networking/28-kubernetes-network-policies.md) — NetworkPolicy from the networking side.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Name the two distinct questions any secure system must answer for a request, and give a Kubernetes example of each.
+
+**A:** The two questions are **authentication — "who are you?"** — and **authorization — "what may you do?"**. In Kubernetes, authentication is answered by presenting a TLS client certificate signed by the cluster CA (for humans/components) or a service-account token (for pods); failing it yields `401 Unauthorized`. Authorization is answered by RBAC: the apiserver looks for a Role/ClusterRole bound to your identity that allows the verb on the resource; failing it yields `403 Forbidden`.
+
+### Before Rung 3
+**Q:** A user's `kubectl get pods` returns `Forbidden`. Which of the two gates did they pass, and which did they fail? What would `Unauthorized` have meant instead?
+
+**A:** `403 Forbidden` means they **passed authentication** (the apiserver knows who they are — their cert or token was valid) but **failed authorization** — no RoleBinding/ClusterRoleBinding grants their identity the `get`/`list` verb on `pods` in that namespace. `401 Unauthorized` would have meant the first gate failed: the cluster couldn't establish their identity at all, e.g. a cert signed by an untrusted CA or an invalid token — the request never even reaches RBAC.
+
+### Before Rung 4
+**Q:** Four quick ones: (1) which CA signs a *user's* client cert? (2) does `403` mean authn or authz failed? (3) where does a pod find its service-account token? (4) why might a NetworkPolicy you applied do nothing?
+
+**A:** (1) The **cluster CA** (`/etc/kubernetes/pki/ca.crt`/`ca.key`, Issuer `CN=kubernetes`) — the controller-manager signs approved CSRs with it; the separate etcd CA signs only etcd's certs. (2) `403 Forbidden` is an **authorization (RBAC)** failure — authentication already succeeded. (3) At **`/var/run/secrets/kubernetes.io/serviceaccount/token`** — a short-lived bound token mounted into the pod. (4) Because the cluster's **CNI doesn't enforce NetworkPolicy** — plain Flannel ignores policies silently; you need an enforcing CNI like Calico, Cilium, or Weave.
+
+### Before Rung 5
+**Q:** Sort into the four boxes: a `ClusterRoleBinding`, a `runAsNonRoot: true`, a `CertificateSigningRequest`, a `podSelector` ingress rule.
+
+**A:** `ClusterRoleBinding` → **WHAT MAY YOU DO (authz)** — it grants a ClusterRole's permissions cluster-wide. `runAsNonRoot: true` → **WHAT POWER (confinement)** — a securityContext field limiting the identity a container runs as. `CertificateSigningRequest` → **WHO ARE YOU (authn)** — it's how a new user gets a signed client cert, i.e. authentication plumbing. A `podSelector` ingress rule → **WHO CAN IT TALK TO (confinement)** — part of a NetworkPolicy, the pod-level firewall.
+
+### Before Rung 6
+**Q:** In the first trace, at which step would a cert signed by the *wrong* CA fail, and what HTTP error results? At which step does a missing RoleBinding fail, and what error?
+
+**A:** A cert signed by the wrong CA fails at **step 2, the TLS handshake** — the apiserver cannot verify the client cert against the cluster CA, so authentication fails with **`401 Unauthorized`** and the trace ends there. A missing RoleBinding fails at **step 3, authorization** — RBAC searches namespace `blue` for a (Cluster)RoleBinding whose subject is akshay with a Role allowing `list` on `pods`, finds none, and returns **`403 Forbidden`** (authenticated but not permitted).
+
+### Before Rung 7
+**Q:** etcd throws "certificate signed by unknown authority" after someone edited `etcd.yaml`. Which CA did they probably point it at, and which should it be?
+
+**A:** They probably pointed etcd at the **cluster CA** (`/etc/kubernetes/pki/ca.crt`), but etcd has its **own separate CA** — it should be `/etc/kubernetes/pki/etcd/ca.crt` (Issuer `etcd-ca`). The two CAs are separate trust domains: the cluster CA signs apiserver/user/kubelet certs, while the etcd CA signs only etcd's certs, so mixing them makes cert verification fail with "signed by unknown authority." Diagnose with `crictl ps -a` and `crictl logs` since `kubectl` is down, then fix the CA path in `/etc/kubernetes/manifests/etcd.yaml`.

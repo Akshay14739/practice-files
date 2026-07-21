@@ -447,3 +447,37 @@ A wrong result — `yum update` proposing a kubelet bump — would tell you the 
 - [shell-and-environment](02-shell-and-environment.md) — whether `kubectl` runs after install is a PATH question; packages target `/usr/bin`, raw binaries usually `/usr/local/bin`.
 - [linux-philosophy](01-linux-philosophy.md) — a package is just files, and the install database (`/var/lib/dpkg`, `/var/lib/rpm`) is just more files you can read.
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — where package pinning sits in the full node-triage picture alongside cgroups, namespaces, and systemd.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** `make install` and `apt-get install` both end with files on disk. What is the one thing `apt` does that `make install` fundamentally cannot, and why does it make a fleet manageable?
+
+**A:** `apt` **records a receipt** — it writes the exact inventory of every file it placed (plus name, version, and state flags) into the local package database at `/var/lib/dpkg/`. `make install` copies files wherever it likes and leaves no record, so you can never later answer "what is installed, at what version, and which files belong to it." That receipt is what makes a fleet manageable: it enables exact removal, version queries (`dpkg -l`), audit of what changed, fleet-wide upgrades, and freeze flags like `apt-mark hold` — none of which are possible when nothing remembers what was installed. (The signed-catalog trust chain and dependency resolution also come with `apt`, but the local database is the foundational thing `make install` structurally lacks.)
+
+### Before Rung 3
+**Q:** Predict what `apt-get update` downloads versus what `apt-get install` downloads. Which touches the catalog and which the archives, and why must they be separate steps?
+
+**A:** `apt-get update` downloads only the **catalog** — `Release`/`InRelease` and `Packages.gz`, i.e. the signed metadata listing every package, version, dependency, and checksum — verifies the GPG signature against your keyring, and caches it under `/var/lib/apt/lists/`. It installs nothing. `apt-get install` touches the **archives**: the resolver reads that cached catalog, computes the dependency closure, downloads the actual `.deb` files into `/var/cache/apt/archives/`, verifies each sha256 against the catalog, and hands them to `dpkg`. They must be separate because the box needs to know *what exists and what to trust* before it can sensibly resolve and fetch anything — the catalog is the source of the versions, dependencies, and checksums the install step validates against, and syncing it is a distinct, signature-verified event; skip it and you resolve against yesterday's stale catalog.
+
+### Before Rung 4
+**Q:** A colleague runs `dpkg -i ./kubelet_1.28.5-1.1_amd64.deb` directly and it "works." Name two things they did not get — one about dependencies, one about trust.
+
+**A:** Dependencies: `dpkg` is the dumb low-level installer — it does **no dependency resolution**. It will unpack the package even if dependencies (kubernetes-cni, conntrack, socat, ...) are missing, leaving the system "half-configured" instead of computing and installing the full dependency closure the way apt's resolver does. Trust: they skipped the verification chain — `apt-get install` verifies the repo's GPG-signed catalog and then checks each downloaded `.deb`'s sha256 against that catalog before handing it to dpkg; a hand-supplied `.deb` fed straight to `dpkg -i` is installed with no signature or checksum check at all, so nothing proves it is the genuine artifact.
+
+### Before Rung 5
+**Q:** `apt` and `apt-get` are "the same kind of thing." Why does every Kubernetes install runbook say `apt-get` and never `apt`?
+
+**A:** Because runbooks are scripts (or destined to become scripts), and scripts parse output. `apt` is the newer human-friendly front-end with progress bars and an output format that may change between releases — it even warns that its CLI is not stable for scripting. `apt-get` is the older, stable, script-safe interface whose output format is guaranteed stable, so automation built on it keeps working across upgrades. Same resolver underneath; the choice is purely about interface stability in automation.
+
+### Before Rung 6
+**Q:** GPG verified the signature in step 3 but each package's sha256 was checked in step 4. Why two checks, and what attack does each stop that the other doesn't?
+
+**A:** The GPG check in step 3 authenticates the **catalog**: it proves `Release`/`Packages.gz` really came from the repo owner's private key, stopping a forged or tampered catalog (a malicious mirror or man-in-the-middle publishing fake metadata pointing at malicious versions). But the signature covers only the metadata, not the multi-megabyte `.deb` files themselves. The sha256 check in step 4 extends that trust to the **archives**: each downloaded `.deb` is hashed and compared against the checksum the (already-verified) catalog vouches for, stopping a tampered, substituted, or corrupted package file served in place of the real one. Together they form the transitive chain: trusted key → signed `Release` → checksummed `Packages.gz` → checksummed `.deb` — one trusted signature securing every byte, but only if both links are checked.
+
+### Before Rung 7
+**Q:** You need `kubelet` AND `kubectl` on a node. Which install method for each, and why does the split fall exactly there?
+
+**A:** `kubelet` goes through the **package manager** (repo + exact version + `apt-mark hold`): it has real dependencies (kubernetes-cni, conntrack, coupling to containerd/runc), ships a systemd unit via maintainer scripts, and is load-bearing node infrastructure that must move in lockstep with the fleet and the control-plane version — exactly what the resolver, receipt, and hold flag exist for. `kubectl` fits the **raw-binary path** (`curl` + `sha256sum --check` + `install -m 0755`): it is a single static Go binary with zero dependencies, consumed by a human operator rather than by the node itself, and you often want a precise release matching your cluster instantly (or several versions side by side) without depending on a repo's packaging schedule. The line falls exactly at "has dependencies and must be fleet-managed" versus "self-contained client tool you pin yourself" — and on both sides the non-negotiables are verified trust and a deliberately frozen version.

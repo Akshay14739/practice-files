@@ -394,3 +394,37 @@ Go back to **Rung 7, Prediction 3** and run the `ping` → `nc` → `curl -v` la
 - [Routing & forwarding](08-routing-and-forwarding.md) — how L3 packets cross networks, TTL, and hop-by-hop forwarding.
 - [Load balancing](18-load-balancing.md) — the concrete L4-vs-L7 split (NLB vs. ALB, K8s Services vs. Ingress).
 - [Kubernetes network policies](28-kubernetes-network-policies.md) — L3/L4 pod firewalls, and why they can't see L7.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Two vendors' networks in 1978 can't talk. Why is splitting the stack into independent layers a more powerful fix than writing one careful translator between them?
+
+**A:** A translator only connects one specific pair of stacks — with N vendors you'd need a translator for every pair, which is roughly N×N (N·(N−1)/2) translators, each a full monolith-to-monolith mapping that must be rewritten whenever either vendor changes anything. Layering replaces that with a single shared set of interfaces: every vendor implements the same defined jobs (route, deliver to the app, put bits on the wire) with clean handoffs, so any stack interoperates with any other — N implementations, not N×N translators. It also unlocks independent evolution: you can swap the physical medium or upgrade one layer without touching the rest, which a pairwise translator can never give you.
+
+### Before Rung 3
+**Q:** If every layer only talks to its counterpart on the far machine, how can data get from a browser to a server, given that a browser can't put electrical signals on a wire?
+
+**A:** The peer conversation is an illusion built by encapsulation. The browser (L7) doesn't touch the wire — it hands its data *down* the local stack, and each layer wraps it in a header addressed to that same layer on the far side: TCP adds ports, IP adds addresses, Ethernet adds MACs, and only the Physical layer actually produces signals. On the receiving machine the bits climb *up* the stack, each layer reading and stripping only its own header and passing the payload upward, until the far L7 receives a byte-identical message. So layers really communicate vertically with their neighbors; the headers are how each layer "talks" horizontally to its counterpart without ever needing a direct channel.
+
+### Before Rung 4
+**Q:** A packet leaves your pod with TTL 64 and reaches a server 5 router-hops away. What TTL does it arrive with, which layer's header did the decrementing, and what is the PDU called while the data sits at the TCP layer?
+
+**A:** It arrives with TTL **59** — each of the 5 routers decrements TTL by 1 (64 → 63 → 62 → 61 → 60 → 59). The TTL field lives in the **IP header**, so the decrementing happens at **Layer 3 (Network)** — that's where routers operate. At the TCP layer (L4, Transport), the PDU is called a **segment** (it would be a datagram if it were UDP).
+
+### Before Rung 5
+**Q:** "We're dropping packets" vs. "we're dropping frames" — are these necessarily the same failure, and which layer is each pointing at?
+
+**A:** Not necessarily. "Packet" is the L3 (Network) PDU, so dropping packets points at IP-level problems — routing, TTL expiry, an L3/L4 filter like a NetworkPolicy or Security Group. "Frame" is the L2 (Data Link) PDU, so dropping frames points at the local link — a failed CRC check, a switch, a bad cable or NIC. The same bytes wear both names at different altitudes, but the word choice tells other engineers exactly which layer's machinery you suspect, which is why using the right PDU name matters when bisecting a failure.
+
+### Before Rung 6
+**Q:** A NetworkPolicy blocked the traffic in step 8. Since policies see only L3/L4, could it have blocked the request based on the URL path `/pay`? If not, which cluster component could, and at which layer?
+
+**A:** No. A NetworkPolicy inspects only L3/L4 information — source/destination IPs (pod selectors) and ports — and the URL path lives inside the HTTP payload, which is an opaque (and here TLS-encrypted) blob to L3/L4. There is no "path:" field in a NetworkPolicy. To allow or deny by `/pay` you need a component operating at Layer 7 (the merged TCP/IP Application layer): an **Ingress/ALB**, which routes by hostname and path, or a **service mesh** sidecar (Envoy), which can enforce L7 policy on request content.
+
+### Before Rung 7
+**Q:** A teammate says "it's a Layer 7 problem" about an EKS request. Which single TCP/IP layer are they pointing at, and name two cluster components that live there.
+
+**A:** They're pointing at the TCP/IP **Application layer** — the single top layer into which OSI's L7 (Application), L6 (Presentation), and L5 (Session) all collapse. So "Layer 7" in cloud usage loosely means anything in that merged top region: the app protocol, encoding, TLS, session. Cluster components living there include the **Ingress/ALB** (routes by hostname/path), **CoreDNS** (name resolution is an application-layer protocol), and a **service mesh** like Envoy sidecars — any two of these answer the question.

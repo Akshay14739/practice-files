@@ -419,3 +419,27 @@ A VPC is a private, isolated network you rent inside AWS and give an address ran
 - [Load balancing](18-load-balancing.md) — the ALB/NLB in your public subnets fronting private nodes.
 - [Kubernetes pod networking & CNI](24-kubernetes-pod-networking-cni.md) — how the VPC-CNI turns subnet IPs into pod IPs.
 - [VPN & zero-trust connectivity](19-vpn-and-zero-trust-connectivity.md) — the other way (besides peering/TGW) to reach into a VPC.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** In EC2-Classic every host was reachable by default and firewalled afterward. What single capability must a VPC give you so that a host can be unreachable from the internet by default yet still download OS patches? (Name the two components involved.)
+
+**A:** The capability is **per-subnet route tables** — letting *you* decide, by routing, which subnets can be reached from the internet and which can only reach *out*. The two components are the **Internet Gateway** and the **NAT Gateway**: the host sits in a private subnet whose route table sends `0.0.0.0/0` to a NAT Gateway (not an IGW), and that NAT Gateway sits in a public subnet with an IGW route. Because the NAT Gateway does outbound-only, stateful many:1 SNAT, the host can initiate connections to patch mirrors and get replies back, while unsolicited inbound from the internet is dropped and the host's private IP is never exposed. Unreachable by default, outbound on demand — a pure routing decision, not an after-the-fact firewall.
+
+### Before Rung 4
+**Q:** A NAT Gateway is described as "in a public subnet." Using only the route-table idea from Rung 2, explain why it has to be there and what specifically breaks if you place it in a private subnet.
+
+**A:** The NAT Gateway's whole job is to forward private hosts' traffic to the internet with its own Elastic IP as source — so *it* must have a working path to the internet, and by the Rung 2 idea, "has a path to the internet" means "sits in a subnet whose route table sends `0.0.0.0/0` to the IGW," i.e. a public subnet. Put it in a private subnet and its own default route points at… a NAT Gateway (itself, or nowhere) instead of the IGW — a dead concierge: it can accept the nodes' outbound packets but has no route to actually deliver them to the internet, so every outbound connection (image pulls, OS updates, AWS API calls) hangs and times out. Public vs private is not a flag on the subnet; it is purely which target the route table's `0.0.0.0/0` line names, and the NAT GW needs that target to be `igw-…`.
+
+### Before Rung 6
+**Q:** At step 5 the node SG references the ALB's SG rather than a CIDR. If instead you had used a stateless NACL on the private subnet to allow `:30080` inbound, what second rule would you be forced to add, and why does the Security Group not need it?
+
+**A:** You would be forced to add an **outbound NACL rule allowing the ephemeral port range 1024–65535** back toward the ALB's subnet, because a NACL is stateless: it evaluates every packet independently, and the pod's response leaves with a high ephemeral destination port that the inbound `:30080` rule says nothing about — without the second rule, the reply is silently dropped at the subnet gate. The Security Group doesn't need it because it is **stateful**: when it allowed the ALB's request in on `:30080`, it recorded the connection, and return traffic for an approved connection is automatically allowed back out — no explicit egress rule ever required. (Bonus of the SG approach: referencing `sg-0alb` instead of a CIDR keeps the rule valid as the ALB scales and its IPs change — a NACL can only match CIDRs.)
+
+### Before Rung 7
+**Q:** You want to connect VPC-A (`10.0.0.0/16`) to VPC-B (`10.0.0.0/16`) via peering so their EKS clusters can talk. Predict what happens and explain the mechanism from the route-table idea.
+
+**A:** It fails — traffic can never flow between them, because peering requires **non-overlapping CIDRs**. The mechanism is pure route-table logic: to use the peering you must add a route in VPC-A saying "`10.0.0.0/16` → `pcx-…`", but VPC-A's route table *already* resolves `10.0.0.0/16` to `local` (every route table has the VPC's own CIDR as the local route), so the route can't be installed (`RouteAlreadyExists`) and the destination is ambiguous — when a packet targets `10.0.5.7`, the router cannot decide whether that address lives in A or in B. The fix is address planning: give VPC-B a distinct range like `10.1.0.0/16`, then each side adds a route to the *other's* CIDR via the peering connection (or a Transit Gateway attachment, which has the same non-overlap requirement). This is why you must plan CIDRs across all clusters and accounts up front.

@@ -439,3 +439,37 @@ atrm 3         # cancel it before it fires
 - [I/O redirection & pipes](10-io-redirection-pipes.md) — `>> log 2>&1` is how you defeat silent cron failures.
 - [cgroups](14-cgroups.md) — systemd services (and thus timer jobs) inherit resource limits from here.
 - [Linux ↔ Kubernetes map](27-linux-kubernetes-map.md) — where node-level cron/timers sit next to CronJobs in the full picture.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why is `while true; do work; sleep 86400; done` fundamentally worse than a scheduler for "every day at 2 AM"? Name two distinct failure modes beyond wasted memory.
+
+**A:** First, **it drifts off the clock**: `sleep 86400` is interval-based, not calendar-based — if the work takes 3 minutes, the next run is at 00:03, then 00:06, slowly walking away from 2 AM, whereas a scheduler matches wall-clock time each day. Second, **it fails silently and unrecoverably**: if the loop crashes, nobody restarts it and there is no record it died; and if the machine is powered off when the moment arrives, the run is simply lost with nothing to catch up. A scheduler daemon avoids all of these — it re-evaluates the calendar each minute, survives individual job crashes because each run is a fresh forked child, and (with anacron or `Persistent=true`) can catch up missed runs.
+
+### Before Rung 3
+**Q:** From the one-idea sentence alone, derive why a cron job running `docker ps` might fail with "command not found" even though it works when you type it.
+
+**A:** The load-bearing clause is "**it forks a process**": when the daemon's clock match fires, cron forks a fresh child with a minimal, hardcoded environment — typically `PATH=/usr/bin:/bin`, `SHELL=/bin/sh` — because it never sourced your `.bashrc` or login files. Your interactive shell finds `docker` because your login environment built up a rich `PATH` (including places like `/usr/local/bin`); cron's child has none of that, so the bare name `docker` resolves to nothing and the job dies with "command not found." The fix that follows from the same derivation: use absolute paths in cron jobs, or set `PATH=` explicitly at the top of the crontab.
+
+### Before Rung 4
+**Q:** A script in `/etc/cron.daily/` has no cron fields — what decides it runs daily, and which helper executes it? And in systemd, what happens if you `systemctl enable --now backup.service` instead of `backup.timer`?
+
+**A:** The `cron.daily/` directory holds plain executable scripts with no time spec; the schedule lives elsewhere — a single entry in `/etc/crontab` (or `/etc/cron.d/`, or anacron on desktop distros) fires at the daily interval and invokes the helper **`run-parts`**, which executes every script in the directory in order. So dropping a script there is the zero-syntax way to declare "daily." In the systemd case, enabling and starting `backup.service` instead of `backup.timer` runs the job **once, right now, and never again on a schedule**: the service knows nothing about scheduling — the `[Timer]` section with `OnCalendar=` lives in the `.timer` unit, and only enabling the timer registers the schedule with PID 1. The rule: enable the `.timer` (that's what schedules), start the `.service` only for a manual test run.
+
+### Before Rung 5
+**Q:** Name the two mechanisms that catch up a missed run after the machine was powered off — one bolted onto cron, one built into systemd — and state each one's minimum granularity limit.
+
+**A:** The cron-world bolt-on is **anacron**: it works in days-elapsed rather than clock time, records the last run of each job in timestamp files under `/var/spool/anacron/`, and on boot runs anything overdue, catch-up style — but its minimum granularity is **one day** (it cannot do hourly or finer). The systemd-native equivalent is the timer directive **`Persistent=true`**: systemd records the last trigger time on disk and, if the machine was off when the timer should have fired, runs the service immediately on next boot. Timers have no coarse floor — systemd timers can schedule down to **sub-second/sub-minute** intervals (versus cron's own one-minute floor), so `Persistent=true` catch-up applies at whatever granularity the timer declares.
+
+### Before Rung 6
+**Q:** In step 5 of the trace, cron runs the job via `/bin/sh -c '...'` rather than exec'ing the script directly. Why must the shell be in the middle, and which part of the `>> log 2>&1` redirection would break without it?
+
+**A:** The crontab line isn't just a program name — it's a *shell command line* containing shell syntax: the `>>` append operator and `2>&1` fd-duplication are interpreted by a shell, not by the kernel's exec. So cron hands the whole string to `/bin/sh -c`, and the shell opens the logfile and points file descriptors 1 and 2 at it *before* exec'ing your script. Without the shell in the middle, the entire redirection would break: `>>` and `2>&1` would be passed to the script as literal arguments instead of being performed, so nothing would open `/var/log/etcd-backup.log`, and the job's stdout/stderr would fall back to cron's default output path — the mail-to-`MAILTO` route that on a mailless server vanishes into the void.
+
+### Before Rung 7
+**Q:** Your etcd backup needs etcd up *and* the disk mounted before it runs. Which systemd-timer/service feature makes this safe, and what's the closest cron can offer?
+
+**A:** The feature is systemd's **dependency and ordering directives** — because the scheduled job is a real service unit, its `[Unit]` section can declare `After=` / `Requires=` / `Wants=` (e.g. `After=network-online.target`, or after the etcd service and the relevant mount unit), so PID 1 will not start the backup until its prerequisites are actually up; this is exactly the "Dependencies / ordering" row of the contrast table where cron scores "None." Cron has no dependency graph at all — the closest it can offer is workarounds: schedule the job "late enough" and hope, use `@reboot` with a sleep, or write guard logic into the script itself (check etcd health and the mountpoint, and bail/retry if not ready). That gap — a backup that fires before etcd is ready — is one of the core reasons node operators prefer timers to cron for anything that matters.

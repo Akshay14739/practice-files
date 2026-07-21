@@ -260,3 +260,27 @@ The recurring pattern → routers, kube-proxy, mesh, VPC are all this split
 - [Routing & Forwarding](08-routing-and-forwarding.md) — routing table (control) vs forwarding table (data).
 - [The AWS VPC](20-aws-vpc.md) — cloud networking that is SDN you rent.
 - [Network Observability](32-network-observability.md) — eBPF as a programmable data plane you can also observe.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why can't a network of self-contained boxes — each configured by hand — support a cloud where thousands of virtual networks are created and destroyed per minute?
+
+**A:** Because in the traditional model the brain and muscle are welded into each box, every change means logging into devices one at a time and typing CLI commands — a manual, per-box, error-prone process with no central place to declare "here is the network I want." A cloud creates and destroys virtual networks (and the VMs/pods behind them) faster than any human can touch a box, so hand configuration simply cannot keep up. There's also no global view or coordination, so per-box drift and silent holes are inevitable at that scale. Multi-tenant cloud networking is infeasible without a programmable, centrally driven control plane realizing changes everywhere in seconds.
+
+### Before Rung 3
+**Q:** In one breath — what does the control plane produce, and what does the data plane consume?
+
+**A:** The control plane produces the rules — routes, flow rules, DNAT entries, policy — i.e. the decisions about how traffic should flow; the data plane consumes those installed rules to forward every packet at line rate. The brain decides once and pushes configuration; the muscle executes it per packet without ever asking the brain.
+
+### Before Rung 4
+**Q:** kube-proxy never sits in the packet path, yet it changes how Service traffic is delivered. Which plane is kube-proxy, and which plane actually forwards the packet?
+
+**A:** kube-proxy is the control plane: it watches Services and Endpoints via the API server, computes the mapping (ClusterIP → pod IPs), and writes the rules. The data plane that actually forwards is the kernel — iptables (or IPVS/eBPF, depending on mode) performs the DNAT on every packet. That's why kube-proxy can be absent from the packet path yet still change delivery: it programmed the muscle once, and the kernel executes those installed rules for every packet thereafter.
+
+### Before Rung 6
+**Q:** In the Service trace, which steps happen once per *change*, and which step happens once per *packet*? Why does that division make the system both flexible and fast?
+
+**A:** Steps 3–4 — kube-proxy watching the API, computing the ClusterIP-to-pod mapping, and writing the iptables/IPVS rules — run once per change (per Service/Endpoints update). Step 6 — the kernel data plane DNATing the packet to a real pod IP — runs once per packet, at line rate, with no controller involvement. This division is exactly what makes SDN both flexible and fast: the software brain can recompute and rewrite rules in seconds whenever you change intent (flexibility), while the per-packet work is done entirely by dumb-fast installed rules in the kernel (speed). It also gives resilience: if the controller dies, already-installed rules keep forwarding.

@@ -417,3 +417,37 @@ Normally every program on a Linux box shares one process list, one network, one 
 - [17-capabilities.md](17-capabilities.md) — the fine-grained root powers that pair with user namespaces to make rootless containers safe(r).
 - [01-linux-philosophy.md](01-linux-philosophy.md) — "everything is a file," which is exactly why `/proc/PID/ns/*` lets you inspect and compare namespaces.
 - [27-linux-kubernetes-map.md](27-linux-kubernetes-map.md) — the full Linux↔Kubernetes mapping and node-triage quick reference.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** `chroot` isolated the filesystem and nothing else — derive how many more "chroot-like" features the kernel would need before a process is fully fooled, and what each must privatize.
+
+**A:** Seven more, one per remaining kind of global kernel state, for eight in total. Beyond the filesystem view (which became the **mnt** namespace, generalizing chroot to the whole mount table), the kernel must privatize: the **process-ID space** (pid — so the process can be PID 1 and can't see or signal outsiders), the **network stack** (net — own interfaces, routes, port space so it can bind its own `:80`), the **hostname/domainname** (uts), the **System V/POSIX IPC objects** (ipc), the **UID/GID number space** (user — root inside ≠ root outside), the **cgroup tree root** it sees (cgroup), and the **monotonic/boot clock offsets** (time). Only with all of these privatized can a process be fooled into thinking it's alone on the machine — chroot solved 1/8th of the problem.
+
+### Before Rung 3
+**Q:** Using only the One Idea, why are "containers in a pod share `localhost`" and "each container has its own `/`" not contradictory?
+
+**A:** Because the One Idea says a namespace privatizes **one kind** of global kernel resource — isolation is per-resource-kind and composable, not all-or-nothing. A process holds a *set* of memberships, one per kind, so a pod can be a hand-picked recipe: all its containers *join the same* **net** (and ipc/uts) namespace — hence one IP and one shared `localhost` — while each container gets its *own fresh* **mnt** namespace, hence its own private `/` from its image. The clause "one kind of global kernel resource" is what makes both true at once: net and mnt are independent lies told separately.
+
+### Before Rung 4
+**Q:** An app container crashes and restarts 50 times but the pod's IP never changes. Explain mechanically why — which process holds which namespace, and what happens to the IP if that process dies?
+
+**A:** The pod's IP lives on `eth0` inside the pod's **network namespace**, and that namespace is created and held open by the **pause (sandbox) container** — a tiny process that just sleeps forever as a member of the pod's net/ipc/uts namespaces. Per §3.2, a namespace survives as long as *something* references it (a member process, a bind-mount, or an open fd); the app containers merely `setns`-join the pause container's netns, so when they crash and restart they rejoin the same still-alive namespace and find the same `eth0`/IP waiting. If the pause container itself died, the last reference would drop, the kernel would destroy the netns (taking the veth and IP with it), and the sandbox would have to be recreated — the pod would get a fresh namespace and, typically, a new IP.
+
+### Before Rung 5
+**Q:** Why does `ip netns add mypodns` persist with no process inside, while `unshare --net bash` vanishes when the shell exits?
+
+**A:** In one sentence: `ip netns add` **bind-mounts the namespace's ns file under `/var/run/netns/mypodns`**, and that bind-mount is a persistent reference (§3.2) that keeps the namespace alive with zero member processes — whereas the namespace made by `unshare --net` is referenced only by the shell process, so when the shell exits the last reference disappears and the kernel destroys it. Namespace lifetime is reference-counted (process, bind-mount, or open fd), not command-scoped.
+
+### Before Rung 6
+**Q:** In step 4 of the trace, `veth1` vanishes from the host the moment it's moved. Why can the host no longer see it, yet its partner `veth0` still works as a cable?
+
+**A:** Network **interfaces are namespaced objects** — an interface belongs to exactly one network namespace at a time, so `ip link set veth1 netns mypodns` changes `veth1`'s membership and the host's netns lookup table simply no longer contains it; per the One Idea, the host now gets a filtered answer that excludes it. But the **pairing between the two veth ends is kernel-internal plumbing, not a namespaced resource** — the "cable" linking them exists in the kernel regardless of which namespaces the two ends sit in. So `veth0` (still in the host netns, bridged to `cni0`) keeps working: a packet pushed into one end still emerges from the other, even though the ends are now visible in different worlds. That cross-namespace cable is exactly how a pod's traffic reaches the node.
+
+### Before Rung 7
+**Q:** A security team says "containers aren't a security boundary." Using the shared-kernel row of the table, derive what they mean and name the one class of exploit a namespace cannot stop but a VM can.
+
+**A:** All containers on a node share **one kernel** — namespaces are just private lookup tables inside that single kernel's data structures, not virtual hardware. So any workload that can exploit a bug in the shared kernel is exploiting code that sits *underneath* every namespace on the machine; the "wall" is made of the very thing being attacked. The class a namespace cannot stop is the **kernel exploit** (privilege-escalation via a kernel vulnerability): a compromised container that pops the kernel escapes into every other container and the host. A VM can stop it because each VM runs its **own separate kernel** behind a hypervisor boundary — a guest-kernel compromise stays inside the guest — which is why hostile-multi-tenant platforms wrap containers in microVMs (Kata, Firecracker, gVisor).

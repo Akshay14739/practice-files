@@ -436,3 +436,37 @@ sudo journalctl -f | grep apparmor
 - [selinux](20-selinux.md) — the label-based MAC alternative on RHEL/Fedora
 - [namespaces](13-namespaces.md) — the isolation AppArmor complements for containers
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — where MAC fits in the full node-security picture
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Root can `chmod` any file and bypass DAC. Why can't a root process inside an AppArmor-confined program simply turn its own profile off? What must be true about where the policy lives?
+
+**A:** Because the policy is *Mandatory*, not discretionary: it is set by the administrator and enforced by the kernel, and the confined process — root or not — has no syscall that means "unconfine me." For that to be impossible, the policy must live *outside* the process's reach: profiles are loaded from `/etc/apparmor.d/` into **kernel memory** by a privileged tool (`apparmor_parser`), and the kernel checks them at LSM hooks on every access. DAC's weakness is that the owner controls the policy on their own resources; MAC fixes this by putting the policy above the user, in the kernel, where the confined task cannot alter or escape it.
+
+### Before Rung 3
+**Q:** AppArmor runs after DAC and both must agree. Can an AppArmor profile grant access to a file that DAC already denied? Which layer wins when they disagree?
+
+**A:** No. MAC is layered *on top of* DAC, never underneath: at each LSM hook the kernel runs the DAC check first, and if DAC denies (wrong mode/owner), AppArmor is never even consulted — there is nothing for the profile to "grant." If DAC allows, AppArmor gets the final word and can still deny. So both must say yes; either can say no, and neither can override the other's no. That's the only safe ordering, because a security *module* should only ever be able to remove access, never add it — otherwise loading an LSM could weaken the base permission model instead of strictly tightening it.
+
+### Before Rung 4
+**Q:** You edit `/etc/apparmor.d/usr.sbin.nginx`, save, and nginx behaves exactly as before. Which step did you skip, which binary performs it, and where does the change take effect?
+
+**A:** You skipped the *load* step. Files in `/etc/apparmor.d/` are just on-disk **source**; the kernel enforces the compiled copy held in kernel memory (visible via apparmorfs at `/sys/kernel/security/apparmor/`). The binary that performs the apply is **`apparmor_parser`** — `sudo apparmor_parser -r /etc/apparmor.d/usr.sbin.nginx` compiles the text into a DFA and replaces the loaded profile. The change takes effect **in kernel memory**, not on disk: until the parser runs, the kernel keeps enforcing the old version regardless of what the file says.
+
+### Before Rung 5
+**Q:** If `aa-complain` and `aa-enforce` both ultimately call `apparmor_parser`, what one thing actually differs in the kernel after each — and why does that change whether a denied `open()` returns an error?
+
+**A:** The only difference is the profile's **mode flag** — a single boolean per profile in kernel memory. The whitelist, the DFA, the rules are identical; the flag just tells the kernel what to *do* with a deny verdict. In **enforce** mode a denied access is blocked: the syscall returns `-1` with `errno = EACCES` and an `apparmor="DENIED"` audit line fires. In **complain** mode the very same denied access is *allowed through* but still logged (tagged `ALLOWED`) — learning mode. So the DFA match result never changes; the mode flag decides whether that result is applied to the syscall's return value or merely reported.
+
+### Before Rung 6
+**Q:** Re-run the trace with the profile in complain mode. Which step changes its outcome, does nginx get its file descriptor, and does the step-7 audit line still fire — with what tag?
+
+**A:** Only **step 6** changes: instead of the kernel making `open()` return `-1 EACCES`, the call **succeeds** — nginx gets its file descriptor and reads `/etc/shadow`. Steps 1–5 are identical: the DFA still matches, still finds no allow rule, and still reaches the DENY verdict; complain mode just doesn't apply it. Step 7 still fires — the audit record is emitted exactly as before, but tagged `apparmor="ALLOWED"` instead of `apparmor="DENIED"`. That's precisely how complain mode works as learning mode: you see everything the profile *would* block before you enforce it. (Note this works because `/etc/shadow` was default-denied, not hit by an explicit `deny` rule — explicit denies stay blocked even in complain mode.)
+
+### Before Rung 7
+**Q:** A teammate `mv`s a log file that an AppArmor rule protected into a new directory not covered by any rule. Does the confinement still apply? Same question for SELinux. Which design fact forces each answer?
+
+**A:** For AppArmor: no — the confinement no longer applies to that file. AppArmor is **path-based**: the DFA matches the resolved *pathname* at access time, so the policy follows the name, not the object; once the file lives at a path no rule covers, the old rule simply never matches (the access is then governed by whatever the profile says about the new path — often default-deny for a confined process, but the original protection rule is gone). For SELinux: yes — confinement still applies. SELinux is **label-based**: the security context is stored in the inode's extended attribute (`security.selinux`), and `mv` preserves the inode, so the label — and every type-enforcement rule written against it — travels with the file. The forcing facts: AppArmor anchors policy to the filesystem path; SELinux anchors it to the inode's label.

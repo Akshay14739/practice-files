@@ -682,3 +682,37 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 - [systemd & services](16-systemd-services.md) — where a daemon's `User=etcd` is set, doing the `setuid` that runs kubelet/etcd as their service users.
 - [TLS/PKI & OpenSSL](26-tls-pki-openssl.md) — why `/etc/kubernetes/pki` ownership matters, and who (root vs kubelet) may read the CA key.
 - [Linux ↔ Kubernetes map](27-linux-kubernetes-map.md) — the full mapping, including how `securityContext.runAsUser` becomes a bare host UID.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why did the designers make the kernel-level identity an *integer* instead of a username string?
+
+**A:** Because the kernel has to check identity constantly — on every `open()`, every `kill()`, millions of times per second — and comparing two integers (`1000 == 1000`) is far cheaper than comparing strings ("does `alice` equal `alice`?"). So the split became: names are for humans, numbers are for the kernel. Usernames live only in userspace lookup tables like `/etc/passwd`; the kernel itself only ever sees and compares the number.
+
+### Before Rung 3
+**Q:** Say the core sentence from memory. If identity is really just a number, what does the *username* actually do, and what happens to a running process if you delete its username from `/etc/passwd`?
+
+**A:** The core sentence: on Linux, identity is a set of numbers (a UID and one or more GIDs) that the kernel stamps onto every process; usernames, `/etc/passwd`, groups, and `sudo` are all just human-friendly machinery for managing and switching between those numbers. The username is purely a human-friendly label — a key into the `/etc/passwd` lookup table that translates name ↔ number for tools like `ls -l` and `login`. If you delete the passwd entry, the running process keeps running unchanged as its UID, because the kernel never knew the name; the only effect is that the name stops resolving, so tools like `ls -l` are forced to display the bare number.
+
+### Before Rung 4
+**Q:** (1) Where does the password hash live and why not in `/etc/passwd`? (2) At login, what turns your *name* into a UID, and what turns the UID into a shell? (3) What single bit on the `sudo` binary lets a non-root user momentarily become root, and what stops that from being a security hole?
+
+**A:** (1) The hash lives in `/etc/shadow`, readable only by root (mode 640). It can't stay in `/etc/passwd` because passwd must be world-readable — every program doing UID→name lookups (like `ls -l`) reads it — and world-readable hashes would invite offline cracking; that split is the entire reason shadow exists. (2) After PAM verifies the password against `/etc/shadow`, the login program looks your name up in `/etc/passwd` to get UID 1000, GID 1000, and your shell (plus `/etc/group` for supplementary groups); then the kernel stamps those numbers via `setuid()`/`setgid()`/`setgroups()` and `exec`s `/bin/bash` — a shell whose kernel credentials are your UID. (3) The **setuid bit** on `/usr/bin/sudo` (owned by root) makes it start with effective UID 0 no matter who launches it. It isn't a security hole because sudo voluntarily gates that power: it checks the `/etc/sudoers` rulebook for an exact match, authenticates the caller via PAM (unless NOPASSWD), and logs every attempt.
+
+### Before Rung 5
+**Q:** What's the difference between a "system user" and a "normal user" *mechanically* (not just in intent)? And which single file makes `usermod -aG docker devuser` take effect?
+
+**A:** Mechanically they are the **same kind of row in the same file** (`/etc/passwd`, same seven-field format); the only differences are the UID range — system users get a UID below 1000 (`useradd -r` picks from below `SYS_UID_MAX` 999, normal users start at `UID_MIN` 1000) — and typically a nologin shell (`/sbin/nologin`) with no home created by default and a locked `!` shadow entry. `usermod -aG docker devuser` takes effect by editing exactly one file: `/etc/group` — it appends `devuser` to the docker group's supplementary member list (e.g. `docker:x:999:devuser`).
+
+### Before Rung 6
+**Q:** In Trace B, at Step 1 the *effective* UID is already 0 but the *real* UID is still 1000. Why does sudo bother reading the rulebook at all if it's already effectively root?
+
+**A:** Because the setuid bit only gives sudo the *power* to act as root; the rulebook is what makes that power *safe*. sudo is an ordinary program deliberately written to check permission it already has: it parses `/etc/sudoers` and `/etc/sudoers.d/*` for a rule matching this user, this host, and this exact command, and refuses (and logs the denial) if none matches. That voluntary self-check is the whole point of sudo — it converts a blunt "become root" capability into scoped, per-command, audited elevation. The real UID staying 1000 is also what lets the audit log record *who* actually ran the command.
+
+### Before Rung 7
+**Q:** Explain why `su` *structurally cannot* give someone "restart kubelet but nothing else" — why does its design make it impossible?
+
+**A:** Because of what `su` asks for and what it hands back: it asks for the *target account's* password (usually root's) and hands back a *full interactive shell* as that account. There is no per-command step anywhere in that design — no rulebook is consulted, so there is nothing to scope; once you have the root shell you can run anything, and anyone who needs any root power must know the whole root password. `sudo` fixes this structurally by inserting a rulebook (`/etc/sudoers`) and a log between the user and the elevation: it hands over a key to one specific door and writes down each use, whereas `su` can only hand over the keys to the whole house.

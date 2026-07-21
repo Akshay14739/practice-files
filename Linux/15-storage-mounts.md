@@ -602,3 +602,37 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 - [cgroups](14-cgroups.md) — the sibling primitive limiting a pod's CPU/memory while mounts limit its storage
 - [Performance monitoring](21-performance-monitoring.md) — iostat/lsof/PSI for diagnosing the disk pressure this file's `du` finds
 - [Full Linux ↔ Kubernetes map](27-linux-kubernetes-map.md) — where storage fits in the node-triage big picture
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why can't the kernel just hand your program raw disk blocks and let the program remember where its files are?
+
+**A:** Because a disk is a dumb linear array of numbered blocks with no names, no directories, no ownership, and no free-space tracking — the program would have to personally remember "config.yaml starts at block 918273 and is 3 blocks long." Scale that to a million files that grow and shrink and are owned by different users, and every program would need its own bookkeeping for which blocks belong to which file, how files nest into directories, who may access them, and which blocks are free — with all programs somehow agreeing so they don't clobber each other. That shared, kernel-enforced bookkeeping system *is* the filesystem (ext4/xfs): the layer that turns "block 918273" into `/etc/config.yaml`.
+
+### Before Rung 3
+**Q:** Say the core sentence from memory. If a container reads `/etc/config/app.conf` and it works, what three different things could physically back that path, and does the container's code care?
+
+**A:** The sentence: *"A filesystem turns a block device into a tree of named files, and a mount grafts that tree onto a directory in the one global tree rooted at `/` — so everything is a path under `/`, no matter which device, RAM, or overlay actually holds the bytes."* The path could be backed by (1) **RAM** — a tmpfs mount, as Kubernetes uses for Secrets and `emptyDir` with `medium: Memory`; (2) **another directory** — a bind mount, as used for hostPath/ConfigMap projection; or (3) **a stack of directories** — an OverlayFS mount, if the file simply came from the container image's layers. The container's code does not care at all: it just calls `open()` on a path, and VFS routes the request to whichever driver is mounted there — the pod only ever sees a path; the kernel decides what's behind it.
+
+### Before Rung 4
+**Q:** Draw the OverlayFS stack. A container edits `/etc/hosts` (from a lowerdir) — walk through what the kernel does to the bytes, and why the other nine containers from the same image don't see the change.
+
+**A:** The stack, bottom-up: one or more read-only **lowerdirs** (the image layers), one read-write **upperdir** (this container's writable layer), a **workdir** (OverlayFS's internal scratch space), all presented unified at the **merged** mount point, which the container sees as its `/`; lookups search top-down, upperdir first, and the first hit wins. When the container writes to `/etc/hosts`, OverlayFS sees the file exists only in a read-only lower layer, so it performs a **copy-up**: it copies the entire file into this container's upperdir first, *then* applies the write to that upper copy; future reads find the upper copy first and see the change. The other nine containers don't see it because they share only the untouched read-only lowerdirs — each has its *own private* upperdir, and the modified `/etc/hosts` exists solely in this one container's upperdir, shadowing (not altering) the shared original.
+
+### Before Rung 5
+**Q:** A Secret volume, a hostPath volume, and a container image's root all reach the app as a path. For each, name the mount source and the mount type.
+
+**A:** **Secret volume:** source is **RAM** (plus swap) — mount type **tmpfs** — so the secret bytes never touch the node's disk; kubelet populates the tmpfs and it's bind-mounted into the container. **hostPath volume:** source is an **existing directory on the node** — mount type **bind mount** (`mount --bind`) — the same inodes made visible at a second path, not a copy. **Container image root:** source is a **stack of directories** (the read-only image-layer lowerdirs plus the container's writable upperdir and workdir) — mount type **overlay** (OverlayFS), whose merged view becomes the container's `/`. All three are the same graft operation, differing only in what gets grafted.
+
+### Before Rung 6
+**Q:** At Step 5, why did the write trigger a copy but Step 4's write didn't? At Step 8, which bytes are destroyed and which survive — and why is a container losing data on restart expected?
+
+**A:** Step 5 appended to `/etc/nginx/nginx.conf`, a file that existed **only in a read-only lowerdir**, so OverlayFS had to copy-up the whole file into upperdir before applying the write; Step 4 created `/app/run.log`, a **brand-new file** that existed nowhere below, so it was created directly in upperdir — there was nothing to copy. At Step 8, the **upperdir is discarded** — `run.log` and the copied-up, modified `nginx.conf` are destroyed — and the **tmpfs Secret mount is torn down**, freeing its RAM; what survives are the **read-only image lowerdirs** under `/var/lib/containerd`, still shared and ready for the next container. That's why losing container-local data on restart is expected, not a bug: the writable layer is ephemeral *by design*, and anything that must outlive the container belongs in a volume (a PersistentVolume, i.e., a real mount).
+
+### Before Rung 7
+**Q:** Explain structurally why OverlayFS saves disk across 10 identical pods — which directories are shared, which are per-container, and what does copy-up do?
+
+**A:** The image's layers are unpacked once into read-only **lowerdirs** under `/var/lib/containerd`, and all 10 containers' overlay mounts point at those *same* shared directories — the ~500MB of image content exists exactly once on disk, not ten times. Each container gets only its own tiny private **upperdir** (plus a workdir), which starts empty; a container consumes extra disk only for the specific files it creates or changes. **Copy-up** is what makes the sharing safe: the first time a container writes to an image file, OverlayFS copies just that one file into that container's upperdir and applies the write there, leaving the shared lowerdir byte-for-byte untouched. So the structural saving is: full copies would cost 10× the image size, while overlay costs ~1× the image plus each container's small delta — file-level copy-on-write with no special setup, which is exactly why it won over full copies and devicemapper.

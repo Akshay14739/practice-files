@@ -540,3 +540,37 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 - [linux-philosophy](01-linux-philosophy.md) — keys and certs are just files; PKI is "which file goes where"
 - [systemd-services](16-systemd-services.md) — the kubelet unit and static-pod manifests you restart after renewing certs
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — where the cluster PKI sits in the full node-triage picture
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Encryption alone is not enough. What can an attacker still do even if every byte on the wire is perfectly encrypted, and what property must TLS therefore also provide?
+
+**A:** Even with perfect encryption, an attacker who hijacks the connection endpoint (ARP spoofing, DNS poisoning, a malicious pod answering on a Service IP) can **impersonate the server** — you would then encrypt everything flawlessly *to the impostor*, handing them your admin credentials and data, because encryption to the wrong party is worthless. TLS must therefore also provide **identity (authentication)**: cryptographic proof that the peer is specifically who it claims to be, delivered via a certificate signed by an authority both sides already trust.
+
+### Before Rung 3
+**Q:** From the one idea alone, derive why a CA is even necessary. Why can't two parties just exchange raw public keys directly?
+
+**A:** Because a raw public key carries no proof of *whose* key it is. If the apiserver sends you "its" public key over the network, a man-in-the-middle can simply substitute *their own* public key — you'd verify signatures and encrypt happily, but to the attacker; you have no way to distinguish the genuine key from the impostor's. The key-exchange step is exactly as vulnerable as the plaintext it was meant to protect. A CA breaks this circle: both sides are *pre-loaded* with one trusted certificate (`ca.crt`), and the CA uses its private key to sign "this public key belongs to kube-apiserver." Now the binding between key and identity is verifiable offline against something you already trust, with no prior contact with the server needed — and one trusted root can vouch for thousands of parties instead of every pair having to solve the problem again.
+
+### Before Rung 4
+**Q:** Draw the chain of trust from memory. Which file on your machine does `kubectl` use to check the apiserver cert's signature — public or private key inside it? And what extra step does mutual TLS add?
+
+**A:** The chain: the self-signed Root CA (Issuer == Subject, `ca.crt` + guarded `ca.key`) signs `apiserver.crt`; every component (kubectl, kubelet, controller-manager) is pre-loaded with `ca.crt` in its trust store; a client verifies the apiserver cert by reading its Issuer, finding that CA in its trust store, checking the signature with the CA's public key, then checking validity dates and SAN match. The file `kubectl` uses is the **CA certificate** — embedded in your kubeconfig as `certificate-authority-data` (a copy of `/etc/kubernetes/pki/ca.crt`) — and it contains the CA's **public** key only; the CA's private key never leaves the control plane. Mutual TLS adds step 4b: after the server proves itself, the **server asks the client for a certificate too**, and the client presents its own cert (e.g. `CN=kubernetes-admin`), which the server verifies against the same CA — so *both* sides prove identity, not just the server.
+
+### Before Rung 5
+**Q:** Which file holds the public key — the certificate or the key file? And which two terms are "the unsigned request" versus "the signed result"?
+
+**A:** The **certificate** holds the public key — a cert is exactly "public key + identity + a CA's signature," and it is the shareable artifact sent over the wire. The key file (e.g. `apiserver.key`) holds the **private** key: secret, mode `0600`, never transmitted. The unsigned request is the **CSR** (Certificate Signing Request) — the server's public key plus desired identity, wrapped up and sent to the CA (never including the private key); the signed result the CA hands back is the **certificate** itself.
+
+### Before Rung 6
+**Q:** At which numbered step of the trace does the classic expiry outage fail, and which side is checking? At step 7, how does the apiserver know you're allowed to be `cluster-admin`?
+
+**A:** The expiry outage fails at **step 5 — specifically check 5c** ("is today between Not Before and Not After?"), and it is the **client** (kubectl) doing the checking: it verifies the apiserver's serving cert against the CA from kubeconfig, sees that `Not After` has passed, and aborts with `x509: certificate has expired` before any data flows. At step 7, your identity comes physically from the **client certificate embedded in your kubeconfig** (`client-certificate-data`): the apiserver verifies it against `ca.crt` and reads the Subject — `CN=kubernetes-admin, O=system:masters` — and RBAC maps the `system:masters` group to `cluster-admin`. Your authorization is cryptographic: it's carried in a CA-signed cert, not in a password or token lookup.
+
+### Before Rung 7
+**Q:** Why does a shared-secret scheme *structurally* fail to prove "I'm specifically talking to the apiserver" — why is cryptographic identity impossible in that design?
+
+**A:** Because knowing a shared secret proves only membership, never identity: the secret is by definition held by more than one party, so any proof built on it can be produced by *every* holder equally. A successful "prove you know the key" exchange tells you the peer is "someone who knows the key" — which could be the apiserver, any kubelet holding the same secret, or an attacker who stole it from any one of them — and there is nothing in the math to distinguish which holder you're facing. Naming a *specific* party requires something only that party possesses, i.e. a per-party private key, plus an authority binding that key to a name — exactly what asymmetric crypto and a CA-signed certificate provide and what a symmetric shared secret structurally cannot, since making the secret sharable is the very thing that destroys its ability to name anyone. (It also scales terribly: unique pairwise keys are O(N²), and one leak compromises everyone.)

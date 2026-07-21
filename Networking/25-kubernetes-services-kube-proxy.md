@@ -263,3 +263,27 @@ Headless            → skip the VIP, expose pod IPs
 - [iptables & netfilter](../Linux/12-iptables-netfilter.md) — the KUBE-* chains kube-proxy writes.
 - [Load Balancing](18-load-balancing.md) — kube-proxy as an L4 load balancer; L4 vs L7.
 - [Kubernetes Ingress & Gateway API](27-kubernetes-ingress-gateway-api.md) — L7 routing layered on top of Services.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** If a Deployment's pods get brand-new IPs every rollout, why is hardcoding a pod IP guaranteed to break — and what property must the replacement have?
+
+**A:** Pod IPs are ephemeral: scale, roll, or crash-reschedule a Deployment and every pod is replaced by a new one with a new IP, so a hardcoded `10.244.1.7` points at nothing the moment its pod is replaced — which is guaranteed to happen on the very next rollout. The replacement must be a stable name/IP that never changes, automatically load-balances across the *current* healthy pods, and updates its member list by itself as pods come and go. That is exactly what a Service provides: an unchanging ClusterIP (and DNS name) in front of churning backends.
+
+### Before Rung 3
+**Q:** A Service's ClusterIP stays fixed forever, yet the pods behind it are replaced constantly. What keeps the *list of pods* the VIP forwards to correct?
+
+**A:** The Endpoints/EndpointSlice controller. It continuously watches which pods match the Service's selector *and pass their readiness probes*, and maintains the live list of their `podIP:targetPort` entries. When a pod dies, fails readiness, or a new one becomes Ready, the EndpointSlice is updated, and kube-proxy on every node — which watches EndpointSlices — rewrites the kernel forwarding rules to match. So the VIP stays fixed while the membership underneath tracks reality automatically.
+
+### Before Rung 4
+**Q:** No process listens on a ClusterIP, yet connecting to it reaches a pod. What actually makes that connection land on a real pod, and where does that logic live?
+
+**A:** DNAT rules in the kernel, written by kube-proxy. The ClusterIP is a purely virtual address that exists only as forwarding rules: a connection to `10.96.0.50:80` hits the iptables nat table (KUBE-SERVICES → KUBE-SVC-XXXX → KUBE-SEP-X), where a backend is chosen probabilistically (or by IPVS's scheduler in IPVS mode) and the destination is rewritten to a real `podIP:targetPort`. The logic lives in the node's kernel data plane — iptables or IPVS — not in any userspace listener; kube-proxy is only the control plane that programs those rules and is never in the packet path.
+
+### Before Rung 6
+**Q:** At step 6 the destination is rewritten from the ClusterIP to a pod IP. What is that rewrite called, and what remembers it so the reply comes back correctly?
+
+**A:** The rewrite is DNAT (destination NAT): the kernel changes the packet's destination from `10.96.0.50:80` to the chosen backend, `10.244.2.9:8080`. Conntrack — the kernel's connection-tracking table — remembers the translation for that connection, so when the web pod replies, the reply is automatically un-DNATed: its source is rewritten back to the ClusterIP before it reaches the frontend. That's why the frontend only ever "sees" `10.96.0.50` and never learns which pod answered.

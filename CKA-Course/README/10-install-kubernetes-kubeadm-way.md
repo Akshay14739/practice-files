@@ -299,3 +299,37 @@ sudo kubeadm join <ip>:6443 --token <t> --discovery-token-ca-cert-hash sha256:<h
 - [Section 6 — Security](06-security.md) — the PKI kubeadm generates under `/etc/kubernetes/pki`.
 - [Section 13 — Troubleshooting](13-troubleshooting.md) — when control-plane static pods won't start.
 - [../../Linux/14-cgroups.md](../../Linux/14-cgroups.md) · [../../Linux/24-kernel-tuning-boot.md](../../Linux/24-kernel-tuning-boot.md) — the cgroup driver and sysctls/modules you configure in prereqs.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Name two things `kubeadm init` generates for you that would be tedious and error-prone to build by hand. (Hint: TLS, and control-plane process definitions.)
+
+**A:** (1) The entire PKI — the cluster CA plus roughly ten component certificates (apiserver serving cert with its SANs, etcd certs, kubelet client certs, etc.) under `/etc/kubernetes/pki`; done by hand, one wrong SAN means broken TLS. (2) The static-pod manifests for the control-plane processes — apiserver, etcd, scheduler, and controller-manager — written to `/etc/kubernetes/manifests/` with every component's flags correctly wired to the right cert paths and etcd endpoints. Building either manually is "the hard way": days of work with a hundred ways to typo it.
+
+### Before Rung 3
+**Q:** Why must the container runtime's cgroup driver match the kubelet's? What kind of failure do you get if they disagree?
+
+**A:** The cgroup driver is how the runtime and the kubelet account for and enforce resource limits on containers; if the two use different drivers (e.g. containerd on `cgroupfs` while the kubelet uses `systemd`), they manage two conflicting views of the cgroup hierarchy on the same host. The result is instability: the kubelet and runtime fight over resource management, so pods fail to start or the node becomes flaky, and `kubeadm init` can fail its preflight/bring-up. That's why on a systemd host you set `SystemdCgroup = true` in `/etc/containerd/config.toml` yourself — kubeadm ≥1.22 already defaults the kubelet to the systemd driver.
+
+### Before Rung 4
+**Q:** After `kubeadm init` succeeds, `kubectl get nodes` shows `NotReady`. Is that a bug? What single action fixes it, and why was the node not Ready before?
+
+**A:** It's not a bug — it's the expected state right after `init`. The single fix is to deploy a CNI network addon (e.g. `kubectl apply -f kube-flannel.yml`), after which the node flips to `Ready`. The node was `NotReady` because without a CNI plugin pods can't get IPs, so the kubelet reports the node's network as not ready; the addon runs as a DaemonSet (one agent per node) and owns the pod CIDR that must match `--pod-network-cidr`.
+
+### Before Rung 5
+**Q:** Which command runs on the control plane and which on a worker: `kubeadm init`, `kubeadm join`? What does the token protect against, and what does the CA-cert hash protect against?
+
+**A:** `kubeadm init` runs on the control-plane node (it bootstraps the control plane); `kubeadm join` runs on each worker (it enrolls that node). The token authorizes the join — it proves to the control plane that this worker is allowed to join the cluster (and it expires after 24h, limiting the window of abuse). The CA-cert hash protects the worker in the other direction: it lets the worker verify it is talking to the genuine control plane and not a man-in-the-middle impersonating it.
+
+### Before Rung 6
+**Q:** At which step do the control-plane *certificates* get created, and at which step does a *worker* first prove it's contacting the genuine control plane?
+
+**A:** The certificates are created in step 2 of the trace — right after preflight passes, kubeadm generates the cluster CA and every component cert (apiserver serving/SANs, etcd, kubelet client, etc.) under `/etc/kubernetes/pki`, before the static-pod manifests are written. A worker first verifies it's contacting the genuine control plane in step 7, at the start of `kubeadm join`: it contacts `:6443` and checks the discovery-token-ca-cert-hash against the control plane's CA, and only then presents its token and TLS-bootstraps the kubelet.
+
+### Before Rung 7
+**Q:** A worker's `kubeadm join` fails with "token expired." Why do tokens expire, and what's the one-line fix on the control plane?
+
+**A:** Bootstrap tokens are deliberately short-lived — they expire after 24 hours — so a leaked or stale token can't be used indefinitely to enroll rogue nodes into the cluster. The one-line fix on the control plane is `kubeadm token create --print-join-command`, which mints a fresh token and prints the complete join command (including the CA-cert hash) to run on the worker. Don't reuse an old token — regenerate it; and if the worker had a previous half-completed join, run `sudo kubeadm reset -f` on it first.

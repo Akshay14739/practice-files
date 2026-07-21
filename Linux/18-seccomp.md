@@ -572,3 +572,37 @@ If either felt shaky on its check-yourself question, that's your next 30-minute 
 - [namespaces](13-namespaces.md) — what *isolates* a container; seccomp *confines* what the isolated process may ask the kernel to do.
 - [processes-job-control](07-processes-job-control.md) — PIDs, signals (`SIGSYS`/`SIGKILL`), and reading `/proc/PID/status`.
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — where seccomp sits in the full Linux↔K8s security picture.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** You dropped ALL capabilities from a container. Name one dangerous thing the process can still ask the kernel to do, and explain why capabilities didn't stop it.
+
+**A:** It can still call syscalls like `ptrace` (attach to its own child and read its memory), `keyctl`, `unshare`, `bpf`, or `userfaultfd` — the very syscalls where many kernel privilege-escalation CVEs live (Dirty COW via `madvise`, the `waitid` CVE-2017-5123, bpf verifier holes). Capabilities didn't stop it because capabilities only gate *privileged* operations: `capable()` is checked inside specific privileged code paths, and calling `ptrace` on your own child is not a privileged operation, so no capability bit is ever consulted. Dropping all caps shrinks *privilege* but leaves the full ~300-450-syscall kernel attack surface reachable; one exploitable bug behind any of those calls is a container escape. That surface reduction is seccomp's job, not capabilities'.
+
+### Before Rung 3
+**Q:** From the one sentence alone, explain why seccomp cannot make a rule like "block `open` but only for `/etc/shadow`."
+
+**A:** The one idea says the filter's verdict is based on "the syscall number and its arguments" — meaning the six raw *register* values in `seccomp_data`, not what they point to. The filename in an `open`/`openat` call is passed as a pointer to a string in user memory, and the BPF filter must not dereference pointers: following one safely is impossible because userspace could change the string between the check and the actual syscall (a TOCTOU race). So seccomp can only filter by *which* syscall and *scalar* argument values, never by "which file" — path-based rules belong to AppArmor/SELinux.
+
+### Before Rung 4
+**Q:** (1) Does seccomp fire before or after the capability check? (2) What are the four inputs the BPF filter gets, and which one can it not follow? (3) What does `Seccomp: 0` in `/proc/PID/status` tell your auditor?
+
+**A:** (1) **Before** — seccomp sits right at the syscall entry gate; if it returns ERRNO or KILL, the kernel short-circuits and the capability check (and any LSM hook) never runs. (2) The filter sees the fixed `seccomp_data` struct: the **syscall number** (`nr`), the **architecture** (`arch`), the **instruction pointer**, and the **six raw arguments** (`args[6]`); it cannot follow the *pointer arguments* — any argument that is a pointer (e.g. a filename string) stays opaque, only the scalar register value is visible. (3) `Seccomp: 0` means the process is Unconfined — no filter is installed — so the container is running with the full, unfiltered kernel syscall surface (~300-450 syscalls reachable). That is precisely the audit finding: the runtime default is not being enforced.
+
+### Before Rung 5
+**Q:** What is the runtime-behavior difference between `SCMP_ACT_ERRNO` and `SCMP_ACT_KILL` on a blocked `mkdir`, and which would you choose while first rolling out a new profile?
+
+**A:** With `SCMP_ACT_ERRNO` the `mkdir` syscall fails with a chosen errno (e.g. `EPERM`): the app sees "Operation not permitted," and the process keeps running — graceful degradation. With `SCMP_ACT_KILL` the process is killed the instant it makes the call (`SIGSYS`, exit code 159 = 128+31) — a hard stop, no chance to handle it. For a first rollout you'd actually start with `SCMP_ACT_LOG` (allow but tattle) to discover what a deny would break, then move to `SCMP_ACT_ERRNO` rather than KILL, because ERRNO lets the app survive an unexpected blocked syscall and degrade gracefully instead of dying mid-request — denying blind with KILL is how you cause a 2 a.m. outage.
+
+### Before Rung 6
+**Q:** At step 7 the kernel "short-circuits." Did the capability check run? And why does an app experience a seccomp-denied `mkdir` as identical to a permissions denial?
+
+**A:** No — the capability check never ran. "Short-circuit" means the BPF filter's `ERRNO(EPERM)` verdict at the syscall entry gate made the kernel return `-EPERM` immediately, without ever invoking the real `mkdirat` handler, the capability check, or the DAC/LSM checks that would normally follow. The app can't tell the difference because both paths surface the same way: the syscall returns `-1` with `errno = EPERM`, so libc's `mkdir()` prints "Operation not permitted" exactly as it would for an ordinary file-permission failure. The denial mechanism is invisible to userspace; only the node-side view (`Seccomp: 2` in `/proc/PID/status`) reveals a filter was responsible.
+
+### Before Rung 7
+**Q:** A teammate says "we have AppArmor denying writes to `/etc`, so we don't need seccomp." What class of attack does AppArmor leave open that RuntimeDefault seccomp would close?
+
+**A:** Kernel-exploit attacks through syscalls that never touch a file path. AppArmor is object-oriented MAC — it gates access to files (by path), ports, and capabilities — but it does not reason in terms of syscall numbers, so a process can still *utter* `mount`, `keyctl`, `bpf`, `kexec_load`, `init_module`, `userfaultfd`, and friends. A kernel bug behind one of those (a `keyctl` or bpf-verifier CVE) is a container escape that involves no `/etc` write at all, so the AppArmor policy never fires. RuntimeDefault seccomp closes this class by keeping those ~44 dangerous syscalls off its allow-list entirely — the syscall is denied at the entry gate before any kernel handler (and any AppArmor hook) runs. The layers are complementary: LSMs gate objects, seccomp shrinks the raw syscall surface.

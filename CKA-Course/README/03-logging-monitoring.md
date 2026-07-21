@@ -246,3 +246,37 @@ kubectl logs my-pod --tail=50 --since=1h
 - [Section 4 — Application Lifecycle Management](04-application-lifecycle-management.md) — CrashLoopBackOff from bad configs, read via `logs`.
 - [Section 1 — Core Concepts](01-core-concepts.md) — where the kubelet/cAdvisor sit in the architecture.
 - [../../Linux/21-performance-monitoring.md](../../Linux/21-performance-monitoring.md) — `top`/`vmstat` and the Linux resource metrics underneath cAdvisor.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why is "just run `docker logs` on the node" a poor answer in Kubernetes?
+
+**A:** Two reasons. First, when a container crashes and restarts, its output vanishes with it — the node-level view has no memory, so the very failure you're debugging is the one whose logs are gone (Kubernetes solves this with `kubectl logs --previous`). Second, the node view doesn't map to *pods*: you'd have to SSH to each node and correlate raw container IDs to Kubernetes pods by hand, which doesn't scale and breaks the moment the scheduler moves a pod to another node. Kubernetes gives you a pod-centric window (`kubectl logs <pod>`) that works from anywhere via the API.
+
+### Before Rung 3
+**Q:** If `kubectl top pod` returns numbers but `kubectl top node` was empty a minute ago, what changed — and what does that tell you about *where* the data comes from and *when* it's ready?
+
+**A:** What changed is that the **Metrics Server finished its first scrape**: it needs ~1–2 minutes after deployment to scrape every node's kubelet before it has anything to serve. That tells you the data does not live in the API server or etcd — it comes from each kubelet's built-in **cAdvisor**, which the Metrics Server scrapes, aggregates **in memory**, and serves via the Metrics API that `kubectl top` reads. So `top` is only ready once the Metrics Server is installed, rolled out, and has completed a scrape cycle — and because it's in-memory only, there is never any history.
+
+### Before Rung 4
+**Q:** Name the component that (1) *measures* CPU/memory, (2) *aggregates* it cluster-wide, and (3) *captures* your app's log lines. Which one is in-memory-only, and what's the consequence?
+
+**A:** (1) **cAdvisor**, built into every kubelet, measures per-container CPU/memory and exposes it on the kubelet API (:10250). (2) The **Metrics Server** — one per cluster — scrapes every node's kubelet/cAdvisor and aggregates the results, serving them via the Metrics API. (3) The **container runtime** captures each container's stdout/stderr stream, which `kubectl logs` reads. The in-memory-only one is the **Metrics Server**: the consequence is no history — no graphs, no past data, just the latest snapshot. For historical monitoring you must add Prometheus or EFK.
+
+### Before Rung 5
+**Q:** `kubectl top` errors but `kubectl logs` works fine. Which pipeline is broken, and what's the fix?
+
+**A:** The **metrics pipeline** (cAdvisor → Metrics Server → Metrics API → `top`) is broken — logs are a completely independent pipeline (stdout → runtime → `logs`) that works out of the box, which is why it's unaffected. The fix: install the Metrics Server (`kubectl apply -f .../metrics-server/.../components.yaml`), wait ~1–2 minutes for it to scrape, and if it still fails check `kubectl -n kube-system logs deploy/metrics-server` — in kubeadm/lab clusters the usual culprit is the self-signed kubelet cert, fixed by adding `--kubelet-insecure-tls` to the Metrics Server's args (lab only, never production).
+
+### Before Rung 6
+**Q:** In Trace B, why did step 2 (`kubectl logs webapp`) look empty while step 3 (`--previous`) had the error? What does that say about where a restarted container's logs go?
+
+**A:** Because in a CrashLoopBackOff the *current* container has only just been (re)started — it hasn't produced (or reproduced) the failure output yet — while the container that actually crashed is the *previous* one. Plain `kubectl logs` reads only the current container's stream, so it looks empty; `--previous` reads the runtime's captured stderr of the dead prior container, which holds the real panic ("config key missing"). The lesson: a restarted container's logs start fresh — the old run's output isn't merged in, it's kept separately as the "previous" container's logs and is only reachable via `--previous` (`-p`).
+
+### Before Rung 7
+**Q:** A pod's `kubectl top` shows low CPU but it's still slow. Name one thing `top` won't tell you that `logs` or `describe` might.
+
+**A:** `top` only shows current CPU/memory usage — it says nothing about *why* the app is slow. `kubectl logs` might show application-level errors: timeouts to a downstream dependency, retries, slow-query warnings — app problems that consume no CPU. `kubectl describe pod` might show scheduling/runtime causes in Events and Last State: e.g. the container was recently OOMKilled and restarted, readiness failures, or (per the contrast table) that the pod's *requested/limit* configuration is throttling-relevant — `top` shows actual usage, `describe` shows the configured requests/limits. Low CPU with slowness usually means the bottleneck is waiting, not computing — and only logs/describe reveal waiting.

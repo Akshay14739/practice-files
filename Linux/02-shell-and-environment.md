@@ -626,3 +626,37 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 - [Shell scripting](08-shell-scripting.md) — variables, functions, and control flow built on this same shell.
 - [I/O redirection & pipes](10-io-redirection-pipes.md) — how the shell wires stdin/stdout between the children it forks.
 - [The Linux ↔ Kubernetes map](27-linux-kubernetes-map.md) — where the shell and environment sit in the full node-triage picture.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why can't you just "type a system call"? What specific job is the shell doing that the kernel refuses to do for you?
+
+**A:** The kernel has no human interface — it exposes only raw system calls (`fork()`, `execve()`, `open()`, `wait()`), which are C functions, and there is simply no place at a keyboard where you could "type" one. The shell is the user-space program that bridges that gap: it reads the words you type, finds the program you named on disk, asks the kernel (via `fork` + `execve`) to launch it, waits for it to finish, and shows you the result. The kernel refuses to do any of that interpretation itself — turning typed words into system calls is precisely the shell's job.
+
+### Before Rung 3
+**Q:** Say the core sentence from memory. From the word "copy": (a) can a child process change a variable in your shell? (b) if you set a variable *after* the child started, can the child ever see it?
+
+**A:** The sentence: "The shell is a normal user program that reads your line, expands it, finds the command, and asks the kernel to `fork` a child and `execve` the program in it — carrying along a copy of the environment." (a) No — the child received a *copy* of the environment, so editing a variable edits only its own copy; the parent shell's variable is untouched, and a child can never mutate its parent. (b) No — the copy is made once, at fork/exec time. A variable set (even exported) after the child was launched never reaches that already-running child; only children forked afterward get it.
+
+### Before Rung 4
+**Q:** (1) Name two commands that *must* be builtins and why the machinery forces it. (2) You add `export FOO=1` to `~/.bashrc` and open a new SSH session; does a script you launch see `FOO`? Trace the path.
+
+**A:** (1) `cd` and `export` (also `alias`, `source`) must be builtins because an external command runs in a *child* process with its own working directory and its own copy of the environment — if `cd` were external it would change the child's directory and then exit, leaving your shell unmoved. Anything that must mutate the *running* shell's own state can only be a function call inside bash itself, with no fork. (2) Yes, the script sees `FOO`. The SSH session starts a *login* shell, which reads `/etc/profile` and then `~/.bash_profile` — which by convention sources `~/.bashrc`, so `export FOO=1` runs and places `FOO` in the shell's environment block. When you launch the script, bash forks a child and `execve` copies that environment block into it, so the child's copy contains `FOO=1`.
+
+### Before Rung 5
+**Q:** `$(kubectl config current-context)` runs in which group, 2 or 3? If that command did a `cd /tmp` internally, where is your shell afterward?
+
+**A:** Group 3 — "runs as a NEW child process." Command substitution `$(...)` forks a subshell/child, which gets a *copy* of the environment, runs the command, and hands its output back to your shell. So if it did `cd /tmp` internally, the directory change happens only in the *child's* own state, and the child then exits; your shell is still exactly where it was before, because a child can never change its parent's working directory — it only ever modified its own copy.
+
+### Before Rung 6
+**Q:** At which single step does `$KUBECONFIG` cross from your shell into kubectl, and what would break the crossing? Why does a *non-exported* `KUBECONFIG` fail to reach kubectl?
+
+**A:** It crosses at Step 6, the `fork()` — the child is created with a copy of bash's *environment block*, and that copy (carried through Step 7's `execve`) is what kubectl later reads in Step 8. The crossing breaks if `KUBECONFIG` was never in the environment block to begin with: a plain `KUBECONFIG=...` assignment without `export` creates only a *shell (local) variable*, which lives in bash's private pool, and `execve` copies only the environment block to children — never plain shell variables. So the non-exported variable simply isn't in the copy the child receives, and kubectl falls back to `~/.kube/config`.
+
+### Before Rung 7
+**Q:** Why does `ENTRYPOINT ["my-app", "$HOME"]` print a literal `$HOME` but `ENTRYPOINT my-app $HOME` prints `/root`? Which form lets kubelet's SIGTERM reach your app, and how does `exec` rescue the other form?
+
+**A:** The exec (JSON) form does a direct `execve("my-app", ...)` with **no shell** — and expansion is a job the *shell* performs when rewriting your line, so nothing ever replaces `$HOME`; it arrives as the literal five characters. The shell form runs `/bin/sh -c "my-app $HOME"`, so a shell exists to perform expansion and `$HOME` becomes `/root`. Signals: the exec form wins — `my-app` is PID 1 and receives kubelet's SIGTERM cleanly for graceful shutdown; in the shell form the *shell* is PID 1 and the signal hits it, not your app. The rescue is `ENTRYPOINT ["/bin/sh", "-c", "exec my-app --flag=$HOME"]`: the shell expands `$HOME`, then `exec` *replaces* the shell with my-app (no fork), making my-app PID 1 so it gets the signals.

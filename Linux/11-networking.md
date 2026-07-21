@@ -551,3 +551,37 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 - [TLS, PKI & OpenSSL](26-tls-pki-openssl.md) — why `curl -k` skips verification and what the apiserver's `6443` certificate is
 - [SSH & remote access](23-ssh-remote-access.md) — port forwarding and the sockets you tunnel when `kubectl` isn't enough
 - [The Linux ↔ Kubernetes map](27-linux-kubernetes-map.md) — the full node-triage loop this networking rung plugs into
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** A pod can't reach a Service — name the four independent things that must ALL be working, each mapping to one pain.
+
+**A:** (1) An **interface** must be up — the pod's `eth0` (really one end of a veth pair) has to exist and be UP, or the packet has no wire to leave by (Pain 1). (2) A **route** must exist — the pod's `default via` route (and on the node, the CNI's pod-CIDR route) tells the kernel which direction to send the packet (Pain 2). (3) A **listening socket** must be bound on the other end — some process must have done `bind()`+`listen()` on the target port, or nothing will answer (Pain 3). (4) The **name must resolve** — DNS (CoreDNS via `/etc/resolv.conf`, after `/etc/hosts` per `nsswitch.conf`) has to turn the Service name into a ClusterIP before any packet can even be addressed (Pain 4). If any one of the four fails, the call fails, each with its own distinct symptom.
+
+### Before Rung 3
+**Q:** Say the core sentence from memory. In what ORDER are the four questions answered when a pod runs `curl http://my-svc`, and which happens before a single packet is built?
+
+**A:** The sentence: *"A packet is delivered by answering four questions in order — which interface, which route, which socket, and (first of all) what address does this name map to — and every networking tool just inspects or exercises one of those four answers."* The order for `curl http://my-svc` is: **name→address first** (the resolver appends `search` domains and asks CoreDNS at `10.96.0.10`), then **which interface** (`eth0`), then **which route** (`default via 10.244.1.1`), and finally **which socket** (the backend pod's listening socket answers). The name→address (DNS) step happens *before any packet is built* — you can't route to a name, only to an address; the kernel needs a destination IP before it can construct the packet at all.
+
+### Before Rung 4
+**Q:** Draw the pod-and-node picture: (1) what is the pod's `eth0` really, and where is its other end? (2) which file tells the pod to ask `10.96.0.10` for names? (3) which route lets the packet leave the pod at all?
+
+**A:** (1) The pod's `eth0` is **not hardware** — it is one end of a **veth pair**, a two-ended virtual patch cable; the other end (`vethXXXX`) lives in the node's root network namespace, plugged into the CNI bridge (`cni0`), so a packet pushed into the pod's `eth0` instantly pops out on the node. (2) **`/etc/resolv.conf`**, injected into the pod by the kubelet, contains `nameserver 10.96.0.10` (the CoreDNS ClusterIP) plus the `search` domains and `options ndots:5`. (3) The pod's **default route** — `default via 10.244.1.1 dev eth0` — which points at the node's bridge; without it, packets to anything outside the pod have no exit and never leave.
+
+### Before Rung 5
+**Q:** Which tool inspects Group 3 and which inspects Group 4, and which single failure symptom (`SYN-SENT` piling up) tells you Group 4 is the problem, not Group 1?
+
+**A:** Group 3 ("which direction" — the routing table) is inspected with **`ip route`** (legacy: `route -n`). Group 4 ("which program" — sockets/ports) is inspected with **`ss`** (legacy: `netstat`). A pile-up of sockets stuck in **`SYN-SENT`** means the kernel already resolved the name and built and sent a `SYN` toward a real IP, but is getting no `SYN-ACK` back — so DNS (Group 1) clearly worked; the problem is a socket-side failure: nothing is listening on the far end, or a firewall is silently dropping the handshake.
+
+### Before Rung 6
+**Q:** At which step does the error change from `no such host` to `connection refused`, and why do those errors point at completely different Rung 4 groups?
+
+**A:** The boundary is between **Step 5 and Step 6**: failures in Steps 3/5 (the DNS query to CoreDNS, or CoreDNS's answer) produce `no such host`, while failures at Steps 6/7 (the TCP `SYN`/handshake to `10.96.0.1:443`) produce `connection refused` (or a hang and timeout with the socket in `SYN-SENT` if a firewall drops the `SYN`). They point at different groups because `no such host` means the resolver never got an address — a **Group 1 (DNS)** problem in `nsswitch`/`hosts`/`resolv.conf`/CoreDNS — whereas `connection refused` proves DNS already succeeded and an IP was reached, but no listening socket accepted the connection — a **Group 4 (sockets/ports)** problem. The error text tells you which of the four answers failed, and that mapping is the triage skill.
+
+### Before Rung 7
+**Q:** Why can `ping 10.96.0.1` fail on a perfectly healthy cluster while `curl 10.96.0.1:443` succeeds — what is a ClusterIP really?
+
+**A:** A ClusterIP is not a host — it's a **virtual IP that exists only as NAT rules** (kube-proxy's iptables/IPVS); no machine actually owns `10.96.0.1`, so there is no network stack sitting there to answer ICMP echo requests. `ping` uses ICMP, and the NAT rules typically only rewrite TCP/UDP traffic aimed at Service ports, so the ping gets no reply even though everything is healthy. `curl 10.96.0.1:443` succeeds because it sends TCP to a real Service port, which kube-proxy NATs to an actual backend pod (the apiserver), whose listening socket answers. That's why you test Services with `nc -zv` or `curl` against the real port, never with `ping`.

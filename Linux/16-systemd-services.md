@@ -426,3 +426,37 @@ journalctl -k | grep -i oom
 - [Scheduled Tasks](25-scheduled-tasks.md) — `.timer` units as the systemd-native replacement for cron.
 - [Performance Monitoring](21-performance-monitoring.md) — `journalctl -k`, `dmesg`, PSI, and reading the kernel ring buffer during incidents.
 - [Linux ↔ Kubernetes Map](27-linux-kubernetes-map.md) — full node-triage reference tying kubelet/containerd systemd units to `NotReady` diagnosis.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** From the pain, derive why an init system needs two separate concepts — "running right now" versus "comes up on the next boot." Why can't one flag cover both?
+
+**A:** Because the two states live in different places and change at different times: "running right now" is a property of the live system (a process that exists in memory), while "comes up at boot" is a property of persistent configuration on disk that the next boot will read. The SysV pain shows both failure modes: a node reboots after maintenance and kubelet doesn't come back because it was only started, never wired into the boot sequence; conversely, you often need to stop a service for maintenance *without* removing it from future boots. One flag can't cover both because you routinely want every combination — running-but-not-enabled (a one-off test), enabled-but-stopped (maintenance), both, or neither. That's why systemd gives you two verbs, `start` (live, imperative) and `enable` (boot-time, declarative), and `enable --now` when you want both.
+
+### Before Rung 3
+**Q:** Using only the One Idea, explain why editing `/lib/systemd/system/kubelet.service` by hand is architecturally wrong — which word in the sentence tells you where your changes belong?
+
+**A:** The key word is **"declarative"** (systemd "reads declarative *unit* files that describe desired state"). In a declarative system, configuration is data with a defined schema and a defined precedence, not something you patch in place: the file in `/lib/systemd/system/` is the *package's* declaration, owned by the distro, and any upgrade will rewrite it and silently erase your edit. Your declarations belong in the admin layer, `/etc/systemd/system/` (a drop-in via `systemctl edit`), which sits higher in the search-path precedence (`/etc` > `/run` > `/lib`) and therefore wins over — and survives — whatever the package ships.
+
+### Before Rung 4
+**Q:** Name the three unit-file search directories in precedence order, say which one you write to and why, and explain what physically happens on disk when you run `systemctl enable kubelet`.
+
+**A:** Precedence, highest to lowest: `/etc/systemd/system/` (admin overrides — where **you** write), then `/run/systemd/system/` (runtime, volatile, gone on reboot), then `/lib/systemd/system/` (the distro/package's canonical units — never edit these; also `/usr/lib/systemd/system` on some distros). You write to `/etc` because it wins over `/lib`, so package upgrades that rewrite the shipped unit cannot clobber your changes. On `systemctl enable kubelet`, systemd reads the unit's `[Install]` section (`WantedBy=multi-user.target`) and creates a **symlink** on disk: `/etc/systemd/system/multi-user.target.wants/kubelet.service → /lib/systemd/system/kubelet.service`. At the next boot, when the system drives toward `multi-user.target`, that `.wants/` directory is scanned and kubelet is pulled in; nothing about the currently running system changes.
+
+### Before Rung 5
+**Q:** Describe the single mechanism that ties together `WantedBy=`, `enable`, and the `.wants/` symlink.
+
+**A:** They are three views of one mechanism: wiring a unit into the boot dependency graph. `WantedBy=multi-user.target` is the *declaration* in the unit's `[Install]` section saying which target should pull it in; `systemctl enable` is the *verb* that reads that declaration; and the symlink in `/etc/systemd/system/multi-user.target.wants/` is the *on-disk artifact* the verb creates, which the target scans at boot to pull the service in. One sentence: `enable` reads `WantedBy=` and materializes it as a `.wants/` symlink so the named target pulls the unit in at boot.
+
+### Before Rung 6
+**Q:** Every action in the trace went through PID 1 — you never spawned kubelet yourself. Why is that indirection the whole point, and what would you lose in supervision and logging with `/usr/bin/kubelet &` in a shell?
+
+**A:** The indirection is the point because only PID 1, as the process's parent and cgroup manager, can reliably supervise it: systemd places kubelet in its own cgroup (`system.slice/kubelet.service`) so every child is tracked and none can escape via double-forking, records the main PID, and arms `Restart=always`. Run `/usr/bin/kubelet &` from a shell and you lose supervision entirely — when kubelet crashes at 3 a.m., nothing restarts it; when your SSH session ends, the process may be killed or orphaned; and `status` truth degrades back to `ps | grep`. You also lose logging: systemd wires kubelet's fd 1 and fd 2 to a journald socket before exec, so every line is captured, tagged `_SYSTEMD_UNIT=kubelet.service`, timestamped, and queryable via `journalctl -u kubelet` — from a shell, output just goes to your terminal (or wherever you redirected it) and is never indexed.
+
+### Before Rung 7
+**Q:** A static pod and a systemd service both "run a process and restart it if it dies." Derive who the supervisor is in each case, and why you'd never wrap a static pod's container in its own systemd unit.
+
+**A:** For a systemd service (kubelet, containerd), the supervisor is **systemd/PID 1**: it fork+execs the process, tracks it in a cgroup, and applies `Restart=`. For a static pod (a manifest in `/etc/kubernetes/manifests/`), the supervisor is **kubelet**: kubelet watches that directory, tells containerd to run the containers, and restarts them per the pod spec — Kubernetes *is* their supervisor. You'd never wrap the static pod's container in its own systemd unit because that would create two supervisors fighting over one process: kubelet restarts a dead container itself, so a systemd unit doing the same would race it, double-start, and confuse both restart loops. The layering is "supervise the supervisor": systemd manages kubelet; kubelet manages pods; a container runs one process, not a whole init system.

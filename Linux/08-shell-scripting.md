@@ -736,3 +736,37 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 - [I/O redirection & pipes](10-io-redirection-pipes.md) — stdout vs stderr (fd 1 vs 2), `>&2`, heredocs (`<<'EOF'`), and `pipefail`'s pipeline mechanics.
 - [Scheduled tasks](25-scheduled-tasks.md) — where these scripts run unattended (cron, systemd timers, CronJobs) and why exit codes and `set -e` matter even more there.
 - [The Linux ↔ Kubernetes map](27-linux-kubernetes-map.md) — where scripting sits in node triage, probes, hooks, and bootstrap across the platform.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why is a copy-paste runbook fundamentally weaker than a script, even if it contains the exact same commands? What can a script do *between* two commands that a paste cannot?
+
+**A:** A pasted runbook has no logic between the lines: it cannot check "did the previous command succeed before I run the next?" — it just keeps pasting steps 4, 5, 6 into a broken system after step 3 fails. A script can inspect the exit code between commands and *decide*: stop on failure (`set -e`), branch (`if`), retry (`while`), loop over an unknown number of pods (`for`), and remember values in variables. In short, a script bakes in the decisions the human would have made; a runbook leaves all of them to the paster, which is exactly how a deploy "succeeds" over a crash-loop.
+
+### Before Rung 3
+**Q:** Say the core sentence from memory. When you write `if kubectl get ns prod >/dev/null 2>&1; then`, what *exactly* is the `if` testing — the text output, or something else? Why does that mean `if [[ ... ]]` is really just a command too?
+
+**A:** The core sentence: a bash script is just the lines you'd type, run in order by a shell process, where every command produces an exit code (0 = success), and all of scripting is (a) storing values in variables, (b) branching and looping on those exit codes, and (c) controlling what happens when one is non-zero. The `if` tests the command's **exit code**, never its text — that's why the output can be thrown away with `>/dev/null 2>&1` and the branch still works: `if` branches on whether `kubectl` *succeeded* (exit 0) or not. It follows that `[[ ... ]]` is not special condition syntax but simply another command that exits 0 when the condition holds and 1 when it doesn't — so it slots into `if` by the identical mechanism as `kubectl get` or `grep -q`.
+
+### Before Rung 4
+**Q:** Your `deploy.sh` ran `kubectl set image ...` which failed, yet the script printed "Deploy succeeded" and exited 0. Name the *two* machinery facts (one from B, one from D) that explain the bug, and the one line that would have prevented it.
+
+**A:** From (B): every command emits an exit code — the failed `kubectl set image` handed the shell a non-zero verdict in `$?`, so the failure *was* signaled. From (D): by default bash barrels past failures — it reads that non-zero code and runs the next line anyway, so the script marched on to `echo "Deploy succeeded"`, and the script's own exit code became that last successful `echo`'s 0. The one line that prevents it: `set -euo pipefail` (at minimum `set -e`) placed right after the shebang, which makes bash abort the script the instant any command exits non-zero.
+
+### Before Rung 5
+**Q:** Someone says "`[[ ]]` is special bash syntax for conditions." Correct them using the words "exit code": what is `[[ "$phase" == "Running" ]]` *really*, and why can you drop it into an `if` the same way you'd drop `kubectl get pod`?
+
+**A:** `[[ "$phase" == "Running" ]]` is really a *command* that produces no output and exits with code 0 if the comparison holds and 1 if it doesn't — the same 0–255 verdict every command emits (`[` is even a real binary, `/usr/bin/[`). `if` never tests a boolean or any text; it runs a command and branches on its exit code. Since `[[ ]]` and `kubectl get pod` both hand the shell an exit code, they are interchangeable as an `if` condition — the `if grep -q root /etc/passwd` and `if [[ -f file ]]` forms work by the identical mechanism. `[[ ]]` is merely the bash-only, safer test command (no word-splitting/globbing surprises, supports `==`, `&&`, `=~`).
+
+### Before Rung 6
+**Q:** At which single step would removing `set -e` change the outcome, and what would the script have printed and exited with instead? Then: why did the EXIT trap still fire in Step 9 even though `wait_for_rollout` failed?
+
+**A:** Step 8. With `set -e` removed, when `wait_for_rollout` (Step 7) exits 1, bash would not abort — it would run the next line, printing `deploy succeeded`, and the script would exit **0** (the exit code of that last successful `log`), falsely reporting success to CI while the pods crash-loop. The EXIT trap still fired because `EXIT` is a pseudo-signal whose handler runs on *every* exit path — normal completion, a `set -e` abort, an `error()` exit, or Ctrl-C. Bash exiting because errexit triggered is still an exit, so the registered handler ran with `$?` still 1 — that's precisely the cleanup guarantee traps exist to provide.
+
+### Before Rung 7
+**Q:** A teammate wrote a 400-line bash script that parses JSON with `grep`/`cut`, does percentage math, and has three levels of nested state. Give the *two* specific reasons this should be Python — and the *one* thing bash was still right for at the start.
+
+**A:** Reason one: bash has no floating-point math — `$(( 3/2 ))` is `1` — so percentage math needs `awk`/`bc` hacks, while Python does it natively; likewise JSON parsing with `grep`/`cut` is fragile where Python (or at least `jq`) parses it structurally. Reason two: bash has only flat arrays and no real nested data structures, and past a few hundred lines (the table's ~500-line mark, with only `set -e`/`trap` duct tape for error handling and awkward testing) it becomes unmaintainable — three levels of nested state is exactly that territory. The one thing bash was still right for: the original glue job — orchestrating CLI tools in sequence (calling `kubectl`/`grep`/`awk` with pipes and redirection is first-class and one line each), which is where the script presumably started.

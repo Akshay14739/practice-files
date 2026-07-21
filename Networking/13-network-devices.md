@@ -481,3 +481,32 @@ Go back to **Rung 7, Example 3** (pod routes vs node routes vs `ip_forward`) —
 - [Container & Docker Networking](23-container-docker-networking.md) — `docker0` as a bridge, veth pairs, and port mapping in the container world.
 - [Kubernetes Pod Networking & CNI](24-kubernetes-pod-networking-cni.md) — how `cni0`, veth cables, and the node-as-router are assembled by the CNI.
 - [AWS VPC](20-aws-vpc.md) — the cloud fabric of route tables, IGW/NAT Gateway, and the hypervisor virtual switch your nodes plug into.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** A hub and a switch both have many ports and connect machines on one LAN. Name the ONE piece of information the switch uses that the hub ignores — and what that lets the switch stop doing.
+
+**A:** The switch reads the **destination MAC address** in each frame (L2), which the hub — a pure L1 multiport repeater — completely ignores. Combined with its learned MAC address table (`MAC → port`), that lets the switch stop **flooding every frame out all ports**: it unicasts each frame to exactly the one port where the destination lives. The consequence is that collision domains collapse from one big shared one to one per port, so machines no longer shout over each other and every host gets full bandwidth.
+
+### Before Rung 4
+**Q:** Two pods on the *same* node talk entirely through `cni0`, never touching the node's routing table — which classic device is `cni0` playing, and at which OSI layer? When the pods move to *different* nodes, which device takes over and which layer does the path jump to?
+
+**A:** For same-node traffic, `cni0` (the Linux bridge) is playing the **switch** — a multiport bridge with a MAC forwarding database that unicasts frames between the pods' veth ports — so the whole data path stays at **Layer 2**, forwarding by destination MAC within the one pod subnet. When the pods are on different nodes they sit on *different* pod subnets, so the **node acting as a router** takes over: the frame goes up to the node's kernel routing table, which forwards by destination IP, decrements TTL, and builds a brand-new frame for the next hop — the path jumps to **Layer 3**. Switch within a network, router between networks.
+
+### Before Rung 5
+**Q:** "It reads the destination address, keeps a table, and sends traffic out exactly one port" describes both a switch and a router. What ONE follow-up question tells you which it is, and what does each answer imply about the OSI layer?
+
+**A:** Ask: **"Which address does it read — MAC or IP?"** (equivalently: "does its table map MACs to ports, or IP prefixes to next hops?"). If it forwards by **destination MAC** using a MAC/CAM table, it's a **switch** operating at **L2**, moving frames *within* one network/broadcast domain. If it forwards by **destination IP** using a routing table with longest-prefix match — rewriting MACs and decrementing TTL as it goes — it's a **router** operating at **L3**, moving packets *between* different networks. The layer the device reads is its entire personality.
+
+### Before Rung 6
+**Q:** In the trace, the IPs never changed but TTL dropped 64 → 63 and the MACs were rewritten. Which device type is responsible for the TTL drop, and why does that device NOT appear on the same-node path?
+
+**A:** The **router** — here, Node 1 acting as the virtual L3 router for the pod CIDR — is what decrements TTL: at every L3 hop the router strips the old frame, decrements TTL/hop-limit by 1, and builds a brand-new frame with fresh MACs (dropping the packet and sending ICMP Time Exceeded if TTL hits 0). It doesn't appear on the same-node path because two pods on the same node share the same pod subnet, so the frame is handled purely at L2 by the `cni0` software switch, which forwards by MAC and never touches the IP header — switches don't decrement TTL, only routers do.
+
+### Before Rung 7
+**Q:** A single flat subnet where hosts collide constantly but there are no broadcast storms — do you add a switch, a router, or a gateway, and which domain does your choice fix while leaving the other untouched?
+
+**A:** Add a **switch**. Collisions are an L1/L2 shared-medium problem, and a switch **breaks up the collision domain** — from one big shared one (hub-style) into one collision domain per port, which with full-duplex links eliminates collisions entirely. It leaves the **broadcast domain** untouched: a plain switch still forwards broadcasts to all ports, so the whole subnet remains one broadcast domain — which is fine here, since there are no broadcast storms. A router (or VLAN) is what splits broadcast domains, and there's no cross-network or protocol-translation job to justify a router or gateway; per Rung 6's rule, choose the lowest-layer device that can still make the decision you need.

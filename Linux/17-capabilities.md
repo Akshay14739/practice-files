@@ -436,3 +436,37 @@ Historically "root" was a single switch: you either had every power or almost no
 - [seccomp](18-seccomp.md) — the next CKS layer: filter the *syscalls* a process may make, complementing capability drops.
 - [AppArmor](19-apparmor.md) — path-based confinement that pairs with dropped caps for defense in depth.
 - [Linux ⇄ Kubernetes Map](27-linux-kubernetes-map.md) — where `securityContext` fields land on real kernel primitives.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** A web server needs exactly one privileged operation: `bind()` to port 80. In the all-or-nothing model, what is the smallest privilege you are forced to grant, and what is the blast radius of a remote code-execution bug?
+
+**A:** In the all-or-nothing world the smallest grantable privilege is the *whole thing*: UID 0, full root — because the kernel's check is literally `if (uid == 0) allow`, there is no way to hand out only "bind a low port." The blast radius of an RCE bug is therefore total machine compromise: the attacker's code runs as UID 0 and can rewrite `/etc/passwd`, load a kernel module or rootkit, mount your disks, and read every key. You wanted one tiny power (bind :80); you were forced to grant ownership of the entire machine.
+
+### Before Rung 3
+**Q:** In one sentence, what does `capable()` actually inspect, and how does that differ from the old `if (uid == 0)` test? What does "UID 0 with zero capabilities" mean in privilege terms?
+
+**A:** `capable(CAP_X)` inspects whether the specific capability bit X is set in the calling task's **effective set** (`CapEff`) — it never looks at the UID, whereas the old test granted everything to whoever had UID 0. This decouples identity from privilege: the bits are the truth now, not the UID. "UID 0 with zero capabilities" means a process that is root in name only — `id` says `uid=0`, but with `CapEff = 0000000000000000` every `capable()` check fails, so it cannot perform a single privileged operation; it is harmless.
+
+### Before Rung 4
+**Q:** Name the five capability sets and when the kernel consults each. Which set does `drop:[ALL]` shrink, and why does shrinking it protect every child process?
+
+**A:** (1) **Effective (`CapEff`)** — the set `capable()` actually checks right now; no bit here, no privileged action this instant. (2) **Permitted (`CapPrm`)** — the ceiling of what the process may raise into Effective. (3) **Inheritable (`CapInh`)** — caps that can survive an `execve()` into the new program's permitted set, but only if the executed file also marks them inheritable (legacy, fiddly). (4) **Bounding (`CapBnd`)** — the hard ceiling for the process *and all its descendants*; a bit not here can never be acquired, even by execing a file-cap binary. (5) **Ambient (`CapAmb`)** — the modern way for a non-root process to carry caps across `execve()` without file capabilities. `drop:[ALL]` shrinks the **bounding set** (runc also sets permitted/effective/ambient to match); because bounding is a hard wall inherited by every child, no process spawned inside the container can ever regain a dropped capability, forever.
+
+### Before Rung 5
+**Q:** `CapPrm` in `/proc/PID/status`, "the permitted set," and the `p` in `cap_net_raw=ep` are three names for what one thing? Why is `privileged: true` equivalent to `CapBnd = 000001ffffffffff`?
+
+**A:** All three name the same 64-bit mask: the process's **permitted set** — `CapPrm` is how `/proc` prints it, "permitted set" is the English name, and `p` in file-capability syntax says "load this cap into the new process's permitted set at exec." `privileged: true` tells runc to leave the container's full capability set in place — all ~41 bits set, which in hex is `000001ffffffffff` in the bounding (and effective) mask — so nothing is walled off and the container holds every slice of root on the host kernel; on top of that, `privileged` also disables the device cgroup, seccomp, and AppArmor confinement. Same runtime state, three altitudes: pod spec, English, hex.
+
+### Before Rung 6
+**Q:** When the hardened pod's nginx tries `mount()` and gets `EPERM`, name the exact capability bit checked and the two sets that guarantee it can never be raised. Why wouldn't `setuid(0)` rescue it?
+
+**A:** The kernel calls `capable(CAP_SYS_ADMIN)` — bit **21** — and reads nginx's **effective** set, where bit 21 is clear, so it returns `-EPERM`. The two sets that make this permanent are the **effective** set (the bit isn't there now) and the **bounding** set (bit 21 was dropped by runc via `prctl(PR_CAPBSET_DROP)`, so it can never be raised back into permitted/effective by this process or any child, even by execing a file-cap binary). `setuid(0)` wouldn't help because `capable()` never consults the UID — becoming UID 0 doesn't restore capability bits that the bounding set has walled off; identity and privilege are decoupled.
+
+### Before Rung 7
+**Q:** Your image contains a SUID-root helper, and the container's bounding set is `drop:[ALL]`. When the helper runs, does it get root's full power?
+
+**A:** No. The SUID bit does change the process's UID to 0 at exec, but the capability sets a process can gain across `execve()` are always limited by the **bounding set** — a bit absent from `CapBnd` can never appear in the new process's permitted or effective sets, regardless of SUID or file capabilities. With `drop:[ALL]` the bounding set is empty, so the helper ends up as "UID 0 with zero capabilities": root in name only, failing every `capable()` check. This is exactly why shrinking the bounding set protects the container against privilege-escalation via forgotten SUID binaries baked into images.

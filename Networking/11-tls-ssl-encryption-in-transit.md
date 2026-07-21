@@ -499,3 +499,27 @@ kubectl get peerauthentication -A
 - [Network Security & Zero Trust](30-network-security-zero-trust-ids-ips.md) — why "private subnet" no longer excuses plaintext.
 - [Linux: TLS, PKI & OpenSSL](../Linux/26-tls-pki-openssl.md) — hands-on cert/key generation and OpenSSL depth.
 - [Istio deep-dive](../Istio_Learning_Ladder.md) — the mesh CA (Citadel/istiod) and STRICT mTLS end to end.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Plain TCP already has a checksum — name the specific threat a checksum does *not* defend against, and why encryption alone (without authentication) still leaves you exposed on a rogue Wi-Fi network.
+
+**A:** A TCP checksum only catches *accidental* corruption; it does not defend against **malicious tampering**, because an attacker who edits bytes in flight simply recomputes the checksum afterward so the segment still looks valid. Encryption alone fixes eavesdropping but not **impersonation**: on a rogue Wi-Fi AP (or with poisoned DNS) you could establish a perfectly encrypted channel *directly to the attacker's server*, who happily decrypts everything you send. Without authentication — a CA-signed X.509 certificate proving the far end really is `bank.example.com` — you have a private conversation with an unknown party, which is exactly the third disaster (impersonation) TLS exists to stop.
+
+### Before Rung 3
+**Q:** If asymmetric crypto can already encrypt data, why does TLS bother switching to a symmetric key at all?
+
+**A:** Straight from the One Idea: asymmetric (public-key) crypto is *slow* — big-integer math far too expensive to encrypt a bulk data stream like a video or a busy API's traffic — while symmetric crypto (AES-GCM, ChaCha20-Poly1305) is *fast*, with hardware AES pushing gigabytes per second. Symmetric crypto's only weakness is the chicken-and-egg key-distribution problem: two strangers can't agree on a shared key with an eavesdropper watching. So TLS uses the slow asymmetric math exactly *once*, at the handshake, to authenticate the server and safely agree on a shared session key, then switches to fast symmetric crypto for all application data. Asymmetric bootstraps symmetric; everything else is a footnote to that sentence.
+
+### Before Rung 5
+**Q:** "Our SSL cert's CN is right but curl still says name mismatch." What is *actually* being checked, and why doesn't a correct CN save them?
+
+**A:** Modern clients validate the hostname against the **SAN (Subject Alternative Name)** list, not the legacy **CN (Common Name)** — browsers and Go-based tools (`kubectl`, many `curl` builds) ignore CN entirely for matching. So if the name they dialed is not present in the cert's SAN entries, verification fails with a name mismatch no matter what the CN says: the cert must list the exact hostname (or a matching wildcard, remembering `*.api.example.com` covers exactly one label — not `api.example.com` and not `a.b.api.example.com`). The fix is to reissue the cert with the dialed hostname in the SAN list. Also worth checking: when testing with `openssl s_client`, omit `-servername` and a virtual-hosted server may present the wrong (default) cert via SNI, producing a misleading "mismatch."
+
+### Before Rung 7
+**Q:** Your traffic already runs over an IPsec VPN between two VPCs. Give one concrete attack that TLS still stops but the VPN does not.
+
+**A:** A VPN authenticates and encrypts only **gateway-to-gateway** (the tunnel endpoints), not the specific application you're talking to. Concrete attack: a compromised host inside the far VPC — or an attacker who has moved laterally onto that "trusted" segment — impersonates your database or API service (e.g., via ARP/DNS spoofing or by squatting on the service's IP); the VPN happily delivers your plaintext to it because the tunnel itself is intact. TLS stops this because the client verifies the server's X.509 certificate — the SAN must match the hostname dialed and chain to a trusted CA — so an impostor without the right private key fails the handshake. In short: the VPN encrypts the *path between networks*; TLS authenticates the *specific service*, and with mTLS, both workloads.

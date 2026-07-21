@@ -456,3 +456,22 @@ Imagine one restaurant door and a host who seats each arriving party at a free, 
 - [Kubernetes Services & kube-proxy](25-kubernetes-services-kube-proxy.md) — ClusterIP/NodePort/LoadBalancer and the in-kernel L4 LB in detail.
 - [Kubernetes Ingress & Gateway API](27-kubernetes-ingress-gateway-api.md) — the L7 layer, ALB controllers, and TLS termination.
 - [Service mesh & sidecars](29-service-mesh-and-sidecars.md) — per-request L7 load balancing pushed all the way down to an Envoy next to every pod.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** DNS round-robin *does* spread load across multiple IPs. Name the two things it fundamentally cannot do that force you to a real load balancer — and tie each to a specific failure a user would see.
+
+**A:** First, DNS round-robin is **health-blind**: plain DNS has no health check, so if one server dies, resolvers and clients keep handing out and caching the dead IP for the whole TTL. The user-visible failure: users whose resolver cached the dead address get connection timeouts or errors for minutes to hours, hammering a dead box while the other servers sit fine. Second, DNS has **no connection awareness and steps out of the path after resolution**: it hands out an IP once and has no idea one backend has 5,000 live connections while another has 3, and it cannot rebalance; caching resolvers also make thousands of users behind one resolver stampede the *same* server. The user-visible failure: slow responses and refused connections from an overloaded backend even though sibling servers are idle. A real load balancer fixes both because it sits in the traffic path with a live pool and a health-check loop.
+
+### Before Rung 3
+**Q:** From the one-idea sentence alone, derive why a load balancer must sit in the traffic path but a DNS-based one does not — and what capability the in-path LB gets *for free* because of that position.
+
+**A:** The sentence says a load balancer "accepts each incoming connection and forwards it to one healthy backend chosen from a live pool." To *accept and forward each connection*, it must be in the data path — every packet flows through it. DNS, by contrast, only answers the name→IP question once at resolution time and then steps aside; the actual traffic never touches it, so it can't act per-connection. Being in-path gives the LB real-time reaction for free: it makes a fresh choice for every new connection against the *current* healthy pool, so the instant a health check evicts a dead backend, no new connection is ever sent there — no waiting for TTLs or client re-resolution, and it can observe live connection counts (enabling algorithms like least-connections).
+
+### Before Rung 7
+**Q:** Your app needs to send `/api/*` to one pod set and `/static/*` to another, over HTTPS, using one hostname. Which layer of load balancer is *mandatory*, and name the one specific capability that rules the other layer out.
+
+**A:** An **L7 load balancer** (e.g. AWS ALB, NGINX, Envoy) is mandatory. The deciding capability is **path-based routing**, which requires reading the HTTP request line — and to read the URL path of HTTPS traffic the LB must also terminate TLS. An L4 balancer is ruled out because it decides per connection using only the IP and TCP/UDP headers; it never sees "GET /api/... HTTP/1.1", so it structurally cannot tell `/api/*` from `/static/*` (and it can't terminate TLS to look inside either). Only a full proxy that terminates the client connection, parses the request, and opens a second connection to the chosen pool can route one hostname to two different pod sets by path.

@@ -628,3 +628,37 @@ If either check-yourself felt shaky, that's your next 30-minute hands-on session
 - [selinux](20-selinux.md) — the mandatory layer that can veto a file access even when rwx says yes
 - [storage-mounts](15-storage-mounts.md) — how `fsGroup`, mount options, and OverlayFS interact with file ownership on volumes
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — the full map tying `runAsUser`/`fsGroup`/pki permissions back to these Linux primitives for node triage
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why can't a normal user be allowed to write `/etc/passwd`, and why does that restriction require the *filesystem itself* (not the app) to enforce who-can-do-what?
+
+**A:** `/etc/passwd` defines who the system's users are — if any user could edit it, they could grant themselves root (or any identity) and own the machine; the same goes for replacing `/bin/login` with a trojan. The enforcement must live in the filesystem/kernel rather than in applications because *any* process — including a malicious or buggy one that ignores polite conventions — can attempt the write. Only a check baked into the kernel's file-access path, recorded on every file as "who owns it and what everyone else may do," is inescapable. That's why a multi-user (or multi-pod) machine is impossible without permissions in the inode itself: it's the base isolation primitive underneath namespaces, cgroups, and SELinux.
+
+### Before Rung 3
+**Q:** Say the core sentence from memory. Then: a file you own has owner-triad `---` but other-triad `rwx` — can *you* read it?
+
+**A:** The sentence: "Every file carries an owner, a group, and three permission triads (owner / group / other), each a 3-bit number rwx = 4+2+1; when a process touches the file, the kernel picks the ONE triad matching the process's identity and checks those bits." No — you cannot read it. The kernel checks classes in strict order and stops at the *first* match: your euid equals the file's owner UID, so it uses the owner triad *only*, which is `---`, and you get "Permission denied." The triads are not additive — the kernel never falls through to the wider "other" triad for you, even though a stranger (matching only "other") could read the file just fine.
+
+### Before Rung 4
+**Q:** Draw the check-order diagram from memory. Then: (1) which triad applies to a non-root process that owns the file? (2) On a directory, which bit lets you `cd` in and which lets you `ls`? (3) What does SUID on `/usr/bin/passwd` change about the running process?
+
+**A:** The order: is euid 0 (root)? → allow (root bypasses rwx, except exec needs some x bit); else, does euid match the file's owner UID? → use the OWNER triad only, done; else, is the file's GID in the process's group set? → use the GROUP triad only, done; else → use the OTHER triad. (1) The owner triad, and only that one — even if group/other are wider. (2) The `x` bit lets you traverse/enter (`cd`, and use the directory as a path component); the `r` bit lets you list the names inside (`ls`). (3) SUID makes the program run with the *file owner's* identity instead of the caller's: `passwd` is SUID-root, so when you run it the process's effective UID becomes root, letting it edit root-owned `/etc/shadow`, then it drops back — shown as the `s` in `-rwsr-xr-x`.
+
+### Before Rung 5
+**Q:** Write `rw-r-----` as an octal number, then as a symbolic `chmod` argument.
+
+**A:** Octal: `640` — owner `rw-` = 4+2 = 6, group `r--` = 4, other `---` = 0. Symbolic: `chmod u=rw,g=r,o=` (equivalently `u=rw,g=r,o-rwx`). All three notations — the `rw-r-----` string `ls -l` shows, the number `640` you'd pass to `chmod`, and the symbolic edit — are the identical nine bits in different costumes; that's Group 1 of the vocabulary map (and 640 is exactly the mode of `/etc/shadow`).
+
+### Before Rung 6
+**Q:** At `0644`, the kernel was willing to let `ssh` read the key — so what exactly rejected it, and why is that a smart design? Name the two separate gates.
+
+**A:** The two gates are (1) the kernel's rwx permission check and (2) `ssh`'s *own* client-side policy check. At `0644`, gate 1 passed: euid matched the owner UID and the owner triad `rw-` has `r`, so `open()` succeeded. But `ssh` also `stat()`s the key's mode and sees that the group and other triads have `r` — meaning other local users *could* read the private key — so it treats the key as compromised and refuses with "Permissions 0644 ... too open." This is smart defense in depth: the kernel enforces the general access rule, while the application layers a stricter domain-specific policy on top ("private key material must be unreadable by anyone but its owner") — a loose key is a leaked key, so refusing is safer than proceeding. Kubernetes components apply the same reasoning to `/etc/kubernetes/pki/*.key` and kubeconfigs.
+
+### Before Rung 7
+**Q:** Why can an SELinux policy block a pod from reading a file even though `ls -l` shows `rw-r--r--` and the pod's UID owns it — i.e., why is rwx satisfied *necessary but not sufficient*?
+
+**A:** Because access is decided by independent gates checked in sequence, and *all* must pass: layer 1 is DAC (the rwx bits + ACLs), and layer 3 is MAC (SELinux/AppArmor) — with capabilities in between. rwx is *discretionary*: the file's owner decides, and here the owner triad grants read, so the DAC gate says yes. SELinux is *mandatory*: a central label-based policy, not the owner, decides — and it can veto an access that rwx already approved (e.g. type enforcement blocking a pod's write to a hostPath). Passing rwx merely gets you through the first gate; MAC is a separate, higher authority that can still say no, which is why it can confine even root-level processes that rwx implicitly trusts.

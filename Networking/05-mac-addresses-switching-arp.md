@@ -474,3 +474,32 @@ Go back to **Rung 7, Example 2** (flush the ARP cache and capture request+reply 
 - [VLANs & Segmentation](16-vlans-and-segmentation.md) — how one switch is sliced into multiple broadcast domains, and VXLAN overlays for cross-node pods.
 - [Network Devices](13-network-devices.md) — hub vs switch vs bridge vs router and their OSI layers.
 - [Kubernetes Pod Networking & CNI](24-kubernetes-pod-networking-cni.md) — veth pairs, the `cni0` bridge, and how pods get their L2/L3 plumbing.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** If a hub broadcasts every frame to every port, what specific piece of information would a *smarter* device need to remember so it could send a frame out *only one* port? (Name the mapping.)
+
+**A:** It needs to remember **which MAC address lives on which port** — the `MAC → port` mapping. That map is the switch's **MAC address table** (also called the CAM table or forwarding database). The switch builds it for free by watching the *source* MAC of every arriving frame and recording it against the arrival port (the LEARN rule); then, for each frame, it looks up the *destination* MAC and forwards out that one port instead of flooding everywhere (the FORWARD rule). Once the table is populated, the screaming-room hub behavior disappears.
+
+### Before Rung 4
+**Q:** Your pod sends to an IP in a *different* pod subnet on another node. Whose MAC goes in the destination field of the *first* frame that leaves the pod — the far pod's, or something else's? Why?
+
+**A:** Something else's: the **default gateway's MAC** — on a Flannel-style node, the MAC of the `cni0` bridge IP (e.g. `10.244.1.1`) acting as the router. ARP only works inside the local broadcast domain, so when the kernel sees the destination IP is off-subnet, it does *not* ARP for the far pod — it ARPs for the gateway's IP and stamps the gateway's MAC into the frame. This is the "MAC changes every hop" rule in action: the MAC handles *local* delivery to the next hop on this wire, while the IP addresses inside the packet stay constant end-to-end as the packet is then routed (or VXLAN-encapsulated) across to the far node, where a brand-new frame is built with the far pod's MAC.
+
+### Before Rung 5
+**Q:** Someone says "the switch flooded the packet to all ports." Two words in that sentence are technically imprecise for Layer 2. Which two, and what should they be?
+
+**A:** First, "**packet**" should be "**frame**": a switch is a Layer-2 device and forwards frames (the L2 PDU, addressed by MAC); a packet is the Layer-3 PDU riding inside — switches think in frames, routers think in packets. Second, "**all** ports" should be "all ports **except the one it arrived on**": flooding by definition excludes the source port, otherwise the frame would be reflected straight back at its sender. Precisely stated: "the switch flooded the frame out every port except the ingress port."
+
+### Before Rung 6
+**Q:** In the trace, how many times did a *broadcast* frame cross the switch, and why would adding 500 more pods to this bridge eventually make that a scaling concern?
+
+**A:** Exactly **once** — the ARP request in Steps 2–3 (destination `ff:ff:ff:ff:ff:ff`, flooded by `cni0`). Everything after was unicast: the ARP reply, the SYN/SYN-ACK/ACK, and the HTTP exchange, because the answer was cached in the ARP table. The scaling concern: the entire bridge is **one broadcast domain**, and a switch always floods broadcasts to every port. With 500 more pods, every ARP request from any pod is delivered to and processed by all ~500 pods, and the total broadcast rate grows with the number of pods (more pods asking, more caches expiring and re-asking). A big flat L2 domain therefore drowns in ARP/broadcast noise — the very Rung-1 pain that routers and VLANs exist to bound.
+
+### Before Rung 7
+**Q:** You add a plain (non-VLAN) switch to a congested LAN and collisions vanish — but a broadcast storm still floods the whole LAN. Which "domain" did the switch fix, and which did it leave untouched?
+
+**A:** The switch fixed the **collision domain**: instead of one big shared segment where any two simultaneous transmitters collide, each switch port becomes its own collision domain (effectively eliminating collisions on modern full-duplex links) — that's why the congestion vanished. It left the **broadcast domain** untouched: a switch forwards every broadcast frame (`ff:ff:ff:ff:ff:ff`) out all ports, so the entire switch and everything plugged into it remain one broadcast domain, and a broadcast storm still reaches every device. The memory hook from Rung 3: **a switch breaks up collision domains; a router (or VLAN) breaks up broadcast domains.**

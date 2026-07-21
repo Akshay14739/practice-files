@@ -299,3 +299,37 @@ kubectl get pvc <name> -o jsonpath='{.status.phase}{"\n"}'
 - [Section 1 — Core Concepts](01-core-concepts.md) — pods and how volumes attach.
 - [Section 13 — Troubleshooting](13-troubleshooting.md) — a pod stuck `ContainerCreating` on a volume.
 - [../../Linux/15-storage-mounts.md](../../Linux/15-storage-mounts.md) — the Linux mount/filesystem layer underneath volumes.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why is a `hostPath` volume a trap on a multi-node cluster?
+
+**A:** A `hostPath` volume is just a directory **on the node the pod happens to run on**. When the pod reschedules onto a different node, `/data` now points to *that* node's local directory — a different, likely empty, filesystem — so the data written on the first node is gone from the pod's view. Each node's `/data` differs, which is why hostPath only "works" on a single-node cluster and breaks portability the moment a pod moves.
+
+### Before Rung 3
+**Q:** A 50Mi PVC bound to a 100Mi PV — why is that allowed, what happens to the other 50Mi, and what does "1:1" mean for a second claim?
+
+**A:** Binding only requires the PV's capacity to be **≥** the claim's request (plus matching accessModes and storageClassName), so a 50Mi claim can bind a 100Mi PV. The claim gets the **whole PV** — the extra 50Mi is simply **wasted**; it isn't carved off or shared. "1:1" means one PV binds to exactly one PVC, so a second claim can never bind that PV while it's bound — it must find another matching PV or sit Pending.
+
+### Before Rung 4
+**Q:** Name the three things that must match for a PVC to bind a PV. Which mechanism creates a PV automatically versus an admin creating it by hand?
+
+**A:** The binding triple: (1) **capacity** — the PV's storage must be ≥ the PVC's request; (2) **accessModes** — the PV must satisfy the claim's mode (RWO/ROX/RWX/RWOP); (3) **storageClassName** — the class names must match. If any fails, the PVC stays Pending. A **StorageClass with a provisioner** creates PVs automatically on demand (**dynamic** provisioning), whereas an admin hand-writing PV manifests is **static** provisioning.
+
+### Before Rung 5
+**Q:** Put these in "static" or "dynamic": an admin hand-writes a PV; a PVC names class `gold` and a disk appears; `provisioner: no-provisioner`.
+
+**A:** An admin hand-writing a PV is **static** — the supply is pre-created manually. A PVC naming class `gold` that makes a disk appear is **dynamic** — the class's provisioner (e.g. `ebs.csi.aws.com`) creates the disk and PV on demand. `provisioner: no-provisioner` is **static** — the class exists (typically for local storage with `WaitForFirstConsumer`) but nothing auto-creates PVs; an admin still supplies them.
+
+### Before Rung 6
+**Q:** In the dynamic trace, why did the disk only get created at step 4 (not step 1)? What real-world problem does that timing solve?
+
+**A:** The class used `volumeBindingMode: WaitForFirstConsumer`, so provisioning and binding are delayed until a **pod actually mounts the PVC** — until then the PVC sits Pending with "waiting for first consumer," which is normal. The timing solves the **topology problem**: only once the scheduler places the pod does the provisioner know which node (and therefore which availability zone) to create the disk in, so the EBS disk lands in the pod's zone. With `Immediate`, the disk could be provisioned in a zone the pod can never reach.
+
+### Before Rung 7
+**Q:** A teammate set a database PV's reclaim policy to `Delete` and deleted the PVC to "clean up." What happened to the data, and what policy should they have used?
+
+**A:** With `reclaimPolicy: Delete`, deleting the PVC removed **both the PV and the backend disk** — the database's data is gone. They should have used **`Retain`**: on PVC deletion the PV is kept and moves to the `Released` state, preserving the data for manual cleanup or recovery. Rule of thumb from the ladder: never set `Delete` on a PV holding data you can't lose.

@@ -287,3 +287,37 @@ etcdctl snapshot restore /opt/snap.db --data-dir=/var/lib/etcd-from-backup
 - [Section 1 — Core Concepts](01-core-concepts.md) — etcd's role and static pods.
 - [Section 13 — Troubleshooting](13-troubleshooting.md) — recovering when the control plane won't start.
 - [../../Linux/16-systemd-services.md](../../Linux/16-systemd-services.md) — the systemd/kubelet service you restart during upgrades.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Where does etcd actually live, and why is losing *it* categorically worse than losing a worker node?
+
+**A:** etcd lives on the **control plane** (in kubeadm clusters, as a static pod on the control-plane node, its database in `/var/lib/etcd`) — it does not live on worker nodes at all. A worker node holds only *running copies* of pods; lose one and the control plane notices, waits out the eviction timeout, and controllers recreate the ReplicaSet-backed pods on other nodes — nothing definitional is lost. etcd, by contrast, holds **all cluster state** — every object, deployment, secret, role — it *is* the cluster's single source of truth. Lose etcd with no backup and the entire cluster state is gone with no undo: workers can keep running what they have, but the cluster's memory and ability to reconcile anything is unrecoverable. That's why an etcd snapshot is the only true restore point.
+
+### Before Rung 3
+**Q:** Why do you upgrade the control plane before the worker kubelets, never the reverse? State the rule it follows.
+
+**A:** The rule is the **version-skew rule: nothing may be newer than the kube-apiserver** — the API server (X) is the reference and highest version; controller-manager/scheduler may be X-1, and kubelet/kube-proxy may be up to X-2 behind (only kubectl may be X+1). If you upgraded the worker kubelets first, they would be *newer* than the API server, violating the rule — components could refuse to talk. Upgrading the control plane first keeps every kubelet at or below the API server's version at every step, and the "one minor at a time" companion rule (1.27→1.28→1.29) keeps each step within the supported, tested skew window.
+
+### Before Rung 4
+**Q:** In an etcd restore, which single field in `etcd.yaml` do you change, and why does editing that file cause etcd to restart on its own?
+
+**A:** You change only the **`etcd-data` volume's `volumes[].hostPath.path`** in `/etc/kubernetes/manifests/etcd.yaml`, repointing it from the old data dir to the new one you restored into (e.g. `/var/lib/etcd-from-backup`). It restarts on its own because etcd is a **static pod**: the kubelet continuously watches the `/etc/kubernetes/manifests/` directory, and when a manifest file changes it automatically recreates that pod — no kubectl, no API server needed. The kubelet recreates etcd (and the dependent kube-apiserver static pod follows), and the restored snapshot's state comes up as a brand-new etcd cluster (new member IDs, by design).
+
+### Before Rung 5
+**Q:** Which command previews an upgrade without doing it, and which one do you run on a *worker* (not `apply`)?
+
+**A:** **`kubeadm upgrade plan`** previews the upgrade — it shows the available target versions and the path without changing anything. On a worker (and on any *extra* control-plane node) you run **`kubeadm upgrade node`** — `kubeadm upgrade apply <version>` is only for the primary control-plane node. And on every node, kubeadm never touches the kubelet: you upgrade it yourself (`apt install kubelet=<v>`, then `systemctl daemon-reload && systemctl restart kubelet`).
+
+### Before Rung 6
+**Q:** At which exact step does `kubectl get nodes` finally show the new version — and why not earlier?
+
+**A:** At **Step 6** — after you install the new kubelet package (`apt install kubelet kubectl=1.29.3-1.1`) and run `systemctl daemon-reload && systemctl restart kubelet`. Not earlier because the VERSION column in `kubectl get nodes` reports the **kubelet's** version, not the control plane's: `kubeadm upgrade apply` in Step 3 only rewrote the static-pod manifests for the apiserver/scheduler/controller-manager/etcd, leaving the kubelet — a systemd service kubeadm never upgrades — still at 1.28. Only when the new kubelet binary restarts and re-registers does the column flip to 1.29.
+
+### Before Rung 7
+**Q:** "We keep all manifests in Git, so we don't need etcd backups." Give one thing a Git of manifests would *not* recover that an etcd snapshot would.
+
+**A:** Anything created **imperatively** and never written to a file — e.g. a Secret made with `kubectl create secret generic ... --from-literal=...`, a `kubectl run` pod, a live `kubectl edit`/`scale`/`set image` change, or an `expose`d Service. Git only rebuilds the *declarative objects you remembered to commit*; an etcd snapshot captures the **exact live state of everything** — every object as it actually existed at snapshot time, including all the imperative drift. That's why the ladder calls the etcd snapshot "the only true restore point for all cluster state."

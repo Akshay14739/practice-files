@@ -546,3 +546,37 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 - [AWS VPC](20-aws-vpc.md) — VPC CIDR, per-AZ subnets, route tables, and public vs private subnets in practice.
 - [Kubernetes pod networking & CNI](24-kubernetes-pod-networking-cni.md) — pod CIDR, per-node slices, and CNI IP exhaustion.
 - [NAT and PAT](14-nat-and-pat.md) — how private CIDR blocks reach the internet without needing public addresses.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why does a network *need* to be split even when you technically have enough addresses to put everyone on one segment?
+
+**A:** Because address supply isn't the only constraint — a single flat segment is one giant **broadcast domain**. When a host doesn't know a MAC address, the switch broadcasts the query ("who has 10.0.42.7?"), and on a flat network *every* host must receive and process *every* broadcast, so noise grows with host count until 60,000 machines are drowning in ARP storms and floods. On top of the performance problem, a flat network has no walls: no security boundary between HR laptops and prod databases, no isolation, and no blast-radius control — one misconfigured or compromised host can reach everything. Subnetting splits the space into smaller broadcast domains with routed boundaries between them, solving performance, security, and isolation at once.
+
+### Before Rung 3
+**Q:** From memory, for a `/28`: how many total addresses, and how many usable hosts?
+
+**A:** Derive it with the one trick: `32 − 28 = 4` host bits, so the block holds `2^4 = 16` total addresses. Subtract the two reserved patterns — all-zeros host bits (the network address) and all-ones host bits (the broadcast address) — and you get `16 − 2 = 14` usable hosts.
+
+### Before Rung 4
+**Q:** Draw the 32 bits for `10.0.5.130/26`. Where's the boundary? What are the network and broadcast addresses of that specific subnet, and how many usable hosts?
+
+**A:** In binary: `00001010.00000000.00000101.10|000010` — the `/26` boundary falls 2 bits into the last octet, leaving 6 host bits. Block size is `2^6 = 64`, so `/26` blocks in this range start at `.0`, `.64`, `.128`, `.192`; the last octet `130` (`10|000010`) has network bits `10` = 128, so this address falls in the **`10.0.5.128/26`** block. Network address = **`10.0.5.128`** (host bits all 0), broadcast = **`10.0.5.191`** (host bits all 1, 128 + 63). Usable hosts = `64 − 2 = 62`, spanning `10.0.5.129`–`10.0.5.190`.
+
+### Before Rung 5
+**Q:** Someone says "the mask is 255.255.255.192." What prefix is that, how many usable hosts, and what did the `192` in the last octet tell you?
+
+**A:** `192` in binary is `11000000` — two more `1` (network) bits extending past the third octet's 24, so the prefix is **`/26`**. That leaves `32 − 26 = 6` host bits → block size `2^6 = 64` → **62 usable hosts** after dropping the network and broadcast pair. The `192` told you exactly how far the boundary slid into the last octet: a subnet mask is just the prefix written in dotted decimal — `n` ones followed by zeros — so `.192` = "2 stolen host bits," the same fact as `/26` in a different costume.
+
+### Before Rung 6
+**Q:** Trace `10.0.0.8/29`: how many host bits, how many usable, network and broadcast addresses, and the range of usable IPs?
+
+**A:** `/29` → `32 − 29 = 3` host bits → `2^3 = 8` total addresses → `8 − 2 = 6` usable. Block size is 8, and blocks start at multiples of their size; `.8` is a multiple of 8, so the block starts right there. Network address = **`10.0.0.8`** (host bits `000`), broadcast = **`10.0.0.15`** (host bits `111`), and the usable range is **`10.0.0.9`–`10.0.0.14`** — six assignable hosts in between.
+
+### Before Rung 7
+**Q:** Why did a company needing exactly 400 host addresses waste ~65,000 addresses under classful but only ~100 under CIDR? Name the two prefixes.
+
+**A:** Under classful addressing there were only three fixed sizes: a Class C (`/24`) tops out at 254 usable hosts — too small for 400 — so the company was forced up to the next size, a Class B (**`/16`**) with 65,534 usable hosts, wasting roughly 65,000 addresses. CIDR lets the boundary fall on *any* bit, so you pick the smallest block that fits: a **`/23`** gives `2^9 − 2 = 510` usable hosts, covering the 400 with only ~110 spare. The entire difference is CIDR's one freedom: the network/host boundary is chosen to match the real requirement instead of being locked to octet-aligned class lines.

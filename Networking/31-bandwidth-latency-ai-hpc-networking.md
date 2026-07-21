@@ -258,3 +258,27 @@ TTFT vs tokens/sec      → latency vs bandwidth, same AI request
 - [Routing & Forwarding](08-routing-and-forwarding.md) — hops and paths that add latency.
 - [Network Observability](32-network-observability.md) — measuring latency, throughput, jitter, and loss.
 - [What is a Network & How the Internet Works](01-what-is-a-network-and-the-internet.md) — bandwidth units and physical media.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why won't buying more bandwidth speed up a request from Sydney to a Virginia server that's already lightly loaded?
+
+**A:** Because that request is limited by **latency**, not bandwidth — the delay is dominated by physical distance and hop count between Sydney and Virginia, and a fatter pipe doesn't shorten the pipe. Bandwidth is how much data can flow per second (pipe diameter); latency is how long before the first bit arrives (pipe length) — they are independent quantities. The link is lightly loaded, so capacity was never the bottleneck; the fix is shortening distance/hops (CDN/edge, a closer region, anycast), not widening a pipe that's already mostly empty.
+
+### Before Rung 3
+**Q:** Give one fix that helps latency but not bandwidth, and one that helps bandwidth but not latency.
+
+**A:** Latency-only fix: **move the endpoint closer** — serve from a CDN/edge PoP or a nearer region (or cut hops via anycast/colocation). The first byte arrives sooner, but the pipe carries no more data per second. Bandwidth-only fix: **widen or parallelize the pipe** — a fatter link, parallel streams, or compression moves more bytes per second, but the distance is unchanged, so the first bit from Sydney still takes just as long to arrive. This is exactly why the file's teams wasted money applying each fix to the wrong problem.
+
+### Before Rung 4
+**Q:** Why does distributed GPU training care so intensely about *latency* between nodes, not just raw bandwidth — what happens on every training step?
+
+**A:** Because every training step ends in a **collective operation — an all-reduce** — where every GPU must combine its gradients with every other GPU's before anyone can proceed to the next step. That's a synchronization barrier: each step waits for the slowest exchange, so high inter-node latency means all the GPUs sit idle at the barrier on every one of thousands of steps, and utilization craters ("$40/hr GPUs sit idle waiting on each other"). Ordinary TCP/IP adds milliseconds of kernel/copy/interrupt overhead per exchange, which is why HPC uses RDMA/InfiniBand/RoCE/EFA — the NIC writes directly into remote (even GPU, via GPUDirect) memory with microsecond, CPU-bypassed latency.
+
+### Before Rung 6
+**Q:** In that step, if you doubled bandwidth but latency stayed high, would GPU utilization necessarily improve? Why or why not?
+
+**A:** Not necessarily. Doubling bandwidth only speeds up the bulk gradient transfer; the all-reduce is still a per-step synchronization barrier, and if inter-node **latency** is high, every GPU still stalls waiting for the slowest exchange each step — that fixed delay is pure overhead that a fatter pipe cannot remove. If the exchange time were dominated by moving the GB-scale gradients (bandwidth-bound), utilization would improve; but if it's dominated by round-trip delay (latency-bound), it barely moves. That's why RDMA/InfiniBand is the answer for GPU clusters: it attacks *both* — high bandwidth *and* microsecond latency with CPU bypass — rather than just widening the pipe.

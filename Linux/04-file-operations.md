@@ -594,3 +594,37 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 - [storage-mounts](15-storage-mounts.md) — filesystems, mounts, and OverlayFS — why hard links can't cross a mount boundary
 - [io-redirection-pipes](10-io-redirection-pipes.md) — `>`, `>>`, and heredocs in depth, the streams behind file creation
 - [text-processing](09-text-processing.md) — pairing `find` with `grep`/`xargs` to search *inside* the files you locate
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why is renaming a 40 GB file instant, but copying it takes minutes? What must be true about the relationship between a filename and the file's data?
+
+**A:** Renaming is instant because `mv` on the same filesystem never touches the 40 GB of data — it only rewrites the *directory entry*, the small (name → inode number) row in the directory table. Copying takes minutes because `cp` must create a brand-new inode and physically duplicate every data block. The instant-ness is the clue: the name and the data must be *separate things*. The filename is just a pointer stored in a directory; the data lives elsewhere (in the inode's data blocks), so an operation that changes only the pointer costs nothing no matter how big the file is.
+
+### Before Rung 3
+**Q:** Say the core sentence from memory. If two filenames point to the same inode and you `rm` one of them, is the data gone? Why or why not?
+
+**A:** The sentence: "A filename is not the file. The file is an inode (a numbered record of the data + metadata), and a filename is just a directory entry that points to an inode number — so many names can point to one inode, and deleting a name only removes data when the last pointer to the inode is gone." No, the data is not gone. `rm` removes one directory entry, which decrements the inode's link count from 2 to 1. The other name is an equal, first-class pointer to the same inode, so the data blocks stay alive; they are freed only when the link count reaches 0 (and no process holds the file open).
+
+### Before Rung 4
+**Q:** Draw the three layers (name → inode → data). When you `rm` a file a running process still has open, which layer's count keeps the disk space allocated, and what event finally frees it?
+
+**A:** The three layers: Layer 1, the *directory entry* — a (name → inode number) row in the directory's table; Layer 2, the *inode* — the numbered record holding type, perms, owner, size, timestamps, link count, and pointers to blocks (everything except the name); Layer 3, the *data blocks* — the actual bytes on disk. When you `rm` an open file, the on-disk link count (Layer 2) drops to 0, but the process's open *file descriptor* is an extra, in-memory reference the kernel also counts — an invisible link. Because that open count is still 1, the data blocks are not freed. The space is finally reclaimed when the process closes the file (or dies) — that close drops the last reference, and only then do the blocks free. This is the kubelet-log-fills-the-disk incident.
+
+### Before Rung 5
+**Q:** Someone says "I'll make a hard link so I have a backup of the original file." Why is "original" misleading, and what does that reveal about what a filename is?
+
+**A:** "Original" is misleading because after `ln fileA fileB` there is no original and no copy — both names are equal, first-class directory entries pointing at the *same* inode; the inode doesn't even know its own names. It reveals that every ordinary filename is *already* a hard link (a regular file is just an inode with link count 1), and `ln` merely adds a second, equally-ordinary pointer. It's also not a backup: since both names share one inode and one set of data blocks, corrupting the data through either name corrupts "both" — a real backup needs an independent copy (`cp`).
+
+### Before Rung 6
+**Q:** At Step 4 of the ConfigMap trace, why does Kubernetes flip a *symlink* instead of overwriting `settings.conf` in place? What could the app observe if the kubelet edited the real file's bytes directly?
+
+**A:** Because you can atomically re-point one symlink, but you cannot atomically overwrite a file's bytes. A same-directory `rename()` of `..data_tmp` onto `..data` is a single, indivisible kernel operation — just a directory-entry rewrite — so at no instant does `..data` point at a half-built directory: one moment it resolves to the old timestamped dir, the next moment to the new one. If the kubelet instead edited `settings.conf`'s bytes in place, an app reading mid-write could observe a *half-written* config — part old value, part new — and crash or misbehave on the torn file. Building the complete new directory off to the side and flipping the `..data` symlink guarantees the app only ever sees a fully-old or fully-new file.
+
+### Before Rung 7
+**Q:** A teammate "backs up" the CA key with `ln -s /etc/kubernetes/pki/ca.key /backup/ca.key`, then deletes the original during a migration. Why is the backup worthless, and which command would have protected them?
+
+**A:** A symlink is its own tiny inode whose entire contents are the *path string* `/etc/kubernetes/pki/ca.key` — it holds none of the key's data and doesn't even bump the target's link count. When the original name was deleted, its inode's link count hit 0 and the kernel freed the data blocks; the symlink is now *dangling*, pointing at a name that no longer resolves, so reading `/backup/ca.key` returns "No such file or directory." The command that would have protected them is `sudo cp -rp /etc/kubernetes/pki /backup/...` (for the single file, `cp -p`): `cp` creates an independent inode with its own duplicated data blocks that survives deletion of the source, and `-p` preserves the `600` mode, owner, and timestamps so the private key doesn't end up with widened permissions.

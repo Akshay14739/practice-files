@@ -266,3 +266,27 @@ Defense in depth   → independent, stacked layers
 - [CDN, Edge & WAF](21-cdn-edge-waf.md) — where DDoS is absorbed and L7 attacks are filtered.
 - [VPN & Zero-Trust Connectivity](19-vpn-and-zero-trust-connectivity.md) — zero-trust access to networks and nodes.
 - [Network Observability](32-network-observability.md) — the flow logs and traces that power detection.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why does "trusted once you're on the corporate network" become dangerous the moment an attacker gets a single foothold inside?
+
+**A:** Because the castle-and-moat model puts all its verification at the perimeter and leaves a soft, trusting interior — being "inside" *is* the credential. So an attacker who phishes one credential or pops one pod inherits that blanket trust and can move laterally across the flat interior to reach the database, admin services, and other namespaces, often over plaintext internal traffic they can sniff. One breach becomes a full compromise, because nothing inside re-verifies who they are. Trust based on network location is a false assumption, and everything built on it is fragile.
+
+### Before Rung 3
+**Q:** In Zero Trust, where does "trust" come from if not from being on the internal network?
+
+**A:** From **verified identity, on every request**. Each call — internal or external — must be authenticated and authorized (mTLS certificates proving workload identity, authorization policies, RBAC), and every hop is encrypted so no location grants implicit access. In other words, trust travels with the cryptographically verified identity of the caller, not with the packet's source network; and because you also "assume breach," least privilege and micro-segmentation ensure that even a verified identity can only reach the minimum it needs.
+
+### Before Rung 4
+**Q:** An IDS and an IPS both spot the same malicious packet. What does each one *do* about it, and why might you deploy an IDS where you can't risk an IPS's false-positive blocking?
+
+**A:** An **IDS** monitors a copy of the traffic and only **alerts** — the smoke detector: it tells you something is wrong but doesn't act, and the packet still reaches its destination. An **IPS** sits **in-line** in the traffic path and **blocks** the malicious packet in real time (plus alerts) — the sprinkler. You deploy an IDS where a false positive would be too costly: because an IPS drops what it flags, misclassifying legitimate traffic means dropping real users' requests, so the common pattern is IDS broadly (safe, alert-only) and IPS only on well-understood, high-risk paths.
+
+### Before Rung 6
+**Q:** In the trace, name two *different* layers that each independently blocked the attacker. Why is having both better than a single perfect firewall?
+
+**A:** Two examples from the trace: (1) the **NetworkPolicy** layer (L3/L4 micro-segmentation) dropped the direct frontend→payments-db:5432 attempt and also the outbound exfiltration under default-deny egress, and (2) the **mesh mTLS/identity** layer (L7) rejected the pivot to payments:8080 because the attacker had no valid "payments-client" certificate under STRICT mTLS. (The eBPF IDS that alerted is a third layer.) Having independent layers is better than one "perfect" firewall because no single control is ever perfect — any one layer can be misconfigured or bypassed, but the layers verify independently, so an attacker past one still faces the next, and the breach is both contained and *seen*. That containment is the entire payoff of Zero Trust + defense in depth.

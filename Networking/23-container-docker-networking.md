@@ -263,3 +263,27 @@ overlay driver          → VXLAN to span multiple hosts
 - [Network Devices](13-network-devices.md) — `docker0` is a virtual switch/bridge.
 - [VLANs & Segmentation](16-vlans-and-segmentation.md) — VXLAN, the overlay driver's tunneling mechanism.
 - [MAC Addresses, Switching & ARP](05-mac-addresses-switching-arp.md) — the L2 switching the bridge performs.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** If each container has its own isolated network namespace, why can't two containers on the same machine reach each other without something extra connecting them?
+
+**A:** Because a network namespace is a private, self-contained network stack — its own interfaces, routing table, and ports — with no built-in path to any other namespace. Isolation is the whole point: from inside, a container sees only its own `eth0` and loopback, so a packet has nowhere to go to reach a neighbor. Something must physically (virtually) connect them — a veth pair from each namespace plugged into a shared bridge like `docker0`, which switches frames between them like a virtual L2 switch. Without that wiring, the two stacks are simply separate networks on the same box.
+
+### Before Rung 3
+**Q:** Why do you connect to another container by *name* rather than by its IP address?
+
+**A:** Because container IPs are ephemeral — restart a container and its IP changes, so hardcoding something like `172.17.0.4` breaks the moment anything reschedules. On a user-defined bridge network, Docker runs an embedded DNS server at `127.0.0.11` that always resolves a container's name to its *current* IP. The name is the stable identity; the IP is a throwaway detail the resolver tracks for you.
+
+### Before Rung 4
+**Q:** With the default bridge, why can two containers on the *same* host reach each other directly, but a container on host A cannot reach a container on host B by its `172.17.x.x` IP?
+
+**A:** On the same host, both containers are plugged (via veth pairs) into the same `docker0` bridge, so traffic between them is a direct L2 hop through that virtual switch. But the `172.17.x.x` addresses are host-local and private: the real network between hosts knows nothing about them, and outbound traffic is SNAT/MASQUERADEd to the host's IP, hiding the container addresses entirely. So host B (and the network in between) has no route to host A's `172.17.x.x` space — in fact both hosts may use the *same* overlapping range. Cross-host communication needs either an explicit published port (DNAT on the target host) or an overlay network (VXLAN) that tunnels the L2 frames between hosts.
+
+### Before Rung 6
+**Q:** In step 5 of the trace, what source IP does the remote internet server see — the container's or the host's? Why does that mean the container is "hidden" behind the host?
+
+**A:** The remote server sees the host's IP, not the container's. Step 5 is SNAT/MASQUERADE: as the packet leaves the host's `eth0`, the kernel rewrites the source address from the container's private bridge IP (e.g. 172.18.0.2) to the host's own IP. That means the container has no visible identity of its own on the internet — many containers share the host's public identity, and the outside world cannot address or initiate a connection to the container directly. Inbound reachability exists only where you deliberately punch a hole with a published port (`-p`, a DNAT rule).

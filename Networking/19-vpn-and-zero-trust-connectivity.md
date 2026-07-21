@@ -479,3 +479,32 @@ The internet is public and unsafe, so a VPN puts your real (private-addressed) p
 - **[AWS VPC](20-aws-vpc.md)** — VGW/TGW, route tables, and bastion hosts: where a site-to-site VPN actually lands.
 - **[Service mesh & sidecars](29-service-mesh-and-sidecars.md)** — mTLS is "authenticate every peer, encrypt every hop" applied *inside* the cluster.
 - **[iptables & netfilter](../Linux/12-iptables-netfilter.md)** — the kernel machinery that IPsec/WireGuard and NAT-T hook into.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** TLS already encrypts your HTTPS traffic end-to-end. Why would a company still route that already-encrypted HTTPS through a site-to-site VPN tunnel? What does the VPN give you that per-connection TLS does not?
+
+**A:** TLS wraps *one application connection*; a VPN wraps *whole packets*, below the application. So the VPN protects everything at once — the HTTPS, but also the database traffic on 5432, ICMP, legacy UDP, and any protocol that has no TLS support — through a single encrypted pipe, with no per-app configuration. Second, the VPN solves the routing problem TLS can't touch: the inner packets keep their private, non-routable addresses (`10.x → 10.x`), so on-prem hosts and VPC pods reach each other by private IP without any service being exposed on a public endpoint at all — nothing is on a public port to be scanned. TLS also leaves metadata visible (which internal host talked to which service on which port); inside the tunnel, observers see only two gateway public IPs exchanging ciphertext.
+
+### Before Rung 3
+**Q:** From the One Idea alone, explain why a VPN can carry protocols it has never heard of — Postgres on 5432, an old UDP game protocol, ICMP pings — all at once through one tunnel, whereas a TLS-terminating load balancer fundamentally cannot. Which word in the One Idea is doing that work?
+
+**A:** The word is **"wraps"** (encapsulation — "wraps whole private packets"). A VPN treats the entire original packet — IP header, TCP/UDP/ICMP header, payload, whatever it is — as an opaque blob of payload inside a new outer packet. It never needs to understand the inner protocol, only to encrypt it and address the outer packet gateway-to-gateway, so any port and any protocol rides through simultaneously. A TLS-terminating load balancer does the opposite: it *terminates* the connection, meaning it must speak the application protocol (parse the TLS handshake, read the HTTP request) to do its job — it operates on one application connection at a time and structurally cannot carry protocols it doesn't understand. Operating *below* the application on whole packets versus *at* the application on single connections is the whole difference.
+
+### Before Rung 5
+**Q:** Someone says "we use IPsec, not a VPN." Why is that sentence confused? Name the layer IPsec occupies and where it sits inside the VPN vocabulary above.
+
+**A:** The sentence is confused because IPsec and VPN aren't alternatives — IPsec **is** one of the recipes for building a VPN. "VPN" names the job (carry private packets in an encrypted, authenticated tunnel over a public network); IPsec, OpenVPN, and WireGuard are three interchangeable implementations of the encrypt + authenticate + encapsulate step. Saying "we use IPsec, not a VPN" is like saying "we don't drive a car, we drive a Toyota." IPsec occupies **Layer 3** (the IP layer) and consists of two sub-parts: **IKE** (UDP 500 / 4500 with NAT-T) which negotiates the keys, and **ESP** (IP protocol 50) which carries the encrypted packets — it's the recipe AWS Site-to-Site VPN speaks.
+
+### Before Rung 6
+**Q:** In step 4, a backbone router tries to log the destination port of your Prometheus scrape. What port does it record, and why is it not 9090? What would it record, and what does that tell you about what a VPN hides versus what it doesn't?
+
+**A:** The router records **UDP 4500** — the NAT-T port carrying ESP-in-UDP between the two gateways (with plain ESP it would see IP protocol 50 and no port at all). It cannot record 9090 because the inner packet — including the destination `10.0.60.10:9090`, the TCP header, and the Prometheus query — is encrypted ciphertext inside the ESP payload; everything above the outer header is opaque. What the router *does* see: the two public gateway endpoints (`CGW_public → VGW_public`), plus packet sizes and timing. That's the lesson: a VPN hides *content* — inner addresses, ports, protocols, payloads — but it does not hide the *existence* of the tunnel or its traffic-analysis metadata: which two gateways are talking, how much, and when.
+
+### Before Rung 7
+**Q:** Your team wants engineers to reach private EKS nodes and also wants "encrypt all pod-to-pod traffic." Someone proposes "one big OpenVPN concentrator for everything." Name two distinct reasons that's the wrong tool for the *pod-to-pod* half, and say what you'd use instead for each half.
+
+**A:** Reason 1 — topology: a concentrator is hub-and-spoke, so every pod-to-pod packet between nodes would detour through one central box, making it a bandwidth cap, a latency tax, and a single point of failure for *all* east-west cluster traffic. Reason 2 — mechanism: OpenVPN is a userspace, per-client VPN (every packet crosses the user/kernel boundary, and endpoints need a configured client) — hopeless for pods, which are ephemeral cattle that can't run VPN clients and whose traffic must be encrypted transparently with zero app changes. For the pod-to-pod half, use **CNI transparent WireGuard encryption** — Cilium (`encryption.type=wireguard`) or Calico (`wireguardEnabled: true`) — which puts an in-kernel `wg0`-style device on every node and encrypts all inter-node pod traffic automatically. For the engineer-access half, use a **zero-trust mesh VPN** (WireGuard/Tailscale, identity-gated via SSO) so laptops peer directly into the VPC with no public SSH port — or AWS SSM Session Manager for the same "no bastion, no open port" result.

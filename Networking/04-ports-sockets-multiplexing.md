@@ -441,3 +441,17 @@ Go back to **Rung 7, Example 3** on a real (or `kind`/`minikube`) cluster. Wirin
 - [NAT and PAT](14-nat-and-pat.md) — port *mapping* generalized; how `-p 8080:80` and kube-proxy rewrite ports.
 - [Kubernetes Services & kube-proxy](25-kubernetes-services-kube-proxy.md) — ClusterIP/NodePort/LoadBalancer and the DNAT that maps Service ports to pod ports.
 - [Container & Docker networking](23-container-docker-networking.md) — bridge networks and `-p host:container` port forwarding in depth.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** A packet arrives at a node whose IP is `10.0.1.5`, running both the kubelet and etcd. Using only the fields in an IP header, can the kernel decide which process gets the packet? If not, what *one* additional number would settle it?
+
+**A:** No. The IP header only carries the two IP addresses — it answers "which machine?" (the destination IP `10.0.1.5` confirms the packet reached the right host) but says nothing about "which process?". With IP alone the kernel knows the delivery *building* but not the *room*: the kubelet and etcd share the node's one IP, so there is no way to pick between them. The one additional number that settles it is the **destination port**, which rides one layer up in the TCP/UDP (Layer 4) header — e.g. `10250` means the kubelet gets the bytes, `2379` means etcd does. The kernel matches that port against its socket table of listening processes; that lookup is demultiplexing.
+
+### Before Rung 7
+**Q:** A single nginx pod at `10.244.3.7` listens only on port 443 yet serves 5,000 simultaneous browsers, with only one listening socket. What makes each of the 5,000 connections a *distinct* entry in the kernel's socket table, given they all target `10.244.3.7:443`?
+
+**A:** The **4-tuple**: `(source IP, source port, destination IP, destination port)`. The kernel keys each established connection by all four fields, not by the server port alone. Every browser presents a different source side — a different client IP, and/or a different ephemeral source port handed out by the client's kernel — so all 5,000 connections have distinct 4-tuples even though the destination half is identically `10.244.3.7:443`. Change any one field and it's a different conversation, so each 4-tuple points at its own established socket in the table. The single LISTEN socket is just the passive front door that accepts new connections; the source side is what makes each conversation unique.

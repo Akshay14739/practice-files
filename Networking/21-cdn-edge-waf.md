@@ -265,3 +265,27 @@ Anycast          → how users find the nearest PoP
 - [Kubernetes Ingress & Gateway API](27-kubernetes-ingress-gateway-api.md) — the cluster entrypoint that acts as the CDN's origin.
 - [Bandwidth, Latency & AI/HPC Networking](31-bandwidth-latency-ai-hpc-networking.md) — why distance-latency is physics you can only route around.
 - [Network Security — Zero Trust, IDS/IPS & DDoS](30-network-security-zero-trust-ids-ips.md) — where edge defense fits in defense-in-depth.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why can't you fix global latency just by buying a faster origin server or more bandwidth?
+
+**A:** Because the dominant delay is a property of *distance*, not of your server. Light in fiber covers roughly 200,000 km/s, so a Sydney-to-Virginia round trip (~16,000 km each way) costs ~160 ms of pure physics before TLS or your app does anything. A faster CPU or a fatter pipe changes neither the speed of light nor the kilometers the packet must travel. The only fix is to shorten the distance — answer the request from an edge near the user instead of a distant origin.
+
+### Before Rung 3
+**Q:** If the edge already has a fresh copy of what you asked for, how far does your request actually travel? What if it *doesn't* have a copy?
+
+**A:** On a cache hit, the request only travels to the nearest PoP — an edge data center in or near your city — and is answered from the edge cache in a few milliseconds without ever touching the origin. On a cache miss, the edge fetches the object from the distant origin (e.g. your ALB/Ingress in us-east-1), stores it locally with a TTL, and then serves you — so that one request pays the full origin round-trip. The next user at that PoP asking for the same object gets a hit: slow once, fast forever after.
+
+### Before Rung 4
+**Q:** Two users in the same city request the same image seconds apart. Which one pays the origin round-trip, and which gets a fast local answer — and why?
+
+**A:** The first user pays the origin round-trip: their request is a cache MISS at the local PoP, so the edge fetches the image from the origin (say, Virginia), stores it in the edge cache with a TTL, and then serves it. The second user, seconds later, is routed by anycast to the same nearest PoP, where the image is now cached — a cache HIT served locally in ~5 ms that never touches the origin. That's the whole game: the first request populates the edge cache, and every subsequent same-city request is answered from nearby.
+
+### Before Rung 6
+**Q:** In the Frankfurt trace, which single step is the reason a SQL-injection attempt in the query string never reaches your pod?
+
+**A:** Step 3 — the WAF rules running at the Frankfurt PoP. The WAF is an L7, HTTP-aware filter evaluated at the edge *before* the cache/origin decision, so it can inspect the query string and body, spot a pattern like `' OR 1=1--`, and reject the request with a 403 right there. A blocked request is never forwarded onward, so steps 5–7 (ALB → Ingress → kube-proxy → pod) never run and your pod logs show nothing.

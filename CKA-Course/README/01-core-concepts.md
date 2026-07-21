@@ -422,3 +422,37 @@ k get all -A ; k describe <res> <name> ; k explain <res> --recursive ; k api-res
 - [Section 6 — Security](06-security.md) — how the API server authenticates/authorizes every request in the trace.
 - [Section 13 — Troubleshooting](13-troubleshooting.md) — `crictl`, `describe`, endpoints when the machinery breaks.
 - [../../Linux/13-namespaces.md](../../Linux/13-namespaces.md) — the Linux namespaces/cgroups a Pod is really built from.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Name three things a bare container runtime can't do for you in production that forced an orchestrator to be invented.
+
+**A:** (1) **Self-healing** — when a container dies at 3 AM, nothing restarts it; it stays dead until a human notices. (2) **Scaling** — when traffic spikes, nobody starts more copies; you'd have to SSH in and `docker run` more by hand and wire up a load balancer yourself. (3) **Stable networking** — container IPs are ephemeral, so when a container restarts with a new IP, everything hard-coded to the old one breaks. (Placement decisions and zero-downtime rolling updates are two more valid answers from the same list.)
+
+### Before Rung 3
+**Q:** Say the one-sentence idea from memory. Then: if you `kubectl delete` a pod that belongs to a ReplicaSet, why does a new one appear almost instantly — and which part of the sentence explains it?
+
+**A:** The sentence: **Kubernetes is a set of controllers that continuously reconcile the cluster's actual state toward the desired state you declare, with the API server + etcd as the single hub and source of truth.** A new pod appears because the ReplicaSet controller is continuously watching desired (e.g. 3 replicas) vs actual; deleting a pod just widens the gap (actual = 2), and the controller exists to close that gap, so it immediately creates a replacement. The part of the sentence that explains it is *"controllers continuously reconcile the actual state toward the desired state"* — self-healing is not a separate feature, it's the reconcile loop doing its only job.
+
+### Before Rung 4
+**Q:** Draw the two-plane picture, then trace `kubectl run nginx`: (1) which component writes to etcd? (2) which one picks the node — does it place the pod or just decide? (3) which one actually starts the container? (4) if the scheduler is down, what state is the pod stuck in?
+
+**A:** The picture: a **control plane** (brain) holding etcd :2379, kube-apiserver :6443 as THE HUB, kube-scheduler :10259 and kube-controller-manager :10257, and **worker nodes** (muscle) each running the kubelet :10250, kube-proxy, and a container runtime — everything flows through the API server, and only the API server touches etcd. The trace: (1) **kube-apiserver** is the only component that writes to etcd — it authenticates, authorizes, validates, then records "Pod (node: none)". (2) The **kube-scheduler** picks the node, and it only *decides* — it tells the API server the binding, which is written to etcd; it never places anything itself. (3) The **kubelet** on the chosen node, watching the API server, sees the pod bound to it and tells the **container runtime** (via CRI) to pull the image and start the container. (4) With the scheduler down, the pod sits unscheduled with no node assignment — stuck in **Pending**.
+
+### Before Rung 5
+**Q:** What's the chain of objects between a Deployment and a running container, and what does each link add? What does an empty Endpoints list tell you about a Service?
+
+**A:** The chain is **Deployment → ReplicaSet → Pod → container(s)**. The Deployment adds rollouts and rollback (it manages ReplicaSets); the ReplicaSet adds the reconcile loop that keeps N pod copies alive; the Pod is the smallest deployable unit, wrapping one or more tightly-coupled containers that share network and storage; the containers are your actual app. An empty **Endpoints** list (`Endpoints: <none>`) tells you the Service's selector matched no pod labels — the endpoints controller found nothing, so kube-proxy has nothing to forward to and the Service is effectively dead. It's the #1 cause of "my Service doesn't work."
+
+### Before Rung 6
+**Q:** At Step 4 the scheduler did two distinct things before choosing a node — name them. And at Step 7, which component actually forwards the packet to a pod?
+
+**A:** The scheduler first **filters** the nodes (does the node have enough CPU/RAM? are its taints tolerated?) and then **scores** the survivors, binding the pod to the best-scoring node. At Step 7 the component that actually forwards the packet is **kube-proxy** — or more precisely the **iptables/IPVS rules** kube-proxy has programmed on every node, which DNAT a packet sent to the Service's ClusterIP to one of the matching pod IPs. CoreDNS only resolves the Service name to the virtual IP, and the API server isn't in the data path at all.
+
+### Before Rung 7
+**Q:** Explain why docker-compose structurally can't self-heal a crashed container the way Kubernetes does — what architectural piece is it missing?
+
+**A:** docker-compose is purely imperative: it starts what you told it to start and then nothing is left running that compares "what should exist" against "what does exist." Kubernetes has a **control loop** — a controller (backed by desired state recorded in the API server/etcd) that continuously watches desired vs actual and is *allowed to act* to close any gap. Compose has no reconciling controller, no stored desired state to reconcile against, and no watch mechanism, so a crashed container just stays crashed and a traffic spike changes nothing. It's not a missing feature toggle; it's the absence of the entire declare-watch-reconcile architecture that Rung 2's one sentence describes.

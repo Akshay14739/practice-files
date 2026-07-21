@@ -295,3 +295,37 @@ kustomize build k8s/ | kubectl apply -f -
 - [Section 4 — Application Lifecycle Management](04-application-lifecycle-management.md) — the manifests Kustomize customizes.
 - [Section 1 — Core Concepts](01-core-concepts.md) — declarative `kubectl apply` that `-k` extends.
 - [Section 7 — Storage](07-storage.md) / [Section 6 — Security](06-security.md) — resources you'd patch per environment.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why is "copy the manifests into dev/, staging/, prod/ folders" a maintenance trap? What happens when you need to change something shared by all three?
+
+**A:** Because duplicated manifest sets are guaranteed to drift apart — there is no single source of truth, and each folder gets hand-edited independently until the environments quietly diverge. When you need a shared change (say, a new label), you must make the same edit in three places, and sooner or later you'll miss one, leaving the environments inconsistent in ways nobody notices until something breaks.
+
+### Before Rung 3
+**Q:** In one sentence, what's the difference in *purpose* between a base and an overlay? What does an overlay do to avoid duplicating the base?
+
+**A:** The base holds the shared default manifests common to every environment, while an overlay is a per-environment layer whose only job is to change the deltas (dev's 1 replica vs prod's 5). To avoid duplicating the base, the overlay doesn't copy any manifests — it *references* the base with `resources: [../../base]` in its `kustomization.yaml`, then applies only its own transformers and patches on top of the imported base at render time.
+
+### Before Rung 4
+**Q:** (a) Put every resource in namespace `prod`, and (b) set one deployment's replicas to 5. Which is a transformer and which is a patch?
+
+**A:** (a) is a transformer: `namespace: prod` in the kustomization applies the same change broadly, across every resource it manages. (b) is a patch: bumping a single deployment's `spec.replicas` to 5 is one-object surgery, done either as a strategic-merge patch (a partial Deployment naming `api-deployment` with `spec: { replicas: 5 }`) or a JSON6902 patch (`op: replace, path: /spec/replicas, value: 5`). The rule from the file: transformers = broad, patches = surgical.
+
+### Before Rung 5
+**Q:** Sort into transformer vs patch: `namePrefix: kk-`; bump `api-deployment` replicas to 5; label everything `env=prod`; add a sidecar container to one pod.
+
+**A:** `namePrefix: kk-` — transformer (prepends to every resource's name). Bump `api-deployment` replicas to 5 — patch (one object's field). Label everything `env=prod` — transformer (`commonLabels`, applied to all resources). Add a sidecar container to one pod — patch (surgery on a single object's container list; a JSON6902 `add` with path `/spec/template/spec/containers/-` is the natural fit for appending to a list).
+
+### Before Rung 6
+**Q:** After applying `overlays/prod`, what's `replicas` in the *base* deployment.yaml file on disk? Why didn't it change?
+
+**A:** Still `replicas: 1`. Kustomize never modifies source files: `apply -k` imports the base, runs the overlay's transformers and patches in memory, and emits final rendered YAML that kubectl applies — the `5` exists only in that rendered prod output. That's the whole point of the model: the base stays the untouched single source of truth, so applying `overlays/dev` against the very same base renders the default `1`.
+
+### Before Rung 7
+**Q:** You need to append a container to the *end* of one pod's container list. Which patch style, and what does the `path` look like?
+
+**A:** Use a JSON6902 patch — it's the style built for list operations, using `op/path/value` with list indexes. The operation is `op: add` and the path ends in `/-`, which means "append to the end of the list": `path: /spec/template/spec/containers/-` (for a Deployment's pod template), with `value:` holding the new container's YAML. Strategic merge is the readable choice for changing named fields, but precise list positioning (`/containers/0`, `/-`, `remove`) is JSON6902 territory.

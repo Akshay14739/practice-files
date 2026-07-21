@@ -475,3 +475,37 @@ ssh node bash -s < script.sh
 - [TLS, PKI & OpenSSL](26-tls-pki-openssl.md) — the same asymmetric-key math, and where `admin.conf`'s client certificate comes from.
 - [systemd & services](16-systemd-services.md) — `sshd` is a unit, and `journalctl -u kubelet` is what you run once SSH lands you on the node.
 - [the Linux ↔ Kubernetes map](27-linux-kubernetes-map.md) — where node SSH triage fits in the full debugging playbook.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** `telnet` and `ssh` both give you a remote shell. Name the two distinct guarantees SSH adds — which protects against a passive eavesdropper, and which against an active impersonator?
+
+**A:** SSH adds (1) **encryption** of all traffic and (2) **authentication of the server's identity** (plus per-packet integrity, which rides along with the encryption). Encryption is the guarantee against the *passive* eavesdropper: a sniffer on any hop sees only ciphertext, so your password or key exchange can't be harvested the way telnet's cleartext `password: hunter2` could. Server authentication via host keys and `known_hosts` is the guarantee against the *active* impersonator: an attacker who redirects your traffic (DNS poisoning, ARP spoofing) cannot present the real server's host key, so the client detects the mismatch and refuses instead of handing your credential to a fake. Telnet had neither — no secrecy and no proof of who was answering.
+
+### Before Rung 3
+**Q:** By the time you first see "The authenticity of host … can't be established," which of the three moves (encrypted tunnel, mutual identity, arbitrary channels) has already completed, and which is the prompt part of?
+
+**A:** The **encrypted tunnel** has already completed: the TCP connection, version banners, and Diffie-Hellman key exchange have run, and the two sides share a session key — the server presented its host key as part of that exchange. The prompt is part of the second move, **mutual identity**: it is the server-to-you half of authentication, where the client checks the presented host key against `~/.ssh/known_hosts`, finds no entry, and asks you to verify the fingerprint and establish first-time trust. The third move, arbitrary channels (shell, forwards, file transfer), hasn't started — no channel opens until both identity checks (server host key, then your key or password) succeed.
+
+### Before Rung 4
+**Q:** Walk the handshake from memory. At which step does traffic become encrypted, and name a credential offered after that point that's never exposed even on failed login. Why is `known_hosts` consulted before your key is offered?
+
+**A:** Traffic becomes encrypted at **step 3**, the Diffie-Hellman key exchange, which derives a shared session key before any authentication happens — steps 5–6 (user auth) run entirely inside the encrypted tunnel. So a credential offered after that point — your password, or your public-key offer and signed challenge — is never visible on the wire, even if the login ultimately fails. The client consults `known_hosts` (steps 3–4, server identity) *before* offering your key (steps 5–6, your identity) because you must verify you're talking to the real server before handing over any credential: if identity checking came second, a man-in-the-middle impersonating the server could collect your authentication attempt first and be unmasked only after the damage was done. Server-proves-itself-first is the whole point of `known_hosts`.
+
+### Before Rung 5
+**Q:** For `known_hosts` and `authorized_keys`: which host does each live on, whose public keys does each store, and what symptom appears if you delete each and reconnect?
+
+**A:** `~/.ssh/known_hosts` lives on the **client** and stores the **servers'** public host keys you've previously trusted — it answers "is this the same server I trusted last time?" Delete it and reconnect: the connection still works, but you get the first-time-trust prompt again — "The authenticity of host … can't be established. ED25519 key fingerprint is SHA256:… Are you sure you want to continue?" — because the client has no cached key to compare against. `~/.ssh/authorized_keys` lives on the **server** (in the target user's home) and stores the **clients'** public keys allowed to log in as that user. Delete it and reconnect: key authentication fails — the server has no public key to verify your signed challenge against — so SSH falls back to prompting for a password (or rejects you outright if `PasswordAuthentication no` is set).
+
+### Before Rung 6
+**Q:** `ssh node1 "journalctl …"` opened an exec channel, not a pty+shell. Name one observable difference from plain `ssh node1`, and explain why your laptop shell's `$?` equals `journalctl`'s exit status.
+
+**A:** With a command string, you get **no interactive prompt and no pty**: the command runs, its stdout/stderr stream back through the channel, and the connection closes when the command exits — whereas plain `ssh node1` requests a pty+shell and drops you at `ubuntu@node1:~$` waiting for input. (Corollaries: no shell prompt appears, and full-screen/interactive programs would misbehave without a pty.) Your laptop's `$?` matches `journalctl`'s exit status because of the teardown step in the trace: when the remote command exits, `sshd` closes the exec channel *carrying the command's exit status*, and the `ssh` client deliberately exits with that same status — which is exactly why constructs like `ssh node1 "cmd" && echo ok` work as if the command had run locally.
+
+### Before Rung 7
+**Q:** A node is `NotReady` because kubelet stopped posting status. Why will `kubectl exec` into a pod on that node likely fail, while `ssh node1 "systemctl status kubelet"` still works? Which component does each path depend on?
+
+**A:** `kubectl exec` depends on the Kubernetes control path: your request goes to the **API server**, which connects to the node's **kubelet**, which drives the container runtime to open the exec session in the pod. The kubelet is precisely the component that has died (it stopped posting status), so the exec path fails — the mechanism that would carry your session is the patient. `ssh node1` depends only on **`sshd`** listening on TCP 22 on the node's OS — it is completely independent of Kubernetes, the API server, and the kubelet. That's why SSH still lands you a shell where you can run `systemctl status kubelet` and `journalctl -u kubelet` to get the node's ground truth: SSH is the tool that still works after `kubectl` has gone dark.

@@ -457,3 +457,37 @@ aws elbv2 describe-target-health --target-group-arn <tg-arn> \
 - [Kubernetes Network Policies](28-kubernetes-network-policies.md) — the in-cluster firewall analog, enforced by the CNI.
 - [Network Security & Zero Trust, IDS/IPS](30-network-security-zero-trust-ids-ips.md) — defense-in-depth and where firewalls sit in it.
 - [Linux: iptables & netfilter](../Linux/12-iptables-netfilter.md) — the host firewall machinery under every SG and kube-proxy rule.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** A perimeter-only firewall still let internal breaches spread. From that fact alone, derive why AWS gives you a firewall at the subnet level (NACL) *and* another at the instance level (SG), instead of just one at the VPC edge.
+
+**A:** A perimeter-only design leaves a "soft chewy center": once an attacker gets one foothold inside (a compromised web server or pod), internal traffic is never filtered, so they can pivot freely to the database or anything else. The fix is to put guards at every boundary, not just the front door — that is defense in depth. AWS therefore stations a stateless guard at each subnet gate (the NACL) and a stateful guard on each instance's ENI (the SG), so east-west traffic inside the VPC is filtered too, and a misconfiguration in one layer is still backstopped by the other. Blast radius shrinks from "the whole VPC" to "whatever the compromised resource's own rules explicitly allow."
+
+### Before Rung 3
+**Q:** If a firewall is *stateless*, why does allowing an inbound web request on port 443 still leave the browser unable to receive the reply — and what second rule fixes it?
+
+**A:** (The One Idea: a firewall is a guest list checked at a door — each packet matched against ordered rules of {direction, protocol, port, source/destination IP}, allowed or dropped — and a stateful firewall also remembers approved connections so replies are auto-allowed.) A stateless firewall has no connection-tracking memory, so the server's reply (SYN-ACK from source port 443 back to the browser's ephemeral source port, e.g. 51514) is judged as a brand-new, unrelated packet going in the *outbound* direction. The inbound "allow 443" rule says nothing about that outbound packet, so it falls through to the default deny and is dropped. The fix is a second, explicit outbound rule allowing TCP to the ephemeral port range 1024–65535 (to 0.0.0.0/0), so return traffic can leave. With a stateless guard, you configure both directions by hand — return traffic is never free.
+
+### Before Rung 4
+**Q:** A Security Group has no deny rules, yet security teams rely on it constantly. Using default-deny, explain how you "block" an IP with an SG — and the one thing a NACL can do that an SG fundamentally cannot.
+
+**A:** An SG is allow-only with an implicit default-deny: anything not explicitly allowed is dropped. So you "block" with an SG by *omission* — you simply write allow rules narrow enough that the unwanted IP never matches any of them (e.g. allow 443 only from your office CIDR, not 0.0.0.0/0), and default-deny drops the rest. What an SG fundamentally cannot do is express an explicit DENY — "block this one attacker IP while still allowing everyone else" is impossible to state cleanly with allow rules and CIDRs. Only a NACL can do that: an explicit deny entry with a low rule number, evaluated first in ascending order, bans that IP for the whole subnet before any allow rule is reached.
+
+### Before Rung 5
+**Q:** Name the two AWS objects that are "the same guard with different memory," say which one keeps a ban list, and state which layer (subnet or instance) each guards.
+
+**A:** The two objects are the **Security Group** and the **Network ACL** — the same guest-list guard configured two ways. The SG is the *stateful* guard (it remembers approved connections via conntrack, so return traffic is free) and it stands at the **instance** layer, attached to the ENI. The NACL is the *stateless* guard with amnesia, and it is the one that keeps a **ban list** — it supports explicit deny rules, evaluated in ascending rule-number order — standing at the **subnet** edge.
+
+### Before Rung 6
+**Q:** In the trace, the SG needed zero outbound rules for the reply but the NACL needed a whole rule for ports 1024–65535. Explain, from the conntrack mechanism, exactly why those two guards behaved differently on the same return packet.
+
+**A:** When the inbound SYN (203.0.113.9:51514 → 10.0.1.20:443) passed the SG at step 3, the SG *wrote the flow's 5-tuple into its connection-tracking table* and marked it ESTABLISHED. When the SYN-ACK reply came back through at step 5, the SG first asked "is this part of a connection I already approved?", found the matching conntrack entry, and auto-allowed it — no outbound rule for port 51514 was ever consulted or needed. The NACL has no such table: at step 6 it judged the reply cold as a brand-new packet with destination port 51514, so the only thing that could save it was an explicit outbound allow rule covering the ephemeral range 1024–65535; without that rule the reply matches only the bottom `*` DENY and dies silently. Same packet, different verdict mechanics: one guard consulted its memory, the other re-checked the guest list.
+
+### Before Rung 7
+**Q:** Your teammate says "let's just block that attacker's IP in the app-tier Security Group." Why does that request not even make sense, and what's the correct object and rule to use instead?
+
+**A:** It doesn't make sense because Security Groups have **no deny rules at all** — they are allow-only, evaluated as an unordered set where any matching allow wins. There is literally no way to write "block 203.0.113.9" in an SG; you can only fail to allow it, and if an existing broad rule (like allow 443 from 0.0.0.0/0) already matches the attacker, the traffic gets in. The correct tool is the subnet's **Network ACL**: add an explicit inbound DENY rule for the attacker's IP with a *low rule number* (e.g. rule 90, below your allows), so that in the NACL's ascending, first-match-wins evaluation the deny is hit before any allow — banning that IP for the entire subnet.

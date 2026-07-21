@@ -280,3 +280,27 @@ L3/L4 only              → mesh for L7 + encryption
 - [Service Mesh & Sidecars](29-service-mesh-and-sidecars.md) — L7 identity/authz and mTLS beyond L3/L4 filtering.
 - [Network Security — Zero Trust, IDS/IPS & DDoS](30-network-security-zero-trust-ids-ips.md) — where micro-segmentation fits in defense-in-depth.
 - [Kubernetes DNS & Service Discovery](26-kubernetes-dns-service-discovery.md) — why egress policies must allow DNS.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** On a default cluster, why can a compromised frontend pod reach the database pod even though no one "connected" them — and why is that dangerous?
+
+**A:** Because the Kubernetes network model guarantees a flat pod network: every pod can reach every other pod, with no NAT and nothing filtering pod-to-pod traffic by default. Reachability doesn't have to be "set up" — it's the built-in cluster default. That's dangerous because it enables **lateral movement**: one compromised pod (a leaky frontend, a poisoned dependency) can hop directly to the database, admin services, and other teams' namespaces — there's no blast-radius control and no least privilege, and Security Groups can't help because they guard nodes/ENIs, not pod-to-pod traffic on the CNI.
+
+### Before Rung 3
+**Q:** NetworkPolicy has no "deny" rule — only "allow." So how do you *block* traffic to a pod?
+
+**A:** You exploit the deny-by-selection mechanism: the moment *any* NetworkPolicy selects a pod for a direction, everything not explicitly allowed in that direction is denied. So to block traffic, you apply a policy that selects the pod but allows nothing — the classic **default-deny** policy uses `podSelector: {}` (select every pod in the namespace) with `policyTypes: [Ingress, Egress]` and no rules. Then you layer additive allow policies on top, and the permitted traffic is the union of all allows; anything outside that union is dropped.
+
+### Before Rung 4
+**Q:** Why can applying a perfectly valid NetworkPolicy have *zero* effect on some clusters — and what determines whether it's actually enforced?
+
+**A:** Because the Kubernetes API only *stores* NetworkPolicy objects; it's the **CNI plugin** that must implement enforcement in the datapath. NetworkPolicy is the spec; the CNI is the firewall. Calico and Cilium enforce policies (via iptables/ipset or eBPF), but plain Flannel does not — on a Flannel-only cluster the policy is accepted and then silently ignored, so traffic keeps flowing. Whether it's enforced is determined entirely by whether you run a policy-capable CNI (Calico, Cilium, or VPC-CNI with policy enforcement enabled on EKS), which is why you should always test that traffic actually stops.
+
+### Before Rung 6
+**Q:** The blocked web pod's connection *times out* rather than getting an immediate "refused." Why does a dropped-by-policy packet behave that way, and how does that differ from "no pod is listening"?
+
+**A:** The CNI datapath enforcing the policy silently **drops** the packet — no response of any kind is sent back, so the web pod's TCP SYN gets no answer, it retries, and the connection eventually times out ("no RST, just silence," as the trace puts it). By contrast, when a pod is reachable but nothing is listening on the port, the destination's kernel actively replies with a TCP RST, producing an immediate "connection refused." So timeout = packet dropped in transit (a firewall/policy signature), refused = packet arrived but the port was closed — a key distinction when debugging whether NetworkPolicy is the culprit.

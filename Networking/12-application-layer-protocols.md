@@ -493,3 +493,22 @@ QUIT
 - [TLS/SSL — encryption in transit](11-tls-ssl-encryption-in-transit.md) — why clock skew breaks certificate validity, and how "secure" protocol variants work.
 - [Firewalls, security groups & NACLs](17-firewalls-security-groups-nacls.md) — why ICMP needs its own rule and how outbound port 25 gets blocked.
 - [Kubernetes network policies](28-kubernetes-network-policies.md) — how a policy can permit TCP while silently dropping ICMP, producing the ping false alarm.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Email needs *three* protocols but web browsing needs essentially *one* (HTTP). What is structurally different about the email problem, and why doesn't the web have that split?
+
+**A:** Email is **asynchronous store-and-forward between parties that are not online at the same time**: the sender's server must *push* the message toward the destination server (SMTP, server-to-server relay), where it waits in a mailbox; then the recipient's device — which may have been offline the whole time — must later *pull* it out (POP3 or IMAP). Those are genuinely different jobs — server-to-server handoff versus client-fetch — so "send" and "fetch" need different grammars, and the fetch job itself splits again into download-and-delete (POP3) versus keep-and-sync-across-devices (IMAP). The web has no such split because browsing is a **synchronous pull**: the client and server are both online at the moment of the request, the browser asks and the server answers on the same connection, so one request-response grammar (HTTP) covers the whole interaction. There is no intermediary mailbox where content waits for an offline recipient.
+
+### Before Rung 3
+**Q:** NTP could technically run over TCP. Using only the One Idea, argue why that would make NTP *worse at its own job*, not just marginally slower.
+
+**A:** The One Idea says a protocol picks UDP when speed matters and, for NTP specifically, when **latency itself is the payload**: NTP computes clock offset from the round-trip timing of a tiny, self-contained sample. TCP's handshake, buffering, and — critically — retransmission would inject unpredictable, variable delay into the very measurement NTP is trying to take: a retransmitted time sample arrives late and carries a stale timestamp, so TCP wouldn't just slow NTP down, it would *corrupt the offset and delay calculation* — the protocol's entire job. Loss is the one failure TCP protects against, and NTP simply doesn't care: a dropped sample costs nothing, just send another. So TCP would add distortion in exchange for a guarantee NTP has no use for.
+
+### Before Rung 7
+**Q:** You add a Security Group rule allowing TCP 22 and confirm `ssh` works, but `ping` to that same node still times out. Explain in one sentence why both facts are simultaneously true.
+
+**A:** `ssh` and `ping` use two independent protocols governed by two independent firewall rules — SSH is TCP on port 22, while ping is ICMP Echo Request/Reply, which has no port at all and rides directly on IP (protocol 1) — so your TCP-22 rule says nothing about ICMP, and AWS Security Groups don't allow ICMP by default, meaning the node is perfectly reachable for SSH while Echo Requests are silently dropped until you add an explicit ICMP rule.

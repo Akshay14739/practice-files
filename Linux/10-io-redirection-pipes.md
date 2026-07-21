@@ -687,3 +687,37 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 - [Shell Scripting](08-shell-scripting.md) — `set -o pipefail`, `while read -r` loops, traps, and where redirection lives inside real scripts.
 - [Processes & Job Control](07-processes-job-control.md) — `fork`/`exec`, how children inherit the FD table, and how pipes coordinate concurrent processes.
 - [TLS, PKI & OpenSSL](26-tls-pki-openssl.md) — the `openssl x509 < <(... | base64 -d)` secret-decoding trick, in depth.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why can `sort` feed `uniq` without either program containing any code that mentions the other? Who decides where `sort`'s output goes, and *when* is that decided?
+
+**A:** Because neither program names its destinations at all — each is born holding three already-open channels and just reads FD 0 and writes FD 1 blindly. The **shell** decides where those channels point, and it decides *before either program starts running*: for `sort | uniq` it creates a kernel pipe buffer, points `sort`'s stdout at the pipe's write end and `uniq`'s stdin at the pipe's read end, then execs both. That decoupling — programs write to a generic channel, the shell wires the channels — is the Unix design bet that makes arbitrary composition (`a | b | c`) possible without any program knowing about any other.
+
+### Before Rung 3
+**Q:** Say the core sentence from memory. When you run `ls > out.txt`, does `ls` open the file? If not, who does, and at what moment relative to `ls` starting?
+
+**A:** The core sentence: every process is born holding a small numbered table of open files; `0` is where it reads (stdin), `1` is where it writes (stdout), `2` is where it writes errors (stderr) — and redirection and pipes are just the shell editing that table before the process starts. No — `ls` never opens `out.txt` and is never even told it exists; the shell strips `> out.txt` off the command line during parsing. The **shell** opens the file in the forked child, *between fork and exec*: it does `open("out.txt")`, `dup2`s that descriptor onto FD 1, then execs `ls`. Since exec doesn't reset the FD table, `ls` inherits slot 1 already pointing at the file and just writes to FD 1 as always, thinking it's the screen.
+
+### Before Rung 4
+**Q:** Draw the FD table for `find / 2>/dev/null | wc -l`. (1) Where does FD 2 of `find` point? (2) Where does FD 1 of `find` point? (3) Which FD of `wc` is connected, and to what? (4) Why does the "Permission denied" text never reach `wc`?
+
+**A:** (1) `find`'s FD 2 points at `/dev/null`, the kernel device that discards all writes. (2) `find`'s FD 1 points at the write end of the kernel pipe the shell created for `|`. (3) `wc`'s FD 0 (stdin) is connected to the read end of that same pipe; its FD 1 still points at the terminal, so you see the count. (4) The "Permission denied" text never reaches `wc` because a pipe carries FD 1 only — the errors travel on FD 2, which was severed to `/dev/null` at the source, a completely separate channel from the pipe joining find's stdout to wc's stdin. So `wc -l` counts only real matches.
+
+### Before Rung 5
+**Q:** `<<<"hello"` and `<(echo hello)` both feed something to a command. What's the difference in *what the command receives*?
+
+**A:** With the here-string `<<<"hello"`, the command receives the text on **stdin**: the shell points the command's FD 0 at an in-memory buffer holding the string, and the program just reads FD 0 — no name, no open() needed. With process substitution `<(echo hello)`, the command receives a **filename** as an argument (something like `/dev/fd/63`, the read end of a pipe wrapped as a path) which the command must itself open and read. That's why `<(...)` is the tool when a program wants file *arguments* rather than stdin — e.g. `diff` needing two inputs at once, which a single stdin can never provide.
+
+### Before Rung 6
+**Q:** At Step 6, why is `xargs` mandatory — what happens with `... | awk '{print $1}' | kubectl delete pod` and no `xargs`? And at Step 3, if you removed the `2>/dev/null`, where would kubectl's warnings appear — in `grep`'s input, or on your screen? Why?
+
+**A:** `xargs` is mandatory because `kubectl delete pod` reads its targets from **argv** (command-line arguments), not from stdin — pipe pod names at it and it simply ignores the stream, deleting nothing (it would just complain that no pod names were given). `xargs` is the adapter that drains the stream and rebuilds it as arguments, effectively running `kubectl delete pod crashy-1 crashy-2 crashy-3`. Without `2>/dev/null`, kubectl's warnings would appear **on your screen**, not in `grep`'s input: a pipe connects only FD 1 to the next stage's FD 0, and warnings travel on FD 2, which — with the redirection removed — still points at the terminal. Stderr never rides the pipe unless you explicitly merge it first with `2>&1`.
+
+### Before Rung 7
+**Q:** Why does `for f in $(ls)` break on a file named `my report.txt` but `ls | while read -r f` does not — in terms of *when and on what* the shell splits?
+
+**A:** In `for f in $(ls)`, the shell expands `$(ls)` first and then word-splits the whole result on **all whitespace** — spaces, tabs, and newlines alike — and also performs glob expansion on the pieces. So `my report.txt` is split at the space into two separate iterations, `my` and `report.txt`, neither of which exists. `while read -r f` never does that expansion-then-split: `read` consumes the stream **one full line at a time**, so the line `my report.txt` lands intact in `$f` (and `-r` additionally stops `read` from treating backslashes as escapes). The rule of thumb: iterate lines with `while read -r`, never with `for … in $(…)` — the difference is splitting on any whitespace at expansion time versus splitting only on newlines at read time.

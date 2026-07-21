@@ -280,3 +280,27 @@ chain              → cloud LB → controller → Service → pods
 - [Kubernetes Services & kube-proxy](25-kubernetes-services-kube-proxy.md) — the Services Ingress forwards to.
 - [Kubernetes DNS & Service Discovery](26-kubernetes-dns-service-discovery.md) — internal names vs the external hostnames Ingress serves.
 - [The AWS VPC](20-aws-vpc.md) — where the ALB and public subnets live.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why can't a plain `Service type: LoadBalancer` route `example.com/api` and `example.com/web` to two different backends?
+
+**A:** Because a LoadBalancer Service operates at **L4** — it forwards by IP:port and never parses the HTTP request. The hostname lives in the Host header and `/api` vs `/web` lives in the URL path, both of which are HTTP (L7) concepts an L4 forwarder cannot read. To it, both requests are just TCP segments to the same IP:port, so it has no information on which to make a different routing decision. Only an L7-aware proxy — an Ingress Controller — can inspect host and path and split the traffic.
+
+### Before Rung 3
+**Q:** An Ingress resource you `kubectl apply` does nothing on its own. What else must be running for it to actually route traffic?
+
+**A:** An **Ingress Controller** — a running workload such as nginx, the AWS Load Balancer Controller, or Traefik. The Ingress resource is only declared intent (host/path→Service rules plus a TLS secret reference); the controller runs as proxy pods (usually fronted by one `Service type: LoadBalancer`), watches Ingress resources, and configures a real L7 proxy from them. Without a controller matching the ingress class, the resource sits there with an empty ADDRESS and routes nothing — the file's #1 "my Ingress isn't working" cause.
+
+### Before Rung 4
+**Q:** After the Ingress Controller picks a Service by URL path, what does the *Service* then do to actually reach a pod?
+
+**A:** The Service does normal **L4 load balancing via kube-proxy**: the controller forwards the request to the Service's ClusterIP, and kube-proxy's rules **DNAT** that virtual IP to the IP:port of one ready backend pod. So the full chain is cloud LB → controller pods (L7 route + TLS termination) → Service ClusterIP (L4, kube-proxy DNAT) → pod. The Ingress layer chooses *which Service*; the Service layer chooses *which pod*.
+
+### Before Rung 6
+**Q:** In the trace, which single component made the "`/api` goes to the api service" decision, and at which OSI layer did it operate?
+
+**A:** The **Ingress Controller's proxy** made that decision — in the EKS trace, the AWS ALB executing the L7 rule compiled from the Ingress by the AWS Load Balancer Controller (with nginx, it would be the nginx controller pods instead). It operated at **Layer 7**, because matching the path `/api/*` (and the host `shop.example.com`) requires reading the HTTP request itself. Everything after that decision — kube-proxy's DNAT from ClusterIP to a pod — is plain L4 forwarding.

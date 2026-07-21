@@ -489,3 +489,37 @@ setenforce 1   # back to Enforcing — do NOT leave a shared node permissive
 - [seccomp](18-seccomp.md) — syscall-level confinement, the third pillar alongside SELinux and capabilities.
 - [storage-mounts](15-storage-mounts.md) — bind mounts, xattrs, and volume labeling where the `:Z` relabel actually lands.
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — where SELinux fits in the full node-triage and Linux↔K8s map.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** DAC lets the file's owner change its permissions at will. In one sentence, what must be true about who controls the rules for MAC to defend a node whose containers run as root?
+
+**A:** The rules must be owned by the administrator and enforced centrally by the kernel, so that neither the file's owner nor a root process inside a workload can change or bypass them. That is the "Mandatory" in MAC: the policy lives outside the discretion of the subjects it confines (compiled policy in `/etc/selinux/`, checked after DAC), so even a full root compromise inside a container lands the attacker in a confined domain like `container_t`, boxed in by rules no in-container root can rewrite.
+
+### Before Rung 3
+**Q:** Given the two-gate model, why did `chmod 777 /data` have no effect on an SELinux denial — and which log does the other gate write to when it says no?
+
+**A:** `chmod 777` only opens the **top** gate, the DAC (`rwx`/ownership) check — but the two gates are in series and both must say yes. The denial came from the **bottom** gate: SELinux compared the process's label (`container_t`) against the file's label and found no `allow` rule, so it returned `-EACCES` regardless of the wide-open mode bits, and even for root. When the MAC gate says no, it emits an **AVC denial** to the audit subsystem, which `auditd` writes to `/var/log/audit/audit.log` — that log (searchable with `ausearch -m avc`) is your entire SELinux debugging surface.
+
+### Before Rung 4
+**Q:** A file's xattr says `container_file_t`, but the policy's file-context database says the path should be `httpd_sys_content_t`. What does `restorecon` do, and why is `chcon`'s effect on the same file temporary?
+
+**A:** `restorecon` resets the file's `security.selinux` xattr to whatever the **fcontext database** (`/etc/selinux/targeted/contexts/files/file_contexts`) says the path *should* be — so it relabels the file from `container_file_t` to `httpd_sys_content_t`. `chcon` is temporary because it writes the xattr **directly** without touching the policy database: the canonical path→label rule still says something else, so the very next `restorecon` (or a system autorelabel) reverts the file to the database's value. That's the operational split to memorize: `chcon` is a hotfix; `semanage fcontext -a` + `restorecon` updates the database itself and is the permanent fix.
+
+### Before Rung 5
+**Q:** Name the field of a context that carries a domain, the tool that changes a label durably (surviving `restorecon`), and the file `restorecon` consults to decide what a path's label should be.
+
+**A:** The **type** field — the third field of `user:role:type:level` — carries the domain; "domain" is just the name for a type applied to a running process (e.g. `container_t`), while the same field on an object is called a type (e.g. `container_file_t`). The durable tool is **`semanage fcontext -a`** (followed by `restorecon` to apply it), because it edits the canonical policy database rather than poking the xattr like `chcon`. `restorecon` consults the **fcontext database** — `/etc/selinux/targeted/contexts/files/file_contexts` — the regex path→default-label map that defines what each path's label should be.
+
+### Before Rung 6
+**Q:** In step 7 the log shows `permissive=0`. What changes in steps 6, 7, and 8 in permissive mode — and why does that make permissive dangerous as a "fix"?
+
+**A:** Step 6: the decision is still DENY, but in permissive mode the kernel **returns success** instead of `-EACCES` — nothing is blocked. Step 7: the AVC denial line is still written to `/var/log/audit/audit.log`, now with `permissive=1`. Step 8: the app's write succeeds, so no `Permission denied`, no crash, no `CrashLoopBackOff` — the pod "works." That's exactly why permissive is dangerous as a fix: it only silences the alarm without repairing the mislabel — the volume is still `default_t` and the missing `allow` rule still doesn't exist — so the moment anyone re-enables enforcing (or the node reverts to its configured `SELINUX=enforcing`), the identical outage returns. Permissive is a *discovery* mode for finding every rule an app needs, never the remedy.
+
+### Before Rung 7
+**Q:** Two pods run as UID 0 on the same node with SELinux enforcing, sharing a hostPath. Pod A cannot read Pod B's volume. Which field of the context does the isolating, and what differs between the pods?
+
+**A:** The **level** field — the fourth field, specifically its **MCS categories** (`c0`…`c1023`). The container runtime assigns each pod a unique category pair (e.g. Pod A gets `s0:c123,c456`, Pod B gets `s0:c247,c811`) and labels each pod's files with the matching pair. Two contexts must share categories to interact, so even though both processes are the same domain (`container_t`) and both run as UID 0 — making DAC useless here — Pod A's categories don't match the categories on Pod B's files, and the kernel denies the access. This per-instance MCS isolation is exactly what path-based AppArmor has no equivalent for, and what the `:Z` mount flag / `seLinuxOptions.level` automates.

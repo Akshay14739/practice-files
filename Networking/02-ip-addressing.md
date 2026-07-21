@@ -430,3 +430,32 @@ aws ec2 describe-subnets \
 - [NAT & PAT](14-nat-and-pat.md) — how private addresses reach the public internet.
 - [AWS VPC](20-aws-vpc.md) — where your node/subnet CIDRs are actually configured.
 - [Kubernetes pod networking & CNI](24-kubernetes-pod-networking-cni.md) — where pod IPs come from and why the VPC-CNI exhausts subnets.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** MAC addresses already uniquely identify every device. Why couldn't the internet just route on MAC addresses? What property does an IP address have that a MAC lacks?
+
+**A:** MAC addresses are **flat** — they uniquely identify a device, but nothing in the address says *where* that device lives. Routing the planet on flat addresses would force every router on Earth to memorize every individual device, which cannot scale. An IP address is **hierarchical**: it encodes *which network* the device is on (the network portion) plus *which device* it is on that network (the host portion). That structure lets routers forward toward *networks* instead of individual machines, which is the property that makes global routing possible. MACs work fine inside one physical segment — like shouting a name across a single room — but they can't express "over there, on that faraway network."
+
+### Before Rung 3
+**Q:** If an IP address is "network part + host part," what single extra piece of information do you need to split a given address into those two parts?
+
+**A:** The **prefix length** — the `/N` you type after the slash (equivalently, the **subnet mask**, e.g. `255.255.255.0`). The address alone is just 32 bits; the prefix tells you "the first N bits are the network part, the rest are host bits." So `10.0.1.20/24` means the network is `10.0.1.0` (first 24 bits) and the host is `.20` (last 8 bits). `/24` and `255.255.255.0` are two notations for the identical bit boundary.
+
+### Before Rung 4
+**Q:** A VPC-CNI pod gets `10.0.1.37`; a Flannel/Calico overlay pod gets `192.168.4.12` while its node is on `10.0.1.37`. Both are "pod IPs." Why is one routable across the VPC and the other not?
+
+**A:** Routability is decided by whether the address's *network portion* is one the VPC fabric knows how to reach. The VPC-CNI pod's `10.0.1.37` is a real secondary IP drawn from the node's VPC subnet CIDR (`10.0.1.0/24`) — its network bits match a subnet in the VPC's route tables, so the VPC router can deliver to it directly; the pod is a first-class VPC citizen. The overlay pod's `192.168.4.12` comes from a separate virtual pod CIDR that exists only inside the cluster — the VPC has no route for the `192.168.x` network, so the fabric can't deliver to it. Overlay traffic must instead be encapsulated and carried between nodes using the nodes' real `10.0.x` addresses. That's also the trade-off: VPC-CNI pods drain the finite subnet (your `FailedCreatePodSandBox` incident), while overlay pods don't.
+
+### Before Rung 6
+**Q:** `172.20.100.8` is a ClusterIP that no pod actually owns. How can a packet be *sent to* an address that belongs to no physical interface?
+
+**A:** Because a destination address only needs to survive long enough to be **rewritten** — the same "address that stands in for another" idea as NAT. The ClusterIP is a virtual "network + host" number drawn from the service CIDR (`172.20.0.0/16`), a pool deliberately separate from any pod or node network, so no interface ever claims it. When the pod's packet leaves, it hits kube-proxy's iptables/IPVS rules on the node *before* it would ever need real delivery, and the rule DNATs the destination: `172.20.100.8` is rewritten to a real backend pod IP like `192.168.30.9`. The packet then routes normally to that real address. Exactly like your home NAT rewriting addresses at the edge, the ClusterIP is a stable stand-in that kube-proxy translates on the fly — it was never a machine.
+
+### Before Rung 7
+**Q:** IPv6 makes NAT "unnecessary," yet many organizations still deploy NAT/firewalling with IPv6. What *other* reason (beyond exhaustion) makes people keep a translation/hiding layer?
+
+**A:** Because private addressing was never *only* about conservation — Rung 3.3's second point is that translation at the edge also **hides the internal network**. The concierge model gives you a control point: internal room numbers (your topology, device identities, address plan) are never exposed to the outside world, and nothing outside can reach inward unless the edge explicitly allows it. That's security and policy, not scarcity — one auditable boundary where all inbound/outbound traffic can be inspected, filtered, and logged. With IPv6, every device *could* be globally unique and directly routable, but most organizations don't *want* every device reachable from the internet, so they keep unique-local addressing (`fc00::/7`), firewalls, and sometimes NAT to preserve that hiding-and-gatekeeping layer even when exhaustion is solved.

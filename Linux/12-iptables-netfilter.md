@@ -416,3 +416,37 @@ diff /tmp/ipt-before.txt /tmp/ipt-after.txt   # exactly which KUBE-* lines kube-
 - [kernel-tuning-boot](24-kernel-tuning-boot.md) — `ip_forward`, `nf_conntrack_max`, and sysctls netfilter depends on
 - [tls-pki-openssl](26-tls-pki-openssl.md) — what rides *inside* the connections netfilter routes
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — the full Linux↔Kubernetes primitive map and node triage
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** A ClusterIP has no process listening on it — what is the *minimum* thing the kernel must do to a packet destined for `10.96.0.10:80` so a real pod at `10.244.1.5:8080` receives it, and at which moment in the packet's life must it happen?
+
+**A:** The kernel must **rewrite the packet's destination address and port** — a DNAT — from `10.96.0.10:80` to `10.244.1.5:8080`, because nothing anywhere ever binds to the ClusterIP; it is a purely virtual address. This rewrite must happen **before the kernel's routing decision** (i.e., at the PREROUTING hook for traffic arriving from a pod, or OUTPUT for locally generated traffic), because routing chooses the exit path based on the destination — if the destination were still the ClusterIP, the kernel would have no real place to route the packet. Rewrite early, then route on the *real* pod address.
+
+### Before Rung 3
+**Q:** Using only the one-idea sentence, why does a Service's load-balancing decision live in a *target* (a jump to `KUBE-SEP-xxx`) rather than in a *match*, and what does the `nat` *table* have to do with it?
+
+**A:** In the one-idea sentence, matches only *test* a packet (protocol, port, destination, probability) — they can't do anything to it; the **target is the verb** that decides its fate. Choosing a backend pod is an *action* — "send this flow down the chain that DNATs to pod A" — so it must be expressed as a target: a jump from `KUBE-SVC-xxx` to a specific `KUBE-SEP-xxx` chain, whose own DNAT target performs the rewrite. The `statistic` *match* only rolls the dice; the *jump target* commits the decision. All of this lives in the **`nat` table** because tables group chains by purpose, and rewriting addresses (DNAT) is exactly the nat table's job — the filter table could only accept or drop, never rewrite.
+
+### Before Rung 4
+**Q:** At which hook does the ClusterIP DNAT happen, and why must it happen *before* the routing decision? What would break if kube-proxy DNAT'd at POSTROUTING instead?
+
+**A:** The DNAT happens at **PREROUTING** (for packets arriving from pods/other hosts) and **OUTPUT** (for locally generated packets) — both sit *before* the routing decision. It must be early because the routing decision uses the destination address to pick the next hop and exit interface; the DNAT must install the *real* pod IP first so the kernel routes toward the actual pod (possibly out FORWARD to another node). If kube-proxy DNAT'd at POSTROUTING, routing would already have run against the fake ClusterIP — an address no route points anywhere useful — so the kernel would have chosen a wrong (or no) path before the rewrite; the packet could never be steered to the backend pod. That's the Rung 3 anchor: DNAT early so routing sees the real destination; SNAT late so it doesn't disturb routing.
+
+### Before Rung 5
+**Q:** `MASQUERADE`, `DNAT`, and a jump to `KUBE-SVC-ABCDEF` all appear in the target column — which vocabulary category do all three belong to, and what distinguishes `MASQUERADE` from plain `SNAT`?
+
+**A:** All three are **targets** — the verbs a rule invokes on match: DNAT rewrites the destination, MASQUERADE rewrites the source, and a jump hands the packet to a user-defined chain. The single behavior distinguishing `MASQUERADE` from plain `SNAT` is that MASQUERADE **auto-detects the outgoing interface's *current* IP** at translation time instead of SNAT's fixed, explicitly specified address — which is why it's used for pod egress, where the node's egress IP may be dynamic.
+
+### Before Rung 6
+**Q:** The reply from pod `10.244.2.7` arrives with source `10.244.2.7:8080`, yet the client sees it coming from `10.96.0.10:80`. Which subsystem rewrites it back, at what moment, and why did the client never need to learn a pod IP existed?
+
+**A:** **conntrack** — the kernel's connection-tracking table — does the reverse rewrite (the "un-DNAT"). When the first packet was DNAT'd in `KUBE-SEP-2`, conntrack recorded the flow and its translation; when the reply traverses the node, conntrack recognizes it as belonging to that flow and rewrites its source back to `10.96.0.10:80` automatically, without re-walking any nat rules. The client never needed to learn a pod IP because the translation is symmetric and invisible: the destination was swapped to a pod on the way out (step 5) and swapped back on the way in (step 8), so from the client's socket's point of view it conversed with the ClusterIP the entire time — that is the whole trick of a Service.
+
+### Before Rung 7
+**Q:** `statistic --mode random --probability` is stateless per-rule — why does a single TCP connection still stick to *one* pod for its entire lifetime instead of being re-randomized per packet?
+
+**A:** Because the **`nat` table is only consulted for the *first* packet of each connection**. When that first (`NEW`) packet rolls the statistic dice and lands in a `KUBE-SEP-xxx` chain, the DNAT decision "this flow → 10.244.2.7:8080" is recorded in the **conntrack** table. Every subsequent packet of the flow matches the conntrack entry and is translated automatically by the conntrack machinery without ever re-walking the KUBE-SVC rules — so the random choice happens exactly once per connection, making load balancing sticky per-connection rather than per-packet (a performance win as well as a correctness one).

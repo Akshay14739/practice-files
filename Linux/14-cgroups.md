@@ -526,3 +526,37 @@ sudo grep -i cgroupDriver /var/lib/kubelet/config.yaml
 - [performance-monitoring](21-performance-monitoring.md) — PSI, `dmesg`, and reading pressure to catch OOM before it happens
 - [linux-philosophy](01-linux-philosophy.md) — "everything is a file": why `cat` and `echo` on `/sys/fs/cgroup` are the entire cgroup API
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — the full Linux↔Kubernetes mapping and node-triage quick reference
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Namespaces make a process think it's alone on the machine — why isn't that enough to stop a fork-bomb or memory leak from taking down the node? What second, orthogonal thing must the kernel enforce?
+
+**A:** Namespaces only control **visibility** — they change the answer the kernel gives when a process asks "what exists?", but they place no ceiling on consumption. A fork-bombing process in a private PID namespace still allocates real entries in the one shared kernel's process table, and a leaking process still consumes real physical RAM; the underlying resources are global even when the view is private. The kernel must therefore also enforce **resource limits on groups of processes as an aggregate** — hard caps on CPU, memory, and PIDs applied to the whole tree. That orthogonal mechanism is cgroups: namespaces = what a process can SEE, cgroups = how MUCH it can USE, and only together do they make a container.
+
+### Before Rung 3
+**Q:** A process is in a box with `memory.max = 50M` and forks a child that allocates 60M — who dies and why?
+
+**A:** The **child dies** (it gets SIGKILLed by the cgroup-scoped OOM killer). By the one sentence, a cgroup is a box of PIDs whose dials are enforced on the box **as a whole**, and children are born into the same box automatically — so the child's 60M is charged against the *same* shared `memory.max = 50M` counter, not a fresh allowance (this aggregate accounting is exactly what `ulimit` never did). When the charge would exceed the ceiling and reclaim fails, the OOM killer scans only the processes in this box and kills the fattest one — here, the 60M-allocating child. The node's free RAM is irrelevant.
+
+### Before Rung 4
+**Q:** In cgroup v2, why can't a process be in memory cgroup /A but cpu cgroup /B like it could in v1? What structural change makes that impossible, and why is it good for Kubernetes?
+
+**A:** v1 mounted a **separate hierarchy per controller**, so each controller had its own tree and a process held an independent membership in each — hence /A for memory and /B for cpu. v2's structural change is the **single unified hierarchy**: all controllers attach to *one* shared tree, a process lives in exactly **one** cgroup, and which controllers act on a subtree is toggled via `cgroup.controllers`/`cgroup.subtree_control` rather than by separate mounts. That's good for Kubernetes because a container is one accountable unit: its single `.scope` directory carries *all* its dials (`memory.max`, `cpu.max`, `pids.max`) in one place, the `kubepods.slice → QoS slice → pod slice → container scope` tree is consistent for every resource at once, and there's no possibility of the inconsistent split-brain accounting v1 allowed.
+
+### Before Rung 5
+**Q:** `memory.limit_in_bytes` is file-not-found but `memory.max` exists — what does that tell you about the cgroup version, and what must change about every command?
+
+**A:** The node is running **cgroup v2** (the unified hierarchy): `memory.limit_in_bytes` is the v1 name and `memory.max` is the v2 name for the very same dial. Conversely, on a v1 node you'd have to translate every file name and path in this doc to the v1 equivalents: use the per-controller trees (`/sys/fs/cgroup/memory/...`, `/sys/fs/cgroup/cpu,cpuacct/...`) instead of one unified tree, `memory.limit_in_bytes` for `memory.max`, `memory.usage_in_bytes` for `memory.current`, and the two files `cpu.cfs_quota_us` + `cpu.cfs_period_us` in place of the single `cpu.max "QUOTA PERIOD"` file. Same dials, same math — different names and layout; `stat -f -c %T /sys/fs/cgroup` (`cgroup2fs` vs `tmpfs`) is the diagnostic.
+
+### Before Rung 6
+**Q:** With `requests: 64Mi, limits: 128Mi` instead of requests == limits, which sub-slice does the pod land in, and does the OOM behavior at step 7 change?
+
+**A:** Because `requests < limits`, the pod's QoS class becomes **Burstable**, so its pod slice lands under `kubepods-burstable.slice` instead of sitting directly under `kubepods.slice`. The OOM behavior at step 7 does **not** change: only the *tree location* differs, while the container's `memory.max` file still gets `134217728` (128Mi) written into it, so when reclaim fails the cgroup-scoped OOM killer fires at exactly the same ceiling. QoS placement affects things like eviction ordering, not the hard limit — the dial in the file, not the directory it lives in, is what kills the process.
+
+### Before Rung 7
+**Q:** You want a batch job to never use more than half a CPU across all the worker threads it spawns — why do `nice` and `ulimit` both fail, and why does `cpu.max` succeed?
+
+**A:** In one sentence: `nice` is only a *relative priority hint* (no hard cap at all — on an idle machine a nice-19 job still eats every core), and `ulimit` is *per-process* so every forked worker gets its own fresh allowance with no aggregate accounting, whereas `cpu.max = "50000 100000"` is enforced by the CFS bandwidth controller on the **box as a whole** — all workers together get at most 50 ms of CPU per 100 ms window and are throttled (made non-runnable, never killed) once the shared quota is burned.

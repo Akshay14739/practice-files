@@ -263,3 +263,27 @@ CoreDNS          → the server, synced from the API
 - [Kubernetes Pod Networking & CNI](24-kubernetes-pod-networking-cni.md) — the pod IPs Headless Services return.
 - [Kubernetes Ingress & Gateway API](27-kubernetes-ingress-gateway-api.md) — external names vs internal service discovery.
 - [Network Observability](32-network-observability.md) — diagnosing DNS latency and failures.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** A Service's ClusterIP is already stable — so why is resolving it by *name* still worth a whole DNS system inside the cluster?
+
+**A:** Because a stable IP is still just an IP: it's assigned when the Service is created, so the same manifest gets a *different* ClusterIP in staging vs prod, making hardcoded IPs non-portable across clusters and namespaces. Hardcoding also tightly couples deployment order (the Service must exist first so you can learn its IP) and gives humans nothing readable — "connect to payments" should be spelled `payments`, not `10.96.0.50`. Names solve all three: they're predictable (`payments.prod.svc.cluster.local`), portable across environments, and resolved to the current address automatically at call time — the same reason the whole internet uses DNS.
+
+### Before Rung 3
+**Q:** If a pod resolves `payments` and gets a ClusterIP back, what made that name exist as a DNS record in the first place?
+
+**A:** Creating the Service did. Every Service automatically gets an A/AAAA record at the deterministic name `<service>.<namespace>.svc.cluster.local`, pointing at its ClusterIP. CoreDNS watches the Kubernetes API for Services/Endpoints and answers from that live, API-synced data — nobody registers records by hand. The short name `payments` works because the pod's `search` domains expand it to the FQDN for its namespace.
+
+### Before Rung 4
+**Q:** Why does querying an external name like `api.github.com` from a pod cause *several* failed lookups before it succeeds — and which resolv.conf setting is responsible?
+
+**A:** The responsible setting is `options ndots:5`. Any name with fewer than 5 dots is treated as *unqualified*, so the resolver tries it against each `search` domain first: `api.github.com` (only 2 dots) generates `api.github.com.prod.svc.cluster.local`, then `api.github.com.svc.cluster.local`, then `api.github.com.cluster.local` — all NXDOMAIN — before finally trying `api.github.com.` as-is and succeeding. That's 4 lookups for one external name, and multiplied across every external call this "ndots tax" turns DNS into a real latency source (mitigated by tuning `ndots` or adding NodeLocal DNSCache).
+
+### Before Rung 6
+**Q:** In the trace, DNS returned a ClusterIP, not a pod IP. Which component turns that ClusterIP into an actual pod, and why is that separation useful?
+
+**A:** kube-proxy — or more precisely, the kernel DNAT rules kube-proxy wrote — rewrites the ClusterIP (10.96.0.55) into the IP of a ready payments pod at connection time. The separation is DNS handling *discovery* (name → stable ClusterIP) while kube-proxy handles *delivery* (ClusterIP → current pod IP). This is useful because the DNS answer stays valid no matter how pods churn: clients can cache the ClusterIP indefinitely, and readiness-driven endpoint changes and load balancing happen underneath at the forwarding layer, per connection, without any new DNS lookup.

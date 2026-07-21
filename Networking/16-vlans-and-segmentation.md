@@ -395,3 +395,17 @@ Go back to **Rung 7, Example 3** on a real cluster with `tcpdump -ni eth0 udp po
 - [Kubernetes pod networking & CNI](24-kubernetes-pod-networking-cni.md) — where Flannel/Calico VXLAN overlays actually build the pod network.
 - [Container & Docker networking](23-container-docker-networking.md) — bridge and overlay networking, the container-scale cousin of this idea.
 - [AWS VPC](20-aws-vpc.md) — the routed underlay your VXLAN pod traffic and native VPC-CNI pods ride on.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** If a switch floods broadcasts to every port and you have Admin + Students on one switch, what single property of the frame could a switch inspect to decide "this broadcast only goes to Admin ports"?
+
+**A:** A tag carried *inside the Ethernet frame itself* — a VLAN ID. If every frame carries a small numeric label saying which logical network it belongs to, the switch can flood a broadcast only out ports assigned that same label, instead of all ports. That is exactly what 802.1Q does: it inserts a 4-byte tag after the source MAC containing a 12-bit VLAN ID (1–4094 usable), so membership becomes a logical property of the frame rather than a physical property of which cable you plugged into. Admin frames tagged VLAN 10 are flooded only to VLAN 10 ports; Students on VLAN 20 literally never receive them.
+
+### Before Rung 7
+**Q:** Your EKS cluster uses the AWS VPC-CNI (each pod gets a real VPC IP, no overlay). A colleague insists cross-node pod traffic is "VXLAN-encapsulated." Why is that wrong, and what would you expect to see in `tcpdump` instead of UDP/4789?
+
+**A:** It's wrong because the AWS VPC-CNI gives each pod a *real VPC IP* that the underlay routes natively — there is no overlay, no VTEP, and no encapsulation, so nothing wraps pod frames in UDP. VXLAN only exists to carry L2 segments over a routed network when the underlay can't route pod IPs itself; here the VPC route tables carry pod addresses directly, so the overlay (and its ~50-byte header tax and MTU concerns) is unnecessary. In `tcpdump` on the node's `eth0` you would see the pod-to-pod packets as plain, unencapsulated IP traffic — e.g. an ICMP echo with the pods' own VPC addresses (`10.0.x.x → 10.0.x.x`) as the actual src/dst — with no outer node-IP header, no UDP/4789 (or 8472) wrapper, and no VXLAN/VNI field. You'd also find no `flannel.1` or `vxlan.calico` VTEP device on the node.

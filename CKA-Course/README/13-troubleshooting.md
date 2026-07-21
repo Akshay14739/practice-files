@@ -304,3 +304,37 @@ systemctl status kubelet ; journalctl -u kubelet -f
 - [Section 8 — Networking](08-networking.md) — CNI/kube-proxy/CoreDNS fault-finding.
 - [Section 3 — Logging & Monitoring](03-logging-monitoring.md) — `logs`/`top` as first-line tools.
 - [../../Linux/16-systemd-services.md](../../Linux/16-systemd-services.md) — `systemctl`/`journalctl` for kubelet debugging.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why is "start changing things and see what helps" a losing strategy on a timed, multi-fault cluster? What does it cost you beyond time?
+
+**A:** Because random changes aren't reasoned about: you change a field, it doesn't help, you change another — and now two things are wrong instead of one, or you fix the app when the real fault was in the control plane all along. Beyond time (the exam's scarcest resource), it costs you **reversibility**: undisciplined edits compound the fault and you lose track of what you've touched, so the cluster ends up more broken than when you started. A method — walking a fixed checklist by elimination — means every check either clears a hop or names the fault, with no wasted or destructive moves.
+
+### Before Rung 3
+**Q:** Match symptom → layer: (a) pods stuck Pending, (b) `kubectl` returns connection refused, (c) node shows NotReady, (d) `Endpoints: <none>` on a Service.
+
+**A:** (a) Pods stuck Pending → control-plane layer, specifically the **kube-scheduler** (nothing is assigning nodes). (b) `kubectl` connection refused → control-plane layer, the **kube-apiserver** (or etcd behind it). (c) Node NotReady → worker-node layer, the **kubelet** (it stopped talking to the API server). (d) `Endpoints: <none>` → application layer: the Service's **selector doesn't match the pod labels**, so no pods back the Service.
+
+### Before Rung 4
+**Q:** A Service returns `Endpoints: <none>`. Which layer, which single check confirms it, and what's the root cause? And if `kubectl` itself won't respond — what tool replaces it?
+
+**A:** `Endpoints: <none>` is an **application-layer** fault; the single confirming check is `kubectl describe svc <svc>` — compare the Service's **selector** against the pods' **labels**. The root cause is a selector/label mismatch, so the Service matches zero pods; the fix is to correct the selector. When `kubectl` itself is dead (apiserver broken), you fall back to the container runtime CLI: **`crictl ps -a`** to find the control-plane containers and **`crictl logs <container-id>`** to read their errors, then fix the static-pod YAML in `/etc/kubernetes/manifests/` (the kubelet auto-restarts it).
+
+### Before Rung 5
+**Q:** Which layer's checklist starts with `kubectl get pods -n kube-system`, and which starts with `kubectl describe node`?
+
+**A:** The **control-plane** checklist starts with `kubectl get pods -n kube-system` — the control-plane components are static pods there, and the failing one (scheduler, controller-manager, apiserver) shows up immediately. The **worker-node** checklist starts with `kubectl get nodes` then `kubectl describe node <node>` — reading the Conditions (Ready=Unknown, Memory/Disk/PIDPressure) before SSHing in to check the kubelet service, its journalctl logs, and its config files.
+
+### Before Rung 6
+**Q:** In this trace, what told you the fault was at the *db* hop and not the web hop? What would `Endpoints: <none>` have pointed to instead of a name mismatch?
+
+**A:** The curl itself succeeded in reaching the front end and returned a page whose error text named the failing hop: "Can't connect to `mysql-service` … name does not resolve" — the web Service and web pod hops were already cleared (the request got through them), and the error explicitly pointed at the database service name. If instead `kubectl describe svc` had shown `Endpoints: <none>`, that would have pointed to a **selector/label mismatch** — the Service exists and resolves, but its selector matches no pod labels, so no pod IPs sit behind it — fixed by correcting the selector rather than the service name or `DB_HOST` env.
+
+### Before Rung 7
+**Q:** Two clusters: one has pods stuck Pending; the other can't scale a Deployment. Different control-plane component each — name them.
+
+**A:** Pods stuck Pending (with `Node: <none>`) means the **kube-scheduler** is broken — nothing is assigning pods to nodes. A Deployment that won't scale (no new ReplicaSets, no self-healing) means the **kube-controller-manager** is broken — it runs the controllers that create/scale ReplicaSets and replace pods. Both are static pods in `/etc/kubernetes/manifests/`, so the fix path is the same: `kubectl get pods -n kube-system`, read logs/Events, and repair the component's manifest.

@@ -295,3 +295,37 @@ kubectl describe ingress web
 - [Section 13 — Troubleshooting](13-troubleshooting.md) — DNS/CNI/service connectivity debugging.
 - [../../Networking/24-kubernetes-pod-networking-cni.md](../../Networking/24-kubernetes-pod-networking-cni.md) · [../../Networking/25-kubernetes-services-kube-proxy.md](../../Networking/25-kubernetes-services-kube-proxy.md) · [../../Networking/26-kubernetes-dns-service-discovery.md](../../Networking/26-kubernetes-dns-service-discovery.md) · [../../Networking/27-kubernetes-ingress-gateway-api.md](../../Networking/27-kubernetes-ingress-gateway-api.md) — each layer in depth.
 - [../../Linux/12-iptables-netfilter.md](../../Linux/12-iptables-netfilter.md) — the iptables/netfilter kube-proxy programs.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Give the single reason you can't just point your frontend at a backend pod's IP. What property of pods makes that fragile?
+
+**A:** Pods are **ephemeral** — a pod's IP changes every time it restarts or reschedules, so any hard-coded pod IP breaks constantly. That churn is exactly why the stack exists: a Service gives the pod *set* one stable virtual IP, and CoreDNS gives that VIP a name, so the frontend addresses "backend" instead of a specific, short-lived 10.244.x.y address.
+
+### Before Rung 2→3
+**Q:** Why does a Service's ClusterIP not respond to `ping`, yet `curl <clusterIP>:80` works? Which layer explains it?
+
+**A:** Layer 2 — **kube-proxy** — explains it. A Service is a **virtual IP that no process listens on**; no host owns it, so ICMP `ping` gets no reply. kube-proxy programs iptables/IPVS **DNAT** rules for the Service's ports, so a TCP packet to `<clusterIP>:80` is rewritten in the kernel to a live pod IP and `curl` works — only the DNAT'd ports function, never the bare IP.
+
+### Before Rung 4
+**Q:** For each layer name the component and where it lives: (1) gives a pod its IP, (2) DNATs a service VIP, (3) resolves `mysql`, (4) routes `example.com/pay`. Which two run as DaemonSets?
+
+**A:** (1) The **CNI plugin** — binaries in `/opt/cni/bin/`, active config in `/etc/cni/net.d/`, with the addon (Flannel/Calico/Weave) running as a DaemonSet; the kubelet → runtime → CNI `ADD` call assigns the IP. (2) **kube-proxy**, a DaemonSet in `kube-system`, which writes iptables/IPVS DNAT rules on every node. (3) **CoreDNS**, pods in `kube-system` fronted by the `kube-dns` Service (ClusterIP `10.96.0.10`, injected into every pod's `/etc/resolv.conf`). (4) The **Ingress controller** (nginx/Traefik/ALB), proxy pods you deploy yourself, driven by Ingress resources. The two DaemonSets are the **CNI addon** and **kube-proxy**.
+
+### Before Rung 5
+**Q:** Which layer would you suspect for each: `NotReady` node; ClusterIP reachable but `nslookup mysql` fails; external `/pay` returns 404; two pods on different nodes can't ping each other?
+
+**A:** `NotReady` node → **Layer 1, CNI** — a node NotReady right after install usually means no CNI addon is applied. ClusterIP works but `nslookup mysql` fails → **Layer 3, CoreDNS** — the VIP and DNAT are fine, name resolution isn't (check CoreDNS pods, or use the FQDN across namespaces). External `/pay` 404 → **Layer 4, Ingress** — a missing/wrong rule or a missing `rewrite-target: /` annotation. Cross-node pod-to-pod failure → **Layer 1, CNI** — the flat NAT-free pod network isn't routing between nodes.
+
+### Before Rung 6
+**Q:** In the trace, which layer made `wear-service` a *name* you could use, and which one actually forwarded the packet to a specific pod? Why are those two different components?
+
+**A:** **CoreDNS (Layer 3)** made `wear-service` a usable name — it resolves the name to the Service's ClusterIP via the pod's `/etc/resolv.conf`. **kube-proxy (Layer 2)** actually forwarded the packet — its iptables `KUBE-SERVICES` DNAT rule rewrote the VIP to one live pod IP, which the CNI then routed. They're different components because they solve different problems: DNS is a one-time name-to-VIP lookup done in userspace, while forwarding must happen in the kernel on **every packet** and track which backends are currently alive — CoreDNS knows names, kube-proxy knows endpoints.
+
+### Before Rung 7
+**Q:** Why choose one Ingress over ten `type: LoadBalancer` Services — name two concrete things Ingress gives you that per-service LBs don't.
+
+**A:** Ten LoadBalancer Services mean ten cloud load balancers and ten bills, each a dumb L4 entry for one service. One Ingress gives you (1) **host/path L7 routing** — a single entrypoint that routes `example.com/wear` and `example.com/watch` to different backend Services — and (2) **one shared front door**, meaning a single external IP/LB (one bill) and shared TLS termination at that edge. The trade-off from the ladder: you must deploy an Ingress **controller** first, or the resource does nothing.

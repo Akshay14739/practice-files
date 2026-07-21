@@ -287,3 +287,27 @@ overlay vs BGP vs VPC-CNI    → three ways to satisfy Rule 2
 - [VLANs & Segmentation](16-vlans-and-segmentation.md) — VXLAN, the encapsulation overlays use.
 - [Routing & Forwarding](08-routing-and-forwarding.md) — BGP native routing and node routes for pod CIDRs.
 - [Kubernetes Network Policies](28-kubernetes-network-policies.md) — why preserving the real pod source IP matters.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why would NAT between pods (a receiver seeing a rewritten source IP) break things Kubernetes cares about, like network policy and audit logs?
+
+**A:** Because NAT destroys the caller's identity. If pod-to-pod traffic were translated, the receiving pod would see some rewritten source address (e.g. the node's IP) instead of the real pod IP, so "who called me?" becomes unanswerable. NetworkPolicy decides allow/deny based on who the source actually is — with a translated source it could no longer match traffic to the real originating pod. Audit logs and observability suffer the same way: every entry would show the translator's address, not the workload that made the request. That's why the model demands no NAT between pods and a consistent, preserved source IP.
+
+### Before Rung 3
+**Q:** From the four rules alone, why can a pod on node A `curl` a pod on node B using nothing but that pod's IP — no port mapping, no gateway trick?
+
+**A:** Rule 1 says the destination pod has its own unique, cluster-routable IP, so that address is unambiguous across the whole cluster — no two pods share it and no host-local reuse exists. Rule 2 says every pod can reach every other pod across nodes without NAT, so the network (as wired by the CNI) will deliver a packet addressed to that pod IP directly, with no translation in between. Rule 4 guarantees the IP the pod sees for itself is the same IP others use to reach it, so there are no translation surprises. Together the rules make each pod behave like a little machine on one flat network — so a raw `curl http://<pod-ip>:<port>` just works, no port publishing or gateway trick required.
+
+### Before Rung 4
+**Q:** What single object makes the same-pod containers share that one network namespace?
+
+**A:** The pause (sandbox) container. It's a tiny container whose only job is to create and hold the pod's network (and IPC) namespace; every app container in the pod joins that namespace rather than getting its own. That's why all containers in a pod share one IP and one `localhost`, and why app containers can crash and restart without the pod losing its IP — the pause container keeps the namespace alive.
+
+### Before Rung 6
+**Q:** In the trace, which two source-IP properties would break if the CNI used NAT between nodes — and which rules do they correspond to?
+
+**A:** First, pod-B would no longer receive the packet from the real source `10.244.1.7` — it would see a translated address (e.g. node A's IP), breaking rule 2 (every pod reaches every other pod without NAT). Second, pod-A's IP as seen by others would differ from the IP pod-A sees for itself, breaking rule 4 (the IP a pod sees for itself is the same IP others use to reach it). Losing those two properties is exactly what would break NetworkPolicy and audit logs, since both depend on trusting the real pod source IP on the wire.

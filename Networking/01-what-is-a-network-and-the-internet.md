@@ -520,3 +520,37 @@ If topologies-and-failure still feel like trivia, re-climb **Rung 3(C)** and red
 - [OSI & TCP/IP models](06-osi-and-tcpip-models.md) — the layered stack that frames/packets/segments belong to
 - [Kubernetes pod networking & CNI](24-kubernetes-pod-networking-cni.md) — the flat pod network as a real example of this file
 - [AWS VPC](20-aws-vpc.md) — your cloud network: subnets, IGW/NAT, route tables, the seams in action
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Without using the word "internet," explain why buying a second computer for Building B is a *worse* solution than connecting the two.
+
+**A:** What you actually wanted to share was the *data* and the expensive *resources* (CPU time, a printer, storage) — not to own two of everything. A second machine doubles the million-dollar cost while sharing nothing: the data is still trapped where it was born, and "keeping them in sync by hand" means a human endlessly walking tapes between buildings, which is slow, error-prone, and never real-time. Connecting the two machines lets one copy of the data and one set of expensive resources serve both buildings instantly, and changes propagate as they happen instead of hours or days later. Duplication buys you redundancy at full price; a connection buys you sharing at a fraction of it.
+
+### Before Rung 3
+**Q:** If the internet is a "network of networks," what single kind of device must sit at every seam where one network meets another?
+
+**A:** A **router** (also called a gateway). The core sentence says the internet is networks *connected so a packet can hop from any one to any other* — and the device that joins two different networks and picks a packet's next hop is, by definition, a router. Every seam has one: your home router, your default gateway, the VPC router, an Internet Gateway, and a NAT Gateway are all the same idea in different costumes.
+
+### Before Rung 4
+**Q:** A single fiber cut under the Atlantic doesn't take the internet down, but in the 1990s a single backbone-cable cut *could* drop your phone call. Using only Rung 3 vocabulary, explain the difference.
+
+**A:** The phone call used **circuit switching**: a dedicated end-to-end path was reserved for the whole call, so if any single link on that fixed path died, the entire call dropped — there was no other path to fall back on. The internet uses **packet switching** over a **partial mesh** backbone: no path is ever reserved, each router decides the best next hop packet by packet, and the mesh provides multiple alternate routes. When one submarine cable is cut, routers simply route the packets around it over the surviving links — the self-healing property ARPA designed for in the first place. Mesh supplies the alternate paths; packet switching is what lets traffic actually use them mid-conversation.
+
+### Before Rung 5
+**Q:** Your ISP advertises "100 Mbps." You download a 100 **megabyte** file. Best case, how many *seconds*?
+
+**A:** **8 seconds.** Bandwidth is quoted in mega*bits* per second, but file sizes are in mega*bytes*, and 1 byte = 8 bits. So a 100 MB file is 100 × 8 = 800 megabits, and 800 Mb ÷ 100 Mbps = 8 seconds, best case. If you answered "1 second," you conflated bits with bytes — you're off by exactly a factor of 8.
+
+### Before Rung 6
+**Q:** In the trace, the reply came back on a *possibly different path* than the request. Which Rung-3 concept guarantees that's fine, and which *other* layer is responsible for noticing if a packet went missing entirely?
+
+**A:** **Packet switching** guarantees it's fine: every packet is an independent, labeled chunk, and each router picks the best next hop for it right now — no path is reserved, so the reply is free to travel a completely different route and still arrive correctly. The network itself is "best effort" and makes no promises about loss. Noticing a missing packet is the **transport layer's** job — TCP (file `07`) numbers the packets, detects gaps, and re-requests what never arrived. The network moves packets; the transport layer makes them trustworthy.
+
+### Before Rung 7
+**Q:** A popular file is downloaded by a million people. Explain why the *server's* bandwidth bill is the bottleneck in client–server, but the same event makes a BitTorrent swarm *faster*.
+
+**A:** In client–server, roles are fixed: every one of the million clients pulls the entire file from the single server hub, so the server's upload bandwidth must carry one million full copies — the load (and the bill) scales linearly with users while capacity stays flat, and the server becomes the bottleneck. In BitTorrent, every node is *both* client and server: each downloader immediately starts uploading the chunks it already has to other peers. So every new user doesn't just add demand — it adds upload capacity, and the swarm's total bandwidth *grows* with the crowd. That's the "scaling with users" row in mechanism form: client–server means more users = more load on one hub; P2P means more peers = more capacity.

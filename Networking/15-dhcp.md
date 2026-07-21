@@ -461,3 +461,37 @@ Go back to **Rung 3 (Machinery)** and **Rung 7, Example 2** together. Sniffing a
 - [NAT and PAT](14-nat-and-pat.md) — what happens to your DHCP-assigned private address once it leaves the subnet.
 - [Kubernetes pod networking & CNI](24-kubernetes-pod-networking-cni.md) — the IPAM that *replaces* DHCP for pods, in full detail.
 - [AWS VPC](20-aws-vpc.md) — DHCP option sets, the managed DHCP service, subnets, and the VPC router at `.1`.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** A brand-new machine has a MAC address but no IP at all. To ask for an IP it must send a packet, yet it doesn't know the server's address and has no source address of its own. How can it send that first request?
+
+**A:** It **broadcasts**. The client sends a UDP datagram with source IP `0.0.0.0` (the "I have no address yet" address) to destination `255.255.255.255` (the all-hosts broadcast), framed at L2 as an Ethernet broadcast (`ff:ff:ff:ff:ff:ff`), so it doesn't need to know the server's address — it yells to *everyone* on the local wire and lets whichever DHCP server is listening (UDP port 67) hear it. The client's MAC address and a transaction ID inside the packet let the server address the reply back to it (also by broadcast, since the client still isn't addressable). This is exactly why DHCP is broadcast-based and runs over UDP — you can't do a TCP handshake with no IP.
+
+### Before Rung 3
+**Q:** From the one sentence alone, predict: why must a DHCP-assigned address *expire* instead of being given away forever?
+
+**A:** Because the address is **lent from a finite pool**, and devices in a churning fleet vanish without saying goodbye — a laptop leaves the cafe, a VM is terminated, a phone roams away — and none of them send a polite "release." If addresses were granted forever, every departed device would permanently consume a pool entry and the pool would leak dry. The **lease** makes addresses *reclaimable*: a device that stays keeps renewing (the T1 REQUEST/ACK dance) and holds its address indefinitely, while a device that disappears simply stops renewing and its address returns to the pool at expiry. Expiry is the garbage collector of the address pool.
+
+### Before Rung 4
+**Q:** A client's DISCOVER is a broadcast, and routers drop broadcasts. How does a single DHCP server in one subnet still serve clients in five other subnets — and which packet field lets the server pick the right pool?
+
+**A:** Each of the other subnets runs a **DHCP relay agent** (a.k.a. IP helper), usually on that subnet's router/gateway. The relay catches the client's local broadcast DISCOVER, stamps its own subnet-local address into the **`giaddr`** (gateway IP address) field, and **unicasts** the packet across the routed network to the central server — unicast crosses routers just fine. The server reads `giaddr` to know which subnet the client lives on and therefore which **scope/pool** to draw the offer from (e.g. the `10.0.2.0/24` pool, not its own `10.0.1.0/24`), sends the reply back to the relay, and the relay broadcasts it onto the client's wire. `giaddr` is the one field the whole cross-subnet mechanism hinges on.
+
+### Before Rung 5
+**Q:** What's the difference between a **reservation** and a **static IP configuration**, given that both give a device the same address every time?
+
+**A:** The difference is *who holds the mapping* and *whether the device runs DORA*. With a **reservation**, the mapping ("MAC `xx` always gets `10.0.1.150`") lives in the **DHCP server's lease database**; the device is an ordinary DHCP client that still performs the full DORA handshake — the server just always Offers it the same address. You get the stability of a fixed IP with central management and zero device-side configuration. With **static configuration**, the address is hand-configured **on the device itself**, which does no DORA at all and doesn't depend on any DHCP server being up — which is why core infrastructure (gateway, DNS, the DHCP server itself) is static, while a printer that just needs a predictable address is a good fit for a reservation.
+
+### Before Rung 6
+**Q:** In the trace, packet (4) REQUEST is a broadcast even though the client already knows exactly which server it wants. Why broadcast instead of unicast — who else needs to overhear it?
+
+**A:** Because a network can have **more than one DHCP server**, and every server that heard the DISCOVER may have made an Offer, tentatively holding an address out of its pool for this client. By broadcasting the REQUEST — which names the chosen server (`10.0.1.10`) and the accepted address (`.157`) — the client simultaneously tells the winner "I accept" and lets all the **losing servers overhear that they were declined**, so they can release their tentatively-held addresses back into their pools. A unicast to the winner would leave the losers waiting on offers that will never be accepted, leaking pool addresses. (Note this is different from *renewal* at T1, which **is** a unicast REQUEST — by then there are no competing offers to decline.)
+
+### Before Rung 7
+**Q:** CoreDNS sits at a fixed ClusterIP `10.96.0.10` while the pods behind it get ephemeral IPs from CNI IPAM. Why must the front door be static even though everything behind it is dynamic — and how does that connect to why a network's DNS/gateway are never DHCP clients?
+
+**A:** It's the bootstrap-ordering argument from Rung 6: everything else *depends on finding these services at a known, fixed address*. Every pod's `/etc/resolv.conf` points at `10.96.0.10`; if that address moved, name resolution — the very mechanism used to find everything else — would break, and nothing could look up the new location. So the front door (the ClusterIP) is a permanent anchor, while the pods behind it can be cattle with ephemeral IPAM-assigned IPs, because the Service's DNAT indirection absorbs the churn. The same logic applies on a physical network: the DNS server and default gateway can't be DHCP clients because they're the stable anchors everything else's DHCP-delivered config points at — and the DHCP server can't very well DHCP itself its own identity. Determinism at the infrastructure layer is what makes ephemerality safe at the workload layer.

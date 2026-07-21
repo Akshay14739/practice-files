@@ -358,3 +358,37 @@ echo -n 'val' | base64      /      base64 -d
 - [Section 3 — Logging & Monitoring](03-logging-monitoring.md) — `logs -c` for init/sidecar debugging.
 - [Section 13 — Troubleshooting](13-troubleshooting.md) — CrashLoopBackOff/ImagePullBackOff during rollouts.
 - [../../Linux/26-tls-pki-openssl.md](../../Linux/26-tls-pki-openssl.md) — base64/OpenSSL underpinning Secrets and encryption at rest.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Name two things that force an image rebuild in the "before" world that Kubernetes lets you change *without* touching the image.
+
+**A:** (1) **A setting (config value):** before, config was baked into the image, so a one-line change meant a rebuild-and-redeploy loop; Kubernetes externalizes it into a **ConfigMap** injected as env vars or files. (2) **A password (sensitive value):** before, secrets were baked into images or committed to Git — leaked forever; Kubernetes puts them in a **Secret** object injected at container start. In both cases you change the object and roll the pods — the image is never touched.
+
+### Before Rung 3
+**Q:** If you `kubectl set image` a Deployment to a broken image, why do your *existing* users usually keep getting served during the failed rollout?
+
+**A:** Because a rollout is "a **new ReplicaSet** scaled up as the old one scales down" — the broken pods live entirely in the *new* ReplicaSet. Those pods go `ImagePullBackOff`/`CrashLoopBackOff` and never become Ready, so the Deployment never proceeds to scale the *old* ReplicaSet down; the old RS's healthy pods keep serving traffic the whole time. The failure is contained to the new RS, the rollout stalls, and `kubectl rollout undo` reverses it — that containment is exactly why rolling updates are "safe."
+
+### Before Rung 4
+**Q:** (1) Which pod field overrides the image's ENTRYPOINT? (2) Which injection method makes a ConfigMap show up as *files*? (3) Does base64-encoding a Secret make it secure — why/why not?
+
+**A:** (1) **`command:`** overrides ENTRYPOINT (and `args:` overrides CMD — the classic trap is thinking `command` maps to Docker's CMD; it doesn't). (2) Mounting the ConfigMap as a **volume** (`volumes: - configMap: {name: ...}`) — each key becomes a file in the mount path; `envFrom` and `env.valueFrom` produce env vars, not files. (3) **No** — base64 is *encoding*, not encryption; anyone with etcd or API access can trivially `base64 -d` it back. Real safety comes from practice: don't commit secret YAML, enable **encryption at rest** on the API server, and restrict access with RBAC. Kubernetes helps a bit by sending a Secret only to nodes that need it and keeping it in tmpfs (RAM) on the kubelet.
+
+### Before Rung 5
+**Q:** Which of these trigger a new rollout when changed on a Deployment: `image`, `env`, `replicas`? Two do something different from the third — which, and why?
+
+**A:** **`image` and `env` trigger a rollout; `replicas` does not.** `image` and `env` are fields *inside the pod template*, and the rule is: change the template → the Deployment creates a new ReplicaSet and performs a rollout, recorded as a new revision. `replicas` lives on the Deployment spec *outside* the pod template — changing it is pure scaling: the *existing* ReplicaSet is resized up or down, no new RS, no new revision, nothing to roll back.
+
+### Before Rung 6
+**Q:** In step 5 of the rollout trace, what specific pod condition stops the rollout from proceeding — and why is that the safety mechanism, not a bug?
+
+**A:** The new pods never become **Ready** — with `nginx:doesnotexist` they sit in `ImagePullBackOff`, so the readiness condition that gates each batch is never met. The RollingUpdate engine only scales the old RS down (−1 per `maxUnavailable`) *after* the surged new pods pass readiness; since they never do, the rollout **stalls with the old ReplicaSet still at full strength and still serving**. That's the safety mechanism by design: readiness is the proof-of-health checkpoint between batches, so a bad version can never replace a good one — capacity stays ~100%, the blast radius is one stalled RS, and `rollout undo` cleanly reverses it.
+
+### Before Rung 7
+**Q:** A colleague changed a ConfigMap value but the running pods still show the old value. Why, and what makes it take effect?
+
+**A:** Because the pods consume the ConfigMap as **env vars**, and env vars are set by the kubelet once, at container start, *before* the process runs — they are never updated on a live container. Changing the ConfigMap object afterward changes nothing inside already-running pods. To make it take effect you must **roll the pods** so new containers start and re-read the ConfigMap — e.g. `kubectl rollout restart deploy/web` or any pod-template change that triggers a rollout. (The exception: a ConfigMap mounted as a **volume** does eventually update live in the files — only env-injected config is frozen at start.)

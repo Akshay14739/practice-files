@@ -447,3 +447,37 @@ The computer keeps a running scoreboard in memory of everything it does — how 
 - [storage-mounts](15-storage-mounts.md) — disks, filesystems, and OverlayFS — the layer whose `await` strangles etcd.
 - [systemd-services](16-systemd-services.md) — `journald` and `journalctl -k`, the persistent sibling of `dmesg`.
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — the full node-triage quick reference that ties this method to every Kubernetes signal.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Box A has CPUs 100% busy; box B has CPUs 3% busy but load average 50. Why is load average not the same as CPU usage, and what is box B starved on?
+
+**A:** On Linux, load average is not a CPU gauge — it is a time-decayed count of processes in **two** states: `R` (running or waiting in the run-queue for a CPU) **and** `D` (uninterruptible sleep, almost always blocked on disk I/O). Box A's load comes from `R` processes competing for CPU. Box B's CPUs are bored, so its load of 50 must come from ~50 processes stuck in `D` state — box B is almost certainly starved on **disk I/O** (a hammered or slow disk). Confirm it with `vmstat`'s `b` column and `wa`, then `iostat -xz` `await`.
+
+### Before Rung 3
+**Q:** Disk 1: `%util = 100%` with flat `await` of 1ms. Disk 2: `%util = 60%` but `await` jumped to 400ms. Which is hurting, and which USE letter did each number measure?
+
+**A:** `%util` measures **Utilization** (the U — what fraction of the interval the disk had at least one I/O in flight) and `await` measures **Saturation** (the S — average time an I/O spends queued plus being serviced). The first disk is fine: 100% utilized but with 1ms latency, meaning it is fully used with no queue backing up — utilization alone is not a problem. The second disk is the one actually hurting: at only 60% busy, I/Os are waiting 400ms each, meaning work is queuing badly behind it. This is the core USE lesson: never confuse "busy" (utilization) with "backed up" (saturation) — pain starts when work queues, not when the resource is merely busy.
+
+### Before Rung 4
+**Q:** Why is the very first line of `vmstat 1` misleading, and what would you do by hand to reproduce the number `iostat` prints for the second line?
+
+**A:** The counters in `/proc` are **cumulative since boot**; the first line of `vmstat`/`iostat`/`mpstat` is computed against no prior snapshot, so it is the *average since boot* — history, not the current state. Always ignore it; only the second sample onward shows the live rate. To reproduce `iostat`'s second line by hand you would read `/proc/diskstats`, wait exactly one second, read `/proc/diskstats` again, subtract the two snapshots, and divide the delta by the interval — e.g. `%util = (B.io_ms − A.io_ms) / 1000ms × 100`, i.e. "of the last 1000ms, how many was the disk busy?"
+
+### Before Rung 5
+**Q:** Sort `%util`, `await`, load average, `vmstat`'s `si`/`so`, PSI `some`, and `dmesg` OOM lines into USE buckets. Which is utilization, which three are saturation wearing different names, which is an error signal — and why does `%steal` belong to no local resource?
+
+**A:** `%util` is **Utilization** (percent of the interval the disk was busy). Three signals are **Saturation** wearing different names: `await` (I/O queue+service latency), load average (time-decayed count of R+D processes, i.e. work queued for CPU or disk), and PSI `some` (percent of time at least one task was stalled waiting for a resource — the most direct saturation meter). `si`/`so` (swap-in/swap-out) also signal memory pressure/saturation — nonzero means the kernel is pushing pages to disk. `dmesg` OOM lines are the **Error** signal: the kernel's own report that the OOM killer fired. `%steal` belongs to none of your local resources because it is CPU time the *hypervisor* gave to **another VM** — a noisy-neighbor signal about the host you share, not about anything running on your box.
+
+### Before Rung 6
+**Q:** At step 2 you saw `%iowait=71%`. If instead you'd seen `%idle=2%, %iowait=1%, %user=95%`, how would the trace change — which tool would you jump to, and which resource would you interrogate?
+
+**A:** Those numbers exonerate the disk and convict the **CPU**: the CPUs are nearly fully busy doing user-space work, with essentially no time spent waiting on I/O. Instead of dropping to `vmstat`'s `b` column and `iostat -xz`, you would interrogate CPU saturation and attribution: `vmstat 1` to see if the `r` run-queue exceeds the core count (CPU saturation), `/proc/pressure/cpu` for the direct stall signal, and then jump to `top` (or `pidstat`) to name *which process* is burning the CPU. From there you drill into that PID — e.g. `strace -c -p <pid>` — rather than into the block layer, since the bottleneck resource is CPU, not disk.
+
+### Before Rung 7
+**Q:** kubectl says a pod is `OOMKilled` on a node with 40 GB free RAM. Which command and which string prove whether it was the pod's cgroup limit or the whole node — and why can't kubectl tell you?
+
+**A:** Run `dmesg -T | grep -i oom` on the node and look at the `oom-kill:constraint=` line in the kernel's kill report. `constraint=CONSTRAINT_MEMCG` proves the kill was triggered by a **cgroup** memory limit (the pod's `memory.max`) hitting its ceiling — not node RAM, which is why 40 GB can be free. If it instead said `CONSTRAINT_NONE`, the **node itself** ran out of memory (a global OOM) — a different and worse problem. kubectl can't tell you this because it only surfaces the summarized status `reason: OOMKilled` with no *why*; the ground-truth report lives in the kernel ring buffer, which only `dmesg` (or `journalctl -k`) reads. You can cross-check with the cgroup's own tally in `/sys/fs/cgroup/.../memory.events` (`oom_kill 1`).

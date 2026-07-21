@@ -585,3 +585,37 @@ Fill this in for any kernel knob or module you touch:
 - [storage-mounts](15-storage-mounts.md) — OverlayFS (the `overlay` module) as containerd's image-layer snapshotter, plus swap and fstab
 - [linux-philosophy](01-linux-philosophy.md) — "everything is a file": why `cat`/`echo` on `/proc/sys` is the entire sysctl API
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — the full Linux↔Kubernetes mapping and node-triage quick reference
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Pods on the same node can ping each other by IP, but `curl` to a ClusterIP Service times out. Which two kernel prerequisites are most likely missing, and why doesn't "ping works" rule them out?
+
+**A:** The two likely-missing prerequisites are (1) the **`br_netfilter` module plus `net.bridge.bridge-nf-call-iptables=1`** — the bridge-and-iptables one — and (2) **`net.ipv4.ip_forward=1`** — the forwarding one. Without br_netfilter and its sysctl, packets crossing the Linux bridge that connects pods bypass iptables entirely, so kube-proxy's `KUBE-SERVICES` chain never fires and the ClusterIP is never DNAT'ed to a real pod IP; without ip_forward, the node won't route packets between interfaces/veths at all. "Ping works" rules out neither, because pod-to-pod ping by IP is plain L3 traffic across the bridge that needs no Service DNAT and no iptables traversal — it succeeds even while every bridged packet is bypassing netfilter. Only Service traffic, which depends on the DNAT happening in the `KUBE-*` chains, exposes the missing knobs — which is why this is the classic "my CNI is broken" ghost.
+
+### Before Rung 3
+**Q:** You ran `sysctl -w net.ipv4.ip_forward=1`, kubeadm passed, weeks later the node reboots and pods can't reach Services. What did you forget, and which boot-time component would have replayed it?
+
+**A:** `sysctl -w` only wrote the live, RAM-backed `/proc/sys` file — a volatile change that a reboot wipes back to the default `0`. You forgot the persistence half: writing the knob into a drop-in file such as `/etc/sysctl.d/k8s.conf` (and, for the modules, `/etc/modules-load.d/k8s.conf`). The boot-time component that would have replayed it is **`systemd-sysctl.service`**, which systemd runs on the way up to read `/etc/sysctl.d/*` and re-apply every knob (its sibling `systemd-modules-load.service` replays the module list). The one-sentence rule: live changes are instant but volatile; only config files that the boot process replays make them permanent.
+
+### Before Rung 4
+**Q:** Why can `sysctl -w net.bridge.bridge-nf-call-iptables=1` fail with "No such file or directory" on a fresh node, and what single command fixes it? Which subsystem creates that file?
+
+**A:** Cause-and-effect order: on a fresh node the **`br_netfilter` module** is not loaded; that module is what *registers* the `net/bridge/` sysctl subtree; therefore the file `/proc/sys/net/bridge/bridge-nf-call-iptables` simply does not exist yet; so the write fails with `cannot stat ... No such file or directory`. The single command that makes it succeed is `modprobe br_netfilter` — loading the module creates the `/proc/sys/net/bridge/` subtree (and modprobe also pulls in the `bridge` dependency), after which the identical `sysctl -w` succeeds. The file is created by the br_netfilter kernel module registering its sysctls — which is exactly why every kubeadm guide loads modules first and writes sysctls second, and why persistence needs both `/etc/modules-load.d/k8s.conf` and `/etc/sysctl.d/k8s.conf`.
+
+### Before Rung 5
+**Q:** Which two files must a colleague `cat` to answer "is `ip_forward` on right now, and will it survive a reboot?" — and which term connects the second file to the boot process?
+
+**A:** For "is it on right now," `cat /proc/sys/net/ipv4/ip_forward` — the virtual file that *is* the sysctl `net.ipv4.ip_forward` (dots become slashes), showing the live kernel's value. For "will it survive a reboot," `cat /etc/sysctl.d/k8s.conf` (or whichever `/etc/sysctl.d/*.conf` drop-in holds the line `net.ipv4.ip_forward = 1`) — the persisted setting. The connecting term is **`systemd-sysctl`** (systemd-sysctl.service), the boot unit that reads `/etc/sysctl.d/*` and re-applies each knob on every boot — the same "boot unit replays a drop-in directory" pattern that `systemd-modules-load` : `/etc/modules-load.d/` follows for modules.
+
+### Before Rung 6
+**Q:** In the trace, `ping pod-ip` works even on a mis-tuned node, but `curl clusterip` only works on the tuned one. Which step explains the difference, and which kernel feature did the ping never need?
+
+**A:** The difference is **step 10**: when the pod curls a ClusterIP, the packet crossing the node's Linux bridge is handed to netfilter *only because* `br_netfilter` is loaded and `bridge-nf-call-iptables=1` (from steps 5–6), letting kube-proxy's `KUBE-SERVICES` chain DNAT the ClusterIP to a real pod IP (and `ip_forward=1` then routes the rewritten packet on). Ping between pod IPs never needed that feature: it is plain L3 traffic to a real, existing pod IP with no Service DNAT required, so it never depends on bridged traffic traversing iptables — the `br_netfilter` + `bridge-nf-call-iptables` hook is the kernel feature ping never touched. On a mis-tuned node the Service packet drops into a black hole while ping keeps working, which is exactly why the bug is so confusing.
+
+### Before Rung 7
+**Q:** Your team wants every node to force cgroup v2. Why is this different from setting `ip_forward=1` — which mechanism, which file, and why won't `sysctl -w` or a drop-in do it?
+
+**A:** Forcing cgroup v2 is a **boot-time-only** setting, not a runtime sysctl dial: the cgroup hierarchy mode is decided as the kernel comes up, before any live tuning is possible, so it must go on the **kernel command line** that GRUB hands the kernel — e.g. `systemd.unified_cgroup_hierarchy=1` (or `cgroup_no_v1=all`). The mechanism is editing **`/etc/default/grub`**, rerunning `update-grub`, and rebooting; you can confirm it took effect with `cat /proc/cmdline` and `stat -f -c %T /sys/fs/cgroup` (expect `cgroup2fs`). `sysctl -w` and `/etc/sysctl.d/` drop-ins can't do it because there is no `/proc/sys` file backing this choice — it isn't a tunable of the running kernel at all; it's a parameter that must exist *before* the live kernel does, unlike `ip_forward`, which is an ordinary live dial you flip and then persist.

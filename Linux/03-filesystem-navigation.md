@@ -553,3 +553,37 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 - [Storage & Mounts](15-storage-mounts.md) — the mount mechanism in depth: partitions, `fstab`, tmpfs, and OverlayFS (how container layers stack).
 - [Namespaces](13-namespaces.md) — how `/proc/<pid>/ns/` exposes a container's isolated view of the tree.
 - [Linux ↔ Kubernetes Map](27-linux-kubernetes-map.md) — the full node-triage reference tying every path here to what kubelet, containerd, and etcd do with it.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why does putting all the "grows over time" data under one predictable subtree make it possible to give a node its own log disk? What would break if logs were scattered?
+
+**A:** Because everything that grows at runtime lives under one predictable subtree (`/var`), you can mount a dedicated disk at that single directory and *all* growing data — logs, caches, container layers — automatically lands on it; "give the growing stuff its own storage" becomes one mount operation. If logs were scattered across each program's private geography, there would be no single place to attach the disk: you'd have to hunt down every program's log location, move each one, and reconfigure each program — and any program you missed would still fill up the root disk. Separation of concerns onto different storage only works when "things that grow" all live in one assigned place.
+
+### Before Rung 3
+**Q:** Say the core sentence from memory. Then derive: containerd stores persistent image layers and also opens a runtime control socket — which top-level directory should each go under, and why are they different?
+
+**A:** The sentence: "Linux presents everything — every disk, device, kernel fact, and remote share — as one single tree of names rooted at `/`, and each top-level directory has an assigned *purpose*, so you can predict where any file lives from what *kind* of thing it is." Image layers are *persistent state written by a running program* that must survive reboots, so they belong under `/var/lib` — hence `/var/lib/containerd`. The control socket is *volatile runtime state* — a handle that only means something while the process is alive and should vanish at boot — so it belongs under `/run` (a RAM-backed tmpfs, wiped on every reboot) — hence `/run/containerd/containerd.sock`. They differ because the FHS separates by lifetime and purpose: persistent state vs. what's-happening-right-now.
+
+### Before Rung 4
+**Q:** Draw the path-resolution walk for `/etc/kubernetes/pki`. Then: (1) why does `..` from `/` stay at `/`? (2) what generates `/proc/1/status`'s contents, and when? (3) why can't `cd` be an external `/usr/bin/cd`?
+
+**A:** The walk: the kernel starts at the root inode `/` → reads that directory's name→inode table and looks up `etc` → gets `etc`'s inode (a directory) and looks up `kubernetes` → gets its inode and looks up `pki` → arrives at the `pki` directory inode and stops. (1) In the root directory, the `..` entry points back to the root's own inode — `/` is its own parent — so `cd ..` from `/` stays at `/`. (2) `/proc` is a virtual filesystem with zero bytes on disk; the kernel *generates* the contents at the moment you read the file, manufacturing PID 1's live state at read time. (3) The CWD is per-process kernel state; an external `/usr/bin/cd` would run as a *child* process, change its own CWD, and exit — its parent shell would be left standing exactly where it was. Only a builtin, running inside the shell process itself, can change the shell's CWD.
+
+### Before Rung 5
+**Q:** `ls`, `cat`, and `stat` all "look at a file" but read different things. Which reads the directory table, which reads the data blocks, and which reads the inode metadata?
+
+**A:** `ls` reads the *directory* — the name→inode table — listing the entries it contains (and with `-l`, additionally `stat`-ing each entry for a compact metadata view). `cat` opens the file's inode and streams its *data blocks* — the actual content bytes — to your terminal. `stat` reads the *inode metadata* directly: size, owner, permissions, timestamps, inode number, block count — without touching the content at all. Same file, three different layers of the Rung 3 machinery: names, bytes, and metadata.
+
+### Before Rung 6
+**Q:** At Step 5, what does `-f` change about `tail`'s behavior at end-of-file, what kernel facility lets it wake only when the file changes, and where on disk does `kubectl logs` ultimately read from?
+
+**A:** Without `-f`, `tail` hits end-of-file and exits; with `-f` it *stays open* and keeps reading past EOF, printing new bytes as they are appended. Rather than busy-looping, it registers an **inotify** watch — the kernel facility that notifies a process when a file changes — so it sleeps until the kernel wakes it on each new write. `kubectl logs` ultimately reads the per-container log files the kubelet maintains at `/var/log/pods/<namespace>_<pod>_<uid>/<container>/0.log` (with friendly symlinks in `/var/log/containers/`); the kubelet does this same `tail -f` trace on that file and streams the bytes back over the API.
+
+### Before Rung 7
+**Q:** Why can you move `/var/lib/containerd` onto a brand-new disk without reconfiguring containerd, while the equivalent on a drive-letter system would break it?
+
+**A:** Because Linux decouples the *name* of a file from the *device* it lives on. containerd hardcodes the path `/var/lib/containerd`, and a path is just a route through the single tree rooted at `/` — it says nothing about which disk backs it. You mount the new disk at `/var` (or `/var/lib/containerd`) and the same path now transparently resolves onto the new filesystem; containerd never notices the seam. On a drive-letter system, the volume is *part of the path* (`C:\data` vs `D:\data`), so moving the data to a new disk changes its name, and anything that hardcoded the old path — as containerd hardcodes its state dir — breaks.

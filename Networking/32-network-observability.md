@@ -262,3 +262,27 @@ funnel    → metrics (when/where) → traces (which hop) → logs/packets (why)
 - [Kubernetes Network Policies](28-kubernetes-network-policies.md) — the drops Hubble helps you debug.
 - [Bandwidth, Latency & AI/HPC Networking](31-bandwidth-latency-ai-hpc-networking.md) — the latency/throughput metrics you're measuring.
 - [SDN — Software-Defined Networking](22-sdn-software-defined-networking.md) — eBPF as a programmable, observable datapath.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** If a request through ten microservices takes 800 ms, why can't the caller's logs alone tell you which service caused the delay?
+
+**A:** Because the caller's logs only see the request's total time from its own vantage point — they record "I called the next service and got a response 800 ms later," with no visibility into how that time was divided across the ten downstream hops (DNS, the network, or any one slow service). The delay could be packet loss, a saturated link, a DNS failure, a policy-dropped connection, or a bug in service number seven, and application logs can't tell those apart. You need a **trace** — one request followed across every hop as a tree of timed spans — to attribute the 800 ms to the specific hop where the time actually went.
+
+### Before Rung 3
+**Q:** Match each question to a pillar: "who connected to the DB at 2 AM?", "is P99 latency creeping up this week?", "which of 10 services made this request slow?"
+
+**A:** "Who connected to the DB at 2 AM?" → **logs** (e.g. VPC flow logs — individual per-connection events kept for forensics and audit: src, dst, port, action). "Is P99 latency creeping up this week?" → **metrics** (aggregate numbers over time — cheap, continuous, trend-able, and what you alert on). "Which of 10 services made this request slow?" → **traces** (one specific request followed across every hop, with a timed span per service, pinpointing where the delay went). That's the file's "three signals, three questions": what happened, how healthy, where's the delay.
+
+### Before Rung 4
+**Q:** A metric tells you "api latency spiked." Why do you then need a *trace* rather than another metric to find the cause?
+
+**A:** Because metrics are **aggregates**: they compress many requests into one number over time, which tells you *when* and *which service* degraded but destroys the per-request detail of where the time went inside any individual call. Another metric would just be another aggregate view of the same symptom. A trace follows **one specific slow request** across every hop as a tree of timed spans — e.g. "span api→db = 850 ms of the 900 ms" — which is the only signal that attributes the delay to a particular downstream hop. Then logs and packet capture (flow logs showing retries, tcpdump showing TCP retransmissions) confirm *why* that hop was slow.
+
+### Before Rung 6
+**Q:** In that funnel, which pillar would you set an *alert* on so you're paged before users complain, and which do you only reach for *after* you know where to look?
+
+**A:** You alert on **metrics** — they're cheap, continuous, aggregated signals (like checkout P99 jumping 200 ms → 900 ms) that are always being collected, so Prometheus/Grafana can page you the moment a threshold trips. **Packet capture (tcpdump/Wireshark)** is what you reach for only *after* the other pillars have narrowed the problem to a specific hop — it's heavy and privacy-sensitive, the last resort that confirms root cause (e.g. TCP retransmissions proving packet loss), never a first move or a continuous alert source. The funnel runs broad-to-specific: metrics alert (when/where) → traces localize (which hop) → logs/packets confirm (why).

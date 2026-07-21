@@ -263,3 +263,37 @@ ETCDCTL_API=3 etcdctl endpoint status --write-out=table --endpoints=... ...
 - [Section 1 — Core Concepts](01-core-concepts.md) — the control-plane components you're making HA.
 - [Section 6 — Security](06-security.md) — the PKI each etcd + apiserver instance needs.
 - [../../Networking/18-load-balancing.md](../../Networking/18-load-balancing.md) — the load balancer fronting the apiservers.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** If the single control-plane node dies, what *keeps* working and what *stops*?
+
+**A:** Running pods **keep serving** — the workloads on worker nodes don't depend on the control plane moment to moment. What **stops** is everything requiring new decisions: no new scheduling, no self-healing (a crashed pod won't be replaced), and no `kubectl` — the API server is down. And because etcd lived on that node, the cluster's entire memory (its state store) is unavailable until the control plane is back.
+
+### Before Rung 3
+**Q:** Why is a 2-member etcd cluster no more fault-tolerant than a 1-member one? State the quorum for each.
+
+**A:** Quorum = ⌊N/2⌋+1. For 1 member, quorum = 1; for 2 members, quorum = ⌊2/2⌋+1 = **2** — both members must be alive to commit a write. So losing one member of a 2-node cluster leaves 1 < 2 and writes stop cluster-wide, exactly like losing the only member of a 1-node cluster: fault tolerance is **0** in both cases. Adding the second member bought no real fault tolerance — the minimum for real HA is 3 (quorum 2, tolerates 1).
+
+### Before Rung 4
+**Q:** For a 5-node etcd cluster: what's the quorum, and how many members can fail before writes stop? Why would 6 nodes be a *worse* choice than 5 in some partition scenarios?
+
+**A:** For N=5, quorum = ⌊5/2⌋+1 = **3**, so fault tolerance = 5 − 3 = **2** — writes continue until a third member fails. 6 nodes (quorum 4) still tolerates only 2 failures, and it adds a partition risk odd counts avoid: a 6-node cluster can split **3/3**, leaving *neither* half with the 4 needed for quorum, so the whole cluster stops. An odd cluster always leaves one side with a majority, which is why odd is preferred.
+
+### Before Rung 5
+**Q:** Sort into stateless / singleton / consensus: kube-apiserver, etcd, kube-controller-manager. Which one dictates you use an *odd* number of nodes?
+
+**A:** **kube-apiserver → stateless**: just add copies behind a load balancer, active-active. **kube-controller-manager → singleton**: it must not double-run, so it's active-standby via leader election on a Lease (the scheduler behaves the same way). **etcd → consensus**: it needs a majority of members alive to commit writes. It's **etcd** that dictates the odd node count — quorum = ⌊N/2⌋+1 means even counts add no tolerance and risk a no-majority split.
+
+### Before Rung 6
+**Q:** In the 3-node trace, which component recovered by *rerouting*, which by *taking over a lease*, and which by *still having a majority*?
+
+**A:** The **kube-apiserver** recovered by rerouting — the load balancer's health check dropped CP-2 and sent traffic to the remaining active-active apiservers, so kubectl never noticed. The **scheduler and controller-manager** recovered by lease takeover — the dead node stopped renewing the Lease, and after ~the lease duration a standby grabbed it and became active. **etcd** recovered by still having a majority — 2 of 3 members remained, and 2 ≥ quorum (⌊3/2⌋+1 = 2), so writes kept committing.
+
+### Before Rung 7
+**Q:** A colleague proposes a 4-node etcd cluster "for extra safety." Explain why it tolerates the same number of failures as 3 while costing more.
+
+**A:** For N=4, quorum = ⌊4/2⌋+1 = **3**, so fault tolerance = 4 − 3 = **1** — exactly the same one-failure tolerance as a 3-node cluster (quorum 2, lose 1). The fourth node therefore adds cost, an extra server every write must involve, and a new risk: a 2/2 partition leaves neither half with 3 members, so the whole cluster stops — a split an odd cluster can't suffer. For "extra safety," the right move is to go to **5** (quorum 3, tolerates 2), not 4.

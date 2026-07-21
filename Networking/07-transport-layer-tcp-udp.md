@@ -576,3 +576,17 @@ Go back to **Rung 7, Example 1** and capture a real handshake with `tcpdump` whi
 - [DNS](09-dns.md) — the classic UDP/53 workload (with TCP/53 fallback) traced in Rung 5.
 - [HTTP & HTTPS](10-http-and-https.md) — the TCP-riding application protocol on top, including HTTP/3 over QUIC/UDP.
 - [Kubernetes Services & kube-proxy](25-kubernetes-services-kube-proxy.md) — how both TCP and UDP Services get DNAT load-balanced, and where TCP readiness probes fit.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** IP gets bytes to the right machine and ports get them to the right process — so what is left over that neither provides, and which of TCP's jobs would you have to write yourself with only IP + ports?
+
+**A:** What's left over is *trust*: IP + ports say nothing about whether the bytes arrived at all, arrived once, arrived intact, or arrived in the right order — IP can drop, duplicate, delay, reorder, or corrupt packets and never tells anyone. With only IP + ports you would have to write **all four** of TCP's jobs yourself: **ordering** (sequence numbers plus a reassembly buffer to fill gaps and discard duplicates), **acknowledgement** (telling the sender what actually arrived), **retransmission** (timers that resend anything unacknowledged, since the network never reports drops), and **flow control** (a window so a fast sender doesn't drown a slow receiver) — and, to be a good citizen, congestion control too. That is exactly the pre-transport pain: every application reimplementing the hardest problems in networking, differently and wrongly each time.
+
+### Before Rung 7
+**Q:** A `tcpSocket` readiness probe on port 8080 succeeds, but an `httpGet` probe on the same port fails with a 500. What does each probe actually prove, and which layer's success are you observing?
+
+**A:** The `tcpSocket` probe proves only that a **3-way handshake completed** — a SYN to port 8080 got a SYN-ACK back and the kubelet ACKed it, meaning *something* is listening and accepting connections. That is purely a **Layer 4 (transport)** success. The `httpGet` probe goes further: on top of that same TCP connection it sends a real HTTP request and requires a healthy response, so a 500 is a **Layer 7 (application)** failure — the process accepts connections but the app behind the socket is broken. So the situation is entirely consistent: L4 is fine, L7 is not, which is precisely why you upgrade from a bare-handshake TCP probe to an `httpGet`/`grpc` probe when "accepting connections" isn't the same as "healthy."

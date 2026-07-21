@@ -271,3 +271,27 @@ When NOT to        → small/latency-critical clusters (use ambient/eBPF or none
 - [Kubernetes Network Policies](28-kubernetes-network-policies.md) — L3/L4 filtering that stacks under the mesh's L7 rules.
 - [SDN — Software-Defined Networking](22-sdn-software-defined-networking.md) — istiod/Envoy as another control/data-plane split.
 - [Network Observability](32-network-observability.md) — the metrics and traces the mesh emits.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Why is putting retry/TLS/metrics logic inside each app (as a library) painful once you have services written in several languages?
+
+**A:** Because the same "networking survival kit" (retries, timeouts, circuit breaking, encryption, metrics) must be **rewritten per language** — a Java, a Python, and a Go service each need their own implementation, so you get three stacks, three versions, and endless drift. Any change to the policy (say, the retry count) means every team must ship a new build, so upgrades = redeploy everything. Behavior ends up inconsistent and unauditable (team A retries 3×, team B 5×; nobody can prove every service encrypts), and business logic gets tangled with networking plumbing that developers resent and the platform team can't control.
+
+### Before Rung 3
+**Q:** If a proxy sees *all* traffic in and out of every service, why does that single fact make encryption, canary routing, AND observability all possible at once?
+
+**A:** Because the proxy is a **chokepoint you program**: every request must pass through it, so anything you want done to traffic can be done there, uniformly, without touching the app. Encryption is the proxy wrapping each hop in mTLS with a cert the control plane issued; canary routing is the proxy choosing a destination by weight before forwarding; observability is the proxy recording latency/status for every request it carries. All three are just "things the proxy does to traffic passing through it" — one interception point, many features, all controlled centrally by the platform.
+
+### Before Rung 4
+**Q:** The app calls another service and "never knows" a proxy intercepted it. What mechanism inside the pod makes that interception invisible?
+
+**A:** An **init container (`istio-init`) rewrites the pod's iptables rules** at startup so all inbound and outbound traffic is transparently redirected to the local Envoy sidecar first (Envoy listens on 15001 for outbound, 15006 for inbound). The app connects to `reviews:9080` believing it's a direct connection; iptables silently hands the connection to Envoy, which routes, encrypts with mTLS, and applies retries before forwarding. Because the redirect happens in the pod's own network namespace at the kernel level, the app needs zero code changes — this is also why mesh pods show `2/2` (app + sidecar) and an `istio-init` container in `kubectl describe pod`.
+
+### Before Rung 6
+**Q:** At step 2 two config objects together decided where the call went. Name both, and say which step (the app or the Envoy) is where a retry would happen.
+
+**A:** The **VirtualService** (the 90% v1 / 10% v2 weighted routing rule that rolled and picked v2) and the **DestinationRule** (which defines the v2 subset and its load-balancing/circuit-breaking policy for reaching it). A retry would happen inside **productpage's Envoy** — the client-side sidecar, at step 4 in the trace — not in the app; if reviews-v2 were failing, the Envoy would retry or circuit-break on its own, and the app would remain blissfully unaware.

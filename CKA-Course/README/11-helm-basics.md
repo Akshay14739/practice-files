@@ -259,3 +259,37 @@ helm get values <release>           helm template <chart>      # render only
 - [Section 4 — Application Lifecycle Management](04-application-lifecycle-management.md) — rollouts/rollbacks Helm wraps.
 - [Section 1 — Core Concepts](01-core-concepts.md) — the objects a chart bundles.
 - [Section 6 — Security](06-security.md) — the RBAC Helm 3 relies on.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Name two operations that are painful on a 15-object app without a package manager that Helm makes a single command. (Hint: install, and undo.)
+
+**A:** (1) Install: without Helm you `kubectl apply -f` fifteen files in the right order; with Helm it's one `helm install <release> <chart>` that creates every object of the app. (2) Rollback (the "undo"): without Helm there's no record of "what did it look like yesterday," so undoing an upgrade is guesswork; with Helm it's one `helm rollback <release> <revision>` because every install/upgrade is a recorded revision. (Uninstall is the same story: one `helm uninstall` versus fifteen `kubectl delete`s where you'll miss one.)
+
+### Before Rung 3
+**Q:** Chart, release, revision — one phrase each. If you install the same chart twice, how many releases and how many revisions exist?
+
+**A:** A **chart** is the package — templated manifests plus default values and metadata. A **release** is one named installation of a chart in the cluster. A **revision** is a numbered snapshot of a release; every install/upgrade/rollback creates a new one. Installing the same chart twice (under two release names) gives you **two releases**, each currently at **revision 1** — so two revisions total, one per release, tracked independently.
+
+### Before Rung 4
+**Q:** If `values.yaml` sets `replicas: 1`, a `--values` file sets `3`, and `--set replicas=5`, how many replicas deploy — and why?
+
+**A:** Five replicas deploy. Helm's override precedence is `--set` > `--values` > the chart's own `values.yaml`, so the inline `--set replicas=5` wins over the `--values` file's 3, which itself would have beaten the chart default of 1. The chart's `values.yaml` only supplies defaults for anything not overridden higher up the chain.
+
+### Before Rung 5
+**Q:** Which stores where the app's runtime data lives — a Helm revision, or the PV? So what does a rollback actually restore?
+
+**A:** The runtime data lives in the PV — a Helm revision stores only the rendered manifests and the values used for that release, not the contents of any volume (a PV's database is not in a revision). Therefore a `helm rollback` restores **manifests, not data**: it re-applies the old revision's object definitions (images, replicas, config), while whatever the app has written to its PersistentVolume stays exactly as it is.
+
+### Before Rung 6
+**Q:** After the rollback, what revision number is live, and what config does it contain? Why isn't it "revision 1" again?
+
+**A:** After `helm rollback my-site 1` the live revision is **revision 3**, and its config is identical to revision 1's — Helm re-applied rev 1's manifests as a new snapshot. It isn't "revision 1" again because Helm's history only moves forward and never deletes: every action (install, upgrade, rollback) appends a new numbered revision, so `helm history` remains a complete audit trail showing rev 1, rev 2, and rev 3 labeled "rollback to 1."
+
+### Before Rung 7
+**Q:** Why is Helm 3 considered more secure than Helm 2 for a shared cluster? Name the component that went away and what replaced its permissions.
+
+**A:** Helm 2 required **Tiller**, a cluster-side server component that ran in "god mode" with broad permissions — a security hole, because anyone who could talk to Tiller could effectively do anything in the cluster. Helm 3 removed Tiller entirely; the client now talks directly to the API server using **your own RBAC credentials** (exactly like kubectl), so each user's Helm actions are limited to what their Kubernetes permissions actually allow.

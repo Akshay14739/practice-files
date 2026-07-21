@@ -398,3 +398,37 @@ grep -- "admission-plugins" /etc/kubernetes/manifests/kube-apiserver.yaml
 - [Section 7 — Storage](07-storage.md) — the `DefaultStorageClass` mutating admission controller in action.
 - [Section 13 — Troubleshooting](13-troubleshooting.md) — diagnosing Pending / OOMKilled pods.
 - [../../Linux/14-cgroups.md](../../Linux/14-cgroups.md) — the cgroups that enforce CPU throttle / memory OOMKill.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Give two concrete failures that happen if the scheduler ignores *what kind* of node a pod needs.
+
+**A:** (1) **Special hardware:** a GPU training pod lands on a cheap CPU-only node and either crashes or runs ~100x slower — the hardware guarantee is gone. (2) **Noisy neighbors:** a noisy batch job lands right next to your production API, eats all the RAM, and the API gets OOM-killed — there's no isolation. (Licensed workloads landing on non-licensed nodes, and critical pods stuck Pending behind low-value pods, are further failures from the same list.)
+
+### Before Rung 3
+**Q:** Say the one-sentence idea. Then: a taint and a nodeAffinity rule both keep a pod off the "wrong" node — which is a *node repelling pods* and which is a *pod requiring a node*? Why do you often need both?
+
+**A:** The sentence: **the scheduler is a matchmaker — for every pod with an empty `nodeName` it FILTERS out nodes that can't run it, SCORES the survivors, and BINDS the pod to the best one, and every scheduling feature is a lever that biases that filter or score (or bypasses the matchmaker entirely).** A **taint** is the *node repelling pods*: the node says "keep out unless you tolerate me." **nodeAffinity** is the *pod requiring a node*: the pod says "only nodes labeled like this." You often need both because each only solves half of dedicating a node: the taint keeps *other* pods off your node but does nothing to stop your pod landing on some other untainted node, while affinity pulls your pod to the node but doesn't keep strangers away. Taint + affinity together give "only these pods here, and these pods only here."
+
+### Before Rung 4
+**Q:** A pod is Pending. Name the three different reasons a node could get filtered out (one about the node, one about the pod's node requirement, one about capacity). Which field does the scheduler read for capacity — `requests` or `limits`?
+
+**A:** (1) **About the node — taints:** the node carries a taint (e.g. `NoSchedule`) that the pod has no toleration for, so the node repels it (TaintToleration filter). (2) **About the pod's requirement — affinity:** the pod's `nodeSelector` or `requiredDuringSchedulingIgnoredDuringExecution` nodeAffinity doesn't match the node's labels, so the node fails the pod's requirement (NodeAffinity filter). (3) **About capacity — fit:** the node doesn't have enough free CPU/memory to satisfy the pod's resource requests (NodeResourcesFit filter). The scheduler reads **`requests`**, never `limits` — requests are for schedule-time fit; limits are only a runtime ceiling. If no node survives all three filters, the pod stays Pending.
+
+### Before Rung 5
+**Q:** Sort into repel / attract / fit / bypass: a `NoSchedule` taint, a `requiredDuringScheduling` nodeAffinity, a `memory: 256Mi` request, a static pod. Which two must be used together to truly dedicate a node?
+
+**A:** `NoSchedule` taint = **repel** (the node pushes pods away); `requiredDuringScheduling` nodeAffinity = **attract/require** (the pod pulls itself to matching nodes); `memory: 256Mi` request = **fit** (capacity check); static pod = **bypass** (the kubelet runs it directly, skipping the scheduler). The two that must be combined to truly dedicate a node are the **taint** and the **affinity**: the taint keeps everyone else off the node, and the affinity keeps your pods on it — neither alone closes both sides.
+
+### Before Rung 6
+**Q:** In the GPU-pod trace, three levers all "chose" the GPU node — taint/toleration, nodeAffinity, and the resource request. What did each contribute? At which step does the scheduler's involvement end?
+
+**A:** The **nodeAffinity** (`gpu=true`) was the attract lever: it filtered out every CPU-only node so only GPU nodes remained candidates. The **resource request** was the fit lever: it filtered out any node without enough free memory to satisfy the pod's requests. The **taint/toleration** was the repel lever working in reverse: the GPU node's `gpu=true:NoSchedule` taint had already kept ordinary pods off it, and our pod's matching toleration let it pass that repel filter. The scheduler's involvement ends at **Step 6 — Binding**, when it writes `spec.nodeName: gpu-node01` through the API server; it only *decides*, it never *places* — the kubelet on that node actually starts the container.
+
+### Before Rung 7
+**Q:** A teammate tainted the GPU node and is surprised their GPU pod landed on a different node anyway. Why — and what single addition fixes it?
+
+**A:** Because **taints only repel; they don't attract.** The taint keeps intolerant pods *off* the GPU node, and the teammate's pod (with its toleration) is merely *allowed* onto it — but the scheduler is still free to bind that pod to any other untainted node that passes filtering, and it did. The single fix is to add a **nodeAffinity** (or nodeSelector) on the pod requiring the GPU node's label (e.g. `gpu=true`, after labeling the node), so the pod is *required* to land there. That's the classic taint + affinity combo: repel others off, pull yours on.

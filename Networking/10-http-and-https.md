@@ -558,3 +558,17 @@ Go back to **Rung 7, Example 3** on a real (or `kind`/`minikube`) cluster and *d
 - [Load balancing](18-load-balancing.md) — L4 vs L7, health checks, and how ALBs parse HTTP to route by host/path.
 - [Kubernetes Ingress & Gateway API](27-kubernetes-ingress-gateway-api.md) — L7 routing, TLS termination, and where 502/503 are minted.
 - [Application-layer protocols](12-application-layer-protocols.md) — the other L7 protocols (SMTP, SSH, NTP…) that sit beside HTTP.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** An ALB routes `shop.com/orders` to Service A and `shop.com/images` to Service B, which a plain L4 load balancer cannot do. What specific pieces of information must HTTP put in a standard, readable place for the ALB to make that decision?
+
+**A:** Two pieces, both in standardized positions in every request: the **`Host` header** (`Host: shop.com`), which says which virtual host/domain the request is for, and the **request path** (`/orders` or `/images`), which sits in the request line as `METHOD PATH HTTP-VERSION`. Because HTTP guarantees these always appear in the same place — the path on the first line, `Host:` among the headers — an L7 load balancer can parse them and match a routing rule. An L4 balancer sees only IP addresses and ports; both requests arrive at the same `IP:443`, so without HTTP's standard structure there is literally nothing to distinguish them by. (For HTTPS, the ALB must also terminate TLS first so it can read those fields — which is why L7 routing implies TLS termination at the proxy.)
+
+### Before Rung 7
+**Q:** Your ALB returns `502` for one route and `503` for another at the same moment. Using the mechanism behind each code, what different underlying pod/endpoint condition does each imply, and which would `kubectl get endpoints` help you confirm?
+
+**A:** A **502 Bad Gateway** means the proxy *did reach an upstream* but got a broken/invalid reply — the pod is registered as an endpoint but crashed mid-response, listens on the wrong `targetPort`, or is speaking garbage instead of valid HTTP. A **503 Service Unavailable** means the proxy had *no healthy upstream to try at all* — zero READY pods behind that route's Service, so all endpoints were removed (failing readiness probes, or scaled to zero). `kubectl get endpoints` confirms the **503** case: the route's Service will show `<none>` in the ENDPOINTS column (nobody home), whereas the 502 route's Service will still list an endpoint IP:port — somebody is home but broken, so you go inspect that pod's port and logs instead.

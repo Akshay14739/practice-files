@@ -368,3 +368,37 @@ sudo ls -l /proc/20344/fd/1 /proc/20344/fd/2
 - [cgroups](14-cgroups.md) — the `/sys/fs/cgroup` files kubelet and cAdvisor read for CPU/memory.
 - [Storage and mounts](15-storage-mounts.md) — block devices under `/dev`, tmpfs, and how virtual filesystems get mounted.
 - [The Linux ↔ Kubernetes map](27-linux-kubernetes-map.md) — the full mapping of these primitives to what kubelet/containerd/etcd do.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** If a program can only read from disks via a special `read_disk()` call, why could you not build a generic `kubectl logs` that works for any container? What specifically breaks?
+
+**A:** Composability breaks. If each resource type has its own bespoke syscall (`read_disk()`, `read_tty()`, `net_recv()`...), then the log reader must know *in advance* which kind of resource every container's output lives on, and must be rewritten with new code for each one — a disk-backed log needs `read_disk()`, a terminal stream needs `read_tty()`, a network stream needs `net_recv()`. There is no single operation the tool can call that works regardless of the source, so "collect logs from any container" becomes a bespoke integration per workload — the tool-explosion matrix from Rung 1. Because Linux instead exposes everything through one interface, `kubectl logs` can just `read()` a file at a known path and never care what's behind it.
+
+### Before Rung 3
+**Q:** From the core sentence alone, predict where in the filesystem you'd find the command-line a running process was started with.
+
+**A:** The core sentence says *nearly every resource is exposed through the filesystem interface* — and a running process is a resource, so it must appear somewhere in the filesystem as a file (or directory of files). The neighborhood is therefore the per-process directory the kernel synthesizes for each PID: `/proc/<pid>/`. Its startup command line specifically lives at `/proc/<pid>/cmdline` (with NUL-separated arguments), but the derivable part is that it must be a readable file under that process's `/proc` directory.
+
+### Before Rung 4
+**Q:** `/proc/meminfo` takes up no disk space, yet `cat` returns kilobytes of text that change between reads. When are those bytes created, and by what?
+
+**A:** The bytes are created *at read time*, by the kernel's procfs driver. When `cat` calls `read()`, the VFS looks at the fd, sees it is backed by procfs's `file_operations` table, and dispatches to procfs's `read` handler. That handler reaches into the live kernel data structures holding current memory accounting and *formats them as ASCII text right then*, directly into the read buffer. Nothing is ever stored on disk — which is why `ls -l` reports 0 bytes, and why the numbers differ on every read: each `read()` regenerates the text fresh from the kernel's live state.
+
+### Before Rung 5
+**Q:** Sort into "kernel-fabricated, zero disk bytes" vs. "real bytes on a filesystem": `/proc/meminfo`, an ext4 inode, `/sys/fs/cgroup/...`, `/dev/null`, `/etc/hosts`. Which term in the table is the odd one out, and why?
+
+**A:** Kernel-fabricated, zero disk bytes: `/proc/meminfo` (procfs generates the text on read), `/sys/fs/cgroup/...` (sysfs, the RAM-backed device/cgroup view), and `/dev/null` (a character device whose driver defines read/write, with no storage behind it). Real bytes on a filesystem: `/etc/hosts` (a regular ext4 file) and an ext4 inode (the on-disk metadata record for a real file). The odd one out is the **inode**: every other entry is a file *you can open and read through the VFS*, while an inode is not an openable object at all — it's the on-disk metadata structure (owner, permissions, block pointers) that a real file resolves to, which is also why virtual filesystems only fake theirs.
+
+### Before Rung 6
+**Q:** If two processes both `cat /proc/self/status` at the very same instant, do they read identical bytes? Which trace step decides the answer?
+
+**A:** No — they read different bytes. Step 3 of the trace decides it: during path resolution, `self` is a *magic symlink* that procfs resolves to *the calling process's own* PID directory. So each `cat` gets an fd pointing at its own `/proc/<its-pid>/status`, and in step 5 procfs walks *that* process's live `task_struct` and formats its private memory accounting (its own VmRSS, its own PID) into text. Same path string, two different underlying objects, two different fabricated outputs — the bytes are generated per-reader, per-read.
+
+### Before Rung 7
+**Q:** cAdvisor could read cgroup stats by parsing files under `/sys/fs/cgroup` or via a hypothetical typed kernel API. Give one concrete reason each approach might win.
+
+**A:** The file approach wins on **generality and discoverability**: cgroup stats are just files, so cAdvisor needs zero special libraries, the same code path works for every controller and every workload, and any human can verify what cAdvisor sees with a plain `cat /sys/fs/cgroup/.../memory.current` while debugging a node. The typed-API approach wins on **per-read cost at scale**: the file interface forces the kernel to format numbers as text and the reader to parse that text back, which is wasteful and slightly racy when polling thousands of cgroups per second — a binary, structured, atomic interface (the reason high-frequency telemetry moves to eBPF/netlink) skips the text-formatting tax entirely.

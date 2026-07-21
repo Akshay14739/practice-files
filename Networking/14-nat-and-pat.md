@@ -376,3 +376,22 @@ Your devices have private addresses that can't travel the internet, so a device 
 - **[Kubernetes Services & kube-proxy](25-kubernetes-services-kube-proxy.md)** — ClusterIP/NodePort DNAT in full detail.
 - **[AWS VPC](20-aws-vpc.md)** — NAT Gateway, IGW, public vs private subnets, and route tables.
 - **[iptables & netfilter](../Linux/12-iptables-netfilter.md)** — the PREROUTING/POSTROUTING machinery, MASQUERADE and DNAT targets, and conntrack, at the source.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** Ten devices behind one public IP all stream video from different servers. When packets come back to that single public IP, what single piece of information must the router have stored to know which device each returning packet belongs to?
+
+**A:** The router must have stored the **NAT/conntrack table entry mapping each translated (public) source port back to the original private `IP:port`** — the concierge's ledger. When each device's outbound flow left, the router rewrote its source to `publicIP:uniquePort` and recorded `private IP:port <=> public IP:port`. A returning packet arrives addressed to `publicIP:thatPort`, and the port is the disambiguator: the router looks up which of the ten devices' flows owns that translated source port and rewrites the destination back to that device's private address and port. This is exactly why the scheme is called *Port* Address Translation — with one shared IP, only the rewritten source port can tell the ten flows apart.
+
+### Before Rung 3
+**Q:** From the One Idea alone, explain why a Kubernetes ClusterIP — a virtual IP no network card owns — can still receive your traffic and deliver it to a real pod. Which verb is doing the work, and is it SNAT or DNAT?
+
+**A:** The ClusterIP is just a front-door address: when a packet addressed to it passes through the node's kernel, kube-proxy's rules **rewrite the destination** from the virtual IP to a real backend pod's `IP:port`, **remember** the choice in conntrack, and **reverse** it on the reply so the client still believes it spoke to the stable VIP. The verb doing the work is **rewrite** (of the destination, with remember+reverse keeping the illusion consistent), and it is **DNAT** — "you asked for this front-door address; I'll send you to the real machine behind it." No interface needs to own the ClusterIP because the packet never has to be delivered *to* it; the address is swapped out in the kernel forwarding path (PREROUTING) before routing decides where the packet goes.
+
+### Before Rung 7
+**Q:** Kubernetes requires that "pods talk to each other without NAT," yet a pod reaching the internet *is* masqueraded to the node. Reconcile these facts — what property of the *destination* decides whether the masquerade rule fires?
+
+**A:** Whether the destination is **inside or outside the cluster/pod CIDR**. The CNI-installed MASQUERADE rule in the node's POSTROUTING chain explicitly *excludes* destinations within the cluster CIDR, so pod-to-pod and pod-to-ClusterIP traffic keeps real pod IPs — satisfying the Kubernetes rule and preserving true source identity for NetworkPolicy, mTLS, and logging. Only when the destination falls *outside* that CIDR (off-cluster, e.g. the internet) does the masquerade fire, rewriting the source to the node IP — necessary because a private pod address like `10.244.1.5` is non-routable on the public internet and a reply could never find its way back. Same node, same iptables chain, one match condition on the destination range reconciles both facts.

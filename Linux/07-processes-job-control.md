@@ -430,3 +430,37 @@ ps -eo pid,ni,comm     # custom columns: PID, niceness, command — the priority
 - [cgroups](14-cgroups.md) — `cpu.weight`/`memory.max`: the pod-scale version of `nice` and OOM-kill.
 - [systemd-services](16-systemd-services.md) — the real PID 1 on your nodes, and how it supervises kubelet/containerd.
 - [linux-kubernetes-map](27-linux-kubernetes-map.md) — the full node-triage cheat sheet this all feeds into.
+
+---
+
+## ✅ Answers — "Check yourself before Rung N"
+
+### Before Rung 2
+**Q:** `terminationGracePeriodSeconds` defaults to 30. Derive what must happen at second 0 and at second 30 — and why there have to be two different events, not one.
+
+**A:** At second 0 the kubelet sends the container's process a *polite, catchable* request to shut down — `SIGTERM` — so the app can drain connections, flush data, and exit cleanly. At second 30, if the process is still alive, it sends an *unstoppable* `SIGKILL` that terminates it unconditionally. There must be two events because a single event can't be both: a catchable signal gives the app a chance to protect its data but also the ability to ignore the request, while an uncatchable one guarantees termination but allows no cleanup. So the design is "ask nicely first, then guarantee death at the deadline" — graceful shutdown with a hard backstop.
+
+### Before Rung 3
+**Q:** Using only the One Idea, explain why `kill -9` is fundamentally different in *kind* (not just strength) from `kill -15`. What clause of the sentence does 9 violate?
+
+**A:** The One Idea says a process is "controllable only by sending it signals" — you *ask* it via a signal it may catch, ignore, or take the default action on. `kill -15` (SIGTERM) obeys that model: it's a request delivered to the process, which gets a say (run a handler, ignore it, or die by default). `kill -9` (SIGKILL) violates the "the process may respond" part of that clause: it cannot be caught, blocked, or ignored — the kernel terminates the process directly and the target gets no say at all. So 9 isn't a stronger request; it's not a request at all — it bypasses the process entirely and is handled by the kernel itself.
+
+### Before Rung 4
+**Q:** Explain why an app running as PID 1 *inside a container* creates zombies that a normal host never accumulates — and name the two components Kubernetes uses to prevent it.
+
+**A:** On a normal host, when a process's parent dies the child is re-parented to PID 1 (systemd), which dutifully calls `wait()` to reap it, so zombies never pile up. Inside a container's PID namespace, the app itself *is* PID 1 — and normal apps are not written to be init: they never `wait()` on orphaned children re-parented to them, so every dead descendant stays a `Z` entry, eventually exhausting the pod's PID limit. (PID 1 also has special signal semantics — the kernel applies no default signal actions to it, so an unhandled SIGTERM is silently ignored.) The two components Kubernetes/the runtime use to prevent this are: **`tini`** (or the runtime's built-in init, e.g. Docker's `--init`), a tiny init that runs as PID 1, forwards signals, and reaps zombies; and the **`pause` container**, the pod sandbox process that holds shared namespaces open and acts as the reaping PID 1 when you enable `shareProcessNamespace: true`.
+
+### Before Rung 5
+**Q:** `Ctrl-Z` then `bg` then `disown` — for each step, name the signal or table operation happening underneath.
+
+**A:** `Ctrl-Z` makes the terminal deliver **`SIGTSTP` (20)** to the foreground job, putting it in state `T` (stopped) — it's the catchable cousin of SIGSTOP. `bg` sends the stopped job **`SIGCONT` (18)**, resuming it, but as a *background* job that no longer owns the terminal. `disown` sends **no signal at all** — it is a shell builtin that performs a table operation: it removes the job from the shell's job table, so the shell won't SIGHUP it when the terminal closes. So only `Ctrl-Z` and `bg` involve signals (SIGTSTP and SIGCONT respectively); `disown` is pure bookkeeping.
+
+### Before Rung 6
+**Q:** In step [6b] the app ignores SIGTERM. If that app is running as **PID 1** inside the container (no tini), would `kill -15` from step [5] behave *differently* than if it were PID 37? Explain using the special PID-1 signal rule from 3.5.
+
+**A:** Yes. If the app were PID 37 with no SIGTERM handler, the kernel would apply the *default action* for SIGTERM — terminate — so the container would die at second 0 even without any handler code. But the kernel does **not apply default signal actions to PID 1**: for PID 1, a signal only has effect if the process has explicitly registered a handler for it. So an app-as-PID-1 with no SIGTERM handler has the signal *silently ignored* — it keeps running as if nothing happened, and the pod always burns the full 30-second grace period before dying to SIGKILL. That's exactly why you wrap such apps in `tini`, which handles and forwards signals properly.
+
+### Before Rung 7
+**Q:** `kubectl delete pod x --grace-period=0 --force` — translate that flag into the exact sequence of signals (or absence of one) the node performs, versus a normal delete.
+
+**A:** A normal delete performs: `kill(PID, SIGTERM)` at second 0 (after any preStop hook), a wait of up to `terminationGracePeriodSeconds` (default 30) for the app to clean up and exit, then `kill(PID, SIGKILL)` at the deadline if it's still alive. With `--grace-period=0 --force` the grace window is collapsed to zero: the node skips the meaningful SIGTERM-and-wait phase and goes effectively straight to **SIGKILL** — no cleanup opportunity, no draining, and the pod object is removed from the API immediately without waiting for confirmation the process is gone. It's the "skip the 30s, go straight to the uncatchable hammer" escape hatch — and note that even SIGKILL cannot free a process wedged in `D` (uninterruptible I/O) state.
