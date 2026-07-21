@@ -6,6 +6,8 @@
 
 | # | Section file | One-line summary | Transcript source |
 |---|---|---|---|
+| 00A | [Linux Foundations — Learning Ladder](00A-linux-foundations-learning-ladder.md) | **Prerequisite:** the 10 Linux primitives under every section (shell/env, permissions, signals, namespaces+cgroups, OverlayFS…), each with 2+ hands-on labs | *foundations* |
+| 00B | [Networking Foundations — Learning Ladder](00B-networking-foundations-learning-ladder.md) | **Prerequisite:** the 10 networking primitives (CIDR/VPC, ports, DNS, TLS, NAT, SGs, LBs, CNI, Services→mesh), each with 2+ hands-on labs | *foundations* |
 | 01 | [Project Overview](01-project-overview.md) | The retail-store microservices app, its architecture, and the course roadmap | `0)` |
 | 02 | [Docker Commands](02-docker-commands.md) | Docker on EC2: terminology, pull/run/exec lifecycle, build & push to Docker Hub | `1)` |
 | 03 | [Dockerfile Mastery](03-dockerfile-mastery.md) | Dockerfile instructions, multi-stage builds, build cache & prune strategies | `2)` |
