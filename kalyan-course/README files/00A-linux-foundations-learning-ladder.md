@@ -130,6 +130,15 @@ rm -rf ~/fakebin
 
 📚 **Go deeper:** [../../Linux/02-shell-and-environment.md](../../Linux/02-shell-and-environment.md)
 
+<details>
+<summary><b>✅ Check-yourself answer — Climb 1</b> (say it aloud first, then open)</summary>
+
+**Q:** You edit `RETAIL_UI_THEME: orange` in the compose file, then `docker compose stop ui && docker compose start ui` — why is the theme still purple?
+
+**A:** A process's environment is a **copy handed to it at the moment the container is *created***, and it's frozen there. `stop` then `start` restarts the **same existing container** — its PID 1 was born with the OLD env copy (no THEME var), and `start` does **not** re-read the compose YAML; it just re-runs the already-created container. So no new env copy is ever made → the theme stays purple. Only **recreating** the container (`docker compose up -d --force-recreate ui`) builds a *new* container whose process is born with the current YAML's env. This is the frozen-copy-at-fork mechanic from Rung 3: config injection = deciding what's in that copy *at birth*, and only re-birth re-reads it.
+
+</details>
+
 ---
 ---
 
@@ -220,6 +229,19 @@ find ~/.aws -maxdepth 1 -type f 2>/dev/null      # credentials & config used by 
 > **One sentence:** one tree, everything is a path in it — config is dotfiles, kernel state is `/proc`, and volumes/secrets arrive by mounting — so debugging is choosing the right file to read.
 
 📚 **Go deeper:** [../../Linux/01-linux-philosophy.md](../../Linux/01-linux-philosophy.md), [../../Linux/03-filesystem-navigation.md](../../Linux/03-filesystem-navigation.md), [../../Linux/04-file-operations.md](../../Linux/04-file-operations.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 2</b> (say it aloud first, then open)</summary>
+
+**Q:** A pod's app "can't find its DB password." Name the two *files* you'd read to decide whether the problem is env injection or the CSI mount.
+
+**A:** Read one file from each layer:
+1. **`/proc/<pid>/environ`** (e.g. `kubectl exec <pod> -- sh -c 'tr "\0" "\n" < /proc/1/environ | grep -i PASS'`, or just `env | grep`). This shows whether the password env var was actually **injected into the process**. Missing/empty here → the fault is env injection: the ConfigMap/Secret wiring (`envFrom`/`secretKeyRef`), or the synced Secret was never created.
+2. **A path under `/mnt/secrets-store`** (e.g. `kubectl exec <pod> -- cat /mnt/secrets-store/password`). This shows whether the **CSI driver actually fetched and mounted** the secret. File missing → the SecretProviderClass / Pod Identity / mount path failed; file present but env var missing → the sync-into-a-native-Secret / `secretKeyRef` step failed.
+
+Reading both files localizes the break to exactly one hop — because on Linux everything, including a pod's injected config and its mounted secret, is just a file you can `cat`.
+
+</details>
 
 ---
 ---
@@ -324,6 +346,19 @@ sudo rm -rf "$d"
 
 📚 **Go deeper:** [../../Linux/05-permissions-ownership.md](../../Linux/05-permissions-ownership.md), [../../Linux/06-users-groups-sudo.md](../../Linux/06-users-groups-sudo.md), [../../Linux/17-capabilities.md](../../Linux/17-capabilities.md)
 
+<details>
+<summary><b>✅ Check-yourself answer — Climb 3</b> (say it aloud first, then open)</summary>
+
+**Q:** The S08 pod runs as uid 1000 with `readOnlyRootFilesystem: true` and crashes writing `/tmp/cache`. Name the two independent fixes — one a volume, one a spec change you should *not* make.
+
+**A:** The write fails because the whole root filesystem (which includes `/tmp`) is mounted **read-only**.
+- **Fix 1 (the right one — a volume):** mount a writable volume over `/tmp` — an `emptyDir: {}` (or `emptyDir: {medium: Memory}` for tmpfs). Now `/tmp/cache` lands on a real writable filesystem *grafted over that one path*, while the rest of the root FS stays immutable. You punch a writable hole exactly where the app needs it.
+- **Fix 2 (the one you should NOT make):** set `readOnlyRootFilesystem: false`. It "works," but it throws away the hardening — the entire image filesystem becomes writable and tamperable.
+
+The lesson: keep the protection, add a targeted writable mount. This is Climb 3 (which triplet blocks the write) meeting Climb 9 (mounts bypass the read-only layer).
+
+</details>
+
 ---
 ---
 
@@ -420,6 +455,22 @@ ps aux --sort=-%mem | head -5              # biggest memory consumers (pre-OOM t
 > **One sentence:** containers stop by SIGTERM-wait-SIGKILL aimed at your app as PID 1, so graceful shutdown, rolling updates, 137s, and CrashLoopBackOff are all one story: what your process does with signals and exit codes.
 
 📚 **Go deeper:** [../../Linux/07-processes-job-control.md](../../Linux/07-processes-job-control.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 4</b> (say it aloud first, then open)</summary>
+
+**Q:** A rolling update (replicas 3) replaces pods one at a time. Where do SIGTERM, readiness, and the grace period each fit to make it zero-downtime — and what breaks if the app ignores SIGTERM?
+
+**A:** Per pod replaced:
+- **Readiness probe** — the NEW pod must pass it before the Service adds it to EndpointSlices, so traffic only ever flows to a pod that's actually ready (no requests dropped onto a warming-up pod).
+- **SIGTERM** — the OLD pod is first removed from EndpointSlices (traffic drains away) *and* sent SIGTERM; its handler stops accepting new work, finishes in-flight requests, exits 0.
+- **Grace period** (`terminationGracePeriodSeconds`, default 30s) — the window the pod gets to do that cleanly before the kernel sends SIGKILL.
+
+`maxUnavailable: 1` keeps ≥2 pods serving throughout, so the user never sees an outage.
+
+**If the app ignores SIGTERM:** it keeps running until the grace period expires, then gets **SIGKILLed (exit 137)** — in-flight requests on that pod are severed mid-flight, and shutdown is neither graceful nor prompt. Readiness still stops routing to un-ready pods, but connections already on the dying pod are dropped → not truly zero-downtime. (This is why K8s-ready apps treat SIGTERM as first-class.)
+
+</details>
 
 ---
 ---
@@ -539,6 +590,17 @@ chmod +x make-policy.sh
 
 📚 **Go deeper:** [../../Linux/08-shell-scripting.md](../../Linux/08-shell-scripting.md)
 
+<details>
+<summary><b>✅ Check-yourself answer — Climb 5</b> (say it aloud first, then open)</summary>
+
+**Q:** In the Helm loop `helm upgrade --install $SVC … && echo "$SVC ok"`, what does `&&` guard, and what would `set -e` change about a mid-loop failure?
+
+**A:** The `&&` guards only the **`echo`** — the "ok" message prints just when `helm` returned exit 0. It does **not** stop the loop: if one service's install fails, `&&` skips that echo and the `for` loop **marches on to the next service** — a partial, half-broken deploy that still looks like it's progressing.
+
+Adding **`set -e`** at the top makes the script **abort on the first non-zero exit** — the moment a `helm upgrade` fails, the script stops (no further services attempted) and exits non-zero. Trade-off: fail-fast honesty (stop at the broken step) instead of soldiering through a partial deploy. That's the difference between "cluster half-installed, exit 0" and "stopped at the broken service, exit 1." (`set -euo pipefail` is the production default for exactly this reason.)
+
+</details>
+
 ---
 ---
 
@@ -636,6 +698,15 @@ echo "$P_BAD" | base64 -d | od -c | head -1               # see the trailing \n
 
 📚 **Go deeper:** [../../Linux/09-text-processing.md](../../Linux/09-text-processing.md)
 
+<details>
+<summary><b>✅ Check-yourself answer — Climb 6</b> (say it aloud first, then open)</summary>
+
+**Q:** Why does the S21 sed pattern start with `^  tag:` (two spaces), and what would happen if it were just `tag:`?
+
+**A:** sed is **line-oriented and structure-blind** — it matches text, not YAML nesting. `^  tag:` anchors to start-of-line (`^`) plus exactly two spaces of indentation, which uniquely identifies the `tag:` key nested under `image:` (i.e. `image.tag`). If the pattern were just `tag:` (unanchored), sed would match **every** line containing `tag:` at any indentation — any other `tag:` key elsewhere in the file would also get rewritten to the image SHA, corrupting unrelated config. The two-space anchor makes the substitution surgical: exactly one line changes. (This structure-blindness is precisely why `yq` exists for anything more complex than a single, reliably-indented line — see the Climb 6 Lab 1 decoy.)
+
+</details>
+
 ---
 ---
 
@@ -729,6 +800,17 @@ cat "$GITHUB_ENV"; source "$GITHUB_ENV"; echo "next step sees: $TAG + $IMAGE_BAS
 > **One sentence:** three inherited file descriptors plus redirection and pipes compose every tool chain in this course — and container "logging" is nothing but the platform capturing fd 1 and fd 2.
 
 📚 **Go deeper:** [../../Linux/10-io-redirection-pipes.md](../../Linux/10-io-redirection-pipes.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 7</b> (say it aloud first, then open)</summary>
+
+**Q:** Why does `kubectl logs` show nothing for an app that writes `/var/log/app.log` inside its container, and what one-line app change fixes it?
+
+**A:** `kubectl logs` (like `docker logs`) reads **only the container's stdout (fd 1) and stderr (fd 2)** — the runtime captures those two streams into the pod's log file, and that's the entire logging contract. An app writing to a **file** inside the container (`/var/log/app.log`) is writing to its own filesystem, which the capture pipeline never reads → `kubectl logs` sees nothing.
+
+**One-line fix:** make the app log to **stdout/stderr** instead of a file — reconfigure the logger's destination to `stdout`, or `ln -sf /dev/stdout /var/log/app.log`. Now the runtime captures it and `kubectl logs` shows it — and rotation/shipping become the platform's job (why S20's collectors can scrape every pod uniformly). This is 12-factor logging: fd 1/fd 2 are the interface.
+
+</details>
 
 ---
 ---
@@ -830,6 +912,19 @@ docker run --rm            alpine sh -c 'time sh -c "i=0; while [ $i -lt 2000000
 > **One sentence:** a container is a process in private namespaces (view) under a cgroup (budget) — so pods are shared namespaces, limits are cgroup files, OOMKilled is the memory wall, throttling is the CPU valve, and none of it is magic.
 
 📚 **Go deeper:** [../../Linux/13-namespaces.md](../../Linux/13-namespaces.md), [../../Linux/14-cgroups.md](../../Linux/14-cgroups.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 8</b> (say it aloud first, then open)</summary>
+
+**Q:** S19 set Spring Boot to 256Mi limits and it crash-looped; CPU cut to 100m merely ran "2% used." Explain both from the throttle-vs-kill asymmetry.
+
+**A:** Memory and CPU cgroup limits fail in **opposite** ways:
+- **Memory is a hard wall.** When the process allocates past `memory.max` (256Mi) and the kernel can't reclaim enough, the **OOM killer SIGKILLs PID 1** (exit 137). The JVM needs ≥~350Mi just to boot, so at 256Mi it dies during startup, over and over → CrashLoopBackOff. The only fix is *more memory* (400Mi) — you can't "run slower to fit."
+- **CPU is a throttle (valve), not a wall.** When the process wants more than `cpu.max` (100m = 0.1 core), the kernel just **schedules it less** — it runs slower but is never killed. At 100m the app still boots fine; "2% used" means it isn't even trying to use its small quota under light load.
+
+One line: **undersize memory → death; undersize CPU → latency.** That asymmetry is why raising memory fixed the crash while cutting CPU was safe cost-saving — and why HPA (%-of-request) scales you out on CPU pressure rather than letting pods die.
+
+</details>
 
 ---
 ---
@@ -933,6 +1028,20 @@ docker rmi layerdemo >/dev/null
 
 📚 **Go deeper:** [../../Linux/15-storage-mounts.md](../../Linux/15-storage-mounts.md), [../../Linux/04-file-operations.md](../../Linux/04-file-operations.md)
 
+<details>
+<summary><b>✅ Check-yourself answer — Climb 9</b> (say it aloud first, then open)</summary>
+
+**Q:** Three files in a running catalog pod — `/app/main` (binary), `/tmp/scratch.dat`, `/mnt/secrets-store/password`. Which storage answer serves each, and what happens on pod delete?
+
+**A:**
+- **`/app/main`** → a **read-only image layer** (OverlayFS lower layer, baked in at build time). On delete: nothing is lost — it's immutable; a new pod gets an identical fresh copy. (Any runtime edit to it would go to the disposable upper layer and vanish, but the image layer never changes.)
+- **`/tmp/scratch.dat`** → the container's **writable upper layer** (or an emptyDir if `/tmp` is mounted). On delete: **destroyed** — pod-lifetime scratch, gone.
+- **`/mnt/secrets-store/password`** → an **explicit CSI mount**. On delete: the file disappears with the pod, but the **value survives in AWS Secrets Manager** (its source of truth), and the synced K8s Secret is garbage-collected on last unmount — nothing persistent is lost.
+
+The unifying move: locate every file as one of three answers — read-only layer (regenerated), disposable upper layer (lost), or explicit mount (survives per that backend). That's how you predict what a pod delete does to any path.
+
+</details>
+
 ---
 ---
 
@@ -1020,6 +1129,19 @@ docker rmi apt-good apt-naive >/dev/null
 > **One sentence:** package managers turn "install X" into resolve-verify-place-record against a repo index — and this project's Dockerfile apt idioms are just that mechanism arranged to respect layer caching.
 
 📚 **Go deeper:** [../../Linux/22-package-management.md](../../Linux/22-package-management.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 10</b> (say it aloud first, then open)</summary>
+
+**Q:** Why chain `update && install` in one RUN, and why add `rm -rf /var/lib/apt/lists/*` at the end? (Both are Climb 9 answers.)
+
+**A:** Both are **layer-caching** consequences (Climb 9):
+- **One RUN for `update && install`:** each Dockerfile instruction is a cached layer keyed on its inputs. If `apt-get update` were its own layer, a later build could reuse a **stale cached index** while running a fresh `install` against it → the classic "package not found / old version" bug, because the install resolves against a frozen index. Chaining them means the refresh and the install always happen together, so the install always sees a just-fetched index.
+- **`rm -rf /var/lib/apt/lists/*` in the *same* RUN:** the downloaded indexes (tens of MB) would otherwise be **committed into that layer forever**, bloating the image, and they're useless after install. Deleting them *before the layer is committed* (same RUN) keeps them out of the final image. Doing it in a *separate* RUN wouldn't help — the earlier layer already captured them.
+
+Both are just arranging the apt mechanism to respect how layers are cached and committed.
+
+</details>
 
 ---
 ---

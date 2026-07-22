@@ -126,6 +126,20 @@ python3 -c "import ipaddress;print(ipaddress.ip_address('$(hostname -I | awk '{p
 
 📚 **Go deeper:** [../../Networking/02-ip-addressing.md](../../Networking/02-ip-addressing.md), [../../Networking/03-subnetting-and-cidr.md](../../Networking/03-subnetting-and-cidr.md), [../../Networking/20-aws-vpc.md](../../Networking/20-aws-vpc.md)
 
+<details>
+<summary><b>✅ Check-yourself answer — Climb 1</b> (say it aloud first, then open)</summary>
+
+**Q:** `10.0.11.57` — inside `10.0.0.0/16`? Inside `10.0.1.0/24`? Which course subnet, public or private?
+
+**A:** Compare the network bits:
+- **Inside `10.0.0.0/16`?** `/16` = first 16 bits (`10.0`) are the network. `10.0.11.57` starts with `10.0` → **YES**, it's in the VPC.
+- **Inside `10.0.1.0/24`?** `/24` = first 24 bits (`10.0.1`) are the network. Our address's third octet is **11**, not 1 → **NO**.
+- It belongs to **`10.0.11.0/24`** (third octet 11), which in the course layout is a **private** subnet — the teens (`.11`/`.12`) are private, the low numbers (`.1`/`.2`) are public.
+
+So a node with `10.0.11.57` is a **private worker node**: internal IP only, internet via the NAT Gateway, unreachable inbound. (The Climb 1 Python lab confirms `10.0.11.57 ∈ 10.0.11.0/24` only.)
+
+</details>
+
 ---
 ---
 
@@ -225,6 +239,21 @@ docker rm -f ui carts; docker network rm shopnet
 > **One sentence:** ports demultiplex one IP into many processes, clients arrive from ephemeral ports, and every exposure decision in this course — `8888:8080`, `ports: []`, targetPort, NodePort — is just placing or withholding a doorway to a listening socket.
 
 📚 **Go deeper:** [../../Networking/04-ports-sockets-multiplexing.md](../../Networking/04-ports-sockets-multiplexing.md), [../../Networking/07-transport-layer-tcp-udp.md](../../Networking/07-transport-layer-tcp-udp.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 2</b> (say it aloud first, then open)</summary>
+
+**Q:** In S04, why can your browser reach `localhost:8888` (ui) but not carts — and which two mechanisms could still reach carts for debugging?
+
+**A:** Only **ui** *publishes* a port (`8888:8080`) — a host-level doorway (a DNAT rule) that lets your browser in. carts has `ports: []` (no published mapping), so it's reachable **only on the internal Docker network**, by other containers — deliberate exposure control, not an omission.
+
+Two ways to still reach carts for debugging:
+1. **`docker compose exec` + localhost from inside:** `docker compose exec carts sh` then `curl localhost:8080/...` — you're now inside carts' own network namespace where its port is local. (Or from another container on the same network: `curl http://carts:8080/...` by service name.)
+2. **Temporarily publish a port:** add `ports: ["8081:8080"]` to carts, `docker compose up -d --force-recreate carts`, hit `localhost:8081`, then remove it after.
+
+Both prove the port works; only the *doorway* was withheld. This is the same model ClusterIP (internal-only) vs LoadBalancer/Ingress (a doorway) repeats in Kubernetes.
+
+</details>
 
 ---
 ---
@@ -329,6 +358,17 @@ docker rm -f catalog; docker network rm shopnet
 > **One sentence:** DNS turns stable names into current addresses through a cached hosts-file→resolver→authority chain — and Compose names, Service names, ExternalName's CNAME-to-RDS, headless per-pod names, and ExternalDNS's Route 53 records are one mechanism at five scales.
 
 📚 **Go deeper:** [../../Networking/09-dns.md](../../Networking/09-dns.md), [../../Networking/26-kubernetes-dns-service-discovery.md](../../Networking/26-kubernetes-dns-service-discovery.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 3</b> (say it aloud first, then open)</summary>
+
+**Q:** After destroy + re-apply, the RDS endpoint changed. Why does the catalog app need **zero** config change in the ExternalName design, and which single object gets the new value?
+
+**A:** The app is configured to talk to the **stable in-cluster name** `catalog-mysql` (e.g. `catalog-mysql:3306` in its ConfigMap) — **not** the raw RDS hostname or IP. `catalog-mysql` is an **ExternalName Service**: a CoreDNS-served CNAME that aliases to the real RDS endpoint. When RDS's endpoint changes, the app's config still says `catalog-mysql` (unchanged), because the app never knew the real hostname — it only ever resolved the alias.
+
+The **single object** that gets the new value pasted in is the **ExternalName Service** — its `spec.externalName` field → the new `mydbXXXX.….rds.amazonaws.com`. One edit, one object; every app that dials `catalog-mysql` transparently follows. That's the payoff of "names over addresses": the indirection absorbs the churn.
+
+</details>
 
 ---
 ---
@@ -442,6 +482,19 @@ kill %1
 
 📚 **Go deeper:** [../../Networking/10-http-and-https.md](../../Networking/10-http-and-https.md)
 
+<details>
+<summary><b>✅ Check-yourself answer — Climb 4</b> (say it aloud first, then open)</summary>
+
+**Q:** `/topology` shows checkout red; `curl` ui→checkout returns 500, but the ALB shows the site fine. Which layer is broken, and which status class told you?
+
+**A:** The **5xx class (server-side)** is the tell. A 500 means the request **reached checkout and it failed while handling it** — so connectivity, DNS, port, and the checkout process are all working. Contrast:
+- a **timeout / connection refused** would point at connectivity or the process being down (Climb 7),
+- a **4xx** would blame the caller (bad request/auth).
+
+A 5xx puts the fault in **checkout itself or, more likely (since everything else is fine), checkout's own downstream dependency** — its Redis/ElastiCache, or a bad config like a wrong endpoint. The ALB shows the *site* fine because it fronts the healthy ui; the failure is one hop deeper (ui → checkout → its store). Next step: read checkout's logs. The status class alone localized it to "checkout or what checkout depends on" — not connectivity, not the ui/ALB.
+
+</details>
+
 ---
 ---
 
@@ -540,6 +593,20 @@ kill %1
 > **One sentence:** TLS is per-session encryption made trustworthy by certificate chains ending in a store you hold — the ALB terminates it at the edge with ACM, Argo CD's self-signed cert is why `--insecure` exists, and Istio's mTLS runs the same handshake both ways to give pods cryptographic identity.
 
 📚 **Go deeper:** [../../Networking/11-tls-ssl-encryption-in-transit.md](../../Networking/11-tls-ssl-encryption-in-transit.md), [../../Linux/26-tls-pki-openssl.md](../../Linux/26-tls-pki-openssl.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 5</b> (say it aloud first, then open)</summary>
+
+**Q:** Why is `--insecure` acceptable for `argocd login localhost:8080` (self-signed, port-forward) but `-k` against a production ALB is malpractice? Name the exact check disabled and who could exploit it.
+
+**A:** `--insecure`/`-k` disables **server-certificate verification** — the checks that the presented cert (a) chains to a trusted CA and (b) matches the hostname (and isn't expired). It does **not** disable encryption; the channel is still TLS-encrypted — just **encrypted to an unverified party**.
+
+- **`argocd login localhost:8080`:** you're talking to a **self-signed** service *you* port-forwarded, over loopback — the traffic never leaves your machine, so there's no third party in the path to impersonate the server. Skipping verification is fine: there's literally no one to MITM you on localhost.
+- **`-k` against a production ALB over the internet:** you'd accept **any** cert any interceptor presents. An on-path attacker (rogue Wi-Fi, compromised router, DNS/BGP hijack, malicious proxy) presents their own cert, you "securely" connect to **them**, and they read/modify everything — a man-in-the-middle. The exploiter is anyone who can sit on the network path between you and the real server, which on the public internet is a large, real set.
+
+Encryption without authentication is a private line to a stranger. That's why the mesh (Climb 5's mTLS) authenticates *both* ends by cert.
+
+</details>
 
 ---
 ---
@@ -640,6 +707,19 @@ docker rm -f ui >/dev/null
 
 📚 **Go deeper:** [../../Networking/08-routing-and-forwarding.md](../../Networking/08-routing-and-forwarding.md), [../../Networking/14-nat-and-pat.md](../../Networking/14-nat-and-pat.md), [../../Networking/20-aws-vpc.md](../../Networking/20-aws-vpc.md)
 
+<details>
+<summary><b>✅ Check-yourself answer — Climb 6</b> (say it aloud first, then open)</summary>
+
+**Q:** Why must the NAT Gateway sit in a *public* subnet, and which route breaks if you put it in a private one? Then: which rewrite — S or D — is `-p 8888:8080`?
+
+**A:** The NAT GW's job is to give private instances **outbound internet** by SNAT-ing their traffic out and receiving replies. To reach the internet *itself*, the NAT GW needs a path to the **Internet Gateway** — and only a **public subnet's route table** has `0.0.0.0/0 → IGW`. So it lives in a public subnet (with an Elastic IP) precisely so its own egress goes out the IGW.
+
+Put it in a **private** subnet and that subnet's default route is `0.0.0.0/0 → the NAT GW` (itself) — so the NAT GW would have **no route to the internet**; the broken route is its own `0.0.0.0/0`, which now loops back instead of reaching the IGW. Private instances' egress dies.
+
+Second part: `-p 8888:8080` rewrites the **destination** (host:8888 → container:8080 on the way in) → it's **DNAT**. (SNAT = the NAT GW's outbound *source* rewrite; DNAT = inbound published-port / Service-VIP *destination* rewrite.)
+
+</details>
+
 ---
 ---
 
@@ -736,6 +816,20 @@ kill %1
 > **One sentence:** security groups are stateful allow-lists best written as group-references (the S14 "only from the cluster SG" pattern), NACLs are stateless subnet filters that must handle ephemeral replies explicitly — and "refused vs timeout" tells you in one word whether policy or process is your problem.
 
 📚 **Go deeper:** [../../Networking/17-firewalls-security-groups-nacls.md](../../Networking/17-firewalls-security-groups-nacls.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 7</b> (say it aloud first, then open)</summary>
+
+**Q:** catalog crash-loops with `dial tcp …:3306: i/o timeout`. Timeout, not refused — which three suspects does that word eliminate, and which one does the fix ("SG source = EKS cluster SG") confirm?
+
+**A:** **"Timeout"** (SYN silently dropped, no answer) vs **"refused"** (host reachable, nothing listening, instant RST) is the whole triage. Timeout **eliminates** the three "the path worked and something actively responded" suspects:
+1. **DNS** — a name failure gives "could not resolve," not a timeout on an IP:port; it's already dialing `…:3306`, so the name resolved.
+2. **The DB process down / not listening** — that gives **connection refused**, an instant answer, not silence.
+3. **Wrong port** — also typically refused, not timed out.
+
+What "timeout" *points at* is a **filtering/routing drop** — a firewall silently discarding the SYN. The fix ("SG source = EKS cluster SG") **confirms it was the security group**: the RDS SG wasn't admitting traffic from the cluster (wrong/missing source), so SYNs were dropped → timeout. Referencing the EKS cluster SG (which the node/pod ENIs carry) opens the path → it connects. One word — refused vs timeout — splits "process/port problem" from "filter/route problem."
+
+</details>
 
 ---
 ---
@@ -848,6 +942,19 @@ docker rm -f ingress cat ord >/dev/null; docker network rm l7net >/dev/null; rm 
 
 📚 **Go deeper:** [../../Networking/18-load-balancing.md](../../Networking/18-load-balancing.md), [../../Networking/27-kubernetes-ingress-gateway-api.md](../../Networking/27-kubernetes-ingress-gateway-api.md)
 
+<details>
+<summary><b>✅ Check-yourself answer — Climb 8</b> (say it aloud first, then open)</summary>
+
+**Q:** Intermittent 502s after a deploy, pods "Running." Which two health-check/readiness misconfigs produce this, and why doesn't "Running" exonerate them?
+
+**A:** "Running" only means the container *process started* — it does **not** mean the pod is **Ready** (passing its readiness probe) or that the **ALB's target-group health check** considers it healthy. Three separate gates. Two misconfigs that produce exactly intermittent 502s (502 = the ALB got no valid response from a backend it forwarded to):
+1. **No/incorrect readiness probe (or too-short initialDelay):** the pod joins the target group before the app can actually serve (JVM warming up), so requests routed to it in that window fail → 502. Only *some* pods *some* of the time → intermittent.
+2. **ALB health-check path/port mismatch or loose thresholds:** the check points at the wrong path/port, or lets a not-yet-ready / already-terminating pod flap in and out of the pool → requests hit a target the ALB *thinks* is healthy but isn't → 502. (Deploy-time variant: old pods terminate before draining from the target group — no deregistration delay/preStop — so in-flight requests hit a dying pod.)
+
+"Running" is the weakest signal; **readiness (kubelet/EndpointSlice) AND the ALB's own check must both agree** a pod can serve, or you get exactly these deploy-time intermittent 502s.
+
+</details>
+
 ---
 ---
 
@@ -951,6 +1058,17 @@ sudo ip netns del pod1                             # cleanup
 > **One sentence:** every container/pod is a private network namespace patched to the node by a veth pair — Docker plugs it into a MASQUERADEd bridge, the AWS VPC CNI plugs it into real subnet IPs on ENIs — and sidecars/pods sharing one namespace is what makes localhost-level interception (Istio) possible.
 
 📚 **Go deeper:** [../../Networking/23-container-docker-networking.md](../../Networking/23-container-docker-networking.md), [../../Networking/24-kubernetes-pod-networking-cni.md](../../Networking/24-kubernetes-pod-networking-cni.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 9</b> (say it aloud first, then open)</summary>
+
+**Q:** All five services bind `:8080` without conflict — name the primitive (it's NOT port mapping). Then: why does ALB ip-mode require the VPC CNI's "real IP" property?
+
+**A:** The primitive is the **network namespace**. Each pod (each container) gets its **own private network namespace** with its own `eth0` and its own port space. Port 8080 is unique only *within* a namespace, so five pods each bind `:8080` at once — five separate `:8080`s in five separate network stacks. No collision, and no remapping involved (isolation, not translation).
+
+**ALB ip-mode** registers **pod IPs directly** as targets (ALB → pod IP, skipping the node/NodePort hop). For the ALB to send packets straight to a pod IP, that IP must be **routable inside the VPC** — a real subnet address the ALB's network can reach. The **AWS VPC CNI** gives each pod a real VPC-subnet IP (from the node's ENIs), so pod IPs are first-class VPC addresses. With an overlay CNI (Flannel/Calico VXLAN), pod IPs live on a virtual overlay the ALB can't route to → ip-mode wouldn't work. So ip-mode's "target the pod IP" depends on the CNI's "pods get real, VPC-routable IPs."
+
+</details>
 
 ---
 ---
@@ -1078,6 +1196,19 @@ kubectl delete deployment catalog; kubectl delete svc catalog-service
 > **One sentence:** Services are label-joined VIPs whose endpoint lists absorb pod churn via kube-proxy NAT, Ingress puts one L7 router in front of them, and the mesh puts an L7 router beside *every* pod — so canaries, retries, and mTLS become per-request routing policy instead of infrastructure surgery.
 
 📚 **Go deeper:** [../../Networking/25-kubernetes-services-kube-proxy.md](../../Networking/25-kubernetes-services-kube-proxy.md), [../../Networking/27-kubernetes-ingress-gateway-api.md](../../Networking/27-kubernetes-ingress-gateway-api.md), [../../Networking/29-service-mesh-and-sidecars.md](../../Networking/29-service-mesh-and-sidecars.md), [Istio ladder](../../Istio_Learning_Ladder.md)
+
+<details>
+<summary><b>✅ Check-yourself answer — Climb 10</b> (say it aloud first, then open)</summary>
+
+**Q:** `curl catalog-service` from the ui pod hangs; `kubectl get endpoints catalog-service` shows `<none>`. Which join broke, which two objects do you diff, and why is kube-proxy *not* a suspect yet?
+
+**A:** The broken join is the **label-selector match** between Service and pods. A Service's endpoints are populated by matching `Service.spec.selector` against pod **labels**; `<none>` means **no pods matched** — so there's nothing behind the ClusterIP, and the curl hangs (traffic DNAT'd to an empty backend set → no answer → timeout).
+
+**Diff these two objects:** (1) the **Service's `spec.selector`** and (2) the **pods' `metadata.labels`** (i.e. the Deployment's `spec.template.metadata.labels`). They must match exactly — a typo or mismatched key/value on either side breaks the join.
+
+**Why kube-proxy isn't a suspect yet:** kube-proxy only *programs iptables/IPVS rules from whatever is in EndpointSlices*. Empty endpoints → kube-proxy is faithfully doing nothing (correctly). The failure is **upstream** of it, at the label→endpoint population step, not the NAT-programming step. Fix the labels so endpoints populate; only if endpoints are correct but traffic still fails would you look at kube-proxy.
+
+</details>
 
 ---
 ---
