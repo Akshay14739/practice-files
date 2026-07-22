@@ -7,6 +7,40 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[AWS Console]** = console.aws.amazon.com · **[Editor]** = the YAML files.
 > Three rungs in one section: ① K8s Secrets (and why they're not enough) → ② EKS Pod Identity (how ANY pod gets AWS permissions — the concept the whole course reuses) → ③ credentials mounted straight from AWS Secrets Manager.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│             AWS Secrets Manager  (admin-created secret)              │
+│                                                                      │
+│ catalog-db-secret-1 = { username, password }                         │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  pod mounts a CSI volume
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│        Secrets Store CSI Driver  +  ASCP  (Pod Identity auth)        │
+│                                                                      │
+│ SA → association → IAM role  (no stored keys)                        │
+│ SecretProviderClass: jmesPath splits JSON → files                    │
+└──────────────────────────────────────────────────────────────────────┘
+                       │                        │
+                       ▼                        ▼
+            ┌─────────────────────┐  ┌────────────────────┐
+            │    mounted files    │  │ synced K8s Secret  │
+            │ /mnt/secrets-store/ │  │ catalog-db         │
+            │ USER, PASSWORD      │  │ (created on mount) │
+            └─────────────────────┘  └────────────────────┘
+                                    │  envFrom secretRef
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                        POD  (catalog / mysql)                        │
+│                                                                      │
+│ RETAIL_*_USER / _PASSWORD env — nothing in Git or etcd               │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

@@ -7,6 +7,33 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[AWS Console]** = console.aws.amazon.com · **[Editor]** = the YAML files.
 > Two fixes in order: ① give in-cluster MySQL a real disk (EBS) so data survives pod death → ② admit you shouldn't run databases yourself, and swap to RDS with a one-file DNS trick.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                  StatefulSet  volumeClaimTemplates                   │
+│                                                                      │
+│ one PVC per replica  (data-ebs-…-0)                                  │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  StorageClass ebs-sc · WaitForFirstConsumer
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                    EBS CSI Driver  (Pod Identity)                    │
+│                                                                      │
+│ provisions a gp3 volume IN the pod's AZ → creates a PV → Bound       │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  data survives pod restart
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                     PRODUCTION SWAP → RDS MySQL                      │
+│                                                                      │
+│ ExternalName Service 'catalog-mysql' → RDS endpoint (DNS alias)      │
+│ AWS owns backups/patching/HA — MySQL leaves the cluster              │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

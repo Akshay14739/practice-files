@@ -7,6 +7,39 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = a shell (your laptop, or the EC2 box after you SSH in — each step says which) · **[AWS Console]** = console.aws.amazon.com in the browser · **[Browser]** = the store page you're testing.
 > 💡 **Cheaper option:** every Docker command here runs identically on your own laptop (you installed Docker in S01 §0) — only the EC2 + Security-Group steps disappear. Course-faithful = EC2; zero-cost = laptop. Steps below mark the EC2-only ones.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                   YOU  ([Terminal] laptop or EC2)                    │
+│                                                                      │
+│ docker pull / run / build / push commands                            │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  Docker CLI → Docker daemon
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                DOCKER ENGINE (the daemon on the host)                │
+│                                                                      │
+│ build ─▶ IMAGE (frozen template)   run ─▶ CONTAINER (live)           │
+│ -p 8888:8080  maps host port → container port (needs SG rule too)    │
+└──────────────────────────────────────────────────────────────────────┘
+             │                     │                      │
+             ▼                     ▼                      ▼
+   ┌──────────────────┐  ┌───────────────────┐  ┌──────────────────┐
+   │   docker pull    │  │     docker run    │  │   docker push    │
+   │ image ← registry │  │ container ← image │  │ image → registry │
+   └──────────────────┘  └───────────────────┘  └──────────────────┘
+                                    │  push / pull
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                   DOCKER HUB / ghcr.io  (registry)                   │
+│                                                                      │
+│ stores images by  <user>/<name>:<tag>                                │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

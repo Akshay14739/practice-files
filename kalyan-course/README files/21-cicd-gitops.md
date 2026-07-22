@@ -12,6 +12,41 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[GitHub]** = github.com in the browser · **[AWS Console]** = console.aws.amazon.com · **[Browser]** = the Argo CD UI + the store.
 > The finale's one idea: **CI never touches the cluster, CD never builds anything — Git is the only interface.** A push builds an image (GitHub Actions→ECR) and writes its tag into a values file; Argo CD, living IN the cluster, notices and syncs.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│             DEV  git push  (change to source/ui/src/**)              │
+│                                                                      │
+│ ./git-pull.sh first — remote is ahead!                               │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  triggers
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                         CI — GitHub Actions                          │
+│                                                                      │
+│ OIDC → AWS (no stored keys) → build → push ECR (sha-xxxxxxx)         │
+│ sed the new tag into values-ui.yaml → commit as ci-bot               │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  Git is the ONLY handoff (no cluster access)
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│           CD — Argo CD  (runs IN the cluster, pull model)            │
+│                                                                      │
+│ polls ~3 min → diff Git vs live → SYNC (rolling update)              │
+│ prune · selfHeal (reverts kubectl edits) · rollback = git revert     │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│            EKS CLUSTER matches Git  →  browser shows V904            │
+│                                                                      │
+│ nobody touched the cluster by hand                                   │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

@@ -7,6 +7,40 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your shell (laptop Docker or the S02 EC2 box — both work identically here) · **[Browser]** = the app pages you'll check.
 > The whole section is one loop: build the image fresh, prove what's inside it, rebuild to see the cache magic, then clean up the debris.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│          BUILD CONTEXT  (the '.' you pass to docker build)           │
+│                                                                      │
+│ src/ui/  +  Dockerfile   (.dockerignore trims it)                    │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  docker build
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│      STAGE 1 — build-env  (fat: Amazon Linux + JDK 21 + Maven)       │
+│                                                                      │
+│ COPY pom.xml → mvn dependency:go-offline   ← cached layer            │
+│ COPY src → mvn package → app.jar                                     │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  COPY --from=build-env  (only the jar crosses)
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│        STAGE 2 — package  (slim: JRE only, non-root appuser)         │
+│                                                                      │
+│ app.jar + USER appuser (uid 1000) + EXPOSE 8080                      │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                             FINAL IMAGE                              │
+│                                                                      │
+│ small · no Maven/source · non-root · layer-cached (95s → 0.02s)      │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

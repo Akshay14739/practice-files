@@ -12,6 +12,39 @@
 > Read this guide first; dive into the numbered sections after — this section redeploys the whole retail store as five Helm commands: two scripts rebuild the cluster and the AWS data plane, then values files + `helm upgrade --install` replace the ~30 raw YAMLs of S18 — first with passwords in values (v1.0.0), then pulled from Secrets Manager (v2.0.0).
 > Tags used below: **[Terminal]** = your Ubuntu laptop's shell · **[Editor]** = editing values-*.yaml files (VS Code) · **[AWS Console]** = console.aws.amazon.com in the browser · **[Browser]** = the retail-store app pages.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│          2 scripts: create-cluster  +  create-aws-dataplane          │
+│                                                                      │
+│ rebuild the whole platform + RDS/DynamoDB/Redis/SQS                  │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  paste terraform output → values-*.yaml
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│              5 ×  helm upgrade --install  (idempotent)               │
+│                                                                      │
+│ catalog carts checkout orders ui  ·  values carry HPA/PDB/TSC        │
+└──────────────────────────────────────────────────────────────────────┘
+                       │                     │
+                       ▼                     ▼
+               ┌───────────────┐  ┌─────────────────────┐
+               │ v1.0.0 charts │  │    v2.0.0 charts    │
+               │ password in   │  │ SecretProviderClass │
+               │ values (hack) │  │ → Secrets Manager   │
+               └───────────────┘  └─────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│         STORE running from charts  (helm status = one view)          │
+│                                                                      │
+│ teardown STRICT: apps → data plane → cluster                         │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

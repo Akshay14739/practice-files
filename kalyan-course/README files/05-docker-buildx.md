@@ -7,6 +7,40 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = a shell (each step says WHICH machine: the amd64 build VM, the arm64 test VM, or your laptop) · **[AWS Console]** = console.aws.amazon.com · **[Browser]** = Docker Hub / the app.
 > ⏳ **Plan your session:** the first multi-arch build takes **37–50 minutes** (emulation is slow — that's the lesson, not a bug). Start it, take a break, come back.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│            SOURCE + Dockerfile  (on the amd64 build box)             │
+│                                                                      │
+│ docker buildx build --platform linux/amd64,linux/arm64 --push        │
+└──────────────────────────────────────────────────────────────────────┘
+                          │                  │
+                          ▼                  ▼
+                   ┌─────────────┐   ┌──────────────┐
+                   │ amd64 stage │   │ arm64 stage  │
+                   │ native      │   │ QEMU emul.   │
+                   │ (fast)      │   │ (5-10x slow) │
+                   └─────────────┘   └──────────────┘
+                                    │  --push  (both variants)
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                DOCKER HUB — ONE tag = a MANIFEST LIST                │
+│                                                                      │
+│ 1.0.0 → { linux/amd64 image , linux/arm64 image }                    │
+└──────────────────────────────────────────────────────────────────────┘
+                        │                      │
+                        ▼                      ▼
+              ┌──────────────────┐   ┌──────────────────┐
+              │ amd64 host pulls │   │ arm64 host pulls │
+              │ → gets amd64     │   │ → gets arm64     │
+              └──────────────────┘   └──────────────────┘
+
+  pull auto-selects the variant matching the host's CPU (uname -m)
+```
+
 ### Where you are in the course
 
 ```

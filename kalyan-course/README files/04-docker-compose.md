@@ -7,6 +7,37 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your shell (laptop or the EC2 box) · **[Editor]** = editing docker-compose.yaml (VS Code/vi) · **[Browser]** = the store at :8888.
 > The big idea: one YAML file + one command replaces ten `docker run` commands — and databases start BEFORE the apps that need them, automatically.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│              docker-compose.yaml  +  export DB_PASSWORD              │
+│                                                                      │
+│ one file declares 10 containers on ONE shared network                │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  docker compose up -d
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│              STARTUP ORDER  (depends_on + healthchecks)              │
+│                                                                      │
+│ 1. DB tier starts:  catalog-db carts-db redis postgres rabbitmq      │
+│ 2. each app starts when its DB is HEALTHY                            │
+│ 3. ui starts only after all 4 apps are healthy                       │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  only ui publishes 8888:8080
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│        BROWSER → localhost:8888 → ui → 4 apps → their stores         │
+│                                                                      │
+│ every backend has ports: []  (internal-only, by design)              │
+└──────────────────────────────────────────────────────────────────────┘
+
+  Edit env → stop/start does NOTHING (frozen copy);
+  must:  docker compose up -d --force-recreate <svc>
+```
+
 ### Where you are in the course
 
 ```

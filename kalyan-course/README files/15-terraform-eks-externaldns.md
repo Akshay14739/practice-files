@@ -12,6 +12,39 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = VS Code on the .tf files · **[AWS Console]** = console.aws.amazon.com.
 > One sentence: install a robot (ExternalDNS) that watches your Ingresses and writes Route 53 records for `*.devopsinminutes.com` automatically — 3 new .tf files, 4 new resources, done.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│              Ingress / Service  +  hostname annotation               │
+│                                                                      │
+│ external-dns.alpha.kubernetes.io/hostname: x.devopsinminutes.com     │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  watched every ~60s
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│             ExternalDNS pod  (EKS add-on, Pod Identity)              │
+│                                                                      │
+│ +3 .tf files on top of S13 · reuses shared trust doc                 │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  ChangeResourceRecordSets
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│              Route 53 hosted zone (devopsinminutes.com)              │
+│                                                                      │
+│ A/Alias record → the ALB   +   TXT ownership record                  │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                BROWSER resolves the name → ALB → app                 │
+│                                                                      │
+│ default policy upsert-only: deletes are NOT automatic                │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

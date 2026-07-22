@@ -12,6 +12,33 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = YAML/tf edits · **[Browser]** = the store via its ALB.
 > S17 taught the cluster to grow NODES; this section teaches each service to grow PODS — and you'll fire the whole chain live: utilization climbs → HPA adds pods → pods Pending → Karpenter births nodes.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│             metrics-server  (EKS add-on)  → kubectl top              │
+│                                                                      │
+│ scrapes every pod's live CPU / memory                                │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  feeds every ~15s
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│          HPA loop (v2)  desired = ceil(cur × actual/target)          │
+│                                                                      │
+│ per service: min 3 / max 12 · CPU 70% · mem 80% · behavior           │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  sets Deployment replicas
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│        MORE PODS → some Pending → Karpenter adds NODES (S17)         │
+│                                                                      │
+│ PDB minAvailable:2  ·  topologySpread across nodes+AZs               │
+│ DoNotSchedule + Karpenter = exactly 1 pod per AZ                     │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

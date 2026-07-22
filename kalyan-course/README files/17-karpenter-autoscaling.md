@@ -12,6 +12,39 @@
 > Read this guide first; dive into the numbered sections after. In this section you install Karpenter — a controller that creates and deletes EC2 worker nodes by itself — then watch it birth nodes in ~60 s, shrink them away, and survive a fake Spot reclaim with zero downtime.
 > Tags used below: **[Terminal]** = your Ubuntu laptop's shell · **[Editor]** = editing YAML/tf (VS Code) · **[AWS Console]** = console.aws.amazon.com in the browser.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│      PODS that don't fit  (Pending — no room on current nodes)       │
+│                                                                      │
+│ e.g. HPA just added replicas                                         │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  Karpenter watches Pending pods
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│        KARPENTER controller  (reads NodePool + EC2NodeClass)         │
+│                                                                      │
+│ picks the cheapest instance/AZ that fits the pending pods            │
+└──────────────────────────────────────────────────────────────────────┘
+                          │                   │
+                          ▼                   ▼
+                 ┌────────────────┐   ┌───────────────┐
+                 │ on-demand pool │   │   spot pool   │
+                 │ revenue path   │   │ ~70% cheaper  │
+                 └────────────────┘   │ 2-min reclaim │
+                                      └───────────────┘
+                                    │  births real EC2 nodes in ~60s
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│      NEW NODES join → pods schedule → load drops → CONSOLIDATE       │
+│                                                                      │
+│ PDB caps evictions · spot interruption handled gracefully            │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

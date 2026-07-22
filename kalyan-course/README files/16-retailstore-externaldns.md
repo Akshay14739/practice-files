@@ -18,6 +18,39 @@ Serve the full retail store (UI + 4 microservices + AWS data plane) on **your ow
 
 ---
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│     GoDaddy (registrar)  — nameservers → Route 53  [§5.5, once]      │
+│                                                                      │
+│ devopsinminutes.com now answered by your hosted zone                 │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  ACM cert (DNS-validated) + 2 Ingresses
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                AWS Load Balancer Controller → 2 ALBs                 │
+│                                                                      │
+│ retail-store1 (HTTP)   ·   retail-store3 (HTTPS + ssl-redirect)      │
+└──────────────────────────────────────────────────────────────────────┘
+                          │                 │
+                          ▼                 ▼
+                   ┌─────────────┐   ┌─────────────┐
+                   │ ExternalDNS │   │   ACM cert  │
+                   │ → Route 53  │   │ on :443     │
+                   │ A records   │   │ auto-renews │
+                   └─────────────┘   └─────────────┘
+                                    │  browser
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│             https://retail-store3.devopsinminutes.com 🔒              │
+│                                                                      │
+│ padlock · HTTP→HTTPS · full purchase works                           │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ## 2. Problem Statement
 
 After Section 14 the app works — but users reach it at `k8s-default-retailst-xxxxxxxxxx.us-east-1.elb.amazonaws.com`, over plain HTTP. No real product ships like that: you need a human-readable domain (marketing, cookies, OAuth redirect URIs all depend on it) and TLS (browsers mark HTTP "Not secure"; checkout forms over HTTP are unacceptable). Doing DNS by hand re-introduces exactly the toil Section 15 eliminated, and running your own TLS means certificate renewal pain — unless ACM does it.

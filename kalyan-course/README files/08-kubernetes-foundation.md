@@ -7,6 +7,36 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell (kubectl talks to the EKS cluster from here) · **[Editor]** = the YAML files in VS Code · **[Browser]** = the catalog app via port-forward.
 > This is THE core Kubernetes section. One microservice (catalog) meets five resource kinds, each solving one failure of the previous: Pod → Deployment → Service → ConfigMap → StatefulSet.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                     kubectl apply -f <manifests>                     │
+│                                                                      │
+│ Pod → Deployment → Service → ConfigMap → StatefulSet                 │
+└──────────────────────────────────────────────────────────────────────┘
+                         │                      │
+                         ▼                      ▼
+              ┌────────────────────┐  ┌──────────────────┐
+              │     Deployment     │  │  ClusterIP Svc   │
+              │ → ReplicaSet       │  │ selector→labels  │
+              │ → Pods (self-heal, │  │ →EndpointSlices  │
+              │   rolling update)  │  │ → stable name/IP │
+              └────────────────────┘  └──────────────────┘
+
+                  │                          │
+                  ▼                          ▼
+          ┌───────────────┐  ┌──────────────────────────────┐
+          │   ConfigMap   │  │  StatefulSet + headless svc  │
+          │ envFrom →     │  │ ordered pods catalog-mysql-0 │
+          │ container env │  │ per-pod DNS (the DB master)  │
+          └───────────────┘  └──────────────────────────────┘
+
+  test:  kubectl port-forward svc/catalog-service 7080:8080 → /topology
+```
+
 ### Where you are in the course
 
 ```

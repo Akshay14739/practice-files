@@ -6,6 +6,41 @@
 
 > This section has no commands to run — it's the map of the app you'll deploy 22 different ways. So this guide does the one thing you SHOULD do before Section 02: **install and verify every tool the whole course needs, once**. Tags used in every file's §0: **[Terminal]** = your Ubuntu laptop's shell · **[Editor]** = editing a file in VS Code · **[AWS Console]** = console.aws.amazon.com in the browser · **[Browser]** = any other web page.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                            USER (browser)                            │
+│                                                                      │
+│ Shops the retail store                                               │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  HTTP
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                        UI  (Java Spring Boot)                        │
+│                                                                      │
+│ The web front end — calls the four APIs below                        │
+└──────────────────────────────────────────────────────────────────────┘
+        │                │                 │                  │
+        ▼                ▼                 ▼                  ▼
+┌──────────────┐ ┌──────────────┐ ┌─────────────────┐ ┌───────────────┐
+│ catalog (Go) │ │ carts (Java) │ │ checkout (Node) │ │ orders (Java) │
+│ browse       │ │ add          │ │ pay             │ │ buy           │
+└──────────────┘ └──────────────┘ └─────────────────┘ └───────────────┘
+
+            │             │             │                │
+            ▼             ▼             ▼                ▼
+      ┌───────────┐ ┌──────────┐ ┌─────────────┐ ┌──────────────┐
+      │ RDS MySQL │ │ DynamoDB │ │ ElastiCache │ │ RDS Postgres │
+      │ products  │ │ cart     │ │ Redis cache │ │ + SQS event  │
+      └───────────┘ └──────────┘ └─────────────┘ └──────────────┘
+
+  (orders writes TWICE on purpose: durable row in Postgres  +  event to SQS
+   so future inventory/delivery services can react — DB + event pattern)
+```
+
 ### Where you are in the course
 
 ```

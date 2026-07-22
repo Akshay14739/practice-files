@@ -13,6 +13,39 @@
 > One idea: instrument NOTHING in the app code — an operator injects the OpenTelemetry SDK via one annotation, and three "collector" pipelines ship traces→X-Ray, logs→CloudWatch, metrics→Prometheus/Grafana.
 > 💰 **Read before starting:** the Grafana (AMG) user costs **$9 the moment you associate it** — the instructor says *watch that part, don't do it*. The free self-hosted alternative is [Section 20.5](20.5-observability-prometheus-grafana.md) — consider doing 20.5 hands-on and this one read-only.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│        RETAIL PODS  (OTel SDK auto-injected by 1 annotation)         │
+│                                                                      │
+│ no application code change                                           │
+└──────────────────────────────────────────────────────────────────────┘
+               │                   │                   │
+               ▼                   ▼                   ▼
+     ┌──────────────────┐ ┌────────────────┐ ┌───────────────────┐
+     │ traces collector │ │ logs collector │ │ metrics collector │
+     │ Deployment       │ │ DaemonSet      │ │ Deployment        │
+     │ OTLP in          │ │ tails /var/log │ │ 9 scrape jobs     │
+     └──────────────────┘ └────────────────┘ └───────────────────┘
+
+                   │               │                │
+                   ▼               ▼                ▼
+             ┌───────────┐ ┌───────────────┐ ┌────────────┐
+             │ AWS X-Ray │ │   CloudWatch  │ │ AMP (Prom) │
+             │ trace map │ │ Logs Insights │ │ metrics    │
+             └───────────┘ └───────────────┘ └────────────┘
+                                    │  data source
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│         Amazon Managed Grafana  (💰 $9/user)  dashboard 15661         │
+│                                                                      │
+│ free self-hosted alternative → Section 20.5                          │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

@@ -10,6 +10,33 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[AWS Console]** = console.aws.amazon.com · **[Editor]** = pasting endpoints into YAML · **[Browser]** = the store + `/topology`.
 > This is the course's **capstone integration**: every microservice gets a REAL AWS backend (RDS ×2, DynamoDB, ElastiCache, SQS), with zero credentials in YAML. Two halves: 1401 Terraform builds the data plane; 1402 deploys the services one by one while you watch `/topology` go green.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│         Secrets Manager secret (manual)  +  terraform apply          │
+│                                                                      │
+│ data plane: ~24 resources in ~12 min                                 │
+└──────────────────────────────────────────────────────────────────────┘
+          │               │               │                │
+          ▼               ▼               ▼                ▼
+    ┌───────────┐ ┌──────────────┐ ┌─────────────┐ ┌──────────────┐
+    │ RDS MySQL │ │   DynamoDB   │ │ ElastiCache │ │ RDS PG + SQS │
+    │ catalog   │ │ carts        │ │ checkout    │ │ orders       │
+    └───────────┘ │ (us-west-2!) │ └─────────────┘ └──────────────┘
+                  └──────────────┘
+                                    │  paste terraform output endpoints
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│           5 MICROSERVICES wired  (zero passwords in YAML)            │
+│                                                                      │
+│ catalog→ExternalName  ·  carts/checkout/orders→ConfigMap             │
+│ secrets via CSI+PodIdentity  ·  deploy ui first, /topology → green   │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

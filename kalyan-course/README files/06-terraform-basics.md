@@ -7,6 +7,40 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your Ubuntu laptop's shell (Terraform runs from your LAPTOP now, not the EC2 box) · **[Editor]** = VS Code editing .tf files · **[AWS Console]** = console.aws.amazon.com (mostly for VERIFYING — Terraform does the creating).
 > This is the biggest section (~5.4 h). Do it as 4 sittings: ① S3-bucket starter → ② the VPC → ③ state & precedence → ④ remote backend + modules.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                 .tf FILES  ([Editor] on your laptop)                 │
+│                                                                      │
+│ HCL: resource/variable/module blocks                                 │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  terraform init → validate → plan → apply
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                  TERRAFORM CLI  +  provider plugin                   │
+│                                                                      │
+│ plan = diff( desired .tf , actual STATE )                            │
+└──────────────────────────────────────────────────────────────────────┘
+                         │                   │
+                         ▼                   ▼
+                 ┌──────────────┐   ┌────────────────┐
+                 │  STATE (S3)  │   │    AWS API     │
+                 │ memory +     │   │ create/        │
+                 │ .tflock lock │   │ update/destroy │
+                 └──────────────┘   └────────────────┘
+                                    │  builds the course VPC
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                           VPC 10.0.0.0/16                            │
+│                                                                      │
+│ public  10.0.1/2.0/24  → IGW      (ALB, NAT GW live here)            │
+│ private 10.0.11/12.0/24 → NAT GW  (worker nodes / pods)              │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

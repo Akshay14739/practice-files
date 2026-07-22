@@ -10,6 +10,41 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = VS Code on the .tf files · **[AWS Console]** = console.aws.amazon.com.
 > The whole section is one idea: everything you installed BY HAND in S09–11 (add-ons, Helm charts, IAM) becomes code, so one `terraform apply` = a complete platform.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│                ONE  terraform apply  (~33 resources)                 │
+│                                                                      │
+│ S07 cluster  +  everything you used to install by hand               │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  providers wired to the cluster it's creating
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                       EKS CLUSTER + NODE GROUP                       │
+│                                                                      │
+│ then, in dependency order:                                           │
+└──────────────────────────────────────────────────────────────────────┘
+                   │                 │               │
+                   ▼                 ▼               ▼
+            ┌─────────────┐  ┌───────────────┐  ┌─────────┐
+            │  PIA agent  │  │      LBC      │  │ EBS CSI │
+            │ (auth base) │  │ (Ingress→ALB) │  │ (disks) │
+            └─────────────┘  └───────────────┘  └─────────┘
+
+                         │                    │
+                         ▼                    ▼
+                ┌─────────────────┐   ┌───────────────┐
+                │   Secrets CSI   │   │      ASCP     │
+                │ syncSecret=true │   │ (Secrets Mgr) │
+                └─────────────────┘   └───────────────┘
+
+  rule: AWS managed add-on → aws_eks_addon ; else → helm_release
+  depends_on REVERSES on destroy (LBC dies last → cleans up ALBs)
+```
+
 ### Where you are in the course
 
 ```

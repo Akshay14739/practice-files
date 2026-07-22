@@ -8,6 +8,33 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = VS Code on the .tf files · **[AWS Console]** = console.aws.amazon.com (for verifying).
 > Nothing new to WRITE here — you review two ready Terraform projects (the S06 VPC + a new EKS one), apply them, and connect kubectl. The skill is reading the pieces and knowing why each exists.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│               VPC PROJECT (S06)  →  state key vpc/dev                │
+│                                                                      │
+│ outputs: vpc_id, private_subnet_ids                                  │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  remote-state datasource reads outputs
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│            EKS PROJECT  (terraform apply, ~21 resources)             │
+│                                                                      │
+│ IAM roles (cluster + node)  ·  subnet tags for LBs                   │
+│ aws_eks_cluster  +  managed node group in PRIVATE subnets            │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  aws eks update-kubeconfig
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│           EKS CONTROL PLANE (AWS-run)  ◄──►  kubectl (you)           │
+│                                                                      │
+│ 3 worker nodes · internal IPs only · kube-system pods                │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

@@ -8,6 +8,40 @@
 > Read this guide first; dive into the numbered sections after — it takes one small app (the store's UI) through Helm's whole life: install, upgrade, roll back, uninstall, then modify and publish your own chart version.
 > Tags used below: **[Terminal]** = your Ubuntu laptop's shell · **[Editor]** = editing values-ui.yaml / chart files (VS Code) · **[AWS Console]** = console.aws.amazon.com in the browser · **[Browser]** = the retail-store UI (localhost:3080 or the ALB URL).
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│       CHART  (templates + values.yaml)  ◄── OCI registry (ECR)       │
+│                                                                      │
+│ helm pull / install oci://…                                          │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  helm install/upgrade -f values-ui.yaml
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│        HELM  (merges values < -f < --set → renders templates)        │
+│                                                                      │
+│ values.yaml  <  custom file  <  --set   (last wins)                  │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  applies plain K8s YAML
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│                RELEASE 'ui'  →  revisions 1 → 2 → 3 …                │
+│                                                                      │
+│ helm upgrade (rev++) · rollback · uninstall · helm status            │
+│ ⚠ values-only change bumps revision but NEEDS rollout restart        │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  helm package + push
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│              YOUR chart in private ECR  (version 1.3.1)              │
+│                                                                      │
+│ chart version ≠ image tag                                            │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

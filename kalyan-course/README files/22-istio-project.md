@@ -15,6 +15,38 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[Editor]** = the mesh YAML (folders 00–08) · **[Browser]** = the store at `https://retail-store.devopsinminutes.com` + the Kiali dashboard.
 > The capstone's one idea: put a smart proxy (Envoy) BESIDE every pod, and suddenly encryption, canaries, retries, and access policy are platform YAML — zero app-code changes. Before starting, climb the [Istio Learning Ladder](../../Istio_Learning_Ladder.md) and [00B Climb 10](00B-networking-foundations-learning-ladder.md) — the mesh makes sense in one pass if the sidecar model already does.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│        istioctl install  +  label ns istio-injection=enabled         │
+│                                                                      │
+│ every pod becomes 2/2 → app + Envoy sidecar                          │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  istiod pushes rules + certs to every Envoy
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│         ISTIO CONTROL PLANE (istiod)  →  Envoy in every pod          │
+│                                                                      │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+                  │                 │                │
+                  ▼                 ▼                ▼
+          ┌──────────────┐ ┌────────────────┐ ┌─────────────┐
+          │ mTLS STRICT  │ │ VirtualService │ │ AuthzPolicy │
+          │ encrypt +    │ │ 90/10 canary   │ │ deny-all +  │
+          │ authenticate │ │ x-canary hdr   │ │ allow paths │
+          └──────────────┘ └────────────────┘ └─────────────┘
+
+┌──────────────────────────────────────────────────────────────────────┐
+│       EDGE: Gateway → NLB → HTTPS  (ACM + ExternalDNS reused)        │
+│                                                                      │
+│ retail-store.devopsinminutes.com  ·  Kiali = live service map        │
+└──────────────────────────────────────────────────────────────────────┘
+```
+
 ### Where you are in the course
 
 ```

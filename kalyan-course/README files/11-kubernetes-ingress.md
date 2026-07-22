@@ -7,6 +7,41 @@
 > Read this guide first; dive into the numbered sections after. Tags: **[Terminal]** = your laptop's shell · **[AWS Console]** = console.aws.amazon.com · **[Editor]** = the YAML files · **[Browser]** = the store via the ALB.
 > Until now only `port-forward` reached the app. This section gives it a real front door: an ALB built FROM Ingress YAML by a controller — plus HTTPS. Good news: the "watch-only if you don't own a domain" caveat doesn't apply to you — you own `devopsinminutes.com` (set up in [16 §5.5](16-retailstore-externaldns.md)), so you can do the HTTPS demo hands-on.
 
+### 📊 The whole section at a glance — components & workflow
+
+*Read top to bottom; boxes are components, arrows are the flow (the same shape as your terminal→shell→fork diagram).*
+
+```
+┌──────────────────────────────────────────────────────────────────────┐
+│           Ingress YAML  (annotations = ALL the ALB config)           │
+│                                                                      │
+│ ingressClassName: alb  ·  scheme  ·  target-type  ·  cert-arn        │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  watched by
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│             AWS Load Balancer Controller  (Pod Identity)             │
+│                                                                      │
+│ provisions / updates / deletes the ALB to match                      │
+└──────────────────────────────────────────────────────────────────────┘
+                                    │  creates
+                                    ▼
+┌──────────────────────────────────────────────────────────────────────┐
+│            ALB  (listeners :80 / :443  +  target groups)             │
+│                                                                      │
+│                                                                      │
+└──────────────────────────────────────────────────────────────────────┘
+                           │                    │
+                           ▼                    ▼
+                 ┌───────────────────┐   ┌────────────┐
+                 │   instance mode   │   │  ip mode   │
+                 │ ALB→node:NodePort │   │ ALB→pod IP │
+                 │ → pod             │   │ (VPC CNI)  │
+                 └───────────────────┘   └────────────┘
+
+  HTTPS: ACM cert on :443  +  ssl-redirect  +  Route 53 alias record
+```
+
 ### Where you are in the course
 
 ```
