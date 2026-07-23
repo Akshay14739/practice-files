@@ -618,3 +618,325 @@ If either felt shaky on its check-yourself question, that's your next 30-minute 
 **Q:** A teammate says "we have AppArmor denying writes to `/etc`, so we don't need seccomp." What class of attack does AppArmor leave open that RuntimeDefault seccomp would close?
 
 **A:** Kernel-exploit attacks through syscalls that never touch a file path. AppArmor is object-oriented MAC — it gates access to files (by path), ports, and capabilities — but it does not reason in terms of syscall numbers, so a process can still *utter* `mount`, `keyctl`, `bpf`, `kexec_load`, `init_module`, `userfaultfd`, and friends. A kernel bug behind one of those (a `keyctl` or bpf-verifier CVE) is a container escape that involves no `/etc` write at all, so the AppArmor policy never fires. RuntimeDefault seccomp closes this class by keeping those ~44 dangerous syscalls off its allow-list entirely — the syscall is denied at the entry gate before any kernel handler (and any AppArmor hook) runs. The layers are complementary: LSMs gate objects, seccomp shrinks the raw syscall surface.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. These scenarios use **systemd's `SystemCallFilter=`** (the same libseccomp → BPF machinery Kubernetes uses, minus a cluster) plus `strace`. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Arequipa: is this service actually confined?" (Easy)
+**Setup:**
+```bash
+sudo tee /etc/systemd/system/lab-arequipa.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Arequipa - confined sleeper
+[Service]
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+ExecStart=/bin/sleep 3600
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-arequipa.service
+```
+**Situation:** An audit asks you to prove, from the kernel's own view rather than the unit file, whether `lab-arequipa` runs with a seccomp filter installed. `kubectl`-style YAML reading is not enough — you need the ground truth from `/proc`.
+
+**Your task:** Read the seccomp **mode integer** of the service's main process and state whether a filter is active.
+
+**Verify:**
+```bash
+PID=$(systemctl show -p MainPID --value lab-arequipa.service)
+grep Seccomp /proc/$PID/status
+# expected: Seccomp:  2   (filter mode = a BPF filter is installed)
+```
+
+### 🟢 Scenario 2 — "Salvador: turn the filter on" (Easy)
+**Setup:**
+```bash
+sudo tee /etc/systemd/system/lab-salvador.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Salvador - unconfined sleeper
+[Service]
+ExecStart=/bin/sleep 3600
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-salvador.service
+PID=$(systemctl show -p MainPID --value lab-salvador.service)
+grep Seccomp /proc/$PID/status   # Seccomp:  0   (no filter — full syscall surface)
+```
+**Situation:** The audit finding says `lab-salvador` runs with the **full, unfiltered kernel syscall surface** (`Seccomp: 0`) — exactly the "runtime default is not enforced" problem. Your lead wants a seccomp filter enforced on it using systemd's built-in mechanism, without rewriting the app.
+
+**Your task:** Add a system-call filter to the unit so the service's process reports **filter mode**, then reload and restart and confirm.
+
+**Verify:**
+```bash
+PID=$(systemctl show -p MainPID --value lab-salvador.service)
+grep Seccomp /proc/$PID/status
+# expected: Seccomp:  2
+```
+
+### 🟡 Scenario 3 — "Recife: the service that dies the instant it works" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-recife
+sudo tee /opt/lab-recife/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo "starting"
+mkdir -p /opt/lab-recife/workdir
+echo "made workdir"
+sleep 3600
+EOF
+sudo chmod +x /opt/lab-recife/run.sh
+sudo tee /etc/systemd/system/lab-recife.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Recife - over-filtered service
+[Service]
+SystemCallFilter=@system-service
+SystemCallFilter=~mkdir mkdirat
+ExecStart=/opt/lab-recife/run.sh
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-recife.service 2>/dev/null || true
+sleep 1
+systemctl status lab-recife.service --no-pager | tail -n 6
+# Main process exited, code=killed, status=31/SYS
+```
+**Situation:** `lab-recife` starts, logs "starting", and then instantly dies. `systemctl status` shows `status=31/SYS` — killed by `SIGSYS`. There is no stack trace and no errno in the app log: a seccomp filter is *killing* the process the moment it makes one particular syscall.
+
+**Your task:** Determine **which** system call the filter is killing the process for, then adjust the unit so the service runs to completion (reaches "made workdir" and stays up). Keep a seccomp filter in place.
+
+**Verify:**
+```bash
+systemctl is-active lab-recife.service      # expected: active
+test -d /opt/lab-recife/workdir && echo OK  # expected: OK
+```
+
+### 🟡 Scenario 4 — "Manaus: crash-loop vs graceful deny" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-manaus
+sudo tee /opt/lab-manaus/app.py >/dev/null <<'EOF'
+#!/usr/bin/env python3
+import os, time
+while True:
+    try:
+        os.mkdir("/opt/lab-manaus/probe")
+        print("mkdir ok", flush=True)
+        os.rmdir("/opt/lab-manaus/probe")
+    except OSError as e:
+        print("mkdir refused: %s (still running)" % e, flush=True)
+    time.sleep(3)
+EOF
+sudo tee /etc/systemd/system/lab-manaus.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Manaus - crash loop on a blocked syscall
+[Service]
+Restart=always
+RestartSec=1
+SystemCallFilter=@system-service
+SystemCallFilter=~mkdir mkdirat
+ExecStart=/usr/bin/python3 /opt/lab-manaus/app.py
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-manaus.service
+sleep 5
+systemctl show -p NRestarts --value lab-manaus.service   # a climbing number — it is crash-looping
+```
+**Situation:** `lab-manaus` was *written* to tolerate a blocked `mkdir` — it catches the exception and keeps looping. But in production it's crash-looping instead: `NRestarts` keeps climbing. The seccomp action is **killing** the process (uncatchable `SIGSYS`), so the app never gets a chance to handle the error.
+
+**Your task:** Change the seccomp configuration so a blocked `mkdir` **returns an error to the app** (which it catches) instead of killing it. The service must stop restarting, stay up, and log "mkdir refused ... still running".
+
+**Verify:**
+```bash
+sudo systemctl restart lab-manaus.service
+sleep 8
+journalctl -u lab-manaus.service --no-pager | tail -n 3
+systemctl is-active lab-manaus.service
+# expected: log shows "mkdir refused ... still running"; is-active = active; NRestarts stops climbing
+```
+
+### 🟠 Scenario 5 — "Cali: build the allow-list from a trace" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-cali
+sudo tee /opt/lab-cali/app.py >/dev/null <<'EOF'
+#!/usr/bin/env python3
+import socket
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind(("127.0.0.1", 8089))   # network work
+s.close()
+with open("/opt/lab-cali/done", "w") as f:   # filesystem work
+    f.write("completed\n")
+print("app finished")
+EOF
+sudo tee /etc/systemd/system/lab-cali.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Cali - incomplete whitelist
+[Service]
+Type=oneshot
+SystemCallFilter=@basic-io @process @signal
+ExecStart=/usr/bin/python3 /opt/lab-cali/app.py
+UNIT
+sudo systemctl daemon-reload
+sudo rm -f /opt/lab-cali/done
+sudo systemctl start lab-cali.service 2>/dev/null || true
+sleep 1
+systemctl status lab-cali.service --no-pager | tail -n 6
+test -f /opt/lab-cali/done && echo "done exists" || echo "app did NOT finish"
+```
+**Situation:** `lab-cali` is a batch job hardened with a **hand-picked** seccomp allow-list, but it dies before producing its output file `/opt/lab-cali/done` — killed by `SIGSYS`. The author guessed the needed syscall groups (`@basic-io @process @signal`) and guessed wrong: the job also opens a socket and writes a file.
+
+**Your task:** Use `strace` to *discover* the system calls the app truly makes, then correct the `SystemCallFilter=` allow-list so the job completes and writes `/opt/lab-cali/done` — while keeping it a **deny-by-default whitelist** (do **not** switch to allow-all or a blacklist).
+
+**Verify:**
+```bash
+sudo systemctl daemon-reload
+sudo rm -f /opt/lab-cali/done
+sudo systemctl restart lab-cali.service
+sleep 2
+test -f /opt/lab-cali/done && cat /opt/lab-cali/done
+# expected: completed
+```
+
+### 🔴 Scenario 6 — "Guayaquil: keep it serving, wall off the dangerous syscalls" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-guayaquil
+sudo tee /opt/lab-guayaquil/server.py >/dev/null <<'EOF'
+#!/usr/bin/env python3
+from http.server import BaseHTTPRequestHandler, HTTPServer
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200); self.end_headers(); self.wfile.write(b"ok\n")
+    def log_message(self, *a): pass
+HTTPServer(("127.0.0.1", 8088), H).serve_forever()
+EOF
+sudo tee /etc/systemd/system/lab-guayaquil.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Guayaquil - under-hardened web service
+[Service]
+ExecStart=/usr/bin/python3 /opt/lab-guayaquil/server.py
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-guayaquil.service
+sleep 1
+PID=$(systemctl show -p MainPID --value lab-guayaquil.service)
+grep Seccomp /proc/$PID/status   # Seccomp:  0   (no filter at all)
+curl -s http://127.0.0.1:8088/   # ok
+```
+**Situation:** `lab-guayaquil` serves HTTP on `127.0.0.1:8088` but runs with `Seccomp: 0` — the entire kernel syscall surface. Security requires it be confined so it can **never** reach the kernel-escape syscalls (`mount`, `ptrace`, `keyctl`, module loading, `swapon`, `reboot`), while it keeps serving traffic. You must also **prove** the dangerous calls are actually blocked, not just assert it.
+
+**Your task:** Install a deny-by-default seccomp allow-list on the service so it stays up serving `8088` with `Seccomp: 2`, yet a dangerous syscall like `mount` is refused. Prove **both**: the service still answers on 8088 under a filter, and a probe running under the same filter is denied the dangerous call.
+
+**Verify:**
+```bash
+# 1) still serving + confined:
+PID=$(systemctl show -p MainPID --value lab-guayaquil.service)
+grep Seccomp /proc/$PID/status              # expected: Seccomp:  2
+curl -s http://127.0.0.1:8088/              # expected: ok
+# 2) the dangerous call is blocked under the same policy (no real mount happens):
+sudo systemd-run --wait --pipe -p SystemCallFilter=@system-service -p SystemCallErrorNumber=EPERM \
+  python3 -c 'import ctypes; libc=ctypes.CDLL(None, use_errno=True); \
+rc=libc.mount(b"none", b"/mnt", b"tmpfs", 0, 0); print("mount rc", rc, "errno", ctypes.get_errno())'
+# expected: mount rc -1 errno 1   (EPERM — @system-service excludes the mount syscall)
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Arequipa: is this service actually confined?"
+**Solution:**
+```bash
+PID=$(systemctl show -p MainPID --value lab-arequipa.service)
+grep Seccomp /proc/$PID/status
+# Seccomp:  2
+```
+**Why this works & what it teaches:** The kernel reports each process's seccomp state as one integer in `/proc/PID/status`: `0` = disabled (Unconfined), `1` = strict mode, `2` = filter mode (a BPF filter is installed). `systemd`'s `SystemCallFilter=` compiled the `@system-service` set into BPF via libseccomp and installed it before `execve`, so the sleeper reads `Seccomp: 2`. This field is your audit oracle — it answers "is this container/process confined?" as a checkable fact independent of any config file. **Cleanup:** `sudo systemctl disable --now lab-arequipa.service; sudo rm /etc/systemd/system/lab-arequipa.service; sudo systemctl daemon-reload`.
+
+### Scenario 2 — "Salvador: turn the filter on"
+**Solution:**
+```bash
+# add a filter line under [Service], e.g.:
+#   SystemCallFilter=@system-service
+sudo sed -i '/^\[Service\]/a SystemCallFilter=@system-service' /etc/systemd/system/lab-salvador.service
+sudo systemctl daemon-reload
+sudo systemctl restart lab-salvador.service
+PID=$(systemctl show -p MainPID --value lab-salvador.service)
+grep Seccomp /proc/$PID/status   # Seccomp:  2
+```
+**Why this works & what it teaches:** `@system-service` is systemd's curated allow-list of the syscalls a normal service needs (a deny-by-default whitelist that excludes the ~44 dangerous ones) — the same "sane broad default" shape as Kubernetes' `RuntimeDefault`. Adding it flips the process from `Seccomp: 0` to `Seccomp: 2` with essentially zero risk to a sleeper. **Where people go wrong:** forgetting `daemon-reload` (systemd keeps the old unit) or editing the wrong copy of the unit. **Cleanup:** `sudo systemctl disable --now lab-salvador.service; sudo rm /etc/systemd/system/lab-salvador.service; sudo systemctl daemon-reload`.
+
+### Scenario 3 — "Recife: the service that dies the instant it works"
+**Solution:**
+```bash
+# Discover the killing syscall — either read the journal (status=31/SYS) or strace the script:
+sudo strace -f -e trace=%file /opt/lab-recife/run.sh 2>&1 | grep -i mkdir
+#   mkdirat(AT_FDCWD, "/opt/lab-recife/workdir", 0777)  ← the call that trips SIGSYS
+# The unit subtracts mkdir/mkdirat from the allow-list; remove that deny line so they're allowed again:
+sudo sed -i '/^SystemCallFilter=~mkdir mkdirat$/d' /etc/systemd/system/lab-recife.service
+sudo systemctl daemon-reload
+sudo systemctl restart lab-recife.service
+systemctl is-active lab-recife.service          # active
+test -d /opt/lab-recife/workdir && echo OK      # OK
+```
+**Why this works & what it teaches:** A `SystemCallFilter=` line beginning with `~` is a *subtraction* — it removes those syscalls from the allowed set. With no `SystemCallErrorNumber=` configured, systemd's default action for a filtered-out call is to **kill** the thread with `SIGSYS` (exit `31`, hence `status=31/SYS`). `strace` reveals the exact syscall (`mkdirat`); removing the `~mkdir mkdirat` subtraction restores it while `@system-service` still confines everything else. **Where people go wrong:** chasing a phantom permissions/EACCES bug — a `SIGSYS` kill with no errno is the fingerprint of seccomp, not DAC. **Cleanup:** `sudo systemctl disable --now lab-recife.service; sudo rm /etc/systemd/system/lab-recife.service; sudo rm -rf /opt/lab-recife; sudo systemctl daemon-reload`.
+
+### Scenario 4 — "Manaus: crash-loop vs graceful deny"
+**Solution:**
+```bash
+# Switch the seccomp action from KILL (default) to ERRNO so the app can catch the failure:
+sudo sed -i '/^\[Service\]/a SystemCallErrorNumber=EPERM' /etc/systemd/system/lab-manaus.service
+sudo systemctl daemon-reload
+sudo systemctl restart lab-manaus.service
+sleep 8
+journalctl -u lab-manaus.service --no-pager | tail -n 3   # "mkdir refused: ... still running"
+systemctl is-active lab-manaus.service                    # active (no more restart loop)
+```
+**Why this works & what it teaches:** Seccomp's verdict for a blocked syscall is configurable. `SCMP_ACT_KILL` (systemd's default when no error number is set) delivers an uncatchable `SIGSYS` — the Python `try/except` never runs, so the process dies and `Restart=always` loops it. `SystemCallErrorNumber=EPERM` maps to `SCMP_ACT_ERRNO`: the `mkdir` syscall simply returns `-EPERM`, Python raises a catchable `OSError`, and the loop survives. This is the exact ERRNO-vs-KILL trade — graceful degradation vs hard stop. **Where people go wrong:** trying to "fix" the loop with `RestartSec`/backoff instead of changing the *action* that's killing it. **Cleanup:** `sudo systemctl disable --now lab-manaus.service; sudo rm /etc/systemd/system/lab-manaus.service; sudo rm -rf /opt/lab-manaus; sudo systemctl daemon-reload`.
+
+### Scenario 5 — "Cali: build the allow-list from a trace"
+**Solution:**
+```bash
+# 1) Trace the app to see which syscalls it really makes:
+strace -f -e trace=all -o /tmp/cali.txt /usr/bin/python3 /opt/lab-cali/app.py
+awk -F'(' '/^[a-z_]+\(/{print $1}' /tmp/cali.txt | sort -u | head
+#   ... socket, bind, openat, write, mmap, ...  (network + filesystem + memory)
+# 2) The narrow list was missing network, file, and memory groups. The pragmatic, still
+#    deny-by-default whitelist that covers a normal service is @system-service:
+sudo sed -i 's/^SystemCallFilter=@basic-io @process @signal$/SystemCallFilter=@system-service/' \
+  /etc/systemd/system/lab-cali.service
+sudo systemctl daemon-reload
+sudo rm -f /opt/lab-cali/done
+sudo systemctl restart lab-cali.service
+sleep 2
+cat /opt/lab-cali/done   # completed
+```
+**Why this works & what it teaches:** This is the real profile-authoring workflow: **trace the app, collect the syscalls it uses, allow exactly those (or a superset group), deny the rest.** The app's `socket`/`bind` (network) and `openat`/`write` (filesystem) fell outside `@basic-io @process @signal`, so the deny-by-default whitelist killed it. `@system-service` is a deny-by-default set that includes network, file, and memory syscalls while still excluding the dangerous ones — the correct, low-maintenance answer. **Where people go wrong:** flipping `defaultAction` to allow-all (destroys the whole point) or hand-enumerating individual syscalls and missing one (`mmap`, `rt_sigaction`) that surfaces only under load. **Cleanup:** `sudo systemctl disable --now lab-cali.service 2>/dev/null; sudo rm /etc/systemd/system/lab-cali.service; sudo rm -rf /opt/lab-cali /tmp/cali.txt; sudo systemctl daemon-reload`.
+
+### Scenario 6 — "Guayaquil: keep it serving, wall off the dangerous syscalls"
+**Solution:**
+```bash
+# Add a deny-by-default whitelist + pin the architecture, then reload/restart:
+sudo tee /etc/systemd/system/lab-guayaquil.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Guayaquil - hardened web service
+[Service]
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+SystemCallErrorNumber=EPERM
+ExecStart=/usr/bin/python3 /opt/lab-guayaquil/server.py
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl restart lab-guayaquil.service
+sleep 1
+PID=$(systemctl show -p MainPID --value lab-guayaquil.service)
+grep Seccomp /proc/$PID/status              # Seccomp:  2
+curl -s http://127.0.0.1:8088/              # ok
+# prove a dangerous syscall is refused under the same policy:
+sudo systemd-run --wait --pipe -p SystemCallFilter=@system-service -p SystemCallErrorNumber=EPERM \
+  python3 -c 'import ctypes; libc=ctypes.CDLL(None, use_errno=True); \
+print("mount rc", libc.mount(b"none", b"/mnt", b"tmpfs", 0, 0), "errno", ctypes.get_errno())'
+# mount rc -1 errno 1   (EPERM)
+```
+**Why this works & what it teaches:** `@system-service` is a default-deny whitelist: `mount`, `swapon`, `reboot`, `init_module`/`finit_module`, `kexec_load`, `keyctl`, and `ptrace` (in most conditions) are simply **not on the allow-list**, so they're denied at the syscall entry gate before any capability or LSM check runs. The app's HTTP syscalls *are* on the list, so it keeps serving with `Seccomp: 2`. `SystemCallArchitectures=native` blocks the 32-bit-ABI end-run (a different syscall-number table an attacker could use to smuggle a blocked call). The `systemd-run` probe demonstrates the block empirically — `mount()` returns `-1/EPERM` and no filesystem is actually mounted, so proving confinement costs nothing. **Where people go wrong:** blacklisting a handful of syscalls by name (misses the ones you didn't think of) instead of using a default-deny allow-list, or forgetting `SystemCallArchitectures=native`. **Cleanup:** `sudo systemctl disable --now lab-guayaquil.service; sudo rm /etc/systemd/system/lab-guayaquil.service; sudo rm -rf /opt/lab-guayaquil; sudo systemctl daemon-reload`.

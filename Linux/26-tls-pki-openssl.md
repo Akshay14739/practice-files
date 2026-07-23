@@ -588,3 +588,292 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 **Q:** Why does a shared-secret scheme *structurally* fail to prove "I'm specifically talking to the apiserver" — why is cryptographic identity impossible in that design?
 
 **A:** Because knowing a shared secret proves only membership, never identity: the secret is by definition held by more than one party, so any proof built on it can be produced by *every* holder equally. A successful "prove you know the key" exchange tells you the peer is "someone who knows the key" — which could be the apiserver, any kubelet holding the same secret, or an attacker who stole it from any one of them — and there is nothing in the math to distinguish which holder you're facing. Naming a *specific* party requires something only that party possesses, i.e. a per-party private key, plus an authority binding that key to a name — exactly what asymmetric crypto and a CA-signed certificate provide and what a symmetric shared secret structurally cannot, since making the secret sharable is the very thing that destroys its ability to name anyone. (It also scales terribly: unique pairwise keys are O(N²), and one leak compromises everyone.)
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6. (Two setups mint deliberately-expired certificates: on OpenSSL ≥ 3.4 they use `-not_before`/`-not_after` natively, and on older versions they fall back to installing `faketime` — the `if` block handles both.)
+
+### 🟢 Scenario 1 — "Wellington: the certificate that died in the night" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-wellington && cd /opt/lab-wellington
+sudo openssl genrsa -out ca.key 2048
+sudo openssl req -x509 -new -key ca.key -out ca.crt -days 3650 -subj "/CN=lab-wellington-ca"
+sudo openssl genrsa -out server.key 2048
+sudo openssl req -new -key server.key -out server.csr -subj "/CN=api.devopsinminutes.com"
+if openssl x509 -help 2>&1 | grep -q not_after; then
+  sudo openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+    -out server.crt -not_before 20250101000000Z -not_after 20250201000000Z
+else
+  sudo apt-get install -y faketime >/dev/null
+  sudo faketime '2025-01-01 00:00:00' openssl x509 -req -in server.csr -CA ca.crt \
+    -CAkey ca.key -CAcreateserial -out server.crt -days 31
+fi
+echo "setup complete — clients of api.devopsinminutes.com started failing overnight"
+```
+**Situation:** It's the Monday from Rung 0, in miniature: overnight, every client of `api.devopsinminutes.com` began refusing to connect with `x509: certificate has expired or is not yet valid`. The service itself is healthy; nothing was deployed. The site's PKI lives in `/opt/lab-wellington/` — CA, server key, CSR, and the serving cert.
+
+**Your task:** Prove from the certificate file exactly why clients are rejecting it, then re-issue a valid one-year serving certificate from the same CA — without generating a new key pair — so verification passes again.
+
+**Verify:**
+```bash
+openssl verify -CAfile /opt/lab-wellington/ca.crt /opt/lab-wellington/server.crt   # expected: server.crt: OK
+openssl x509 -in /opt/lab-wellington/server.crt -noout -enddate                    # expected: a notAfter date in the future
+```
+
+### 🟢 Scenario 2 — "Christchurch: three authorities walk into a bar" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-christchurch/cas && cd /opt/lab-christchurch
+for i in 1 2 3; do
+  sudo openssl genrsa -out cas/ca$i.key 2048
+  sudo openssl req -x509 -new -key cas/ca$i.key -out cas/ca$i.crt -days 3650 -subj "/CN=platform-root-ca"
+done
+sudo openssl genrsa -out server.key 2048
+sudo openssl req -new -key server.key -out server.csr -subj "/CN=payments.devopsinminutes.com"
+sudo openssl x509 -req -in server.csr -CA cas/ca2.crt -CAkey cas/ca2.key -CAcreateserial -out server.crt -days 365
+sudo rm -f server.csr
+echo "setup complete — one server cert, three identically-named CAs, no notes"
+```
+**Situation:** During a datacenter migration someone exported "the platform CA" three times, and now `/opt/lab-christchurch/cas/` holds three root certificates — all with the *identical* subject `CN=platform-root-ca`, but generated from three different key pairs. Exactly one of them actually signed `server.crt`. New services need the right one installed in their trust store, and picking wrong means every handshake fails with `unable to get local issuer certificate` (or worse, `certificate signature failure`).
+
+**Your task:** Determine cryptographically — not by reading name fields, which are identical — which CA really signed `server.crt`, and install a copy of it as `/opt/lab-christchurch/trusted-ca.crt`.
+
+**Verify:**
+```bash
+openssl verify -CAfile /opt/lab-christchurch/trusted-ca.crt /opt/lab-christchurch/server.crt   # expected: server.crt: OK
+```
+
+### 🟡 Scenario 3 — "Dunedin: valid for the wrong universe" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-dunedin && cd /opt/lab-dunedin
+sudo openssl genrsa -out ca.key 2048
+sudo openssl req -x509 -new -key ca.key -out ca.crt -days 3650 -subj "/CN=lab-dunedin-ca"
+sudo openssl genrsa -out server.key 2048
+sudo openssl req -new -key server.key -out server.csr -subj "/CN=payments-v1.internal"
+sudo bash -c 'printf "subjectAltName = DNS:payments-v1.internal\n" > san.ext'
+sudo openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out server.crt -days 365 -extfile san.ext
+echo "setup complete — the payments service was just renamed api.devopsinminutes.com"
+```
+**Situation:** The payments service graduated from its internal name `payments-v1.internal` to the public name `api.devopsinminutes.com`. The cert is not expired, chains perfectly to the CA, and `openssl verify -CAfile ca.crt server.crt` says OK — yet every client connecting by the new name fails with the error class `certificate is valid for payments-v1.internal, not api.devopsinminutes.com`. Old clients using the legacy name must keep working during the transition.
+
+**Your task:** Re-issue the serving certificate (same CA, same key) so that hostname verification succeeds for **both** `api.devopsinminutes.com` and `payments-v1.internal`. Remember the Rung 7 gotcha: `openssl x509 -req` drops extensions unless you feed them in explicitly.
+
+**Verify:**
+```bash
+openssl verify -CAfile /opt/lab-dunedin/ca.crt -verify_hostname api.devopsinminutes.com /opt/lab-dunedin/server.crt   # expected: server.crt: OK
+openssl verify -CAfile /opt/lab-dunedin/ca.crt -verify_hostname payments-v1.internal /opt/lab-dunedin/server.crt      # expected: server.crt: OK
+```
+
+### 🟡 Scenario 4 — "Cairns: the key that fits no lock" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-cairns/keys && cd /opt/lab-cairns
+sudo openssl genrsa -out ca.key 2048
+sudo openssl req -x509 -new -key ca.key -out ca.crt -days 3650 -subj "/CN=lab-cairns-ca"
+for i in 1 2 3; do sudo openssl genrsa -out keys/rotation-$i.key 2048; done
+sudo openssl req -new -key keys/rotation-2.key -out server.csr -subj "/CN=localhost"
+sudo bash -c 'printf "subjectAltName = DNS:localhost, IP:127.0.0.1\n" > san.ext'
+sudo openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out server.crt -days 365 -extfile san.ext
+sudo cp keys/rotation-3.key server.key
+sudo tee /etc/systemd/system/lab-cairns.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Cairns - TLS endpoint on 8443
+
+[Service]
+ExecStart=/usr/bin/openssl s_server -accept 8443 -www -cert /opt/lab-cairns/server.crt -key /opt/lab-cairns/server.key
+Restart=on-failure
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-cairns.service || true
+echo "setup complete — the TLS endpoint refuses to come up after last night's key rotation"
+```
+**Situation:** Last night's automated key rotation minted three candidate keys in `/opt/lab-cairns/keys/`, issued a fresh certificate from one of them, and then the deploy tool "helpfully" installed a key as `/opt/lab-cairns/server.key` — the *wrong* one. Now `lab-cairns.service` (a TLS endpoint on port 8443) crash-loops, and `journalctl -u lab-cairns` shows the smoking gun: `key values mismatch`. A certificate and a private key are only a pair if they share the same public key.
+
+**Your task:** Identify — by comparing public keys, not by guessing — which of the three rotation keys actually matches `server.crt`, install it as `/opt/lab-cairns/server.key`, and bring the endpoint up so a TLS handshake verifies cleanly.
+
+**Verify:**
+```bash
+echo Q | openssl s_client -connect localhost:8443 -CAfile /opt/lab-cairns/ca.crt 2>/dev/null | grep "Verify return code"   # expected: Verify return code: 0 (ok)
+```
+
+### 🟠 Scenario 5 — "Brisbane: the middle of the chain is missing" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-brisbane && cd /opt/lab-brisbane
+sudo openssl genrsa -out root-ca.key 2048
+sudo openssl req -x509 -new -key root-ca.key -out root-ca.crt -days 3650 -subj "/CN=lab-brisbane-root-ca"
+sudo openssl genrsa -out intermediate.key 2048
+sudo openssl req -new -key intermediate.key -out intermediate.csr -subj "/CN=lab-brisbane-intermediate-ca"
+sudo bash -c 'printf "basicConstraints = critical, CA:TRUE, pathlen:0\nkeyUsage = critical, keyCertSign, cRLSign\n" > int.ext'
+sudo openssl x509 -req -in intermediate.csr -CA root-ca.crt -CAkey root-ca.key \
+  -CAcreateserial -out intermediate.crt -days 1825 -extfile int.ext
+sudo openssl genrsa -out server.key 2048
+sudo openssl req -new -key server.key -out server.csr -subj "/CN=localhost"
+sudo bash -c 'printf "subjectAltName = DNS:localhost, IP:127.0.0.1\n" > leaf.ext'
+sudo openssl x509 -req -in server.csr -CA intermediate.crt -CAkey intermediate.key \
+  -CAcreateserial -out server.crt -days 365 -extfile leaf.ext
+sudo tee /etc/systemd/system/lab-brisbane.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Brisbane - TLS endpoint on 8444
+
+[Service]
+ExecStart=/usr/bin/openssl s_server -accept 8444 -www -cert /opt/lab-brisbane/server.crt -key /opt/lab-brisbane/server.key
+Restart=on-failure
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl enable --now lab-brisbane.service
+echo "setup complete — clients that trust only the root CA cannot verify this endpoint"
+```
+**Situation:** Security mandated a two-tier PKI: an offline root CA that signs an intermediate CA, which signs all leaf certs — so clients are configured to trust **only** `root-ca.crt`. The new endpoint on port 8444 came up fine, its cert is valid and unexpired, yet every client fails with `Verify return code: 21 (unable to verify the first certificate)`. The server is presenting *something* — but clients can't build a path from what they receive up to the root they trust.
+
+**Your task:** Diagnose what's missing from the server's handshake (look at the certificate *chain* `s_client` prints — how many certs, at which depths?), then fix the **server side** so that a client trusting only `root-ca.crt` verifies the connection with return code 0.
+
+**Verify:**
+```bash
+echo Q | openssl s_client -connect localhost:8444 -CAfile /opt/lab-brisbane/root-ca.crt 2>/dev/null | grep "Verify return code"   # expected: Verify return code: 0 (ok)
+```
+
+### 🔴 Scenario 6 — "Adelaide: the kubelet that knocked with a dead badge" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-adelaide && cd /opt/lab-adelaide
+sudo openssl genrsa -out ca.key 2048
+sudo openssl req -x509 -new -key ca.key -out ca.crt -days 3650 -subj "/CN=lab-adelaide-cluster-ca"
+sudo openssl genrsa -out server.key 2048
+sudo openssl req -new -key server.key -out server.csr -subj "/CN=lab-apiserver"
+sudo bash -c 'printf "subjectAltName = DNS:localhost, IP:127.0.0.1\n" > san.ext'
+sudo openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out server.crt -days 365 -extfile san.ext
+sudo openssl genrsa -out kubelet-client.key 2048
+sudo openssl req -new -key kubelet-client.key -out kubelet-client.csr -subj "/CN=system:node:lab-node-1"
+if openssl x509 -help 2>&1 | grep -q not_after; then
+  sudo openssl x509 -req -in kubelet-client.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+    -out kubelet-client.crt -not_before 20250101000000Z -not_after 20250201000000Z
+else
+  sudo apt-get install -y faketime >/dev/null
+  sudo faketime '2025-01-01 00:00:00' openssl x509 -req -in kubelet-client.csr -CA ca.crt \
+    -CAkey ca.key -CAcreateserial -out kubelet-client.crt -days 31
+fi
+sudo tee /etc/systemd/system/lab-adelaide.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Adelaide - mTLS apiserver-sim on 8445
+
+[Service]
+ExecStart=/usr/bin/openssl s_server -accept 8445 -www -cert /opt/lab-adelaide/server.crt -key /opt/lab-adelaide/server.key -CAfile /opt/lab-adelaide/ca.crt -Verify 2 -verify_return_error
+Restart=on-failure
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl enable --now lab-adelaide.service
+echo "setup complete — the node's client identity stopped working and nobody knows why"
+```
+**Situation:** This "apiserver" on port 8445 enforces **mutual** TLS: every client must present a certificate signed by the cluster CA, exactly like a kubelet authenticating as `system:node:...`. The node's client credentials sit in `/opt/lab-adelaide/` — and this morning the node dropped out. The maddening part: `openssl s_client` with the client cert *appears* to handshake fine and even prints `Verify return code: 0 (ok)` — but the server hangs up without ever sending a byte of application data. (That code-0 is the *client* verifying the *server*; under TLS 1.3 the server's rejection of *your* badge only surfaces when the response never comes.)
+
+**Your task:** Diagnose why the server is rejecting the client identity, then mint a replacement client certificate from the cluster CA — reusing the **existing key and CSR** (the private key never needs to travel or change) — and prove the node can fetch data over mTLS again, while a certificate-less client still gets refused.
+
+**Verify:**
+```bash
+printf 'GET / HTTP/1.0\r\n\r\n' | timeout 5 openssl s_client -connect localhost:8445 \
+  -CAfile /opt/lab-adelaide/ca.crt -cert /opt/lab-adelaide/kubelet-client.crt \
+  -key /opt/lab-adelaide/kubelet-client.key -quiet 2>/dev/null | grep -c 'HTTP/1.0 200'
+# expected: 1   (and the same command WITHOUT -cert/-key prints 0 — anonymous clients stay locked out)
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Wellington: the certificate that died in the night"
+**Solution:**
+```bash
+cd /opt/lab-wellington
+openssl x509 -in server.crt -noout -dates      # diagnose: notAfter is in the past — the hard wall from Rung 3B
+openssl verify -CAfile ca.crt server.crt       # error 10: certificate has expired — reproduces the client failure
+# Renewal = re-signing. The CSR (public key + identity) is still on disk; sign it again with a future window:
+sudo openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -out server.crt -days 365
+openssl verify -CAfile ca.crt server.crt       # server.crt: OK
+```
+**Why this works & what it teaches:** `Not After` is a hard wall — one second past it every compliant client refuses the cert, no grace period (the Rung 0 outage in miniature). Renewal never touches the private key: the CSR still holds the same public key and identity, so re-signing it produces a fresh validity window while every client keeps working unchanged — which is exactly what `kubeadm certs renew all` does to a cluster's leaf certs. **Where people go wrong:** generating a whole new key pair in a panic (harmless here, but operationally noisier) — or renewing the file on disk and forgetting the serving process must reload it (Prediction 5's on-disk vs on-the-wire gap). **Cleanup:** `sudo rm -rf /opt/lab-wellington`
+
+### Scenario 2 — "Christchurch: three authorities walk into a bar"
+**Solution:**
+```bash
+cd /opt/lab-christchurch
+for c in cas/ca1.crt cas/ca2.crt cas/ca3.crt; do echo "== $c"; openssl verify -CAfile "$c" server.crt; done
+#   == cas/ca1.crt  ... verification failed
+#   == cas/ca2.crt  server.crt: OK          ← the actual signer
+#   == cas/ca3.crt  ... verification failed
+sudo cp cas/ca2.crt trusted-ca.crt
+openssl verify -CAfile trusted-ca.crt server.crt   # server.crt: OK
+```
+**Why this works & what it teaches:** All three CAs carry the identical Subject, so the cert's `Issuer: CN=platform-root-ca` field is *useless* for telling them apart — the Issuer string is a label, not proof. What actually discriminates is Rung 3C's mechanism: `openssl verify` checks the leaf's signature against each candidate's **public key**, and only the key pair that produced the signature validates it. Trust is cryptographic, never nominal — the same reason a cluster whose `ca.crt` was replaced (but whose leaf certs weren't re-signed) falls apart despite every name field looking right. **Where people go wrong:** matching on `-issuer`/`-subject` output, which here is identical for all three. **Cleanup:** `sudo rm -rf /opt/lab-christchurch`
+
+### Scenario 3 — "Dunedin: valid for the wrong universe"
+**Solution:**
+```bash
+cd /opt/lab-dunedin
+openssl x509 -in server.crt -noout -ext subjectAltName   # diagnose: SAN lists ONLY payments-v1.internal
+openssl verify -CAfile ca.crt -verify_hostname api.devopsinminutes.com server.crt   # hostname mismatch — the bug
+# Re-issue with a SAN covering BOTH names (x509 -req drops extensions unless -extfile supplies them):
+sudo bash -c 'printf "subjectAltName = DNS:api.devopsinminutes.com, DNS:payments-v1.internal\n" > san-new.ext'
+sudo openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out server.crt -days 365 -extfile san-new.ext
+openssl x509 -in server.crt -noout -ext subjectAltName   # both DNS names present
+```
+**Why this works & what it teaches:** Modern clients match the hostname they dialed against the **SAN list**, not the CN (Rung 3B) — a chain-valid, unexpired cert still fails if the name isn't listed, producing the `valid for X, not Y` error class. Listing both old and new names in one cert is the standard zero-downtime rename pattern, and it's precisely why the kube-apiserver cert enumerates every DNS name and IP it can ever be reached by. **Where people go wrong:** putting the new name in the CSR's subject or SAN and signing with plain `openssl x509 -req` — which silently strips CSR extensions, shipping a cert with no SAN at all; always confirm with `-ext subjectAltName` after signing. **Cleanup:** `sudo rm -rf /opt/lab-dunedin`
+
+### Scenario 4 — "Cairns: the key that fits no lock"
+**Solution:**
+```bash
+cd /opt/lab-cairns
+journalctl -u lab-cairns.service --no-pager | tail -n 5   # "key values mismatch" — cert and key disagree
+openssl x509 -in server.crt -noout -pubkey | sha256sum    # the cert's embedded public key, fingerprinted
+for k in keys/rotation-1.key keys/rotation-2.key keys/rotation-3.key; do
+  echo "$k: $(sudo openssl pkey -in "$k" -pubout | sha256sum)"
+done
+# rotation-2.key produces the SAME hash as the cert → that's the pair
+sudo cp keys/rotation-2.key server.key
+sudo systemctl reset-failed lab-cairns.service
+sudo systemctl restart lab-cairns.service
+echo Q | openssl s_client -connect localhost:8443 -CAfile ca.crt 2>/dev/null | grep "Verify return code"
+```
+**Why this works & what it teaches:** A certificate is "public key + identity + signature" (Rung 2), so cert and private key are a pair *if and only if* the public key inside the cert equals the public key derived from the private key — comparing `x509 -pubkey` against `pkey -pubout` hashes is the canonical test, and the same trick (with `-modulus` on older tooling) debugs every nginx/haproxy/apiserver "key mismatch" startup failure. The server refused to even start because OpenSSL runs this exact consistency check when loading the pair. **Where people go wrong:** matching key to cert by file timestamps or names ("rotation-3 is newest, must be it") — exactly how the wrong key got installed. **Cleanup:** `sudo systemctl disable --now lab-cairns.service; sudo rm /etc/systemd/system/lab-cairns.service; sudo systemctl daemon-reload; sudo rm -rf /opt/lab-cairns`
+
+### Scenario 5 — "Brisbane: the middle of the chain is missing"
+**Solution:**
+```bash
+# Diagnose: the server presents ONLY the leaf — one cert at depth 0, issued by an
+# intermediate the client has never seen, so path-building dies one hop up:
+echo Q | openssl s_client -connect localhost:8444 -CAfile /opt/lab-brisbane/root-ca.crt 2>/dev/null | grep -E '^ +[0-9] s:|i:|Verify return'
+# Confirm the chain itself is sound (client-side proof, not the fix):
+openssl verify -CAfile /opt/lab-brisbane/root-ca.crt -untrusted /opt/lab-brisbane/intermediate.crt /opt/lab-brisbane/server.crt   # OK
+# The FIX is server-side: present the intermediate in the handshake via -cert_chain:
+sudo sed -i 's|-key /opt/lab-brisbane/server.key|-key /opt/lab-brisbane/server.key -cert_chain /opt/lab-brisbane/intermediate.crt|' /etc/systemd/system/lab-brisbane.service
+sudo systemctl daemon-reload
+sudo systemctl restart lab-brisbane.service
+echo Q | openssl s_client -connect localhost:8444 -CAfile /opt/lab-brisbane/root-ca.crt 2>/dev/null | grep "Verify return code"
+```
+**Why this works & what it teaches:** TLS servers must send the **whole chain below the root** — leaf *plus* intermediates — because clients hold only root CAs in their trust store and build the path from what arrives in the handshake (Rung 3C/3D); a missing intermediate yields the infamous return code 21 even though nothing is expired or mis-issued. `openssl verify -untrusted` proves the chain is mathematically fine and isolates the fault to *what the server serves*; the fix for `s_server` is `-cert_chain` (nginx/haproxy achieve the same by concatenating leaf+intermediate into one file — note `s_server -cert` does **not** honor extra certs appended to the file, which is exactly how this outage gets deployed). **Where people go wrong:** "it works in my browser" — browsers cache intermediates and use AIA fetching, masking the broken chain that strict clients (openssl, curl, kubelets) correctly reject. **Cleanup:** `sudo systemctl disable --now lab-brisbane.service; sudo rm /etc/systemd/system/lab-brisbane.service; sudo systemctl daemon-reload; sudo rm -rf /opt/lab-brisbane`
+
+### Scenario 6 — "Adelaide: the kubelet that knocked with a dead badge"
+**Solution:**
+```bash
+cd /opt/lab-adelaide
+openssl x509 -in kubelet-client.crt -noout -dates -subject   # diagnose: the CLIENT cert's notAfter is in the past
+journalctl -u lab-adelaide.service --no-pager | tail -n 5    # server side logs the certificate_expired rejection
+# Mint a replacement from the SAME CSR — same key, same CN=system:node:lab-node-1, new validity window:
+sudo openssl x509 -req -in kubelet-client.csr -CA ca.crt -CAkey ca.key -CAcreateserial \
+  -out kubelet-client.crt -days 365
+# Prove mTLS works again:
+printf 'GET / HTTP/1.0\r\n\r\n' | timeout 5 openssl s_client -connect localhost:8445 \
+  -CAfile ca.crt -cert kubelet-client.crt -key kubelet-client.key -quiet 2>/dev/null | grep -c 'HTTP/1.0 200'   # 1
+# Prove anonymous clients are still refused:
+printf 'GET / HTTP/1.0\r\n\r\n' | timeout 5 openssl s_client -connect localhost:8445 \
+  -CAfile ca.crt -quiet 2>/dev/null | grep -c 'HTTP/1.0 200'   # 0
+```
+**Why this works & what it teaches:** This is handshake step 4b (mTLS) failing in the *other* direction from Wellington: the server's cert is fine, so the client's own verification passes — but the **server** rejects the expired *client* cert, the mirror of a kubelet with an expired client cert getting `Unauthorized` from the apiserver (Rung 3D). The TLS 1.3 wrinkle is diagnostic gold: client auth happens after the client believes the handshake succeeded, so the only client-side symptom is a connection that dies before application data — when you see "handshake OK but instant hangup" against an mTLS endpoint, suspect *your own* certificate, and check *both* ends' dates. Re-signing the stored CSR renews the identity without the private key ever moving — the same dance Kubernetes automates with its `CertificateSigningRequest` API (Rung 3C). **Where people go wrong:** staring at the server cert because `Verify return code: 0 (ok)` "proves" TLS is fine — that code only ever describes the peer's cert, not yours. **Cleanup:** `sudo systemctl disable --now lab-adelaide.service; sudo rm /etc/systemd/system/lab-adelaide.service; sudo systemctl daemon-reload; sudo rm -rf /opt/lab-adelaide`

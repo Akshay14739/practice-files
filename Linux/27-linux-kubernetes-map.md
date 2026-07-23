@@ -405,3 +405,312 @@ The primitives that carry the most Kubernetes weight — start here when a triag
 - [11-networking.md](11-networking.md) — resolv.conf/CoreDNS, ports, the overlay, and `ss`/`ip` for network triage.
 
 *You climbed all 27 rungs. You can now read a Kubernetes symptom, name the Linux primitive underneath it, and `cat` the exact file that proves what's really happening. That round-trip — abstraction down to kernel and back — is mastery. Go debug something.*
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6. **No Kubernetes is installed or needed:** every scenario rebuilds a piece of k8s node machinery out of the bare Linux primitives from the mapping table — which is the whole point of this file.
+
+### 🟢 Scenario 1 — "Queenstown: the node that stopped phoning home" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-queenstown /tmp/lab-queenstown
+sudo tee /opt/lab-queenstown/lab-kubelet.sh >/dev/null <<'EOF'
+#!/bin/bash
+while true; do
+  echo "$(date '+%F %T') node-status: Ready" > /tmp/lab-queenstown/node-status
+  sleep 10
+done
+EOF
+sudo chmod 755 /opt/lab-queenstown/lab-kubelet.sh
+sudo tee /etc/systemd/system/lab-kubelet.service >/dev/null <<'EOF'
+[Unit]
+Description=Lab Queenstown - fake kubelet (posts node status every 10s)
+
+[Service]
+ExecStart=/usr/local/bin/lab-kubelet.sh
+Restart=on-failure
+RestartSec=2
+EOF
+sudo systemctl daemon-reload
+sudo systemctl start lab-kubelet.service 2>/dev/null || true
+echo "setup complete — the 'node' has gone NotReady"
+```
+**Situation:** On a real cluster, a node goes `NotReady` when the kubelet stops POSTing status — and the mapping table says a kubelet is nothing more than *a systemd service*. This VM runs a miniature of exactly that: `lab-kubelet.service` should refresh `/tmp/lab-queenstown/node-status` every 10 seconds, but the heartbeat file is stale (or missing) and the "node" is dark. A config-management run relocated some binaries last night.
+
+**Your task:** Triage this exactly like block 2 of the node-triage workflow (service status → journal → unit file), find why the unit cannot run, fix it, and get the heartbeat flowing again.
+
+**Verify:**
+```bash
+sleep 12; systemctl is-active lab-kubelet.service && find /tmp/lab-queenstown/node-status -newermt '-15 seconds' | grep -q . && echo "NODE READY"   # expected: active + NODE READY
+```
+
+### 🟢 Scenario 2 — "Rotorua: what is writing to this log file?" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-rotorua /tmp/lab-rotorua
+sudo tee /opt/lab-rotorua/.cache-refresh >/dev/null <<'EOF'
+#!/bin/bash
+exec >> /tmp/lab-rotorua/pod.log 2>&1
+while true; do
+  echo "$(date '+%F %T') level=debug msg=reconcile-tick"
+  sleep 1
+done
+EOF
+sudo chmod 755 /opt/lab-rotorua/.cache-refresh
+sudo setsid /opt/lab-rotorua/.cache-refresh < /dev/null > /dev/null 2>&1 &
+sleep 1
+echo "setup complete — /tmp/lab-rotorua/pod.log is growing and nobody knows why"
+```
+**Situation:** `/tmp/lab-rotorua/pod.log` is gaining a line every second and slowly eating the disk — the classic "runaway container log" that fills `/var/log/pods` on real nodes. But there's no container runtime here and no obvious process name to grep for: whatever is writing runs under a deliberately unhelpful disguise. The mapping table's row for container logs says it all: a container's "logs" are just *file descriptors 1 & 2 redirected to a file*.
+
+**Your task:** Using file-descriptor forensics (`/proc/<pid>/fd/` or `lsof`) — not process-name guessing — find the process whose stdout is wired to `pod.log`, identify what it actually is, and terminate it.
+
+**Verify:**
+```bash
+s1=$(stat -c %s /tmp/lab-rotorua/pod.log); sleep 3; s2=$(stat -c %s /tmp/lab-rotorua/pod.log); [ "$s1" -eq "$s2" ] && echo "LOG QUIET — solved"   # expected: LOG QUIET — solved
+```
+
+### 🟡 Scenario 3 — "Fremantle: three pods, one squatted port" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-fremantle/www
+echo "stale-cache-v1" | sudo tee /opt/lab-fremantle/www/index.html >/dev/null
+for ns in lab-pod-a lab-pod-b lab-pod-c; do
+  sudo ip netns add $ns
+  sudo ip netns exec $ns ip link set lo up
+done
+sudo ip netns exec lab-pod-a setsid sleep infinity < /dev/null > /dev/null 2>&1 &
+sudo ip netns exec lab-pod-b setsid sh -c 'cd /opt/lab-fremantle/www && exec python3 -m http.server 8322 --bind 127.0.0.1' < /dev/null > /dev/null 2>&1 &
+sudo ip netns exec lab-pod-c setsid sleep infinity < /dev/null > /dev/null 2>&1 &
+sleep 1
+echo "setup complete — one of the three pod-sims is still serving a decommissioned app on port 8322"
+```
+**Situation:** Three "pods" — really three network namespaces, each with its own process, exactly what pod isolation is underneath — run on this node. A decommissioned cache app was supposedly shut down everywhere, but monitoring insists *something* is still bound to port `8322`. From the host, `ss -tlnp` shows nothing on 8322: each netns has its own socket table, so the host's view proves nothing about a pod's. This is the mapping-table row "find which container owns a port" with the Kubernetes costume removed.
+
+**Your task:** Inspect each namespace's own socket table (`ip netns exec ... ss -tlnp`, or `lsns`/`nsenter`), find which pod-sim holds port 8322 and which PID owns it, and terminate **only** that process — all three namespaces (and the other pods' processes) must survive.
+
+**Verify:**
+```bash
+for ns in lab-pod-a lab-pod-b lab-pod-c; do sudo ip netns exec "$ns" ss -tln | grep -q 8322 && echo "$ns: port still bound"; done; sudo ip netns list | grep -c lab-pod   # expected: no "still bound" lines, and count = 3
+```
+
+### 🟡 Scenario 4 — "Geelong: the manifest directory nobody is watching" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /etc/lab-manifests /opt/lab-geelong /tmp/lab-geelong
+sudo tee /opt/lab-geelong/launch-pods.sh >/dev/null <<'EOF'
+#!/bin/bash
+for m in /etc/lab-manifests/*.yaml; do
+  [ -e "$m" ] || continue
+  echo "$(date '+%F %T') launched static pod from $(basename "$m")" >> /tmp/lab-geelong/kubelet.log
+done
+EOF
+sudo chmod 755 /opt/lab-geelong/launch-pods.sh
+sudo tee /etc/systemd/system/lab-static-pod.service >/dev/null <<'EOF'
+[Unit]
+Description=Lab Geelong - launch static pods from the manifest dir
+
+[Service]
+Type=oneshot
+ExecStart=/opt/lab-geelong/launch-pods.sh
+EOF
+sudo tee /etc/systemd/system/lab-static-pod.path >/dev/null <<'EOF'
+[Unit]
+Description=Lab Geelong - watch the static-pod manifest dir
+
+[Path]
+PathModified=/etc/lab-manifest
+Unit=lab-static-pod.service
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now lab-static-pod.path
+echo "setup complete — drop a .yaml into /etc/lab-manifests and watch nothing happen"
+```
+**Situation:** The control-plane's static pods work because the kubelet watches a manifest directory and runs whatever YAML appears there — the mapping table's "manifest files watched on disk" row. This node rebuilds that machinery from systemd parts: a **path unit** watches the manifest dir and triggers a launcher service. The rebuild was signed off as working, yet dropping `web.yaml` into `/etc/lab-manifests/` produces nothing in `/tmp/lab-geelong/kubelet.log` — and both units show green: the path unit is `active (waiting)`, the service is loaded, no errors anywhere.
+
+**Your task:** Work out why an *apparently healthy* watcher never fires (compare what the path unit **watches** against where manifests actually **land** — `systemctl cat` is your friend), fix it, and prove a freshly dropped manifest triggers a launch within seconds.
+
+**Verify:**
+```bash
+sudo touch /etc/lab-manifests/web.yaml; sleep 3; grep "web.yaml" /tmp/lab-geelong/kubelet.log   # expected: a "launched static pod from web.yaml" line
+```
+
+### 🟠 Scenario 5 — "Napier: OOMKilled on a node with gigabytes free" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-napier
+sudo tee /opt/lab-napier/cache-warm.py >/dev/null <<'EOF'
+import time
+print("cache-warmer starting", flush=True)
+data = []
+for i in range(120):
+    data.append(bytearray(1024 * 1024))   # grab 1 MiB per tick
+    time.sleep(0.05)
+print("warm-up complete, serving", flush=True)
+while True:
+    time.sleep(60)
+EOF
+sudo tee /etc/systemd/system/lab-napier.service >/dev/null <<'EOF'
+[Unit]
+Description=Lab Napier - cache warmer (pod-sim with a memory limit)
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/lab-napier/cache-warm.py
+MemoryMax=64M
+MemorySwapMax=0
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now lab-napier.service
+echo "setup complete — the cache warmer keeps dying while 'free -h' shows plenty of memory"
+```
+**Situation:** The cache-warmer "pod" keeps getting killed mid-warm-up and restarting, over and over — while `free -h` shows gigabytes available. This is Trace A of this file running live: the pod's YAML `memory: 128Mi` is, underneath, nothing but a `memory.max` value on a cgroup, and the OOM killer fires *scoped to that cgroup*, node-wide free memory be damned. Here the "pod" is a systemd unit whose `MemoryMax=` plays the role of the resource limit, and it was sized by someone who never measured the working set (~120 MiB).
+
+**Your task:** First **prove** the kill is a cgroup-scoped OOM, not node pressure — collect the evidence trail from `systemctl status` (look for the oom-kill result), the unit's cgroup files (`memory.max`, `memory.events`... read them *while it runs*), and `dmesg`. Then fix it the way you'd fix the pod's YAML: raise the limit via a proper systemd drop-in (not by editing the unit file) so the warm-up completes and the service stays up.
+
+**Verify:**
+```bash
+sleep 15; systemctl is-active lab-napier.service && journalctl -u lab-napier.service --since '-2 min' --no-pager | grep "warm-up complete"   # expected: active + a "warm-up complete, serving" line
+```
+
+### 🔴 Scenario 6 — "Nelson: be the kubelet — build the pod by hand" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-nelson/www /tmp/lab-nelson
+echo "nelson-pod-ok" | sudo tee /opt/lab-nelson/www/index.html >/dev/null
+sudo tee /opt/lab-nelson/verify.sh >/dev/null <<'EOF'
+#!/bin/bash
+# Objective checker: is the hand-built "pod" up to spec?
+fail() { echo "NOT READY: $1"; exit 1; }
+ip netns list 2>/dev/null | grep -qw lab-pod-nelson || fail "network namespace lab-pod-nelson missing"
+pid=$(ip netns pids lab-pod-nelson 2>/dev/null | head -n1)
+[ -n "$pid" ] || fail "no process running inside lab-pod-nelson"
+curl -s --max-time 3 http://10.87.0.10:8500/ | grep -q nelson-pod-ok || fail "http://10.87.0.10:8500/ not serving nelson-pod-ok from the host"
+target=$(readlink "/proc/$pid/fd/1" 2>/dev/null)
+[ "$target" = "/tmp/lab-nelson/pod.log" ] || fail "pod stdout (fd 1) not wired to /tmp/lab-nelson/pod.log (got: ${target:-nothing})"
+grep -qw "$pid" /sys/fs/cgroup/lab-nelson/cgroup.procs 2>/dev/null || fail "pid $pid not enrolled in cgroup /sys/fs/cgroup/lab-nelson"
+maxmem=$(cat /sys/fs/cgroup/lab-nelson/memory.max 2>/dev/null)
+[ "$maxmem" = "67108864" ] || fail "memory.max of lab-nelson cgroup is not 64MiB (got: ${maxmem:-unset})"
+echo "POD READY — you just did the kubelet's job by hand"
+EOF
+sudo chmod 755 /opt/lab-nelson/verify.sh
+echo "setup complete — the spec is in the checker: sudo /opt/lab-nelson/verify.sh"
+```
+**Situation:** Interview question made flesh: *"What does the kubelet actually do when it starts a pod?"* Tonight you answer by doing the job yourself, from raw primitives, on a VM with no container runtime whatsoever. The "control plane" (the checker script) expects a pod named `lab-pod-nelson`: its own network namespace, reachable from the host at `10.87.0.10:8500` serving the content in `/opt/lab-nelson/www/`, its stdout/stderr captured to `/tmp/lab-nelson/pod.log` the way a runtime wires container fds to log files, and its process confined by a 64 MiB cgroup-v2 memory ceiling.
+
+**Your task:** Build the pod by hand, assembling one mapping-table row at a time: (1) create the netns; (2) create a veth pair, keep `lab-veth-h` on the host with `10.87.0.1/24`, move the peer inside with `10.87.0.10/24`, bring both (and the pod's `lo`) up; (3) create cgroup `/sys/fs/cgroup/lab-nelson` with `memory.max` = 64 MiB; (4) launch `python3 -m http.server 8500` inside the netns, serving `/opt/lab-nelson/www`, enrolled in that cgroup, with fds 1 & 2 appended to `/tmp/lab-nelson/pod.log`. Then read your "pod logs" with `cat` — no `kubectl logs` required.
+
+**Verify:**
+```bash
+sudo /opt/lab-nelson/verify.sh   # expected: POD READY — you just did the kubelet's job by hand
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Queenstown: the node that stopped phoning home"
+**Solution:**
+```bash
+systemctl status lab-kubelet.service --no-pager      # failed
+journalctl -u lab-kubelet.service -n 10 --no-pager   # status=203/EXEC — the ExecStart binary doesn't exist
+systemctl cat lab-kubelet.service                    # ExecStart=/usr/local/bin/lab-kubelet.sh ... but the script lives in /opt
+sudo sed -i 's|/usr/local/bin/lab-kubelet.sh|/opt/lab-queenstown/lab-kubelet.sh|' /etc/systemd/system/lab-kubelet.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed lab-kubelet.service
+sudo systemctl start lab-kubelet.service
+```
+**Why this works & what it teaches:** The triage sequence is block 2 of this file's workflow verbatim: `systemctl status` says *that* it failed, `journalctl -u` says *why* (`203/EXEC` = systemd couldn't execute the path), and `systemctl cat` shows the unit's actual merged config — the same three commands you'd run on a real `NotReady` node, because a kubelet is just a systemd service. `reset-failed` clears the start-limit counter that `Restart=on-failure` burned through while crash-looping. **Where people go wrong:** restarting the unit over and over without reading the journal — the error was printed on the very first failure. **Cleanup:** `sudo systemctl stop lab-kubelet.service; sudo rm /etc/systemd/system/lab-kubelet.service; sudo systemctl daemon-reload; sudo rm -rf /opt/lab-queenstown /tmp/lab-queenstown`
+
+### Scenario 2 — "Rotorua: what is writing to this log file?"
+**Solution:**
+```bash
+# fd forensics: which process holds pod.log open as its stdout?
+sudo lsof /tmp/lab-rotorua/pod.log
+#   or, straight from /proc:
+sudo sh -c 'ls -l /proc/[0-9]*/fd/1 2>/dev/null | grep pod.log'
+#   /proc/12345/fd/1 -> /tmp/lab-rotorua/pod.log
+sudo cat /proc/12345/cmdline | tr '\0' ' '; echo    # unmask it: /opt/lab-rotorua/.cache-refresh
+sudo kill 12345
+```
+**Why this works & what it teaches:** This is the container-logs row of the mapping table run in reverse: a runtime wires a container's fds 1 & 2 to a file under `/var/log/pods`, so "who writes this log?" is always answerable by walking `/proc/<pid>/fd/` symlinks — the kernel's own accounting, immune to renamed or hidden binaries. `lsof <file>` is the same walk, packaged. Once you hold the PID, `/proc/<pid>/cmdline` and `readlink /proc/<pid>/exe` unmask the disguise. **Where people go wrong:** `pgrep`-ing for plausible process names — the whole point of fd forensics is that names lie and file descriptors don't. **Cleanup:** `sudo rm -rf /opt/lab-rotorua /tmp/lab-rotorua`
+
+### Scenario 3 — "Fremantle: three pods, one squatted port"
+**Solution:**
+```bash
+# Each netns has its own socket table — ask each one, not the host:
+for ns in lab-pod-a lab-pod-b lab-pod-c; do
+  echo "== $ns"; sudo ip netns exec "$ns" ss -tlnp
+done
+#   lab-pod-b: LISTEN 127.0.0.1:8322  users:(("python3",pid=23456,...))   ← the squatter
+sudo kill 23456          # (or: sudo ip netns pids lab-pod-b   to list its PIDs first)
+```
+**Why this works & what it teaches:** Pod isolation *is* the network namespace (mapping-table row 1): every netns owns a private socket table, so a port bound inside a pod is invisible to the host's `ss` — the reason "nothing on 8322" from the host proved nothing. `ip netns exec <ns> ss -tlnp` runs the inspection *inside* each namespace (the same trick as `nsenter -t <pid> -n ss -tlnp` from the CKA quick-reference), and `-p` hands you the owning PID for a surgical kill. **Where people go wrong:** deleting the whole namespace (`ip netns del`) — on a real node that's tearing down the pod's sandbox instead of fixing the workload, and the verify catches it by requiring all three namespaces to survive. **Cleanup:** `for ns in lab-pod-a lab-pod-b lab-pod-c; do sudo ip netns pids $ns | xargs -r sudo kill; sudo ip netns del $ns; done; sudo rm -rf /opt/lab-fremantle`
+
+### Scenario 4 — "Geelong: the manifest directory nobody is watching"
+**Solution:**
+```bash
+systemctl status lab-static-pod.path --no-pager   # active (waiting) — "healthy", allegedly
+systemctl cat lab-static-pod.path                 # PathModified=/etc/lab-manifest ← TYPO: missing the trailing 's'
+sudo sed -i 's|^PathModified=/etc/lab-manifest$|PathModified=/etc/lab-manifests|' /etc/systemd/system/lab-static-pod.path
+sudo systemctl daemon-reload
+sudo systemctl restart lab-static-pod.path
+sudo touch /etc/lab-manifests/web.yaml
+sleep 3; grep web.yaml /tmp/lab-geelong/kubelet.log
+```
+**Why this works & what it teaches:** A path unit watching a nonexistent path doesn't fail — systemd arms an inotify watch on the nearest existing parent and waits patiently for `/etc/lab-manifest` to appear, so the unit reports `active (waiting)` forever: *green but useless*, the nastiest class of misconfiguration. The kubelet's static-pod machinery is this exact pattern (watch a directory, react to file events), which is why control-plane pods run with no API server; and the debugging move — read the *actual* config with `systemctl cat` instead of trusting the status color — is the same one that catches wrong `--pod-manifest-path` flags on real kubelets. **Where people go wrong:** testing by restarting the *service* (which happily launches existing manifests once) and concluding the watcher works. **Cleanup:** `sudo systemctl disable --now lab-static-pod.path; sudo rm /etc/systemd/system/lab-static-pod.{path,service}; sudo systemctl daemon-reload; sudo rm -rf /etc/lab-manifests /opt/lab-geelong /tmp/lab-geelong`
+
+### Scenario 5 — "Napier: OOMKilled on a node with gigabytes free"
+**Solution:**
+```bash
+# 1. Evidence that this is a cgroup-scoped OOM kill, not node memory pressure:
+systemctl status lab-napier.service --no-pager        # Restart loop; result: oom-kill / "killed by the OOM killer"
+cat /sys/fs/cgroup/system.slice/lab-napier.service/memory.max      # 67108864 — the 64M ceiling (read while it runs)
+cat /sys/fs/cgroup/system.slice/lab-napier.service/memory.events   # oom_kill 1 — the kernel's own counter, in THIS cgroup
+sudo dmesg -T | grep -i oom | tail -n 5               # "Memory cgroup out of memory: Killed process ... (python3)"
+free -h                                               # node has plenty free — irrelevant, wrong ceiling (Trace A)
+# 2. Fix like a pod-spec edit — a drop-in override, never a hand-edit of the vendor unit:
+sudo mkdir -p /etc/systemd/system/lab-napier.service.d
+sudo tee /etc/systemd/system/lab-napier.service.d/override.conf >/dev/null <<'EOF'
+[Service]
+MemoryMax=256M
+EOF
+sudo systemctl daemon-reload
+sudo systemctl restart lab-napier.service
+```
+**Why this works & what it teaches:** This is Trace A end-to-end on live machinery: `MemoryMax=` writes `memory.max` on the unit's cgroup, the allocator's `memory.current` climbs into the ceiling, and the kernel's OOM killer fires *scoped to that cgroup* — `memory.events`' `oom_kill` counter and the `Memory cgroup out of memory` dmesg line are the two pieces of kernel-side proof, exactly the evidence pair the CKA quick-reference collects for a pod's `OOMKilled`. Node free memory never enters the decision, which is the "wrong ceiling" category error this file opens with. The drop-in override is the systemd analog of editing `resources.limits` in the pod spec rather than hacking the deployment's template on the node. **Where people go wrong:** reading `dmesg` *after* several restarts and matching the wrong kill event — or "fixing" it by adding node RAM, which changes nothing. **Cleanup:** `sudo systemctl disable --now lab-napier.service; sudo rm -rf /etc/systemd/system/lab-napier.service.d /etc/systemd/system/lab-napier.service; sudo systemctl daemon-reload; sudo rm -rf /opt/lab-napier`
+
+### Scenario 6 — "Nelson: be the kubelet — build the pod by hand"
+**Solution:**
+```bash
+# (1) The pod's network sandbox — what the pause container holds in real k8s:
+sudo ip netns add lab-pod-nelson
+# (2) The virtual cable: one end stays on the host, the peer moves into the pod:
+sudo ip link add lab-veth-h type veth peer name lab-veth-p
+sudo ip link set lab-veth-p netns lab-pod-nelson
+sudo ip addr add 10.87.0.1/24 dev lab-veth-h
+sudo ip link set lab-veth-h up
+sudo ip netns exec lab-pod-nelson ip link set lo up
+sudo ip netns exec lab-pod-nelson ip addr add 10.87.0.10/24 dev lab-veth-p
+sudo ip netns exec lab-pod-nelson ip link set lab-veth-p up
+# (3) The resource box — a cgroup-v2 leaf with a 64 MiB memory ceiling:
+sudo mkdir -p /sys/fs/cgroup/lab-nelson
+echo 67108864 | sudo tee /sys/fs/cgroup/lab-nelson/memory.max >/dev/null
+# (4) The workload: enroll the shell in the cgroup (children inherit it), then exec-chain
+#     the server inside the netns with fds 1&2 wired to the "pod log":
+sudo ip netns exec lab-pod-nelson bash -c \
+  'echo $$ > /sys/fs/cgroup/lab-nelson/cgroup.procs; cd /opt/lab-nelson/www; setsid python3 -m http.server 8500 --bind 10.87.0.10 >> /tmp/lab-nelson/pod.log 2>&1 < /dev/null &'
+# Prove it, then read your "pod logs":
+sudo /opt/lab-nelson/verify.sh
+curl -s http://10.87.0.10:8500/ >/dev/null; cat /tmp/lab-nelson/pod.log   # request lines — kubectl logs, minus kubectl
+```
+**Why this works & what it teaches:** Every line is one row of the mapping table with the YAML stripped away: the netns is pod isolation, the veth pair with the host-side `/24` is exactly how a CNI plugs a pod into the node (the kernel routes to `10.87.0.10` because `lab-veth-h` puts that subnet on-link), writing the shell's PID into `cgroup.procs` before launching means the python server is *born inside* the memory box (how a runtime places container PID 1 in `kubepods.slice/...`), and `>> pod.log 2>&1` is literally the container-logs mechanism — afterwards `readlink /proc/<pid>/fd/1` shows the same wiring the checker verifies. Do this once by hand and `Pod`, `CNI`, `resources.limits`, and `kubectl logs` stop being four mysteries and become four lines of shell. **Where people go wrong:** starting the server *before* the veth is up (bind fails), forgetting `lo` (many apps assume it), or enrolling in the cgroup *after* launch — the enroll-then-exec order is the whole trick. **Cleanup:** `sudo ip netns pids lab-pod-nelson | xargs -r sudo kill; sleep 1; sudo rmdir /sys/fs/cgroup/lab-nelson; sudo ip netns del lab-pod-nelson; sudo rm -rf /opt/lab-nelson /tmp/lab-nelson`

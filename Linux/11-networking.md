@@ -601,3 +601,266 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 **Q:** Why can `ping 10.96.0.1` fail on a perfectly healthy cluster while `curl 10.96.0.1:443` succeeds — what is a ClusterIP really?
 
 **A:** A ClusterIP is not a host — it's a **virtual IP that exists only as NAT rules** (kube-proxy's iptables/IPVS); no machine actually owns `10.96.0.1`, so there is no network stack sitting there to answer ICMP echo requests. `ping` uses ICMP, and the NAT rules typically only rewrite TCP/UDP traffic aimed at Service ports, so the ping gets no reply even though everything is healthy. `curl 10.96.0.1:443` succeeds because it sends TCP to a real Service port, which kube-proxy NATs to an actual backend pod (the apiserver), whose listening socket answers. That's why you test Services with `nc -zv` or `curl` against the real port, never with `ping`.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Lisbon: the runbook says 8100, the kernel disagrees" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-lisbon
+sudo tee /opt/lab-lisbon/app.py >/dev/null <<'EOF'
+import http.server, socketserver
+class H(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'lisbon-ok\n')
+    def log_message(self, *a):
+        pass
+socketserver.TCPServer.allow_reuse_address = True
+with socketserver.TCPServer(('127.0.0.1', 8123), H) as s:
+    s.serve_forever()
+EOF
+pkill -f lab-lisbon/app.py 2>/dev/null || true
+nohup python3 /opt/lab-lisbon/app.py >/dev/null 2>&1 &
+sleep 1
+```
+**Situation:** The internal "docs" micro-app on this box is supposed to serve its health page on port **8100** — that's what the runbook says and that's what the alert probes, and the alert is red: `curl http://127.0.0.1:8100/` returns `Connection refused`. The developer swears the process is running, and `ps aux | grep app.py` backs them up. Somebody is wrong, and it isn't the kernel.
+
+**Your task:** Using the kernel's socket table (not the runbook, not `ps`), find the port the app is *actually* listening on. Write just the port number to `/tmp/lab-lisbon-port.txt` and fetch the page from it.
+
+**Verify:**
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' "http://127.0.0.1:$(cat /tmp/lab-lisbon-port.txt)/"   # expected: 200
+```
+
+### 🟢 Scenario 2 — "Porto: dig is innocent, the fossil file did it" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-porto/www
+echo 'porto-ok' | sudo tee /opt/lab-porto/www/index.html >/dev/null
+pkill -f 'http.server 8200' 2>/dev/null || true
+nohup python3 -m http.server 8200 --bind 127.0.0.1 --directory /opt/lab-porto/www >/dev/null 2>&1 &
+sudo sed -i '/files\.lab-porto\.internal/d' /etc/hosts
+echo '203.0.113.99 files.lab-porto.internal' | sudo tee -a /etc/hosts >/dev/null
+sleep 1
+```
+**Situation:** After last month's migration, the file-sync service `files.lab-porto.internal` moved *onto this very box* — it now listens locally on port 8200. Yet every client on the machine hangs for seconds and then times out calling `http://files.lab-porto.internal:8200/`. The DNS team closed your ticket with "we have no records for `.internal` names, not our problem" — and annoyingly, they're right.
+
+**Your task:** Work out where the resolver is *actually* getting an answer for `files.lab-porto.internal` (hint: `getent hosts` walks the real chain; `dig` does not), and fix that source so the URL works. For this lab, the correct address is `127.0.0.1`.
+
+**Verify:**
+```bash
+curl -s --max-time 5 http://files.lab-porto.internal:8200/   # expected: porto-ok
+```
+
+### 🟡 Scenario 3 — "Madrid: the exporter that vanished from the network" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-madrid/www
+echo 'madrid-ok' | sudo tee /opt/lab-madrid/www/index.html >/dev/null
+pkill -f 'http.server 8300' 2>/dev/null || true
+sudo ip link add lab0 type dummy 2>/dev/null || true
+sudo ip addr replace 10.77.0.1/24 dev lab0
+sudo ip link set lab0 up
+nohup python3 -m http.server 8300 --bind 10.77.0.1 --directory /opt/lab-madrid/www >/dev/null 2>&1 &
+sleep 1
+sudo ip link set lab0 down
+```
+**Situation:** A metrics exporter is bound to this box's secondary service address `10.77.0.1:8300` (on the interface `lab0`). Since last night's maintenance window Prometheus shows the target down, and on the box itself `curl http://10.77.0.1:8300/` doesn't even get refused — it hangs, then times out. Meanwhile `ss -tlnp` insists the exporter is still in `LISTEN` on `10.77.0.1:8300`. The socket exists — but the packets to it are going somewhere very wrong.
+
+**Your task:** Run the four-questions loop. The socket answer checks out, so interrogate the interface and the route: ask the kernel which exit it would really use (`ip route get 10.77.0.1`) and explain why the SYN is *leaving the machine*. Fix what maintenance broke — without restarting the exporter.
+
+**Verify:**
+```bash
+curl -s --max-time 3 http://10.77.0.1:8300/   # expected: madrid-ok
+```
+
+### 🟡 Scenario 4 — "Prague: the packet that took the wrong exit" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-prague/www
+echo 'prague-ok' | sudo tee /opt/lab-prague/www/index.html >/dev/null
+sudo pkill -f 'http.server 8400' 2>/dev/null || true
+sudo ip netns del labns-prague 2>/dev/null || true
+sudo ip link del labveth0 2>/dev/null || true
+sudo ip link del lab-decoy 2>/dev/null || true
+sudo ip netns add labns-prague
+sudo ip link add labveth0 type veth peer name labveth1
+sudo ip link set labveth1 netns labns-prague
+sudo ip addr add 10.89.0.1/24 dev labveth0
+sudo ip link set labveth0 up
+sudo ip netns exec labns-prague ip addr add 10.89.0.2/24 dev labveth1
+sudo ip netns exec labns-prague ip link set labveth1 up
+sudo ip netns exec labns-prague ip link set lo up
+sudo ip netns exec labns-prague bash -c 'nohup python3 -m http.server 8400 --bind 10.89.0.2 --directory /opt/lab-prague/www >/dev/null 2>&1 &'
+sudo ip link add lab-decoy type dummy
+sudo ip link set lab-decoy up
+sudo ip route add 10.89.0.2/32 dev lab-decoy
+sleep 1
+```
+**Situation:** This host talks to a small appliance at `10.89.0.2:8400` over a point-to-point link, `labveth0` — the setup wires the appliance end into its own namespace, exactly the veth-pair pattern a pod uses. It worked yesterday. Today `curl http://10.89.0.2:8400/` hangs and times out, and while it hangs, `ss -tn state syn-sent` shows your SYN going nowhere. A teammate admits they were "experimenting with routing" on this box yesterday evening.
+
+**Your task:** Ask the kernel which exit it actually chooses for `10.89.0.2` (`ip route get`), work out why the wrong route is beating the right one (think longest-prefix match), and remove the offending route so the appliance answers again.
+
+**Verify:**
+```bash
+ip route get 10.89.0.2 | head -1              # expected: ... dev labveth0 src 10.89.0.1 ...
+curl -s --max-time 3 http://10.89.0.2:8400/   # expected: prague-ok
+```
+
+### 🟠 Scenario 5 — "Vienna: listening, but only on the other internet" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-vienna
+sudo tee /opt/lab-vienna/app.conf >/dev/null <<'EOF'
+# lab-vienna listener config
+BIND=::1
+PORT=8500
+EOF
+sudo tee /opt/lab-vienna/app.py >/dev/null <<'EOF'
+import http.server, socket, socketserver
+conf = {}
+for line in open('/opt/lab-vienna/app.conf'):
+    line = line.strip()
+    if line and not line.startswith('#') and '=' in line:
+        k, v = line.split('=', 1)
+        conf[k] = v
+class Srv(socketserver.TCPServer):
+    allow_reuse_address = True
+    address_family = socket.AF_INET6 if ':' in conf['BIND'] else socket.AF_INET
+class H(http.server.SimpleHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-Type', 'text/plain')
+        self.end_headers()
+        self.wfile.write(b'vienna-ok\n')
+    def log_message(self, *a):
+        pass
+with Srv((conf['BIND'], int(conf['PORT'])), H) as s:
+    s.serve_forever()
+EOF
+pkill -f lab-vienna/app.py 2>/dev/null || true
+nohup python3 /opt/lab-vienna/app.py >/dev/null 2>&1 &
+sleep 1
+```
+**Situation:** After a "small config cleanup" someone shipped last Friday, the load balancer has marked this API instance down: its IPv4 health check `curl -4 http://127.0.0.1:8500/` gets `Connection refused`. The previous on-call ran `ss -tlnp | grep 8500`, saw a `LISTEN` line, and escalated with "port is open, must be the LB's fault." The port number is the least interesting column of that `ss` line.
+
+**Your task:** Explain how a socket can be in `LISTEN` on port 8500 while every IPv4 client is refused — look at exactly *which address, which family* that socket is bound to. Then fix the app's bind config in `/opt/lab-vienna/app.conf` and restart it (`pkill -f lab-vienna/app.py`, then relaunch with `nohup python3 /opt/lab-vienna/app.py >/dev/null 2>&1 &`) so the IPv4 health check passes.
+
+**Verify:**
+```bash
+curl -4 -s --max-time 3 http://127.0.0.1:8500/   # expected: vienna-ok
+```
+
+### 🔴 Scenario 6 — "Krakow: three lies between you and the appliance" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-krakow/www
+echo 'krakow-ok' | sudo tee /opt/lab-krakow/www/index.html >/dev/null
+sudo pkill -f 'http.server 8601' 2>/dev/null || true
+sudo ip netns del labns-krakow 2>/dev/null || true
+sudo ip link del labveth2h 2>/dev/null || true
+sudo ip netns add labns-krakow
+sudo ip link add labveth2h type veth peer name labveth2n
+sudo ip link set labveth2n netns labns-krakow
+sudo ip link set labveth2h up
+sudo ip netns exec labns-krakow ip addr add 10.90.0.2/24 dev labveth2n
+sudo ip netns exec labns-krakow ip link set labveth2n up
+sudo ip netns exec labns-krakow ip link set lo up
+sudo ip netns exec labns-krakow bash -c 'nohup python3 -m http.server 8601 --bind 10.90.0.2 --directory /opt/lab-krakow/www >/dev/null 2>&1 &'
+sudo sed -i '/api\.lab-krakow\.internal/d' /etc/hosts
+echo '203.0.113.77 api.lab-krakow.internal' | sudo tee -a /etc/hosts >/dev/null
+sleep 1
+```
+**Situation:** A vendor appliance — a black box you cannot log into — hangs off this host on the dedicated link `labveth2h`. The runbook states: name `api.lab-krakow.internal`, appliance IP `10.90.0.2`, host side of the link `10.90.0.1/24`, service port `8600`. A sticky note adds: "port may have changed in the latest firmware." Right now `curl http://api.lab-krakow.internal:8600/` hangs forever — and after each fix you make it will fail *differently*, because this box is telling three separate lies: one in name resolution, one at the interface/route layer, and one at the socket layer.
+
+**Your task:** Peel the onion with the four-questions loop — name → interface → route → socket. Fix name resolution, restore the host side of the link, then hunt down the appliance's real port from the outside (you can't ssh in — probe it, e.g. `nc -zv 10.90.0.2 8600-8610`). Write the real port to `/tmp/lab-krakow-port.txt` and fetch the page by name.
+
+**Verify:**
+```bash
+curl -s --max-time 5 "http://api.lab-krakow.internal:$(cat /tmp/lab-krakow-port.txt)/"   # expected: krakow-ok
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### 🟢 Scenario 1 — "Lisbon: the runbook says 8100, the kernel disagrees"
+**Solution:**
+```bash
+ss -tlnp | grep python          # LISTEN 0 5 127.0.0.1:8123 ... users:(("python3",pid=...))
+echo 8123 > /tmp/lab-lisbon-port.txt
+curl -s "http://127.0.0.1:$(cat /tmp/lab-lisbon-port.txt)/"   # lisbon-ok
+```
+**Why this works & what it teaches:** `Connection refused` means the SYN reached a live IP but **no socket was listening on that port** — a Group 4 (sockets) failure from Rung 4, not DNS or routing. `ss -tlnp` dumps the kernel's socket table — the ground truth of who actually called `bind()`+`listen()` — and it shows the app claimed `8123`, not the documented `8100`. Where people go wrong: trusting `ps` (which only proves the process *runs*) instead of `ss` (which proves what it *listens on*). **Cleanup:** `pkill -f lab-lisbon/app.py; sudo rm -rf /opt/lab-lisbon; rm -f /tmp/lab-lisbon-port.txt`
+
+### 🟢 Scenario 2 — "Porto: dig is innocent, the fossil file did it"
+**Solution:**
+```bash
+getent hosts files.lab-porto.internal      # 203.0.113.99 — an answer, but from WHERE?
+grep lab-porto /etc/hosts                  # there it is: a stale migration entry
+sudo sed -i 's/^203\.0\.113\.99[[:space:]]*files\.lab-porto\.internal/127.0.0.1 files.lab-porto.internal/' /etc/hosts
+curl -s http://files.lab-porto.internal:8200/    # porto-ok
+```
+**Why this works & what it teaches:** `nsswitch.conf` says `hosts: files dns`, so an `/etc/hosts` entry short-circuits DNS entirely (Rung 3D, Prediction 4) — the stale `203.0.113.99` (an unroutable TEST-NET address) blackholed every SYN, which is why clients *hung* (`SYN-SENT`) instead of getting refused. `getent hosts` walks the real resolver chain and exposed the lie; `dig` talks straight to a DNS server and never sees `/etc/hosts` — exactly why "dig works (or knows nothing) but the app disagrees" tickets exist. **Cleanup:** `sudo sed -i '/files\.lab-porto\.internal/d' /etc/hosts; pkill -f 'http.server 8200'; sudo rm -rf /opt/lab-porto`
+
+### 🟡 Scenario 3 — "Madrid: the exporter that vanished from the network"
+**Solution:**
+```bash
+ss -tlnp | grep 8300            # LISTEN on 10.77.0.1:8300 — the socket is fine
+ip route get 10.77.0.1          # "10.77.0.1 via <default-gw> dev eth0" — it would LEAVE the box!
+ip addr show lab0               # lab0 is DOWN — maintenance never brought it back up
+sudo ip link set lab0 up
+ip route get 10.77.0.1          # now: "local 10.77.0.1 dev lo ..." — local again
+curl -s --max-time 3 http://10.77.0.1:8300/   # madrid-ok
+```
+**Why this works & what it teaches:** When an interface goes DOWN, the kernel withdraws its local and connected routes while keeping the address configured *and* keeping existing listening sockets alive — so `ss` looks healthy while `10.77.0.1` silently stops being "local". Longest-prefix match then falls through to `default via`, and your SYN to your own address is shipped toward the gateway and dies (Rung 3B), hanging in `SYN-SENT` (Prediction 5). `ip route get` is the killer move: it asks the kernel for the *actual* routing decision instead of guessing from the table. Where people go wrong: restarting the service (Group 4) when the failure lives in Groups 2/3. **Cleanup:** `pkill -f 'http.server 8300'; sudo ip link del lab0; sudo rm -rf /opt/lab-madrid`
+
+### 🟡 Scenario 4 — "Prague: the packet that took the wrong exit"
+**Solution:**
+```bash
+ip route get 10.89.0.2                # "10.89.0.2 dev lab-decoy ..." — wrong exit!
+ip route show | grep 10.89.0          # both routes: 10.89.0.0/24 dev labveth0 AND 10.89.0.2 dev lab-decoy
+sudo ip route del 10.89.0.2/32 dev lab-decoy
+ip route get 10.89.0.2                # now: "10.89.0.2 dev labveth0 src 10.89.0.1"
+curl -s --max-time 3 http://10.89.0.2:8400/   # prague-ok
+```
+**Why this works & what it teaches:** Routing is a longest-prefix-match lookup (Rung 3B): the teammate's `/32` host route is more specific than the correct connected `/24`, so every packet for `10.89.0.2` exited the `lab-decoy` dummy — a device that silently swallows frames — leaving the client stuck in `SYN-SENT` (Prediction 5). `ip route get <ip>` shows the winning route directly, which beats eyeballing `ip route show` on a busy CNI node with dozens of entries. This is precisely how a stray host route breaks a single pod IP while the rest of the subnet works. **Cleanup:** `sudo pkill -f 'http.server 8400'; sudo ip netns del labns-prague; sudo ip link del lab-decoy; sudo rm -rf /opt/lab-prague` (deleting the netns destroys `labveth1`, which takes `labveth0` with it — veth ends die in pairs)
+
+### 🟠 Scenario 5 — "Vienna: listening, but only on the other internet"
+**Solution:**
+```bash
+ss -tlnp | grep 8500                  # LISTEN ... [::1]:8500 — IPv6 loopback ONLY
+curl -6 -s 'http://[::1]:8500/'       # vienna-ok — the app itself is healthy, over IPv6
+sudo sed -i 's/^BIND=.*/BIND=0.0.0.0/' /opt/lab-vienna/app.conf
+pkill -f lab-vienna/app.py
+nohup python3 /opt/lab-vienna/app.py >/dev/null 2>&1 &
+sleep 1
+curl -4 -s http://127.0.0.1:8500/     # vienna-ok
+```
+**Why this works & what it teaches:** A socket's identity is *family + address + port*, not just the port (Rung 3C): this listener was bound to `[::1]` (IPv6 loopback, `AF_INET6`), so an IPv4 SYN to `127.0.0.1:8500` finds no matching socket and the kernel answers with a reset — `Connection refused` while `ss` "shows the port open". The tell is entirely in `ss`'s Local Address column: `[::1]:8500` vs `127.0.0.1:8500` vs `0.0.0.0:8500` (any-IPv4) vs `[::]:8500` (any-IPv6, usually dual-stack). Where people go wrong: grepping `ss` output for the port number and never reading the address next to it. **Cleanup:** `pkill -f lab-vienna/app.py; sudo rm -rf /opt/lab-vienna`
+
+### 🔴 Scenario 6 — "Krakow: three lies between you and the appliance"
+**Solution:**
+```bash
+# Lie 1 — name resolution. A hang (not "refused") + a name = check the resolver chain first:
+getent hosts api.lab-krakow.internal        # 203.0.113.77 — /etc/hosts is lying (files beats dns)
+sudo sed -i 's/^203\.0\.113\.77[[:space:]]*api\.lab-krakow\.internal/10.90.0.2 api.lab-krakow.internal/' /etc/hosts
+curl --max-time 3 http://api.lab-krakow.internal:8600/   # still fails — but differently now
+# Lie 2 — interface/route. Ask the kernel where 10.90.0.2 would exit:
+ip route get 10.90.0.2                      # via the default gateway — WRONG for a directly-attached link
+ip addr show labveth2h                      # UP but carries no inet address → no connected route
+sudo ip addr add 10.90.0.1/24 dev labveth2h # restore it; the 10.90.0.0/24 connected route reappears
+curl --max-time 3 http://api.lab-krakow.internal:8600/   # now: Connection refused — progress!
+# Lie 3 — socket. "Refused" = we reach the appliance, nothing listens on 8600. Probe the range:
+nc -zv 10.90.0.2 8600-8610 2>&1 | grep -i succeeded      # ... 8601 port [tcp/*] succeeded!
+echo 8601 > /tmp/lab-krakow-port.txt
+curl -s "http://api.lab-krakow.internal:$(cat /tmp/lab-krakow-port.txt)/"   # krakow-ok
+```
+**Why this works & what it teaches:** Each layer failed with its *own signature*, exactly the Rung 5 error map: blackholed TEST-NET IP → silent hang in `SYN-SENT` (resolver lied); no connected route → the SYN exits via the default gateway instead of the link (`ip route get` exposes it); no listener on 8600 → instant `Connection refused`, which paradoxically is *good news* — it proves name, interface, and route are all correct and only the socket answer remains. `nc -zv` over a port range is the standard "black-box appliance" move from Prediction 3. Where people go wrong: re-fixing the layer they already fixed because the symptom changed and they didn't re-triage from the top. **Cleanup:** `sudo pkill -f 'http.server 8601'; sudo ip netns del labns-krakow; sudo sed -i '/api\.lab-krakow\.internal/d' /etc/hosts; sudo rm -rf /opt/lab-krakow; rm -f /tmp/lab-krakow-port.txt`

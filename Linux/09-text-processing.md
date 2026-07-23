@@ -884,3 +884,217 @@ If any check-yourself felt shaky, that's your next 30-minute hands-on session �
 **Q:** Explain why `kubectl get pod -o json | grep image` is *structurally* the wrong approach — why is the line-and-column assumption invalid for JSON in the first place?
 
 **A:** The line tools' entire model assumes the data is a flat stream where one line = one record and columns split cleanly on a delimiter. JSON breaks that assumption at the root: it is a *nested tree*, where a single value can contain spaces, span multiple lines, or sit arbitrarily deep — and the same text could legally be pretty-printed across many lines or minified onto one line, in which case `grep image` returns everything or garbage fragments full of quotes, commas, and braces. There is simply no stable line/column structure for the pattern to key on, so any match is a coincidence of formatting, not of structure. The right tools are structure-aware ones — `jq '.items[].spec.containers[].image'` or `kubectl -o jsonpath` — which walk the tree by path, immune to how the text happens to be laid out: match the tool to the *shape* of the data.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance). Each **Setup** drops a messy data file under `/opt/lab-*`; your job is to *extract the one answer* with a `grep`/`sed`/`awk`/`sort`/`uniq`/`jq` pipeline and write it to the stated file, then prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6. (These are pure text-processing puzzles — no cluster needed.)
+
+### 🟢 Scenario 1 — "Otaru: which pod got OOMKilled?" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-otaru
+sudo tee /opt/lab-otaru/pods.txt >/dev/null <<'EOF'
+NAME     STATUS       RESTARTS   NODE
+web-1    Running      0          node-a
+web-2    CrashLoopBackOff 7      node-b
+api-1    Running      0          node-a
+api-2    OOMKilled    3          node-c
+db-1     Pending      0          node-b
+job-x    Completed    0          node-a
+cache-1  Running      1          node-c
+EOF
+```
+**Situation:** An alert says a pod was killed for running out of memory. You have a saved `kubectl get pods` table in `/opt/lab-otaru/pods.txt` and need the **name** of the pod whose STATUS is `OOMKilled`, to feed into the next command.
+
+**Your task:** Extract the NAME of the OOMKilled pod and write it (just the name, on its own line) to `/tmp/lab-otaru.txt`.
+
+**Verify:**
+```bash
+grep -qx 'api-2' /tmp/lab-otaru.txt && echo CORRECT   # expected: CORRECT
+```
+
+### 🟢 Scenario 2 — "Hakodate: how many pods are NOT Running?" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-hakodate
+sudo tee /opt/lab-hakodate/pods.txt >/dev/null <<'EOF'
+NAME      STATUS      RESTARTS  NODE
+frontend  Running     0         node-1
+backend   Pending     0         node-2
+worker    Running     2         node-1
+cache     OOMKilled   5         node-3
+queue     Running     0         node-2
+cron      Completed   0         node-1
+proxy     Running     0         node-3
+EOF
+```
+**Situation:** During triage you want a quick count of unhealthy pods from the saved table `/opt/lab-hakodate/pods.txt`. The catch: the file has a **header row**, and a naive `grep -vc Running` counts that header too (giving 4 instead of 3).
+
+**Your task:** Count how many actual pods have a STATUS other than `Running` — excluding the header — and write the number to `/tmp/lab-hakodate.txt`.
+
+**Verify:**
+```bash
+grep -qx '3' /tmp/lab-hakodate.txt && echo CORRECT   # expected: CORRECT
+```
+
+### 🟡 Scenario 3 — "Morioka: total memory across all pods" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-morioka
+sudo tee /opt/lab-morioka/top.txt >/dev/null <<'EOF'
+POD      CPU(cores)  MEM(Mi)
+web-1    120m        350
+web-2    88m         512
+api-1    45m         210
+api-2    300m        900
+db-1     60m         640
+EOF
+```
+**Situation:** Capacity planning asks: "how much memory are these pods using in total?" You have `kubectl top pods` output saved in `/opt/lab-morioka/top.txt`. The MEM values are in the third column, and the header row must not be added into the sum.
+
+**Your task:** Sum the `MEM(Mi)` column across all pods (skip the header) and write the total (a bare integer) to `/tmp/lab-morioka.txt`.
+
+**Verify:**
+```bash
+grep -qx '2612' /tmp/lab-morioka.txt && echo CORRECT   # expected: CORRECT
+```
+
+### 🟡 Scenario 4 — "Akita: the most common status code" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-akita
+sudo tee /opt/lab-akita/access.log >/dev/null <<'EOF'
+10.0.0.1 GET /home 200
+10.0.0.2 GET /api 500
+10.0.0.3 GET /home 200
+10.0.0.4 POST /login 401
+10.0.0.5 GET /api 500
+10.0.0.1 GET /home 200
+10.0.0.6 GET /static 404
+10.0.0.7 GET /api 500
+10.0.0.8 GET /api 500
+10.0.0.9 GET /api 500
+EOF
+```
+**Situation:** An access log at `/opt/lab-akita/access.log` has one request per line: `IP METHOD PATH STATUS`. Your lead wants to know which HTTP **status code** shows up most often, to decide whether this is a 5xx incident or normal traffic.
+
+**Your task:** Find the single most frequent status code (the 4th field) and write just that code to `/tmp/lab-akita.txt`.
+
+**Verify:**
+```bash
+grep -qx '500' /tmp/lab-akita.txt && echo CORRECT   # expected: CORRECT
+```
+
+### 🟠 Scenario 5 — "Yamagata: which endpoint is throwing the most 5xx?" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-yamagata
+sudo tee /opt/lab-yamagata/access.log >/dev/null <<'EOF'
+10.0.0.1 GET /api/users 200
+10.0.0.2 GET /api/orders 500
+10.0.0.3 GET /api/orders 503
+10.0.0.4 GET /api/users 500
+10.0.0.5 GET /api/orders 500
+10.0.0.6 GET /healthz 200
+10.0.0.7 GET /api/orders 502
+10.0.0.8 GET /api/users 200
+10.0.0.9 GET /api/payments 500
+10.0.0.10 GET /api/orders 500
+EOF
+```
+**Situation:** Users report intermittent failures. The access log `/opt/lab-yamagata/access.log` is `IP METHOD PATH STATUS`. You need to know which **endpoint (PATH)** is responsible for the most server errors — i.e. counting only responses in the `5xx` range (500–599), which path appears most.
+
+**Your task:** Among only the 5xx responses, find the PATH with the most occurrences and write that path (e.g. `/api/foo`) to `/tmp/lab-yamagata.txt`.
+
+**Verify:**
+```bash
+grep -qx '/api/orders' /tmp/lab-yamagata.txt && echo CORRECT   # expected: CORRECT
+```
+
+### 🔴 Scenario 6 — "Aomori: the image running in the most containers" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-aomori
+sudo tee /opt/lab-aomori/pods.json >/dev/null <<'EOF'
+{"items":[
+ {"metadata":{"name":"web-1"},"spec":{"containers":[
+    {"name":"app","image":"myreg/app:v2"},
+    {"name":"log","image":"fluentd:v1"}]}},
+ {"metadata":{"name":"web-2"},"spec":{"containers":[
+    {"name":"app","image":"myreg/app:v2"},
+    {"name":"log","image":"fluentd:v1"}]}},
+ {"metadata":{"name":"api-1"},"spec":{"containers":[
+    {"name":"api","image":"myreg/api:v9"},
+    {"name":"log","image":"fluentd:v1"}]}}
+]}
+EOF
+# jq is required: sudo apt-get install -y jq
+```
+**Situation:** A supply-chain review needs to know the most widely deployed image. The data is `kubectl get pods -o json` saved at `/opt/lab-aomori/pods.json` — a **nested tree**, not a table, so `grep`/`awk` will shatter on it (a pod has multiple containers, each with an `image`). You must walk the structure to count image usage across *all* containers of *all* pods.
+
+**Your task:** Determine which container `image` is used by the most containers across all pods, and write that image string (e.g. `repo/name:tag`) to `/tmp/lab-aomori.txt`.
+
+**Verify:**
+```bash
+grep -qx 'fluentd:v1' /tmp/lab-aomori.txt && echo CORRECT   # expected: CORRECT
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Otaru: which pod got OOMKilled?"
+**Solution:**
+```bash
+grep OOMKilled /opt/lab-otaru/pods.txt | awk '{print $1}' > /tmp/lab-otaru.txt
+cat /tmp/lab-otaru.txt      # api-2
+```
+**Why this works & what it teaches:** This is the toolkit's core two-step: `grep` **selects** the one line matching the pattern (Rung 3B — grep only filters, it can't pull a column), then `awk '{print $1}'` **reshapes** it to just the first field, the NAME (Rung 3D — awk understands fields). **Where people go wrong:** trying to make `grep` alone return the name — grep has no concept of columns, so you always pair "find the line" (grep) with "pull the field" (awk/cut).
+
+### Scenario 2 — "Hakodate: how many pods are NOT Running?"
+**Solution:**
+```bash
+tail -n +2 /opt/lab-hakodate/pods.txt | grep -vc Running > /tmp/lab-hakodate.txt
+# or, header-aware in one tool:
+#   awk 'NR>1 && $2!="Running"' /opt/lab-hakodate/pods.txt | wc -l
+cat /tmp/lab-hakodate.txt    # 3
+```
+**Why this works & what it teaches:** `grep -v` inverts the match (non-Running) and `-c` counts, but grep has **no idea the first line is a header** (Rung 3B / Prediction 1's "header leak") — a bare `grep -vc Running` returns 4 because the header contains no "Running" and is counted as a non-match. Stripping the header first (`tail -n +2`) or using `awk 'NR>1'` fixes it. **Where people go wrong:** trusting `grep -vc` on tabular command output — real pipelines start with `--no-headers`, `tail -n +2`, or `awk 'NR>1'` precisely because of this off-by-one.
+
+### Scenario 3 — "Morioka: total memory across all pods"
+**Solution:**
+```bash
+awk 'NR>1 {sum+=$3} END {print sum}' /opt/lab-morioka/top.txt > /tmp/lab-morioka.txt
+cat /tmp/lab-morioka.txt      # 2612
+```
+**Why this works & what it teaches:** Summing a column is pure awk territory — the moment a task needs *arithmetic*, you've left grep/sed behind (Rung 3D). `NR>1` skips the header record, `sum+=$3` accumulates the third field line by line, and the `END` block prints the running total exactly once after the last line. **Where people go wrong:** forgetting `NR>1` — awk would try to add the header string `MEM(Mi)` as a number, which it silently treats as `0`, so you get no error, just a subtly wrong-if-the-header-were-numeric total. Predicting the value first (350+512+210+900+640 = 2612) catches such bugs.
+
+### Scenario 4 — "Akita: the most common status code"
+**Solution:**
+```bash
+awk '{print $4}' /opt/lab-akita/access.log | sort | uniq -c | sort -rn | head -1 \
+  | awk '{print $2}' > /tmp/lab-akita.txt
+cat /tmp/lab-akita.txt        # 500
+```
+**Why this works & what it teaches:** This is the **counting sandwich** (Rung 3E / 5): `awk '{print $4}'` isolates the status column, the first `sort` makes identical codes adjacent so `uniq -c` can collapse-and-count them correctly, and `sort -rn` ranks by the leading number (descending) so `head -1` is the winner; a final `awk '{print $2}'` drops the count and keeps the code. **Where people go wrong:** running `uniq -c` without the first `sort` — uniq only merges *adjacent* duplicates, so unsorted input fractures each code into multiple small groups and the "top" is meaningless.
+
+### Scenario 5 — "Yamagata: which endpoint is throwing the most 5xx?"
+**Solution:**
+```bash
+awk '$4 ~ /^5/ {print $3}' /opt/lab-yamagata/access.log | sort | uniq -c | sort -rn \
+  | head -1 | awk '{print $2}' > /tmp/lab-yamagata.txt
+cat /tmp/lab-yamagata.txt     # /api/orders
+```
+**Why this works & what it teaches:** This layers a **field-condition filter** onto the counting sandwich — `$4 ~ /^5/` is an awk pattern that keeps only records whose status field *starts with 5* (the 5xx range), and its action prints the PATH field; then the usual `sort | uniq -c | sort -rn | head -1` group-by-and-rank finds the worst offender. It shows awk doing selection (a regex on a specific field, which grep can't target by column) *and* projection in one pass. **Where people go wrong:** filtering 5xx with a blunt `grep 5` (which also matches IPs, paths, and any digit-5), instead of anchoring the test to the *status field* with `$4 ~ /^5/`.
+
+### Scenario 6 — "Aomori: the image running in the most containers"
+**Solution:**
+```bash
+jq -r '.items[].spec.containers[].image' /opt/lab-aomori/pods.json \
+  | sort | uniq -c | sort -rn | head -1 | awk '{print $2}' > /tmp/lab-aomori.txt
+cat /tmp/lab-aomori.txt       # fluentd:v1
+```
+**Why this works & what it teaches:** The data is a **JSON tree**, so a structure-aware tool is mandatory (Rung 3F / 6). `jq -r '.items[].spec.containers[].image'` walks every item → into its container array → emits each container's `image` as raw text (one per line) — correctly flattening *both* containers per pod, which a line tool couldn't do without knowing the container count in advance. Once jq has produced a clean line-stream, the familiar counting sandwich ranks the images. **Where people go wrong:** reaching for `grep image pods.json` — it returns quote-and-brace fragments and breaks entirely if the JSON is minified to one line, because JSON has no stable line/column structure to key on. Match the tool to the *shape* of the data: trees → jq, then hand its flat output to the line tools.
+

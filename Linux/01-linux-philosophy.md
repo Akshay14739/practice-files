@@ -424,3 +424,190 @@ sudo ls -l /proc/20344/fd/1 /proc/20344/fd/2
 **Q:** cAdvisor could read cgroup stats by parsing files under `/sys/fs/cgroup` or via a hypothetical typed kernel API. Give one concrete reason each approach might win.
 
 **A:** The file approach wins on **generality and discoverability**: cgroup stats are just files, so cAdvisor needs zero special libraries, the same code path works for every controller and every workload, and any human can verify what cAdvisor sees with a plain `cat /sys/fs/cgroup/.../memory.current` while debugging a node. The typed-API approach wins on **per-read cost at scale**: the file interface forces the kernel to format numbers as text and the reader to parse that text back, which is wasteful and slightly racy when polling thousands of cgroups per second — a binary, structured, atomic interface (the reason high-frequency telemetry moves to eBPF/netlink) skips the text-formatting tax entirely.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Saint John: what is writing to this log file?" (Easy)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-sj
+cat > /tmp/lab-sj/writer.sh <<'EOF'
+#!/bin/bash
+exec 3>>/tmp/lab-sj/app.log
+while true; do echo "$(date '+%F %T') payment-batch tick" >&3; sleep 1; done
+EOF
+chmod +x /tmp/lab-sj/writer.sh
+nohup /tmp/lab-sj/writer.sh >/dev/null 2>&1 &
+```
+**Situation:** A log file at `/tmp/lab-sj/app.log` on a build box keeps growing, one line per second, and nobody on the team admits to owning the job that writes it. `lsof` and `fuser` are not installed on this minimal image, and the writer's command line contains no mention of the log file, so `pgrep -f app.log` comes back empty.
+
+**Your task:** Using only `/proc`, find the PID of the process that holds `/tmp/lab-sj/app.log` open for writing, and terminate it.
+
+**Verify:**
+```bash
+a=$(wc -c < /tmp/lab-sj/app.log); sleep 3; b=$(wc -c < /tmp/lab-sj/app.log); [ "$a" -eq "$b" ] && echo SOLVED   # expected: SOLVED (the file has stopped growing)
+```
+
+### 🟢 Scenario 2 — "Halifax: the process that lied about its name" (Easy)
+**Setup:**
+```bash
+nohup bash -c 'exec -a lab-innocentd sleep 86400' >/dev/null 2>&1 &
+```
+**Situation:** During a routine audit, `ps aux` shows a process called `lab-innocentd 86400` running on a shared VM. Nobody installed anything called `lab-innocentd`, there is no such binary anywhere on the `PATH`, and security wants to know what is *actually* executing before anyone touches it.
+
+**Your task:** Find the real on-disk executable behind the process whose command line starts with `lab-innocentd`, and write its absolute path into `/tmp/lab-hfx-answer.txt`.
+
+**Verify:**
+```bash
+grep -Eq '^/(usr/)?bin/sleep$' /tmp/lab-hfx-answer.txt && echo SOLVED   # expected: SOLVED (the "malware" is just /usr/bin/sleep wearing a fake argv[0])
+```
+
+### 🟡 Scenario 3 — "Winnipeg: the heartbeats vanish into the void" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-wpg
+sudo tee /opt/lab-wpg/heartbeat.sh >/dev/null <<'EOF'
+#!/bin/bash
+while true; do echo "heartbeat $(date +%s)"; sleep 2; done
+EOF
+sudo chmod 755 /opt/lab-wpg/heartbeat.sh
+nohup /opt/lab-wpg/heartbeat.sh >/dev/null 2>&1 &
+echo $! > /tmp/lab-wpg.pid
+```
+**Situation:** A teammate deployed a "heartbeat agent" and swears it is running — and `ps` agrees. But the on-call dashboard shows zero heartbeats, and there is no log file anywhere. The agent prints one heartbeat line every 2 seconds to its stdout; the question is where that stdout actually *goes*.
+
+**Your task:** Using `/proc/<pid>/fd`, prove where the agent's fd 1 currently points. Then fix the deployment so heartbeats accumulate in `/tmp/lab-wpg.log` (restart the agent with its stdout aimed at that file — exactly what a container runtime does for `kubectl logs`).
+
+**Verify:**
+```bash
+c1=$(grep -c heartbeat /tmp/lab-wpg.log); sleep 5; c2=$(grep -c heartbeat /tmp/lab-wpg.log); [ "$c2" -gt "$c1" ] && echo SOLVED   # expected: SOLVED (heartbeat lines are landing in the log and increasing)
+```
+
+### 🟡 Scenario 4 — "Victoria: /dev/null is getting full" (Medium)
+**Setup:**
+```bash
+sudo rm -f /dev/null
+sudo touch /dev/null
+sudo chmod 666 /dev/null
+seq 5000 >> /dev/null
+```
+**Situation:** A nightly cleanup script that ends every command with `>/dev/null 2>&1` has started filling the root filesystem, and this morning `du` shows `/dev/null` itself is kilobytes in size — which should be impossible for the void. Someone clearly "recreated" it after an accidental delete, but got it subtly wrong.
+
+**Your task:** Diagnose what `/dev/null` has become (check its file *type* — the first character of `ls -l`), then restore it as the proper character device so writes are discarded again.
+
+**Verify:**
+```bash
+echo test > /dev/null; stat -c '%F %t:%T %a %s' /dev/null   # expected: "character special file 1:3 666 0" — a char device, major 1 minor 3, and still 0 bytes after a write
+```
+
+### 🟠 Scenario 5 — "Moncton: recover the token from a dying deploy" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-mct
+sudo bash -c 'tr -dc a-f0-9 < /dev/urandom | head -c 32 > /opt/lab-mct/secret; echo >> /opt/lab-mct/secret; chmod 600 /opt/lab-mct/secret'
+sudo bash -c 'DEPLOY_STAGE=canary nohup sleep 86400 >/dev/null 2>&1 &'
+sudo bash -c 'DEPLOY_STAGE=stable nohup sleep 86400 >/dev/null 2>&1 &'
+sudo bash -c 'LAB_TOKEN=$(cat /opt/lab-mct/secret) nohup sleep 86401 >/dev/null 2>&1 &'
+```
+**Situation:** A deploy tool crashed halfway through a release, deleting its own config as it went down. The only surviving trace of the one-time release token is the environment of a single still-running helper process — but three near-identical root-owned helpers are running, and only one of them was launched with `LAB_TOKEN` in its environment. The token is 32 hex characters; without it the release can be neither completed nor rolled back.
+
+**Your task:** Find which running process carries `LAB_TOKEN` in its environment, extract the token's value from `/proc`, and save it (one line, just the value) to `/tmp/lab-mct-token.txt`.
+
+**Verify:**
+```bash
+sudo diff /tmp/lab-mct-token.txt /opt/lab-mct/secret && echo SOLVED   # expected: SOLVED (no diff output — recovered token matches the original)
+```
+
+### 🔴 Scenario 6 — "Regina: the producer that froze before its first line" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-reg
+sudo mkfifo -m 666 /opt/lab-reg/events.fifo
+sudo tee /opt/lab-reg/producer.sh >/dev/null <<'EOF'
+#!/bin/bash
+exec > /opt/lab-reg/events.fifo
+while true; do echo "event $(date +%s)"; sleep 1; done
+EOF
+sudo chmod 755 /opt/lab-reg/producer.sh
+nohup /opt/lab-reg/producer.sh >/dev/null 2>&1 &
+echo $! > /tmp/lab-reg.pid
+```
+**Situation:** A new "event producer" service was deployed to feed a log-shipping pipeline through `/opt/lab-reg/events.fifo`. The process is alive (`ps` shows it, PID in `/tmp/lab-reg.pid`), it never crashes, it uses no CPU — and yet not a single event has ever come out. The shipper team says their consumer "hasn't been deployed yet, but that shouldn't matter."
+
+**Your task:** Diagnose *why* the producer has never produced a byte — check what kind of file `events.fifo` is (`ls -l` first character), the producer's state (`ps -o stat,wchan -p <pid>`), and what its `/proc/<pid>/fd/1` does or doesn't point at. Then unblock the pipeline: attach a persistent consumer that drains the FIFO into `/tmp/lab-reg-events.log`, and prove events flow.
+
+**Verify:**
+```bash
+sleep 3; c1=$(grep -c '^event ' /tmp/lab-reg-events.log); sleep 3; c2=$(grep -c '^event ' /tmp/lab-reg-events.log); [ "$c2" -gt "$c1" ] && echo SOLVED   # expected: SOLVED (events are flowing through the FIFO into the log, count still rising)
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Saint John: what is writing to this log file?"
+**Solution:**
+```bash
+for p in /proc/[0-9]*; do
+  ls -l "$p/fd" 2>/dev/null | grep -q 'lab-sj/app.log' && echo "$p"
+done
+# -> /proc/<pid>; confirm what it is:
+cat /proc/<pid>/cmdline | tr '\0' ' '; echo
+kill <pid>
+```
+**Why this works & what it teaches:** Every open file a process holds is a symlink under `/proc/<pid>/fd/` (Rung 3.3), so scanning those symlinks finds the writer even when the filename never appears in any command line — this is exactly how `lsof` works under the hood. The writer kept fd 3 aimed at the log via `exec 3>>`, so the link was there to find. **Where people go wrong:** grepping `ps` output for the log filename — the fd table, not argv, is where open files live.
+
+### Scenario 2 — "Halifax: the process that lied about its name"
+**Solution:**
+```bash
+pid=$(pgrep -f lab-innocentd | head -1)
+readlink /proc/$pid/exe > /tmp/lab-hfx-answer.txt
+cat /tmp/lab-hfx-answer.txt   # /usr/bin/sleep
+```
+**Why this works & what it teaches:** `ps` and `/proc/<pid>/cmdline` show **argv**, which a program can set to anything (`exec -a` forged it here) — but `/proc/<pid>/exe` is a kernel-maintained symlink to the binary that is *actually* mapped into the process, and no userspace trick can forge it. This is a real incident-response technique for spotting renamed cryptominers. **Where people go wrong:** `pgrep -x lab-innocentd` finds nothing, because `comm` still says `sleep` — argv and comm are two different self-reported names, while `exe` is the ground truth.
+
+### Scenario 3 — "Winnipeg: the heartbeats vanish into the void"
+**Solution:**
+```bash
+pid=$(cat /tmp/lab-wpg.pid)
+ls -l /proc/$pid/fd/1        # -> /dev/null  (there's the bug: stdout aimed at the void)
+kill $pid
+nohup /opt/lab-wpg/heartbeat.sh >> /tmp/lab-wpg.log 2>&1 &
+sleep 3; tail -2 /tmp/lab-wpg.log
+```
+**Why this works & what it teaches:** The process was healthy; its fd 1 simply pointed at `/dev/null` because of how it was launched — and a process's fds are set *before* it runs and are visible from outside via `/proc/<pid>/fd` (Rung 3.3). Relaunching with `>> /tmp/lab-wpg.log` re-aims fd 1 at a real file, which is precisely the container-log mechanism: the app never changes, only what its fd 1 points at. **Where people go wrong:** debugging the *script* for a logging bug, when the truth was one `ls -l /proc/<pid>/fd/1` away.
+
+### Scenario 4 — "Victoria: /dev/null is getting full"
+**Solution:**
+```bash
+ls -l /dev/null              # -rw-rw-rw- ... — first char '-': it's a REGULAR FILE, not 'c'
+sudo rm /dev/null
+sudo mknod -m 666 /dev/null c 1 3
+```
+**Why this works & what it teaches:** What makes `/dev/null` discard data is not its name or path — it is the **character-device driver** behind it (major 1, minor 3), which defines "write means discard" (Rung 3.1's `file_operations` dispatch). A `touch`-created `/dev/null` is a regular file backed by ext4, so every `>/dev/null` *stored* the bytes. `mknod c 1 3` recreates the device node so the VFS routes writes back to the null driver. **Where people go wrong:** running `> /dev/null` to "empty" it — that truncates the regular file but doesn't fix its type; the first `ls -l` character is the diagnosis.
+
+### Scenario 5 — "Moncton: recover the token from a dying deploy"
+**Solution:**
+```bash
+# 1) Find which process has LAB_TOKEN in its environment (environ is NUL-separated, root-readable):
+sudo bash -c 'for e in /proc/[0-9]*/environ; do tr "\0" "\n" < "$e" 2>/dev/null | grep -q "^LAB_TOKEN=" && echo "$e"; done'
+# 2) Extract the value (replace <pid> with the directory found above):
+sudo tr '\0' '\n' < /proc/<pid>/environ | grep '^LAB_TOKEN=' | cut -d= -f2 > /tmp/lab-mct-token.txt
+```
+**Why this works & what it teaches:** A process's launch-time environment is a file too — `/proc/<pid>/environ` — with entries separated by NUL bytes, just like `cmdline` (Rung 7, Prediction 2), so `tr '\0' '\n'` makes it greppable. It is readable only by the process owner or root, which is why `sudo` is required for these root-owned helpers — the "everything is a file" model reuses ordinary file permissions as its security model. **Where people go wrong:** plain `grep LAB_TOKEN /proc/*/environ` silently misses matches as the unprivileged user (permission denied) and can be awkward on NUL-separated data — convert the NULs first, as root.
+
+### Scenario 6 — "Regina: the producer that froze before its first line"
+**Solution:**
+```bash
+pid=$(cat /tmp/lab-reg.pid)
+ls -l /opt/lab-reg/events.fifo      # prw-rw-rw- — first char 'p': a named pipe (FIFO)
+ps -o stat,wchan,cmd -p $pid        # state S, waiting inside the FIFO open
+ls -l /proc/$pid/fd/1               # still /dev/null — the redirect to the FIFO NEVER completed
+# Unblock: attach a persistent reader; the producer's open() then returns and events flow
+nohup bash -c 'cat /opt/lab-reg/events.fifo >> /tmp/lab-reg-events.log' >/dev/null 2>&1 &
+```
+**Why this works & what it teaches:** A FIFO is a rendezvous, not storage: `open()` for writing **blocks until a reader opens the other end**, so the producer froze inside `exec > events.fifo` before printing anything — its fd 1 still shows the *old* target because the new one was never attached. Attaching a consumer completes the rendezvous and bytes flow, illustrating that for pipe-type files "read/write" means synchronized communication between processes (Rungs 3.1 and 3.2, type `p`). **Where people go wrong:** restarting the producer over and over — it will block identically every time; the fix is on the *reader* side. (Use a long-lived reader: a one-shot `cat` that exits would send the producer SIGPIPE when the last reader closes.)

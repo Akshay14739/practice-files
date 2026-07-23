@@ -674,3 +674,222 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 **Q:** Why does `ENTRYPOINT ["my-app", "$HOME"]` print a literal `$HOME` but `ENTRYPOINT my-app $HOME` prints `/root`? Which form lets kubelet's SIGTERM reach your app, and how does `exec` rescue the other form?
 
 **A:** The exec (JSON) form does a direct `execve("my-app", ...)` with **no shell** — and expansion is a job the *shell* performs when rewriting your line, so nothing ever replaces `$HOME`; it arrives as the literal five characters. The shell form runs `/bin/sh -c "my-app $HOME"`, so a shell exists to perform expansion and `$HOME` becomes `/root`. Signals: the exec form wins — `my-app` is PID 1 and receives kubelet's SIGTERM cleanly for graceful shutdown; in the shell form the *shell* is PID 1 and the signal hits it, not your app. The rescue is `ENTRYPOINT ["/bin/sh", "-c", "exec my-app --flag=$HOME"]`: the shell expands `$HOME`, then `exec` *replaces* the shell with my-app (no fork), making my-app PID 1 so it gets the signals.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things (including your `~/.bashrc`). For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Kelowna: command not found (but the file is right there)" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-kel/bin
+sudo tee /opt/lab-kel/bin/lab-greet >/dev/null <<'EOF'
+#!/bin/bash
+echo "greetd OK"
+EOF
+sudo chmod 755 /opt/lab-kel/bin/lab-greet
+```
+**Situation:** A vendor's installer dropped its CLI into `/opt/lab-kel/bin/` and the docs breezily say "now just run `lab-greet`". You run it and get `lab-greet: command not found` — yet `ls -l /opt/lab-kel/bin/lab-greet` shows a perfectly good executable. The vendor's support portal suggests rebooting.
+
+**Your task:** Explain *why* the shell can't find the command (which mechanism looked where?), then fix it so `lab-greet` works by bare name — in your current shell **and** in every future interactive shell.
+
+**Verify:**
+```bash
+bash -ic 'command -v lab-greet && lab-greet'   # expected: /opt/lab-kel/bin/lab-greet then "greetd OK" — a brand-new interactive shell resolves it too
+```
+
+### 🟢 Scenario 2 — "Sudbury: the alias that only works on Mondays" (Easy)
+**Setup:**
+```bash
+[ -f ~/.bash_profile ] || printf '[ -f ~/.profile ] && . ~/.profile\n' > ~/.bash_profile
+echo "alias labk='echo lab-kubectl-ok'" >> ~/.bash_profile
+```
+**Situation:** A teammate prepping for the CKA set up a `labk` alias "permanently" by adding it to a startup file. It works right after they SSH in, but every *new terminal tab* they open says `labk: command not found`. They've concluded bash is "flaky" and started re-typing the alias by hand in every window.
+
+**Your task:** Explain which two *kinds* of shell are involved and why only one of them sees the alias. Then relocate the alias definition to the correct startup file so every interactive shell — login or not — gets it.
+
+**Verify:**
+```bash
+bash -ic 'labk'   # expected: lab-kubectl-ok — a non-login interactive shell now finds the alias
+```
+
+### 🟡 Scenario 3 — "Kingston: the deploy that can't see its token" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-kin
+sudo tee /opt/lab-kin/deploy.sh >/dev/null <<'EOF'
+#!/bin/bash
+if [ -z "$LAB_API_TOKEN" ]; then echo "FATAL: LAB_API_TOKEN not set" >&2; exit 1; fi
+echo "deploy OK (token ${LAB_API_TOKEN:0:4}...)"
+EOF
+sudo chmod 755 /opt/lab-kin/deploy.sh
+sudo tee /opt/lab-kin/run-deploy.sh >/dev/null <<'EOF'
+#!/bin/bash
+LAB_API_TOKEN=tok8443abcd
+/opt/lab-kin/deploy.sh
+EOF
+sudo chmod 755 /opt/lab-kin/run-deploy.sh
+```
+**Situation:** The release wrapper `/opt/lab-kin/run-deploy.sh` clearly sets `LAB_API_TOKEN` on its very first line — you can read it right there — and then calls the deploy script. Yet every run dies with `FATAL: LAB_API_TOKEN not set`. The author is convinced the deploy script "must be clearing the variable."
+
+**Your task:** Explain precisely why the deploy script never receives the token (which pool of variables did the assignment land in, and what does `execve` copy?). Then fix the wrapper so the deploy succeeds.
+
+**Verify:**
+```bash
+/opt/lab-kin/run-deploy.sh   # expected: "deploy OK (token tok8...)" and exit status 0
+```
+
+### 🟡 Scenario 4 — "Banff: two lab-statuses, one truth" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-ban/bin
+sudo tee /opt/lab-ban/bin/lab-status >/dev/null <<'EOF'
+#!/bin/bash
+echo "status: healthy v2"
+EOF
+sudo chmod 755 /opt/lab-ban/bin/lab-status
+echo 'export PATH=$PATH:/opt/lab-ban/bin' >> ~/.bashrc
+echo "alias lab-status='echo \"status: UNKNOWN (stale alias v1)\"'" >> ~/.bashrc
+```
+**Situation:** Monitoring v2 shipped this morning: the new `lab-status` binary is installed, on the `PATH`, and executable — colleagues on fresh VMs see `status: healthy v2`. But on this box, every interactive shell still prints `status: UNKNOWN (stale alias v1)`, left over from a v1 workaround someone "temporarily" added months ago.
+
+**Your task:** Using the shell's resolution order, list *everything* the name `lab-status` could resolve to on this box and identify which one wins and why. Then remove the stale winner — both from your current shell and from future interactive shells — so the real v2 binary answers.
+
+**Verify:**
+```bash
+bash -ic 'lab-status'   # expected: "status: healthy v2" — the PATH executable finally wins in a fresh interactive shell
+```
+
+### 🟠 Scenario 5 — "Whitehorse: works on my shell, dies in the scheduler" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-wh/tools
+sudo tee /opt/lab-wh/tools/lab-snap >/dev/null <<'EOF'
+#!/bin/bash
+echo "snapshot complete"
+EOF
+sudo chmod 755 /opt/lab-wh/tools/lab-snap
+sudo tee /opt/lab-wh/backup.sh >/dev/null <<'EOF'
+#!/bin/bash
+lab-snap
+EOF
+sudo chmod 755 /opt/lab-wh/backup.sh
+sudo tee /opt/lab-wh/cron-sim.sh >/dev/null <<'EOF'
+#!/bin/bash
+env -i /bin/bash /opt/lab-wh/backup.sh >> /tmp/lab-wh-cron.log 2>&1
+EOF
+sudo chmod 755 /opt/lab-wh/cron-sim.sh
+echo 'export PATH=$PATH:/opt/lab-wh/tools' >> ~/.bashrc
+/opt/lab-wh/cron-sim.sh
+```
+**Situation:** The nightly backup job `/opt/lab-wh/backup.sh` runs flawlessly whenever you execute it from your terminal (open a new shell and try it). But the scheduler — simulated faithfully by `/opt/lab-wh/cron-sim.sh`, which like real cron starts the script with an *empty environment and no startup files* — logs `lab-snap: command not found` into `/tmp/lab-wh-cron.log` every night.
+
+**Your task:** Explain the two environment differences between your interactive shell and the scheduler's non-interactive one that make this fail (what got sourced, and what got inherited?). Then fix `backup.sh` so it succeeds *under the scheduler*, without touching `cron-sim.sh` and without depending on any user's `~/.bashrc`.
+
+**Verify:**
+```bash
+/opt/lab-wh/cron-sim.sh; tail -1 /tmp/lab-wh-cron.log   # expected: "snapshot complete" — the job now works in a bare, no-startup-files environment
+```
+
+### 🔴 Scenario 6 — "Fredericton: PID 1 never gets the memo" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-fre
+sudo tee /opt/lab-fre/app.sh >/dev/null <<'EOF'
+#!/bin/bash
+trap 'echo "graceful shutdown $(date +%s)" >> /tmp/lab-fre-shutdown.log; exit 0' TERM
+echo "app started pid $$" >> /tmp/lab-fre-app.log
+while true; do sleep 1; done
+EOF
+sudo chmod 755 /opt/lab-fre/app.sh
+sudo tee /opt/lab-fre/start.sh >/dev/null <<'EOF'
+#!/bin/bash
+sh -c '/opt/lab-fre/app.sh; true' &
+echo $! > /tmp/lab-fre.pid
+EOF
+sudo chmod 755 /opt/lab-fre/start.sh
+/opt/lab-fre/start.sh
+```
+**Situation:** This is the ENTRYPOINT trap from Rung 6, live. Your "platform" records the entrypoint's PID in `/tmp/lab-fre.pid` and, at shutdown, sends SIGTERM to that PID — exactly what kubelet does to a container's PID 1. The app traps SIGTERM to log a graceful shutdown. Try it: `kill -TERM $(cat /tmp/lab-fre.pid)`. Result: no `graceful shutdown` line ever appears in `/tmp/lab-fre-shutdown.log`, and `pgrep -f lab-fre/app.sh` shows the app *still running*, orphaned — a zombie deploy.
+
+**Your task:** Explain the process tree that `sh -c '...; true'` created and why the SIGTERM never reached the app. Clean up the orphan, fix `start.sh` (one word) so the recorded PID *is* the app process, redeploy with the fixed script, and prove a graceful shutdown now works.
+
+**Verify:**
+```bash
+kill -TERM $(cat /tmp/lab-fre.pid); sleep 2; grep -q 'graceful shutdown' /tmp/lab-fre-shutdown.log && ! pgrep -f 'lab-fre/app.sh' >/dev/null && echo SOLVED   # expected: SOLVED (the app trapped SIGTERM, logged, and exited — no orphan left)
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Kelowna: command not found (but the file is right there)"
+**Solution:**
+```bash
+command -v lab-greet          # (nothing) — no dir in $PATH contains it
+echo $PATH                    # /opt/lab-kel/bin is absent — that's the whole bug
+export PATH=$PATH:/opt/lab-kel/bin        # fix the CURRENT shell
+echo 'export PATH=$PATH:/opt/lab-kel/bin' >> ~/.bashrc   # fix future interactive shells
+lab-greet                     # greetd OK
+```
+**Why this works & what it teaches:** Step 5 of the read-eval loop (Rung 3A/3B) resolves an external command *only* by walking `$PATH` left to right — an executable sitting in a directory the walk never visits is invisible, no matter how correct its permissions are. Exporting the extended `PATH` fixes this shell; appending the line to `~/.bashrc` pre-loads it into every future interactive shell (Rung 3D). **Where people go wrong:** "fixing" it by cd-ing into the directory — `lab-greet` still fails there, because PATH lookup doesn't include `.` (you'd need `./lab-greet`).
+
+### Scenario 2 — "Sudbury: the alias that only works on Mondays"
+**Solution:**
+```bash
+# Diagnosis: SSH login = LOGIN shell → reads ~/.bash_profile → alias works.
+# New terminal tab = NON-LOGIN interactive shell → reads ONLY ~/.bashrc → alias missing.
+sed -i "/alias labk=/d" ~/.bash_profile          # remove from the login-only file
+echo "alias labk='echo lab-kubectl-ok'" >> ~/.bashrc   # define it where every interactive shell looks
+source ~/.bashrc                                  # load it into the current shell too
+```
+**Why this works & what it teaches:** This is Rung 3D verbatim: login shells source the profile chain, while every *interactive* shell (login or not, via the `~/.bash_profile → ~/.bashrc` convention) sources `~/.bashrc` — so `~/.bashrc` is the one file both paths reach, and the only correct home for aliases. The alias wasn't "flaky"; it was defined in a file that new tabs never read. **Where people go wrong:** editing `~/.bashrc` and expecting the *current* shell to change — startup files are read at shell birth; use `source ~/.bashrc` to apply now.
+
+### Scenario 3 — "Kingston: the deploy that can't see its token"
+**Solution:**
+```bash
+sudo sed -i 's/^LAB_API_TOKEN=tok8443abcd$/export LAB_API_TOKEN=tok8443abcd/' /opt/lab-kin/run-deploy.sh
+/opt/lab-kin/run-deploy.sh    # deploy OK (token tok8...)
+```
+**Why this works & what it teaches:** `LAB_API_TOKEN=tok8443abcd` on its own line created a **shell (local) variable** in the wrapper's private pool — and when the wrapper forked `deploy.sh`, `execve` copied only the **environment block** into the child (Rung 3C), so the token never crossed. `export` promotes the variable into the environment *before* the fork, and the child's copy carries it. (Equivalent one-shot fix: `LAB_API_TOKEN=tok8443abcd /opt/lab-kin/deploy.sh` — a leading `VAR=value cmd` prefix injects it into just that child's environment.) **Where people go wrong:** blaming the child — a child can never see, or clear, its parent's un-exported variables; the copy was simply made without it.
+
+### Scenario 4 — "Banff: two lab-statuses, one truth"
+**Solution:**
+```bash
+type -a lab-status
+# lab-status is aliased to `echo "status: UNKNOWN (stale alias v1)"'   ← wins (checked FIRST)
+# lab-status is /opt/lab-ban/bin/lab-status                            ← the real v2, shadowed
+sed -i "/alias lab-status=/d" ~/.bashrc     # stop future interactive shells loading it
+unalias lab-status                          # evict it from the CURRENT shell
+lab-status                                  # status: healthy v2
+```
+**Why this works & what it teaches:** Resolution order (Rung 3A, Step 5) is **alias → function → builtin → PATH executable**, so a stale alias beats a perfectly good binary every time, and `type -a` is the tool that shows *all* candidates in precedence order instead of just the winner. Removing the definition from `~/.bashrc` fixes shells not yet born; `unalias` fixes the one you're in (aliases live in shell memory, not on disk). **Where people go wrong:** reinstalling the binary repeatedly — the file was never the problem; resolution simply stopped before reaching `$PATH`.
+
+### Scenario 5 — "Whitehorse: works on my shell, dies in the scheduler"
+**Solution:**
+```bash
+sudo tee /opt/lab-wh/backup.sh >/dev/null <<'EOF'
+#!/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/lab-wh/tools
+lab-snap
+EOF
+# (equally valid: keep one line and call /opt/lab-wh/tools/lab-snap by absolute path)
+/opt/lab-wh/cron-sim.sh; tail -1 /tmp/lab-wh-cron.log   # snapshot complete
+```
+**Why this works & what it teaches:** Two inheritance chains both broke (Rung 3C + 3D). First, a **non-interactive** shell sources *neither* profile nor `~/.bashrc` — so your bashrc's `PATH` extension never loads. Second, `env -i` (like cron's near-empty environment) means the script doesn't even *inherit* your interactive shell's exported `PATH` — the child only ever gets a copy of its parent's environment, and this parent's was empty. Robust batch scripts therefore set their own `PATH` (or use absolute paths) and assume nothing from any user's dotfiles. **Where people go wrong:** adding the export to `~/.bashrc` "harder" — cron will never read it; there is no user, no login, and no interactivity in that execution path.
+
+### Scenario 6 — "Fredericton: PID 1 never gets the memo"
+**Solution:**
+```bash
+pkill -f 'lab-fre/app.sh'                    # 1) reap the orphaned app from the failed test
+sudo tee /opt/lab-fre/start.sh >/dev/null <<'EOF'
+#!/bin/bash
+sh -c 'exec /opt/lab-fre/app.sh' &
+echo $! > /tmp/lab-fre.pid
+EOF
+/opt/lab-fre/start.sh                        # 2) redeploy with the one-word fix: exec
+kill -TERM $(cat /tmp/lab-fre.pid)           # 3) SIGTERM now lands on the app itself
+```
+**Why this works & what it teaches:** `sh -c '/opt/lab-fre/app.sh; true'` kept the `sh` alive as the recorded PID with the app as its *child* — and signals are delivered to one process, not to its descendants, so SIGTERM killed the shell and orphaned the app: Rung 6's ENTRYPOINT trap exactly (shell is PID 1, app never hears kubelet). `exec` makes the shell **replace itself** with the app (execve, no fork), so the recorded PID *is* the app, and the TERM trap fires. **Where people go wrong:** assuming a shell "forwards" signals to children when killed — it doesn't; either `exec` into the app or run a real init (tini) as PID 1.

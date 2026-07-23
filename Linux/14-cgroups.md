@@ -576,3 +576,236 @@ sudo grep -i cgroupDriver /var/lib/kubelet/config.yaml
 **Q:** You want a batch job to never use more than half a CPU across all the worker threads it spawns — why do `nice` and `ulimit` both fail, and why does `cpu.max` succeed?
 
 **A:** In one sentence: `nice` is only a *relative priority hint* (no hard cap at all — on an idle machine a nice-19 job still eats every core), and `ulimit` is *per-process* so every forked worker gets its own fresh allowance with no aggregate accounting, whereas `cpu.max = "50000 100000"` is enforced by the CFS bandwidth controller on the **box as a whole** — all workers together get at most 50 ms of CPU per 100 ms window and are throttled (made non-runnable, never killed) once the shared quota is burned.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) with **cgroup v2** (`stat -f -c %T /sys/fs/cgroup` → `cgroup2fs`) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6. All lab cgroups live under dedicated `/sys/fs/cgroup/lab-*` boxes and scripts under `/opt/lab-*`, so nothing real is touched.
+
+### 🟢 Scenario 1 — "Bilbao: which box is this process in?" (Easy)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-bilbao
+sudo mkdir -p /sys/fs/cgroup/lab-bilbao
+echo 67108864 | sudo tee /sys/fs/cgroup/lab-bilbao/memory.max >/dev/null
+sudo setsid sh -c 'echo $$ > /sys/fs/cgroup/lab-bilbao/cgroup.procs && exec sleep 86111' >/dev/null 2>&1 < /dev/null &
+```
+**Situation:** During an incident review, someone asks about a long-running `sleep 86111` process on this node: "is that thing resource-limited, or can it balloon?" Nobody remembers launching it. The YAML-level answer doesn't exist — this process never went through Kubernetes. The kernel-level answer is sitting in two files, if you know how to walk from a PID to its box.
+
+**Your task:** Find which cgroup the process lives in (from the process side, not by guessing directory names), read that box's memory ceiling, and write the exact byte value into `/tmp/lab-bilbao/answer.txt`.
+
+**Verify:**
+```bash
+[ "$(cat /tmp/lab-bilbao/answer.txt)" = "67108864" ] && echo correct   # expected: correct
+```
+
+### 🟢 Scenario 2 — "Naples: the batch job that dies at 3 a.m." (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-naples /sys/fs/cgroup/lab-naples
+echo 33554432 | sudo tee /sys/fs/cgroup/lab-naples/memory.max >/dev/null
+echo 0 | sudo tee /sys/fs/cgroup/lab-naples/memory.swap.max >/dev/null 2>&1 || true
+sudo tee /opt/lab-naples/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo $$ > /sys/fs/cgroup/lab-naples/cgroup.procs
+exec python3 -c 'a = bytearray(100 * 1024 * 1024); print("naples-done")'
+EOF
+sudo chmod +x /opt/lab-naples/run.sh
+sudo /opt/lab-naples/run.sh        # observe the symptom: "Killed"
+```
+**Situation:** A nightly reporting job (`sudo /opt/lab-naples/run.sh`) dies every run with a single word — `Killed` — and the app team has opened a ticket titled "kernel bug." The node has 60 GB free; the job needs about 100 MB. You've seen this movie: nobody checked *which* limit the job runs under, and nobody looked at the kernel log for the receipt.
+
+**Your task:** Prove from the kernel log *what* killed the job and *which* constraint fired, then fix the box (not the script — the script is fine) so the job completes. Size the ceiling to 256 MiB.
+
+**Verify:**
+```bash
+sudo /opt/lab-naples/run.sh    # expected: naples-done  (no "Killed")
+```
+
+### 🟡 Scenario 3 — "Antwerp: the encoder stuck at one-fifth speed" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /sys/fs/cgroup/lab-antwerp
+echo "20000 100000" | sudo tee /sys/fs/cgroup/lab-antwerp/cpu.max >/dev/null
+sudo setsid bash -c 'echo $$ > /sys/fs/cgroup/lab-antwerp/cgroup.procs; exec yes > /dev/null' &
+```
+**Situation:** A CPU-bound "media encoder" (our stand-in: `yes`) is crawling. It never crashes, never logs an error, and `top` shows it pinned at a suspiciously flat ~20% of one core on an otherwise idle machine. The app team has already tried `renice` — no effect. Flat-topped CPU on an idle box is not contention; it's a ceiling.
+
+**Your task:** Prove the process is being throttled (find the climbing counter that says so), then lift the cap so the box may use a full core.
+
+**Verify:**
+```bash
+awk '{print $1}' /sys/fs/cgroup/lab-antwerp/cpu.max   # expected: max
+A=$(awk '/^nr_throttled/{print $2}' /sys/fs/cgroup/lab-antwerp/cpu.stat); sleep 5; \
+B=$(awk '/^nr_throttled/{print $2}' /sys/fs/cgroup/lab-antwerp/cpu.stat); \
+[ "$A" = "$B" ] && echo no-longer-throttled            # expected: no-longer-throttled
+```
+
+### 🟡 Scenario 4 — "Gdansk: the worker pool that can't hire" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-gdansk /sys/fs/cgroup/lab-gdansk
+echo 8 | sudo tee /sys/fs/cgroup/lab-gdansk/pids.max >/dev/null
+sudo tee /opt/lab-gdansk/spawn.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo $$ > /sys/fs/cgroup/lab-gdansk/cgroup.procs
+python3 - <<'PYEOF'
+import subprocess
+procs = []
+try:
+    for i in range(20):
+        procs.append(subprocess.Popen(["sleep", "3"]))
+    print("gdansk-ok %d/20 workers started" % len(procs))
+except OSError as e:
+    print("gdansk-FAIL only %d/20 workers started: %s" % (len(procs), e))
+for p in procs:
+    p.wait()
+PYEOF
+EOF
+sudo chmod +x /opt/lab-gdansk/spawn.sh
+sudo /opt/lab-gdansk/spawn.sh      # observe the symptom: gdansk-FAIL only N/20 ...
+```
+**Situation:** A job runner (`sudo /opt/lab-gdansk/spawn.sh`) must fan out 20 workers. It launches a handful and then every further spawn fails with `Resource temporarily unavailable` — the classic `EAGAIN` from `fork()`. Memory is fine, CPU is idle, `ulimit -u` is huge. Someone once hardened this box against fork bombs and forgot to tell anyone how.
+
+**Your task:** Find the dial that is refusing the forks and the gauge proving it has been hit, then raise the cap to 100 so all 20 workers start.
+
+**Verify:**
+```bash
+sudo /opt/lab-gdansk/spawn.sh    # expected: gdansk-ok 20/20 workers started
+```
+
+### 🟠 Scenario 5 — "Basel: the limit we raised that changed nothing" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-basel /sys/fs/cgroup/lab-basel
+echo "+memory" | sudo tee /sys/fs/cgroup/lab-basel/cgroup.subtree_control >/dev/null
+sudo mkdir -p /sys/fs/cgroup/lab-basel/app
+echo 67108864  | sudo tee /sys/fs/cgroup/lab-basel/memory.max >/dev/null
+echo 536870912 | sudo tee /sys/fs/cgroup/lab-basel/app/memory.max >/dev/null
+echo 0 | sudo tee /sys/fs/cgroup/lab-basel/memory.swap.max >/dev/null 2>&1 || true
+sudo tee /opt/lab-basel/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo $$ > /sys/fs/cgroup/lab-basel/app/cgroup.procs
+exec python3 -c 'a = bytearray(200 * 1024 * 1024); print("basel-done")'
+EOF
+sudo chmod +x /opt/lab-basel/run.sh
+sudo /opt/lab-basel/run.sh         # observe the symptom: "Killed"
+```
+**Situation:** After a string of OOM kills, the team generously raised their app's memory limit to **512 MiB** — you can read it yourself in `/sys/fs/cgroup/lab-basel/app/memory.max`, and the app only needs ~200 MiB. It *still* gets OOM-killed on every single run. The team is now convinced the memory controller is broken. You remember the One Idea's last clause: *the boxes form a tree, and a child can never exceed its parent.*
+
+**Your task:** Find the ceiling that actually fired — prove it with the OOM accounting the kernel keeps per box — and fix the tree so the job completes. Give the binding level 1 GiB.
+
+**Verify:**
+```bash
+sudo /opt/lab-basel/run.sh    # expected: basel-done
+```
+
+### 🔴 Scenario 6 — "Graz: kill a hydra without rebooting" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-graz /sys/fs/cgroup/lab-graz
+echo 50 | sudo tee /sys/fs/cgroup/lab-graz/pids.max >/dev/null
+echo "20000 100000" | sudo tee /sys/fs/cgroup/lab-graz/cpu.max >/dev/null
+sudo tee /opt/lab-graz/bomb.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo $$ > /sys/fs/cgroup/lab-graz/cgroup.procs
+spawn() { while true; do spawn & sleep 0.5; done; }
+spawn
+EOF
+sudo chmod +x /opt/lab-graz/bomb.sh
+sudo setsid /opt/lab-graz/bomb.sh >/dev/null 2>&1 < /dev/null &
+```
+**Situation:** A runaway deployment script has turned into a self-respawning process tree — a fork bomb. The good news: whoever built this box put the blast inside a capped cgroup (`pids.max=50`, CPU capped at 0.2 core), so the node is alive and you can type. The bad news: it respawns faster than you can kill it — every `pkill` round loses the race because surviving members immediately fork replacements. You need to kill **every process in the box in one atomic stroke**, not play whack-a-mole PID by PID.
+
+**Your task:** Identify the cgroup containing the bomb from a live PID (not by reading the setup), show the evidence that its PID cap is saturated and refusing forks, then destroy the entire process tree atomically using the cgroup itself — no reboot, no kill-loop scripts.
+
+**Verify:**
+```bash
+sleep 2; cat /sys/fs/cgroup/lab-graz/pids.current   # expected: 0
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Bilbao: which box is this process in?"
+**Solution:**
+```bash
+PID=$(pgrep -f 'sleep 86111')
+cat /proc/$PID/cgroup                    # 0::/lab-bilbao   <- the process's box, from the process side
+cat /sys/fs/cgroup/lab-bilbao/memory.max # 67108864 (64 MiB)
+cat /sys/fs/cgroup/lab-bilbao/memory.max > /tmp/lab-bilbao/answer.txt
+```
+**Why this works & what it teaches:** `/proc/<PID>/cgroup` is the pointer from any PID to its one-and-only v2 box (unified hierarchy — one cgroup per process), and appending that path under `/sys/fs/cgroup` lands you on the directory holding all its dials; this is Rung 7 Example 4's "map a mystery PID back to its pod" move, minus Kubernetes. `cat` and `echo` are the entire API — no tool required. Where people go wrong: browsing `/sys/fs/cgroup` top-down hoping to recognize a name, instead of asking the process itself.
+**Cleanup:** `sudo pkill -f 'sleep 86111'; sleep 1; sudo rmdir /sys/fs/cgroup/lab-bilbao; rm -rf /tmp/lab-bilbao`
+
+### Scenario 2 — "Naples: the batch job that dies at 3 a.m."
+**Solution:**
+```bash
+sudo dmesg | tail -15
+# Memory cgroup out of memory: Killed process ... (python3)
+# oom-kill:constraint=CONSTRAINT_MEMCG,...,oom_memcg=/lab-naples ...
+cat /sys/fs/cgroup/lab-naples/memory.max          # 33554432 — a 32 MiB box for a 100 MB job
+cat /sys/fs/cgroup/lab-naples/memory.events       # oom_kill 1 (the box's own body count)
+echo 268435456 | sudo tee /sys/fs/cgroup/lab-naples/memory.max    # 256 MiB
+sudo /opt/lab-naples/run.sh                        # naples-done
+```
+**Why this works & what it teaches:** `Killed` with no stack trace is SIGKILL, and the kernel always leaves a receipt: `CONSTRAINT_MEMCG` in `dmesg` (Rung 7 Example 1) says the *cgroup's* ceiling fired, not the machine's — `oom_memcg=/lab-naples` even names the guilty box, and `memory.events` keeps the per-box `oom_kill` counter. The job "needs" ~100 MB, the box allowed 32 MiB; free node RAM was never consulted (Rung 5, step 7). Where people go wrong: filing "kernel bug" or adding node RAM — the limit that matters is the one in the file, and the fix is turning that dial (in Kubernetes: `resources.limits.memory`).
+**Cleanup:** `sudo rmdir /sys/fs/cgroup/lab-naples; sudo rm -rf /opt/lab-naples`
+
+### Scenario 3 — "Antwerp: the encoder stuck at one-fifth speed"
+**Solution:**
+```bash
+PID=$(pgrep -x yes); cat /proc/$PID/cgroup        # 0::/lab-antwerp
+cat /sys/fs/cgroup/lab-antwerp/cpu.max            # 20000 100000  -> 20ms per 100ms window = 0.2 CPU
+grep -E 'nr_throttled|throttled_usec' /sys/fs/cgroup/lab-antwerp/cpu.stat
+# read it twice a few seconds apart: both counters CLIMB -> the box is being frozen every period
+echo "max 100000" | sudo tee /sys/fs/cgroup/lab-antwerp/cpu.max   # lift the quota entirely
+top -b -n 1 | grep yes                             # now ~100% of a core
+```
+**Why this works & what it teaches:** `cpu.max = "20000 100000"` means the CFS bandwidth controller lets the whole box run 20 ms out of every 100 ms and then makes it non-runnable — throttled, never killed (Rung 3, "How a dial actually enforces"). The discriminating evidence is `cpu.stat`: a climbing `nr_throttled`/`throttled_usec` separates "ceiling" from "contention" in one read — and it's exactly why over-limit CPU in Kubernetes shows up as p99 latency, not OOMKilled (Rung 7 Example 2). Where people go wrong: `renice` — priority is relative and irrelevant when the box's absolute quota is the binding constraint.
+**Cleanup:** `sudo pkill -x yes; sleep 1; sudo rmdir /sys/fs/cgroup/lab-antwerp`
+
+### Scenario 4 — "Gdansk: the worker pool that can't hire"
+**Solution:**
+```bash
+cat /sys/fs/cgroup/lab-gdansk/pids.max            # 8
+cat /sys/fs/cgroup/lab-gdansk/pids.events         # max N  <- how many forks were REFUSED at the wall
+# while spawn.sh runs: cat /sys/fs/cgroup/lab-gdansk/pids.current  -> pinned at 8
+echo 100 | sudo tee /sys/fs/cgroup/lab-gdansk/pids.max
+sudo /opt/lab-gdansk/spawn.sh                     # gdansk-ok 20/20 workers started
+```
+**Why this works & what it teaches:** `pids.max` is checked in the `fork()`/`clone()` path: at the cap, `fork()` returns `-EAGAIN` — which userspace prints as "Resource temporarily unavailable" (Rung 3). The gauge pair tells the story: `pids.current` pinned at `pids.max`, and `pids.events`' `max` counter tallying every refused fork. Note why `ulimit -u` looked fine: it's per-*user* with its own accounting, while this wall is per-*box* and counts the whole tree (Rung 6's exact contrast). Where people go wrong: chasing memory/CPU for an `EAGAIN` that is really the anti-fork-bomb dial doing its job — in Kubernetes this is the `podPidsLimit` you hit when a sidecar leaks threads.
+**Cleanup:** `sudo rmdir /sys/fs/cgroup/lab-gdansk; sudo rm -rf /opt/lab-gdansk`
+
+### Scenario 5 — "Basel: the limit we raised that changed nothing"
+**Solution:**
+```bash
+sudo dmesg | tail -8                               # oom_memcg=/lab-basel  BUT  task_memcg=/lab-basel/app
+cat /sys/fs/cgroup/lab-basel/app/memory.max        # 536870912 — the child's generous 512 MiB, not the killer
+cat /sys/fs/cgroup/lab-basel/memory.max            # 67108864  — the PARENT's 64 MiB: the real ceiling
+cat /sys/fs/cgroup/lab-basel/memory.events         # oom_kill counting up at the PARENT level
+echo 1073741824 | sudo tee /sys/fs/cgroup/lab-basel/memory.max    # 1 GiB at the binding level
+sudo /opt/lab-basel/run.sh                          # basel-done
+```
+**Why this works & what it teaches:** The One Idea's tree clause is enforced literally: a child's dial can *say* 512 MiB, but every page is also charged against each ancestor, and the *tightest ancestor wins* — here the 64 MiB parent OOMs the tree while the child's own limit is never even approached. `dmesg` distinguishes the two (`oom_memcg` = the box whose limit fired vs `task_memcg` = where the victim lived), and walking `memory.max`/`memory.events` *up* the hierarchy finds the binding level. This is precisely Kubernetes' shape — container `.scope` inside pod `.slice` inside `kubepods.slice` — where a generous container limit can still be strangled by the pod- or node-level slice above it. Where people go wrong: reading only the leaf's `memory.max` and declaring the kernel broken; limits are a chain, and the chain's weakest link is the one that snaps.
+**Cleanup:** `sudo rmdir /sys/fs/cgroup/lab-basel/app /sys/fs/cgroup/lab-basel; sudo rm -rf /opt/lab-basel`
+
+### Scenario 6 — "Graz: kill a hydra without rebooting"
+**Solution:**
+```bash
+# 1) From any live bomb PID to its box:
+PID=$(pgrep -f 'lab-graz/bomb.sh' | head -1)
+cat /proc/$PID/cgroup                              # 0::/lab-graz
+# 2) The evidence — a saturated cap refusing forks by the thousand:
+cat /sys/fs/cgroup/lab-graz/pids.current           # 50 (pinned at pids.max)
+cat /sys/fs/cgroup/lab-graz/pids.events            # max <large and climbing>
+# 3) The atomic stroke — SIGKILL every member of the box, kernel-side, race-free:
+echo 1 | sudo tee /sys/fs/cgroup/lab-graz/cgroup.kill
+cat /sys/fs/cgroup/lab-graz/pids.current           # 0
+# (Older kernels without cgroup.kill: freeze first, then kill the frozen list —
+#  echo 1 > cgroup.freeze; kill -9 $(cat cgroup.procs); echo 0 > cgroup.freeze)
+```
+**Why this works & what it teaches:** A fork bomb is unkillable by iteration because `pkill` reads a PID list that is stale before the signals land — survivors refork instantly. The box *is* the answer: `cgroup.kill` (kernel 5.14+) makes the kernel SIGKILL every current-and-future member of the cgroup atomically, and `cgroup.freeze` achieves the same race-freedom on older kernels by stopping the whole box first so nothing can respawn while you kill it. Meanwhile the two dials layered in setup — `pids.max` containing the blast and `cpu.max` keeping the node typeable — are exactly why the machine survived at all (Rung 1's fork-bomb pain, solved). Where people go wrong: heroic `while pkill` loops that fight the race instead of using the box; the container-runtime equivalent is precisely how Kubernetes tears down a pod's processes cleanly.
+**Cleanup:** `sudo rmdir /sys/fs/cgroup/lab-graz; sudo rm -rf /opt/lab-graz`

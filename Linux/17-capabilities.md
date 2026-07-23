@@ -482,3 +482,238 @@ Historically "root" was a single switch: you either had every power or almost no
 **Q:** Your image contains a SUID-root helper, and the container's bounding set is `drop:[ALL]`. When the helper runs, does it get root's full power?
 
 **A:** No. The SUID bit does change the process's UID to 0 at exec, but the capability sets a process can gain across `execve()` are always limited by the **bounding set** — a bit absent from `CapBnd` can never appear in the new process's permitted or effective sets, regardless of SUID or file capabilities. With `drop:[ALL]` the bounding set is empty, so the helper ends up as "UID 0 with zero capabilities": root in name only, failing every `capable()` check. This is exactly why shrinking the bounding set protects the container against privilege-escalation via forgotten SUID binaries baked into images.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Medellin: which binary got a capability bolted on?" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-medellin
+for n in alpha bravo charlie delta; do sudo cp /bin/true /opt/lab-medellin/$n; done
+sudo apt-get install -y libcap2-bin >/dev/null 2>&1 || true
+sudo setcap cap_net_bind_service+ep /opt/lab-medellin/charlie
+ls -l /opt/lab-medellin   # all four look identical — no SUID 's' bit anywhere
+```
+**Situation:** A security sweep flagged `/opt/lab-medellin` as containing a binary with elevated powers, but nobody knows which one or what it can do. All four files look identical in `ls -l` — none has the SUID bit — so the classic `find / -perm -4000` audit finds nothing.
+
+**Your task:** Identify which of the four files carries a **file capability**, and name the exact capability it grants.
+
+**Verify:**
+```bash
+getcap -r /opt/lab-medellin 2>/dev/null
+# expected: exactly one line — /opt/lab-medellin/charlie cap_net_bind_service=ep
+```
+
+### 🟢 Scenario 2 — "Cusco: ping lost its powers" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-cusco
+sudo cp "$(command -v ping)" /opt/lab-cusco/ping
+sudo setcap -r /opt/lab-cusco/ping 2>/dev/null || true
+getcap /opt/lab-cusco/ping   # (no output — the copy carries no file capability)
+ls -l /opt/lab-cusco/ping    # -rwxr-xr-x  ... no SUID bit either
+```
+**Situation:** A teammate copied `ping` into a tooling directory so an unprivileged user could use it, but the copy fails with a raw-socket permission error when a normal user runs it. The system `/usr/bin/ping` works fine, and neither binary has the SUID bit. Modern distros replaced SUID-root ping with a single file capability — and the copy lost it.
+
+**Your task:** Grant the copied binary the one capability it needs so an unprivileged user can open the raw ICMP socket, **without** setting the SUID bit.
+
+**Verify:**
+```bash
+getcap /opt/lab-cusco/ping
+# expected: /opt/lab-cusco/ping cap_net_raw=ep
+```
+
+### 🟡 Scenario 3 — "Valparaiso: root, but the service can't chown" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-valparaiso
+sudo useradd -r -s /usr/sbin/nologin labuservp 2>/dev/null || true
+echo payload | sudo tee /opt/lab-valparaiso/target >/dev/null
+sudo chown root:root /opt/lab-valparaiso/target
+sudo tee /etc/systemd/system/lab-valparaiso.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Valparaiso - chown loop
+[Service]
+User=root
+CapabilityBoundingSet=
+AmbientCapabilities=
+ExecStart=/bin/bash -c 'while true; do chown labuservp /opt/lab-valparaiso/target 2>/opt/lab-valparaiso/err.log; sleep 5; done'
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-valparaiso.service
+sleep 2
+cat /opt/lab-valparaiso/err.log   # chown: changing ownership of ...: Operation not permitted
+```
+**Situation:** A maintenance service runs as `User=root`, yet its `chown` fails every cycle with "Operation not permitted." The developer is baffled: "it's literally running as root!" You know identity (UID) and privilege (capabilities) were decoupled from the kernel's checks years ago — this root process has no capability bits.
+
+**Your task:** Make the service able to `chown` the file to `labuservp`, **without** changing `User=` away from root — grant it the single capability it actually needs through the unit file.
+
+**Verify:**
+```bash
+stat -c '%U' /opt/lab-valparaiso/target
+# expected: labuservp
+```
+
+### 🟡 Scenario 4 — "Rosario: decode what this daemon may actually do" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-rosario
+sudo useradd -r -s /usr/sbin/nologin labuserro 2>/dev/null || true
+sudo apt-get install -y libcap2-bin >/dev/null 2>&1 || true
+sudo tee /etc/systemd/system/lab-rosario.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Rosario - restricted daemon
+[Service]
+User=labuserro
+AmbientCapabilities=CAP_CHOWN CAP_NET_RAW
+CapabilityBoundingSet=CAP_CHOWN CAP_NET_RAW
+ExecStart=/bin/sleep 3600
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-rosario.service
+```
+**Situation:** An auditor asks you to state, precisely, which kernel superpowers the `lab-rosario` daemon holds at runtime — not what the unit file *claims*, but what the **kernel actually granted the live process**. "Trust the kernel, not the YAML."
+
+**Your task:** From the running process's `/proc` entry, read its **effective** capability set (`CapEff`) and decode the hex into human-readable capability names.
+
+**Verify:**
+```bash
+PID=$(systemctl show -p MainPID --value lab-rosario.service)
+capsh --decode=$(grep CapEff /proc/$PID/status | awk '{print $2}')
+# expected: 0x...=cap_chown,cap_net_raw
+```
+
+### 🟠 Scenario 5 — "Cordoba: the ambient capability that won't stick" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-cordoba
+printf 'top-secret-config\n' | sudo tee /opt/lab-cordoba/secret.conf >/dev/null
+sudo chown root:root /opt/lab-cordoba/secret.conf
+sudo chmod 600 /opt/lab-cordoba/secret.conf
+sudo useradd -r -s /usr/sbin/nologin labuserco 2>/dev/null || true
+sudo tee /etc/systemd/system/lab-cordoba.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab Cordoba - reads a 0600 root file as a non-root user
+[Service]
+User=labuserco
+AmbientCapabilities=CAP_DAC_OVERRIDE
+CapabilityBoundingSet=CAP_CHOWN
+ExecStart=/bin/bash -c 'cat /opt/lab-cordoba/secret.conf > /opt/lab-cordoba/out.txt 2>/opt/lab-cordoba/err.txt || true'
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-cordoba.service
+sleep 1
+cat /opt/lab-cordoba/err.txt   # cat: /opt/lab-cordoba/secret.conf: Permission denied
+```
+**Situation:** A non-root daemon must read a root-owned `0600` config. The engineer did the "right thing" — instead of running as root, they granted `AmbientCapabilities=CAP_DAC_OVERRIDE` so the process can bypass the file-mode check. But it still gets **Permission denied**. They swear the ambient cap is set correctly.
+
+**Your task:** Diagnose why the ambient capability is not taking effect, and fix the unit so the non-root process can read the file. (Recall the ceiling rule: **Ambient ⊆ Permitted ⊆ Bounding** — a cap not inside the bounding set can never be raised, even ambiently.)
+
+**Verify:**
+```bash
+sudo systemctl restart lab-cordoba.service
+sleep 1
+cat /opt/lab-cordoba/out.txt
+# expected: top-secret-config
+```
+
+### 🔴 Scenario 6 — "Cartagena: the file-cap backdoor nobody noticed" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-cartagena/bin /opt/lab-cartagena/legit
+sudo apt-get install -y libcap2-bin >/dev/null 2>&1 || true
+# a LEGITIMATE, expected capability (must be LEFT in place):
+sudo cp "$(command -v ping)" /opt/lab-cartagena/legit/ping
+sudo setcap cap_net_raw+ep /opt/lab-cartagena/legit/ping
+# the planted privilege-escalation backdoors (must be NEUTRALIZED):
+sudo cp "$(command -v python3)" /opt/lab-cartagena/bin/py-helper
+sudo setcap cap_setuid+ep /opt/lab-cartagena/bin/py-helper
+sudo cp /bin/dd /opt/lab-cartagena/bin/fastcopy
+sudo setcap cap_dac_override+ep /opt/lab-cartagena/bin/fastcopy
+getcap -r /opt/lab-cartagena 2>/dev/null
+```
+**Situation:** An incident-response alert says an attacker planted binaries under `/opt/lab-cartagena` that grant privilege escalation via **file capabilities** — a `cap_setuid` binary can call `setuid(0)` to become root, and a `cap_dac_override` binary can read/write any file on the box. One binary in that tree, however, is a legitimate `ping` carrying `cap_net_raw` and must keep working. You must remove *only* the dangerous powers.
+
+**Your task:** Audit the whole tree, identify the escalation-enabling file capabilities, and strip them — **without deleting the binaries** and **without touching** the legitimate `cap_net_raw` on `ping`.
+
+**Verify:**
+```bash
+getcap -r /opt/lab-cartagena 2>/dev/null
+# expected: ONLY the line .../legit/ping cap_net_raw=ep remains —
+#           no cap_setuid and no cap_dac_override lines anywhere
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Medellin: which binary got a capability bolted on?"
+**Solution:**
+```bash
+getcap -r /opt/lab-medellin 2>/dev/null
+# /opt/lab-medellin/charlie cap_net_bind_service=ep
+```
+**Why this works & what it teaches:** File capabilities live in the `security.capability` xattr on the inode, not in the mode bits — so a SUID audit (`find / -perm -4000`) is blind to them. `getcap -r` walks the tree reading that xattr and reports which binary carries which cap. `cap_net_bind_service=ep` means the cap is loaded into the new process's *permitted* set and auto-activated in *effective* at exec, letting `charlie` bind ports below 1024. **Where people go wrong:** trusting `ls -l`/SUID audits alone and missing the modern capability-based escalation path.
+
+### Scenario 2 — "Cusco: ping lost its powers"
+**Solution:**
+```bash
+sudo setcap cap_net_raw+ep /opt/lab-cusco/ping
+getcap /opt/lab-cusco/ping   # /opt/lab-cusco/ping cap_net_raw=ep
+```
+**Why this works & what it teaches:** `ping` needs to open a raw ICMP socket, which requires `CAP_NET_RAW`. Modern distros grant exactly that one slice via a file capability instead of the old SUID-root approach, so a bug in `ping` costs you "can open raw sockets," not "full root." Copying the binary drops the xattr (it is not part of the file's data), so the copy became powerless; `setcap ... +ep` restores the single needed cap. **Where people go wrong:** re-adding the SUID bit (`chmod u+s`) — that works but hands the binary *all* of root, the exact all-or-nothing danger capabilities exist to avoid.
+
+### Scenario 3 — "Valparaiso: root, but the service can't chown"
+**Solution:**
+```bash
+sudo sed -i 's/^CapabilityBoundingSet=$/CapabilityBoundingSet=CAP_CHOWN/' /etc/systemd/system/lab-valparaiso.service
+# (or edit the unit so the line reads: CapabilityBoundingSet=CAP_CHOWN)
+sudo systemctl daemon-reload
+sudo systemctl restart lab-valparaiso.service
+sleep 2
+stat -c '%U' /opt/lab-valparaiso/target   # labuservp
+```
+**Why this works & what it teaches:** Changing a file's owner requires `CAP_CHOWN`. The kernel's check is `capable(CAP_CHOWN)`, which reads the *effective* set — it never looks at the UID. With `CapabilityBoundingSet=` empty, systemd walled off every capability, so even UID 0 has an empty effective set and `chown` returns `EPERM`. Adding `CAP_CHOWN` to the bounding set lets the root process keep that one bit in effective, and the chown succeeds. This is the whole "UID 0 with zero capabilities = root in name only" lesson made physical. **Where people go wrong:** switching `User=` or reaching for `privileged`-style blanket grants instead of restoring the single needed bit. **Cleanup:** `sudo systemctl disable --now lab-valparaiso.service; sudo rm /etc/systemd/system/lab-valparaiso.service; sudo systemctl daemon-reload`.
+
+### Scenario 4 — "Rosario: decode what this daemon may actually do"
+**Solution:**
+```bash
+PID=$(systemctl show -p MainPID --value lab-rosario.service)
+grep Cap /proc/$PID/status                       # see the raw hex masks
+capsh --decode=$(grep CapEff /proc/$PID/status | awk '{print $2}')
+# 0x0000000000002001=cap_chown,cap_net_raw
+```
+**Why this works & what it teaches:** `/proc/PID/status` prints each capability set as a 16-hex-digit bitmask; capability *N* is bit *N* (`CAP_CHOWN=0`, `CAP_NET_RAW=13`). You never decode by hand — `capsh --decode=` turns the number back into names. Reading `CapEff` directly from the kernel is the authoritative "what can this process do *right now*" answer, immune to a lying or drifted unit file. **Where people go wrong:** decoding `CapBnd` (the ceiling) or `CapPrm` (the may-have) and reporting those as active powers — only `CapEff` is what `capable()` actually checks. **Cleanup:** `sudo systemctl disable --now lab-rosario.service; sudo rm /etc/systemd/system/lab-rosario.service; sudo systemctl daemon-reload`.
+
+### Scenario 5 — "Cordoba: the ambient capability that won't stick"
+**Solution:**
+```bash
+# The ambient cap CAP_DAC_OVERRIDE is not inside the bounding set (only CAP_CHOWN is),
+# so it can never be raised. Widen the bounding set to include it:
+sudo sed -i 's/^CapabilityBoundingSet=CAP_CHOWN$/CapabilityBoundingSet=CAP_DAC_OVERRIDE/' /etc/systemd/system/lab-cordoba.service
+sudo systemctl daemon-reload
+sudo systemctl restart lab-cordoba.service
+sleep 1
+cat /opt/lab-cordoba/out.txt   # top-secret-config
+```
+**Why this works & what it teaches:** Ambient capabilities are subject to the hard ceiling rule — a cap must be within **both** the permitted and the bounding set to end up effective. The unit asked for ambient `CAP_DAC_OVERRIDE` but capped the bounding set at `CAP_CHOWN`, so systemd could not raise it and the non-root process kept hitting the `0600` file's DAC check. Putting `CAP_DAC_OVERRIDE` in the bounding set lets the ambient grant land in effective, and the file-mode check is bypassed for that one power. **Where people go wrong:** re-reading the `AmbientCapabilities=` line (which is correct) instead of checking the bounding-set ceiling above it; or "fixing" it by running as root, defeating the least-privilege goal. **Cleanup:** `sudo systemctl disable --now lab-cordoba.service; sudo rm /etc/systemd/system/lab-cordoba.service; sudo systemctl daemon-reload`.
+
+### Scenario 6 — "Cartagena: the file-cap backdoor nobody noticed"
+**Solution:**
+```bash
+# audit first — see all three file caps:
+getcap -r /opt/lab-cartagena 2>/dev/null
+# strip ONLY the dangerous escalation caps, leave ping's cap_net_raw:
+sudo setcap -r /opt/lab-cartagena/bin/py-helper
+sudo setcap -r /opt/lab-cartagena/bin/fastcopy
+getcap -r /opt/lab-cartagena 2>/dev/null   # only .../legit/ping cap_net_raw=ep remains
+```
+**Why this works & what it teaches:** A binary with `cap_setuid+ep` can call `setuid(0)` and become full root; one with `cap_dac_override+ep` can bypass every file-permission check — both are drop-in privilege-escalation primitives an attacker can hide without ever setting a SUID bit. `setcap -r` removes the `security.capability` xattr, neutralizing the power while leaving the binary usable. The discipline is discrimination: audit the whole tree with `getcap -r`, then remove only caps that grant escalation, preserving legitimate narrow grants like `cap_net_raw` on `ping`. **Where people go wrong:** `rm`-ing the binaries (breaks legitimate tooling) or blanket-stripping every cap including the one `ping` genuinely needs. On a real node, extend the sweep with `getcap -r / 2>/dev/null` and treat any unexplained `cap_setuid`/`cap_dac_override`/`cap_sys_admin` as a lead. **Cleanup:** `sudo rm -rf /opt/lab-cartagena`.

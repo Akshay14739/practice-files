@@ -481,3 +481,311 @@ sudo journalctl -f | grep apparmor
 **Q:** A teammate `mv`s a log file that an AppArmor rule protected into a new directory not covered by any rule. Does the confinement still apply? Same question for SELinux. Which design fact forces each answer?
 
 **A:** For AppArmor: no — the confinement no longer applies to that file. AppArmor is **path-based**: the DFA matches the resolved *pathname* at access time, so the policy follows the name, not the object; once the file lives at a path no rule covers, the old rule simply never matches (the access is then governed by whatever the profile says about the new path — often default-deny for a confined process, but the original protection rule is gone). For SELinux: yes — confinement still applies. SELinux is **label-based**: the security context is stored in the inode's extended attribute (`security.selinux`), and `mv` preserves the inode, so the label — and every type-enforcement rule written against it — travels with the file. The forcing facts: AppArmor anchors policy to the filesystem path; SELinux anchors it to the inode's label.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — AppArmor ships enabled there. Install the helpers once: `sudo apt-get install -y apparmor-utils`. Several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "La Paz: what is confining this process?" (Easy)
+**Setup:**
+```bash
+sudo apt-get install -y apparmor-utils >/dev/null 2>&1 || true
+sudo mkdir -p /opt/lab-lapaz
+sudo tee /opt/lab-lapaz/app.sh >/dev/null <<'EOF'
+#!/bin/bash
+while true; do sleep 5; done
+EOF
+sudo chmod +x /opt/lab-lapaz/app.sh
+sudo tee /etc/apparmor.d/lab-lapaz >/dev/null <<'PROF'
+abi <abi/3.0>,
+include <tunables/global>
+profile lab-lapaz /opt/lab-lapaz/app.sh {
+  include <abstractions/base>
+  include <abstractions/bash>
+  /opt/lab-lapaz/app.sh r,
+  /usr/bin/bash ix,
+  /usr/bin/sleep ix,
+}
+PROF
+sudo apparmor_parser -r /etc/apparmor.d/lab-lapaz
+sudo aa-exec -p lab-lapaz -- /opt/lab-lapaz/app.sh &
+sleep 1
+```
+**Situation:** A background process is running and you're told it's under AppArmor confinement — but not *which* profile, nor in which mode. Before you touch anything you need to identify the guard.
+
+**Your task:** Determine the profile **name** and **mode** currently confining the running `app.sh` process.
+
+**Verify:**
+```bash
+PID=$(pgrep -f /opt/lab-lapaz/app.sh | head -n1)
+cat /proc/$PID/attr/current
+# expected: lab-lapaz (enforce)
+```
+
+### 🟢 Scenario 2 — "Asuncion: the profile that isn't loaded" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-asuncion
+sudo tee /opt/lab-asuncion/app.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo hi
+EOF
+sudo chmod +x /opt/lab-asuncion/app.sh
+sudo tee /etc/apparmor.d/lab-asuncion >/dev/null <<'PROF'
+abi <abi/3.0>,
+include <tunables/global>
+profile lab-asuncion /opt/lab-asuncion/app.sh {
+  include <abstractions/base>
+  include <abstractions/bash>
+  /opt/lab-asuncion/app.sh r,
+  /usr/bin/bash ix,
+}
+PROF
+# NOTE: the file is on disk but was NEVER loaded into the kernel:
+sudo aa-status | grep -c lab-asuncion   # 0
+```
+**Situation:** A colleague wrote an AppArmor profile and dropped it in `/etc/apparmor.d/` yesterday, but `aa-status` doesn't list it and the app still runs unconfined. "The file is right there," they insist. Editing a profile source file changes nothing on its own.
+
+**Your task:** Load the profile into the kernel so it becomes active in **enforce** mode, using the tool that compiles profile source into the in-kernel form.
+
+**Verify:**
+```bash
+sudo aa-status | grep lab-asuncion
+# expected: lab-asuncion appears in the loaded/enforce list
+```
+
+### 🟡 Scenario 3 — "Punta Arenas: permission denied but ls says yes" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-punta /var/log/lab-punta /etc/lab-punta
+echo "cfg=1" | sudo tee /etc/lab-punta/config >/dev/null
+sudo tee /opt/lab-punta/app.sh >/dev/null <<'EOF'
+#!/bin/bash
+cat /etc/lab-punta/config >/dev/null
+echo "$(date) run" >> /var/log/lab-punta/out.log
+echo "wrote log"
+EOF
+sudo chmod +x /opt/lab-punta/app.sh
+sudo chmod 0777 /var/log/lab-punta
+sudo tee /etc/apparmor.d/lab-punta >/dev/null <<'PROF'
+abi <abi/3.0>,
+include <tunables/global>
+profile lab-punta /opt/lab-punta/app.sh {
+  include <abstractions/base>
+  include <abstractions/bash>
+  /opt/lab-punta/app.sh r,
+  /usr/bin/bash ix,
+  /usr/bin/cat ix,
+  /usr/bin/date ix,
+  /etc/lab-punta/** r,
+}
+PROF
+sudo apparmor_parser -r /etc/apparmor.d/lab-punta
+sudo aa-exec -p lab-punta -- /opt/lab-punta/app.sh
+# app.sh: line 3: /var/log/lab-punta/out.log: Permission denied
+ls -ld /var/log/lab-punta   # drwxrwxrwx  (DAC says anyone may write here)
+```
+**Situation:** The app reads its config fine but fails to write `/var/log/lab-punta/out.log` with "Permission denied" — yet `ls -ld` shows the directory is mode `0777`, world-writable. DAC clearly permits the write. A second, invisible gatekeeper is vetoing it, and it isn't in `ls -l`.
+
+**Your task:** Find the AppArmor denial in the kernel audit log, identify the exact path being blocked, add the minimal rule to permit the log write, reload the profile, and confirm the app writes its log.
+
+**Verify:**
+```bash
+sudo aa-exec -p lab-punta -- /opt/lab-punta/app.sh && tail -n1 /var/log/lab-punta/out.log
+# expected: "wrote log" printed, and a dated line present in out.log
+```
+
+### 🟡 Scenario 4 — "Mendoza: complain mode was masking a missing rule" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-mendoza /var/lib/lab-mendoza /etc/lab-mendoza
+echo "cfg" | sudo tee /etc/lab-mendoza/config >/dev/null
+sudo tee /opt/lab-mendoza/app.sh >/dev/null <<'EOF'
+#!/bin/bash
+cat /etc/lab-mendoza/config >/dev/null
+echo "state $(date +%s)" > /var/lib/lab-mendoza/state
+echo "ok"
+EOF
+sudo chmod +x /opt/lab-mendoza/app.sh
+sudo tee /etc/apparmor.d/lab-mendoza >/dev/null <<'PROF'
+abi <abi/3.0>,
+include <tunables/global>
+profile lab-mendoza /opt/lab-mendoza/app.sh {
+  include <abstractions/base>
+  include <abstractions/bash>
+  /opt/lab-mendoza/app.sh r,
+  /usr/bin/bash ix,
+  /usr/bin/cat ix,
+  /usr/bin/date ix,
+  /etc/lab-mendoza/** r,
+}
+PROF
+sudo apparmor_parser -r /etc/apparmor.d/lab-mendoza
+sudo aa-complain /opt/lab-mendoza/app.sh
+sudo aa-exec -p lab-mendoza -- /opt/lab-mendoza/app.sh   # "ok" — works, because complain mode allows+logs
+```
+**Situation:** `lab-mendoza` is in **complain** (learning) mode and appears to work perfectly — it writes `/var/lib/lab-mendoza/state` and prints "ok". But the audit log is full of `ALLOWED` violations for the state file, which means the instant you flip it to enforce it will break. You need to ship it enforcing **without** breaking it.
+
+**Your task:** Switch the profile to enforce, confirm it now breaks on the state write, add the missing rule, reload, and end with the profile in **enforce** mode while the app still succeeds.
+
+**Verify:**
+```bash
+sudo aa-status | sed -n '/enforce mode/,/complain mode/p' | grep -q lab-mendoza && echo "ENFORCE"
+sudo aa-exec -p lab-mendoza -- /opt/lab-mendoza/app.sh && cat /var/lib/lab-mendoza/state
+# expected: ENFORCE printed, "ok" printed, and a "state ..." line present
+```
+
+### 🟠 Scenario 5 — "Iquitos: the allow rule that never wins" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-iquitos/data
+sudo tee /opt/lab-iquitos/app.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo "public $(date +%s)" > /opt/lab-iquitos/data/public.log && echo "public OK"
+echo "secret $(date +%s)" > /opt/lab-iquitos/data/secret.log && echo "secret OK"
+EOF
+sudo chmod +x /opt/lab-iquitos/app.sh
+sudo tee /etc/apparmor.d/lab-iquitos >/dev/null <<'PROF'
+abi <abi/3.0>,
+include <tunables/global>
+profile lab-iquitos /opt/lab-iquitos/app.sh {
+  include <abstractions/base>
+  include <abstractions/bash>
+  /opt/lab-iquitos/app.sh r,
+  /usr/bin/bash ix,
+  /usr/bin/date ix,
+  /opt/lab-iquitos/data/** w,
+  deny /opt/lab-iquitos/data/secret.log w,
+}
+PROF
+sudo apparmor_parser -r /etc/apparmor.d/lab-iquitos
+sudo aa-exec -p lab-iquitos -- /opt/lab-iquitos/app.sh
+# public OK
+# app.sh: line 3: /opt/lab-iquitos/data/secret.log: Permission denied
+```
+**Situation:** `lab-iquitos` writes two files into the *same* directory. `public.log` succeeds but `secret.log` fails with "Permission denied" — even though the profile has an obvious `/opt/lab-iquitos/data/** w,` allow rule that plainly covers `secret.log`. The developer keeps re-reading the allow line, baffled that a broad allow doesn't apply.
+
+**Your task:** Explain why the broad allow rule doesn't grant the `secret.log` write, fix the profile so **both** writes succeed, and reload. (Hint: in AppArmor, one kind of rule always beats an allow.)
+
+**Verify:**
+```bash
+sudo aa-exec -p lab-iquitos -- /opt/lab-iquitos/app.sh && cat /opt/lab-iquitos/data/secret.log
+# expected: "public OK" and "secret OK" printed, and secret.log contains a line
+```
+
+### 🔴 Scenario 6 — "Barranquilla: confine it from scratch, prove it, and block shadow" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-barranquilla /var/log/lab-barranquilla /etc/lab-barranquilla
+echo "listen=8091" | sudo tee /etc/lab-barranquilla/config >/dev/null
+sudo tee /opt/lab-barranquilla/app.sh >/dev/null <<'EOF'
+#!/bin/bash
+cat /etc/lab-barranquilla/config >/dev/null
+echo "$(date) start" >> /var/log/lab-barranquilla/app.log
+if cat /etc/shadow >/dev/null 2>&1; then echo "SHADOW READABLE (bad)"; else echo "shadow blocked (good)"; fi
+echo "done"
+EOF
+sudo chmod +x /opt/lab-barranquilla/app.sh
+# NOTE: no profile exists yet — the app currently runs UNCONFINED and CAN read /etc/shadow:
+sudo /opt/lab-barranquilla/app.sh
+```
+**Situation:** A new service, `/opt/lab-barranquilla/app.sh`, ships with **no** AppArmor profile — it runs unconfined and can currently read `/etc/shadow` (the setup run prints "SHADOW READABLE (bad)"). You must author a complete **enforce-mode** profile from scratch that (a) lets it read its config and write its log, and (b) blocks *and audits* any attempt to read `/etc/shadow`, then prove the confinement is live.
+
+**Your task:** Write, load, and enforce a profile so that running `app.sh` under it (1) shows your profile in `/proc/.../attr/current`, (2) still writes `/var/log/lab-barranquilla/app.log`, and (3) is **denied** reading `/etc/shadow` (printing "shadow blocked (good)" and logging `apparmor="DENIED"`).
+
+**Verify:**
+```bash
+sudo aa-exec -p lab-barranquilla -- /opt/lab-barranquilla/app.sh
+# expected: prints "shadow blocked (good)" then "done"
+tail -n1 /var/log/lab-barranquilla/app.log
+# expected: a dated "start" line
+sudo dmesg | grep 'apparmor="DENIED"' | grep shadow | tail -n1
+# expected: an apparmor="DENIED" record naming /etc/shadow
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "La Paz: what is confining this process?"
+**Solution:**
+```bash
+PID=$(pgrep -f /opt/lab-lapaz/app.sh | head -n1)
+cat /proc/$PID/attr/current        # lab-lapaz (enforce)
+sudo aa-status | grep lab-lapaz    # cross-check: listed as a loaded, enforcing profile
+```
+**Why this works & what it teaches:** A process's active AppArmor confinement is exposed per-task at `/proc/PID/attr/current` — it names the profile *and* its mode. This is the ground-truth attach point: `aa-status` gives the fleet-wide view (all loaded profiles + confined processes), but `attr/current` tells you exactly what is guarding *this* PID right now. **Where people go wrong:** assuming a profile in `/etc/apparmor.d/` is confining something — a profile only binds to a process that was launched under it. **Cleanup:** `pkill -f /opt/lab-lapaz/app.sh; sudo apparmor_parser -R /etc/apparmor.d/lab-lapaz; sudo rm /etc/apparmor.d/lab-lapaz; sudo rm -rf /opt/lab-lapaz`.
+
+### Scenario 2 — "Asuncion: the profile that isn't loaded"
+**Solution:**
+```bash
+sudo apparmor_parser -r /etc/apparmor.d/lab-asuncion   # compile + load into the kernel
+sudo aa-status | grep lab-asuncion                     # now listed
+```
+**Why this works & what it teaches:** Files in `/etc/apparmor.d/` are just **source**. The kernel enforces the compiled copy (a DFA) held in kernel memory; until `apparmor_parser` reads the text, compiles it, and pushes it in, nothing is enforced. `apparmor_parser -r` (replace) is the actual "apply" step — `aa-enforce`/`systemctl reload apparmor` are just wrappers that ultimately call it. **Where people go wrong:** editing/saving the profile and expecting live effect, or reloading the wrong path. **Cleanup:** `sudo apparmor_parser -R /etc/apparmor.d/lab-asuncion; sudo rm /etc/apparmor.d/lab-asuncion; sudo rm -rf /opt/lab-asuncion`.
+
+### Scenario 3 — "Punta Arenas: permission denied but ls says yes"
+**Solution:**
+```bash
+# Find the real reason in the kernel audit stream:
+sudo dmesg | grep 'apparmor="DENIED"' | tail -n1
+#   ... apparmor="DENIED" operation="open" profile="lab-punta"
+#       name="/var/log/lab-punta/out.log" requested_mask="wc" denied_mask="wc" ...
+# Add the missing write rule, then reload:
+sudo sed -i '/\/etc\/lab-punta\/\*\* r,/a\  /var/log/lab-punta/** w,' /etc/apparmor.d/lab-punta
+sudo apparmor_parser -r /etc/apparmor.d/lab-punta
+sudo aa-exec -p lab-punta -- /opt/lab-punta/app.sh && tail -n1 /var/log/lab-punta/out.log
+```
+**Why this works & what it teaches:** AppArmor is MAC layered *after* DAC — both must say yes. DAC (mode `0777`) allowed the write, but the profile's whitelist named no rule for `/var/log/lab-punta`, so it was default-denied. The confined app just sees `EACCES` ("Permission denied"), identical to a file-mode failure; the AppArmor-specific reason lives **only** in the kernel audit log (`dmesg`/`journalctl -k`). Adding `/var/log/lab-punta/** w,` and reloading lets the write through. **Where people go wrong:** `chmod`/`chown`-ing the path (DAC was never the problem) instead of reading `dmesg` for the `DENIED` line. **Cleanup:** `sudo apparmor_parser -R /etc/apparmor.d/lab-punta; sudo rm /etc/apparmor.d/lab-punta; sudo rm -rf /opt/lab-punta /var/log/lab-punta /etc/lab-punta`.
+
+### Scenario 4 — "Mendoza: complain mode was masking a missing rule"
+**Solution:**
+```bash
+sudo aa-enforce /opt/lab-mendoza/app.sh                 # flip to enforce
+sudo aa-exec -p lab-mendoza -- /opt/lab-mendoza/app.sh  # now FAILS: state write denied
+# Discover the needed rule from the log (or use aa-logprof to propose it), then add it:
+sudo dmesg | grep 'apparmor="DENIED"' | grep lab-mendoza | tail -n1
+sudo sed -i '/\/etc\/lab-mendoza\/\*\* r,/a\  /var/lib/lab-mendoza/** w,' /etc/apparmor.d/lab-mendoza
+sudo apparmor_parser -r /etc/apparmor.d/lab-mendoza     # reload (stays enforce)
+sudo aa-exec -p lab-mendoza -- /opt/lab-mendoza/app.sh && cat /var/lib/lab-mendoza/state
+```
+**Why this works & what it teaches:** Enforce and complain are one boolean flag on the same profile. In **complain** mode a default-denied access is *allowed but logged* (`apparmor="ALLOWED"`) — the app works while you learn what it needs. In **enforce** the identical denial is *blocked* (`EACCES` + `apparmor="DENIED"`). The safe rollout is: run complain, collect the audit lines (`aa-logprof` reads exactly these and proposes rules), add them, then enforce. Here the missing `/var/lib/lab-mendoza/** w,` rule was invisible until enforce exposed it. **Where people go wrong:** shipping straight to enforce with an incomplete profile (a 2am outage), or leaving it in complain forever (no protection). **Cleanup:** `sudo apparmor_parser -R /etc/apparmor.d/lab-mendoza; sudo rm /etc/apparmor.d/lab-mendoza; sudo rm -rf /opt/lab-mendoza /var/lib/lab-mendoza /etc/lab-mendoza`.
+
+### Scenario 5 — "Iquitos: the allow rule that never wins"
+**Solution:**
+```bash
+# An explicit `deny` OVERRIDES any allow for the same path — deny always wins.
+# Remove the deny line, then reload:
+sudo sed -i '/deny \/opt\/lab-iquitos\/data\/secret.log w,/d' /etc/apparmor.d/lab-iquitos
+sudo apparmor_parser -r /etc/apparmor.d/lab-iquitos
+sudo aa-exec -p lab-iquitos -- /opt/lab-iquitos/app.sh && cat /opt/lab-iquitos/data/secret.log
+```
+**Why this works & what it teaches:** AppArmor rule precedence is not "most specific wins" or "last match wins" — an explicit `deny` rule is absolute and beats any overlapping `allow`, no matter how broad the allow is. So `/opt/lab-iquitos/data/** w,` genuinely permits `secret.log`, but the `deny .../secret.log w,` line vetoes it. Deleting the deny (or narrowing it) lets the allow apply. This is why the file warns that a catch-all like `deny /** w,` would silently kill your intended writes. **Where people go wrong:** piling on *more* allow rules trying to out-vote the deny — impossible; deny is final. **Cleanup:** `sudo apparmor_parser -R /etc/apparmor.d/lab-iquitos; sudo rm /etc/apparmor.d/lab-iquitos; sudo rm -rf /opt/lab-iquitos`.
+
+### Scenario 6 — "Barranquilla: confine it from scratch, prove it, and block shadow"
+**Solution:**
+```bash
+sudo tee /etc/apparmor.d/lab-barranquilla >/dev/null <<'PROF'
+abi <abi/3.0>,
+include <tunables/global>
+profile lab-barranquilla /opt/lab-barranquilla/app.sh flags=(attach_disconnected) {
+  include <abstractions/base>
+  include <abstractions/bash>
+  /opt/lab-barranquilla/app.sh r,
+  /usr/bin/bash ix,
+  /usr/bin/cat ix,
+  /usr/bin/date ix,
+  /etc/lab-barranquilla/** r,      # read its config
+  /var/log/lab-barranquilla/** w,  # write its log
+  audit deny /etc/shadow r,        # explicitly + audibly block the classic target
+}
+PROF
+sudo apparmor_parser -r /etc/apparmor.d/lab-barranquilla
+sudo aa-enforce /opt/lab-barranquilla/app.sh   # (profiles load enforce by default; this is belt-and-braces)
+sudo aa-exec -p lab-barranquilla -- /opt/lab-barranquilla/app.sh   # "shadow blocked (good)" / "done"
+tail -n1 /var/log/lab-barranquilla/app.log
+sudo dmesg | grep 'apparmor="DENIED"' | grep shadow | tail -n1
+```
+**Why this works & what it teaches:** This is the full authoring loop: start from `abstractions/base` (the ~50 paths every program needs) so you don't hand-list libraries, then whitelist exactly the app's config-read and log-write paths. Because a whitelist is default-deny, `/etc/shadow` is already blocked — the `audit deny /etc/shadow r,` line makes that denial *explicit and logged* (the `audit` keyword forces an audit record even for a rule that would otherwise be silent). `/proc/PID/attr/current` proves the process is actually confined; the `dmesg` `DENIED` line proves the shadow read was vetoed by AppArmor, not by DAC. **Where people go wrong:** forgetting `include <abstractions/bash>` (the shell interpreter can't run), or writing a `deny /** w,` catch-all that also kills the intended log write (deny wins). **Cleanup:** `sudo apparmor_parser -R /etc/apparmor.d/lab-barranquilla; sudo rm /etc/apparmor.d/lab-barranquilla; sudo rm -rf /opt/lab-barranquilla /var/log/lab-barranquilla /etc/lab-barranquilla`.

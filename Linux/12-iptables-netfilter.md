@@ -468,3 +468,203 @@ diff /tmp/ipt-before.txt /tmp/ipt-after.txt   # exactly which KUBE-* lines kube-
 **Q:** `statistic --mode random --probability` is stateless per-rule — why does a single TCP connection still stick to *one* pod for its entire lifetime instead of being re-randomized per packet?
 
 **A:** Because the **`nat` table is only consulted for the *first* packet of each connection**. When that first (`NEW`) packet rolls the statistic dice and lands in a `KUBE-SEP-xxx` chain, the DNAT decision "this flow → 10.244.2.7:8080" is recorded in the **conntrack** table. Every subsequent packet of the flow matches the conntrack entry and is translated automatically by the conntrack machinery without ever re-walking the KUBE-SVC rules — so the random choice happens exactly once per connection, making load balancing sticky per-connection rather than per-packet (a performance win as well as a correctness one).
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6. All lab rules live in dedicated `LAB-*` chains or match only lab ports (8000–8999), so cleanup never touches real firewall state.
+
+### 🟢 Scenario 1 — "Ghent: the port that answers to no one" (Easy)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-ghent && echo "ghent-ok" > /tmp/lab-ghent/index.html
+(cd /tmp/lab-ghent && setsid python3 -m http.server 8200 >/dev/null 2>&1 &)
+sudo iptables -N LAB-GHENT 2>/dev/null || true
+sudo iptables -F LAB-GHENT
+sudo iptables -A LAB-GHENT -p tcp --dport 8200 -j DROP
+sudo iptables -I INPUT 1 -j LAB-GHENT
+```
+**Situation:** A teammate deployed a metrics exporter on port 8200 of this node. `ss -tlnp` shows it listening, the process is healthy, but every `curl http://127.0.0.1:8200/` hangs until timeout. "The app must be frozen," says the ticket. You suspect the app is innocent.
+
+**Your task:** Find what is eating the packets and make the exporter reachable again.
+
+**Verify:**
+```bash
+curl -s -m 3 http://127.0.0.1:8200/   # expected: ghent-ok  (no timeout)
+```
+
+### 🟢 Scenario 2 — "Turin: the allow rule that never fires" (Easy)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-turin && echo "turin-ok" > /tmp/lab-turin/index.html
+(cd /tmp/lab-turin && setsid python3 -m http.server 8300 >/dev/null 2>&1 &)
+sudo iptables -N LAB-TURIN 2>/dev/null || true
+sudo iptables -F LAB-TURIN
+sudo iptables -A LAB-TURIN -p tcp --dport 8300 -j DROP
+sudo iptables -A LAB-TURIN -p tcp --dport 8300 -m conntrack --ctstate NEW -j ACCEPT
+sudo iptables -I INPUT 1 -j LAB-TURIN
+```
+**Situation:** Last night an engineer "opened port 8300" for a new internal service and even used the fancy conntrack `NEW` match from the runbook. The change ticket is marked done, the ACCEPT rule is visibly present in `iptables -L LAB-TURIN -n`, yet clients still time out. The engineer swears the firewall gods hate them.
+
+**Your task:** Make port 8300 reachable **without** deleting the `LAB-TURIN` chain or its ACCEPT rule — fix the real problem.
+
+**Verify:**
+```bash
+curl -s -m 3 http://127.0.0.1:8300/                    # expected: turin-ok
+sudo iptables -L LAB-TURIN -n | grep -c ACCEPT          # expected: 1  (the ACCEPT rule survived)
+```
+
+### 🟡 Scenario 3 — "Lyon: listening on 8400, refused on 8400" (Medium)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-lyon && echo "lyon-ok" > /tmp/lab-lyon/index.html
+(cd /tmp/lab-lyon && setsid python3 -m http.server 8400 >/dev/null 2>&1 &)
+sudo iptables -t nat -A OUTPUT -p tcp -d 127.0.0.1 --dport 8400 -j DNAT --to-destination 127.0.0.1:8455
+```
+**Situation:** An app on this box serves port 8400. `ss -tlnp | grep 8400` proves it is listening, and this time nothing hangs — `curl http://127.0.0.1:8400/` fails *instantly* with `Connection refused`. Refused means a RST came back, so packets ARE flowing. You've already dumped the `filter` table: it's completely clean. The previous admin left a note: "tried to migrate the service to a new port once, gave up halfway."
+
+**Your task:** Explain how a listening port can refuse connections, find the leftover, and remove it so port 8400 serves traffic.
+
+**Verify:**
+```bash
+curl -s -m 3 http://127.0.0.1:8400/   # expected: lyon-ok
+```
+
+### 🟡 Scenario 4 — "Bergen: the coin-flip that loses half the time" (Medium)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-bergen && echo "bergen-ok" > /tmp/lab-bergen/index.html
+(cd /tmp/lab-bergen && setsid python3 -m http.server 8502 >/dev/null 2>&1 &)
+sudo ip route add 10.96.88.10/32 dev lo 2>/dev/null || true
+sudo iptables -t nat -N LAB-SVC 2>/dev/null || true
+sudo iptables -t nat -F LAB-SVC
+sudo iptables -t nat -N LAB-SEP-A 2>/dev/null || true
+sudo iptables -t nat -F LAB-SEP-A
+sudo iptables -t nat -N LAB-SEP-B 2>/dev/null || true
+sudo iptables -t nat -F LAB-SEP-B
+sudo iptables -t nat -A LAB-SEP-A -p tcp -j DNAT --to-destination 127.0.0.1:8501
+sudo iptables -t nat -A LAB-SEP-B -p tcp -j DNAT --to-destination 127.0.0.1:8502
+sudo iptables -t nat -A LAB-SVC -m statistic --mode random --probability 0.5 -j LAB-SEP-A
+sudo iptables -t nat -A LAB-SVC -j LAB-SEP-B
+sudo iptables -t nat -A OUTPUT -p tcp -d 10.96.88.10 --dport 8500 -j LAB-SVC
+```
+**Situation:** This is the Rung 0 ticket, miniaturized. A hand-rolled "ClusterIP" `10.96.88.10:8500` load-balances across two "pod endpoints" exactly the way kube-proxy does — a per-service chain, a `statistic random probability 0.5` split, and per-endpoint DNAT chains. Since a scale-down last week, users report roughly **half** of all requests fail with `Connection refused` while the other half work perfectly. Each retry is a fresh coin flip.
+
+**Your task:** Walk the chain tree like you would `KUBE-SERVICES → KUBE-SVC → KUBE-SEP`, find the stale endpoint, and make **100%** of requests succeed.
+
+**Verify:**
+```bash
+for i in $(seq 1 10); do curl -s -m 2 http://10.96.88.10:8500/; done   # expected: bergen-ok printed 10 times, zero failures
+```
+
+### 🟠 Scenario 5 — "Malmo: the rule that isn't in the rulebook" (Hard)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-malmo && echo "malmo-ok" > /tmp/lab-malmo/index.html
+(cd /tmp/lab-malmo && setsid python3 -m http.server 8600 >/dev/null 2>&1 &)
+sudo iptables-legacy -I INPUT -p tcp --dport 8600 -j DROP
+```
+**Situation:** Port 8600 times out. You do everything right: `sudo iptables -L INPUT -n -v` — nothing about 8600. `sudo iptables-save | grep 8600` — nothing. The filter table looks pristine, conntrack shows the SYNs arriving, and yet the packets die. The node was recently migrated from an old Debian image, and the previous automation "managed the firewall with its own bundled tooling." You are starting to doubt that `iptables` shows you the whole truth.
+
+**Your task:** Find where a rule can hide from `iptables -L`, locate the drop, and remove it.
+
+**Verify:**
+```bash
+curl -s -m 3 http://127.0.0.1:8600/              # expected: malmo-ok
+sudo iptables-legacy-save 2>/dev/null | grep -c 8600   # expected: 0
+```
+
+### 🔴 Scenario 6 — "Zagreb: the redirect with zero packets" (Expert)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-zagreb && echo "zagreb-ok" > /tmp/lab-zagreb/index.html
+(cd /tmp/lab-zagreb && setsid python3 -m http.server 8701 >/dev/null 2>&1 &)
+sudo iptables -t raw -A OUTPUT -p tcp -d 127.0.0.1 --dport 8700 -j NOTRACK
+sudo iptables -t nat -A OUTPUT -p tcp -d 127.0.0.1 --dport 8700 -j REDIRECT --to-ports 8701
+```
+**Situation:** A legacy client is hard-coded to call `127.0.0.1:8700`, so the platform team added a textbook nat-table REDIRECT to the real service on 8701. It looks perfect in `iptables -t nat -S OUTPUT`. It has never worked: connections to 8700 are refused, and the packet counters on the REDIRECT rule sit at **exactly zero** no matter how many times you curl. The rule is right there. The kernel refuses to even *look* at it. Months ago, someone "optimized conntrack overhead" on this box.
+
+**Your task:** Figure out why the nat table never sees these packets, fix it, and make `curl 127.0.0.1:8700` land on the 8701 service.
+
+**Verify:**
+```bash
+curl -s -m 3 http://127.0.0.1:8700/                          # expected: zagreb-ok
+sudo iptables -t nat -L OUTPUT -n -v | grep 8701              # expected: pkts counter now > 0
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Ghent: the port that answers to no one"
+**Solution:**
+```bash
+sudo iptables -L INPUT -n -v --line-numbers      # see the jump to LAB-GHENT and its pkts counter climbing
+sudo iptables -L LAB-GHENT -n -v                 # the DROP on tcp dpt:8200, counters rising with each curl
+sudo iptables -F LAB-GHENT                       # remove the drop
+curl -s -m 3 http://127.0.0.1:8200/              # ghent-ok
+```
+**Why this works & what it teaches:** The listener was always healthy — the packets were destroyed at the INPUT hook before ever reaching the socket, which is why the connection *hung* (DROP is silent; the client keeps retransmitting SYNs). The `pkts` counters in `-L -n -v` are the smoking gun that a rule is matching, exactly the Rung 7 technique. Where people go wrong: restarting the app repeatedly instead of checking the filter table — an app cannot answer packets it never receives.
+**Cleanup:** `sudo iptables -D INPUT -j LAB-GHENT; sudo iptables -X LAB-GHENT; pkill -f 'http.server 8200'; rm -rf /tmp/lab-ghent`
+
+### Scenario 2 — "Turin: the allow rule that never fires"
+**Solution:**
+```bash
+sudo iptables -L LAB-TURIN -n -v --line-numbers
+# rule 1: DROP tcp dpt:8300        <- matches first, terminates; rule 2 is dead code
+# rule 2: ACCEPT tcp dpt:8300 ctstate NEW
+sudo iptables -D LAB-TURIN -p tcp --dport 8300 -j DROP    # delete only the DROP; ACCEPT now reachable
+curl -s -m 3 http://127.0.0.1:8300/                        # turin-ok
+```
+**Why this works & what it teaches:** Chains are walked top to bottom and the **first matching rule's target wins** — DROP is a terminating target, so the perfectly correct ACCEPT below it is unreachable dead code (Rung 3.4: "order is everything"). The `-v` counters prove it: the DROP's pkts climb, the ACCEPT's stay 0. Where people go wrong: appending (`-A`) an allow rule when they needed to insert (`-I`) it *above* the block — position, not existence, decides.
+**Cleanup:** `sudo iptables -D INPUT -j LAB-TURIN; sudo iptables -F LAB-TURIN; sudo iptables -X LAB-TURIN; pkill -f 'http.server 8300'; rm -rf /tmp/lab-turin`
+
+### Scenario 3 — "Lyon: listening on 8400, refused on 8400"
+**Solution:**
+```bash
+sudo iptables -t nat -S OUTPUT | grep 8400
+# -A OUTPUT -d 127.0.0.1/32 -p tcp -m tcp --dport 8400 -j DNAT --to-destination 127.0.0.1:8455
+sudo iptables -t nat -D OUTPUT -p tcp -d 127.0.0.1 --dport 8400 -j DNAT --to-destination 127.0.0.1:8455
+sudo conntrack -F 2>/dev/null || true            # flush any cached flow with the old translation
+curl -s -m 3 http://127.0.0.1:8400/              # lyon-ok
+```
+**Why this works & what it teaches:** The `filter` table was clean because the problem lived in the **nat table at the OUTPUT hook**: locally-generated packets to `:8400` were DNAT'd to `:8455`, where nothing listens — the kernel's RST from the dead port is why you got instant "refused" instead of a DROP-style hang. This is the Rung 3.2 lesson that DNAT for local traffic happens at OUTPUT, invisibly to `ss` and the filter table; `iptables -t nat -S` (or `conntrack -L`, whose reply tuple exposes the rewrite as in Rung 7 Example 2) is how you see mid-flight address surgery. Where people go wrong: only ever inspecting the filter table — "refused but listening" almost always means the destination was rewritten.
+**Cleanup:** `pkill -f 'http.server 8400'; rm -rf /tmp/lab-lyon`
+
+### Scenario 4 — "Bergen: the coin-flip that loses half the time"
+**Solution:**
+```bash
+sudo iptables -t nat -L LAB-SVC -n -v            # statistic 0.5 -> LAB-SEP-A, fallthrough -> LAB-SEP-B
+sudo iptables -t nat -L LAB-SEP-A -n             # DNAT to 127.0.0.1:8501  <- nothing listens there (stale endpoint)
+sudo iptables -t nat -L LAB-SEP-B -n             # DNAT to 127.0.0.1:8502  <- the live one
+ss -tlnp | grep -E '8501|8502'                    # only 8502 is listening: SEP-A points at a dead "pod"
+# remove the stale endpoint's coin-flip rule so all traffic falls through to the live SEP:
+sudo iptables -t nat -D LAB-SVC -m statistic --mode random --probability 0.5 -j LAB-SEP-A
+for i in $(seq 1 10); do curl -s -m 2 http://10.96.88.10:8500/; done   # 10x bergen-ok
+```
+**Why this works & what it teaches:** This is the kube-proxy structure from Rung 3.6 in miniature: entry rule → per-service chain with a `statistic random` split → per-endpoint DNAT chains. Half the *new* connections rolled the dice into `LAB-SEP-A`, got DNAT'd to a port with no listener, and were refused; conntrack made each verdict sticky per-connection (Rung 5), which is why a retry could succeed — a fresh flow, a fresh coin flip. Removing the stale SEP rule is exactly what kube-proxy does when an EndpointSlice shrinks; a SEP chain pointing at a pod that no longer exists is the real-world "scaled 3→0→3, some clients hang" bug from Rung 0.
+**Cleanup:** `sudo iptables -t nat -D OUTPUT -p tcp -d 10.96.88.10 --dport 8500 -j LAB-SVC; sudo iptables -t nat -F LAB-SVC; sudo iptables -t nat -F LAB-SEP-A; sudo iptables -t nat -F LAB-SEP-B; sudo iptables -t nat -X LAB-SVC; sudo iptables -t nat -X LAB-SEP-A; sudo iptables -t nat -X LAB-SEP-B; sudo ip route del 10.96.88.10/32 dev lo; pkill -f 'http.server 8502'; rm -rf /tmp/lab-bergen`
+
+### Scenario 5 — "Malmo: the rule that isn't in the rulebook"
+**Solution:**
+```bash
+iptables --version                                # e.g. iptables v1.8.7 (nf_tables)  <- you are on the nft backend
+sudo iptables-legacy -L INPUT -n -v               # THERE it is: DROP tcp dpt:8600, counters climbing
+sudo iptables-legacy -D INPUT -p tcp --dport 8600 -j DROP
+curl -s -m 3 http://127.0.0.1:8600/               # malmo-ok
+```
+**Why this works & what it teaches:** Rung 6's footgun, live: `iptables-nft` and `iptables-legacy` program **different kernel subsystems** (nftables vs classic xtables) and cannot see each other's rules — but the kernel runs *both* rule sets on every packet, so a legacy DROP still kills traffic while the nft view swears the table is empty. `iptables --version` tells you which backend your CLI speaks; when reality and the rulebook disagree, always check the *other* backend (`iptables-legacy-save` / `iptables-save`). Where people go wrong: trusting a single `iptables -L` as the complete truth on a machine where old tooling (Docker on old images, legacy config management) may have written via the other backend.
+**Cleanup:** `pkill -f 'http.server 8600'; rm -rf /tmp/lab-malmo`
+
+### Scenario 6 — "Zagreb: the redirect with zero packets"
+**Solution:**
+```bash
+sudo iptables -t raw -S OUTPUT
+# -A OUTPUT -d 127.0.0.1/32 -p tcp -m tcp --dport 8700 -j NOTRACK    <- the "optimization"
+sudo iptables -t raw -D OUTPUT -p tcp -d 127.0.0.1 --dport 8700 -j NOTRACK
+curl -s -m 3 http://127.0.0.1:8700/                       # zagreb-ok
+sudo iptables -t nat -L OUTPUT -n -v | grep 8701           # pkts > 0 at last
+```
+**Why this works & what it teaches:** Table priority (Rung 3.3: raw → mangle → nat → filter) means the `raw` table runs **before** connection tracking, and `NOTRACK` exempts the flow from conntrack entirely. But NAT is *implemented by* conntrack — the nat table is only consulted for the first packet of a **tracked** connection (Rung 3.5), so an untracked packet skips the nat hooks completely: your REDIRECT was correct, reachable, and structurally dead, which is exactly what its permanent zero counter was telling you. Where people go wrong: staring at the nat rule itself; a nat rule with zero packets on a flow you can see arriving means the packets are being exempted upstream — check `raw` for NOTRACK before doubting the rule. Same failure class as `nf_conntrack: table full` — no conntrack entry, no NAT.
+**Cleanup:** `sudo iptables -t nat -D OUTPUT -p tcp -d 127.0.0.1 --dport 8700 -j REDIRECT --to-ports 8701; pkill -f 'http.server 8701'; rm -rf /tmp/lab-zagreb`

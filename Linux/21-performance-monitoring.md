@@ -495,3 +495,254 @@ The computer keeps a running scoreboard in memory of everything it does — how 
 **Q:** kubectl says a pod is `OOMKilled` on a node with 40 GB free RAM. Which command and which string prove whether it was the pod's cgroup limit or the whole node — and why can't kubectl tell you?
 
 **A:** Run `dmesg -T | grep -i oom` on the node and look at the `oom-kill:constraint=` line in the kernel's kill report. `constraint=CONSTRAINT_MEMCG` proves the kill was triggered by a **cgroup** memory limit (the pod's `memory.max`) hitting its ceiling — not node RAM, which is why 40 GB can be free. If it instead said `CONSTRAINT_NONE`, the **node itself** ran out of memory (a global OOM) — a different and worse problem. kubectl can't tell you this because it only surfaces the summarized status `reason: OOMKilled` with no *why*; the ground-truth report lives in the kernel ring buffer, which only `dmesg` (or `journalctl -k`) reads. You can cross-check with the cgroup's own tally in `/sys/fs/cgroup/.../memory.events` (`oom_kill 1`).
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Mumbai: what is eating this CPU?" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-mon
+sudo tee /opt/lab-mon/report-engine >/dev/null <<'EOF'
+#!/bin/bash
+# lab: nightly billing report engine
+while :; do :; done
+EOF
+sudo chmod +x /opt/lab-mon/report-engine
+sudo bash -c 'nohup /opt/lab-mon/report-engine >/dev/null 2>&1 &'
+echo "Setup done. Give it ~60s, then look at: uptime"
+```
+**Situation:** Users say the Mumbai web VM "feels sluggish". `uptime` shows the 1-minute load average climbing toward 1.0 and one core is pinned flat-out, but nobody deployed anything today. Something on this box is burning a CPU doing exactly nothing useful.
+
+**Your task:** Using the utilization tools from this doc (`top`, `ps`, `pidstat`, `mpstat`), name the process that is consuming the CPU, then terminate it.
+
+**Verify:**
+```bash
+pgrep -af report-engine || echo "SOLVED - burner gone"
+# expected: "SOLVED - burner gone" (and a minute later `uptime` shows the 1-min load falling toward 0)
+```
+
+### 🟢 Scenario 2 — "Kochi: what is writing to this log file?" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-mon
+sudo tee /opt/lab-mon/telemetry-agent >/dev/null <<'EOF'
+#!/bin/bash
+exec 3>>/tmp/lab-telemetry.log
+while :; do echo "$(date +%s) beat=$RANDOM cpu=$((RANDOM % 100))" >&3; sleep 0.2; done
+EOF
+sudo chmod +x /opt/lab-mon/telemetry-agent
+sudo bash -c 'nohup /opt/lab-mon/telemetry-agent >/dev/null 2>&1 &'
+sleep 2
+ls -l /tmp/lab-telemetry.log
+```
+**Situation:** A mystery file `/tmp/lab-telemetry.log` on the Kochi node keeps growing, a new line every fraction of a second. Nothing in your deploy manifests mentions it. Before you can delete it you must find *what* is writing to it — otherwise it will just come back.
+
+**Your task:** Identify the process holding an open write file descriptor on `/tmp/lab-telemetry.log`, then terminate it so the file stops growing.
+
+**Verify:**
+```bash
+S=$(stat -c%s /tmp/lab-telemetry.log); sleep 5; [ "$S" -eq "$(stat -c%s /tmp/lab-telemetry.log)" ] && echo "SOLVED - file stopped growing"
+# expected: "SOLVED - file stopped growing" (and `sudo lsof /tmp/lab-telemetry.log` prints nothing)
+```
+
+### 🟡 Scenario 3 — "Chennai: df and du tell different stories" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-mon
+sudo tee /opt/lab-mon/debug-logger >/dev/null <<'EOF'
+#!/bin/bash
+exec 4>/opt/lab-mon/.debug.log
+rm -f /opt/lab-mon/.debug.log
+head -c 300M /dev/zero >&4
+n=0
+while [ "$n" -lt 400 ]; do head -c 512K /dev/zero >&4; n=$((n+1)); sleep 1; done
+sleep infinity
+EOF
+sudo chmod +x /opt/lab-mon/debug-logger
+sudo bash -c 'nohup /opt/lab-mon/debug-logger >/dev/null 2>&1 &'
+sleep 3
+df -h /opt | tail -1
+sudo du -sh /opt/lab-mon
+```
+**Situation:** The Chennai node's root filesystem lost ~300 MB the moment this "debug logger" was deployed, and `df` shows usage still creeping up — but `du` on every directory can't account for the missing space. A teammate already deleted "the big log file" hours ago, yet the disk keeps filling. Kubernetes will flip `DiskPressure=True` soon.
+
+**Your task:** Find the process that is holding (and still writing) a **deleted** file, prove which file it is, and reclaim the space.
+
+**Verify:**
+```bash
+sudo lsof +L1 2>/dev/null | grep debug.log || echo "SOLVED - no deleted-but-open file"
+# expected: "SOLVED - no deleted-but-open file" (and `df -h /opt` shows the ~300 MB back)
+```
+
+### 🟡 Scenario 4 — "Hyderabad: who killed the payments worker?" (Medium)
+**Setup:**
+```bash
+sudo systemd-run --unit=lab-payments.service -p MemoryMax=64M -p MemorySwapMax=0 tail /dev/zero
+sleep 10
+systemctl status lab-payments.service --no-pager 2>&1 | tail -3
+```
+**Situation:** The Hyderabad "payments worker" (`lab-payments.service`) died within seconds of starting, and it will keep dying every time it is started. The dev team swears the node has gigabytes of free RAM — and they're right, it does. Your job is to produce the kernel's own ground-truth verdict, the same way you would prove *why* a pod was `OOMKilled`.
+
+**Your task:** Using only kernel logs (`dmesg` / `journalctl -k`), determine (a) which process the kernel killed and (b) whether the trigger was a **cgroup limit** or the **whole node** running out of memory. Write your verdict as one line containing the process name and the exact `constraint=` value to `/tmp/lab-oom-verdict`, e.g. `nginx CONSTRAINT_NONE`.
+
+**Verify:**
+```bash
+grep -q "CONSTRAINT_MEMCG" /tmp/lab-oom-verdict && grep -qw "tail" /tmp/lab-oom-verdict && echo "SOLVED - correct verdict"
+# expected: "SOLVED - correct verdict"
+```
+
+### 🟠 Scenario 5 — "Bengaluru: the wrong suspect" (Hard)
+**Setup:**
+```bash
+sudo apt-get update -qq && sudo apt-get install -y -qq sysstat
+sudo mkdir -p /opt/lab-mon/archive
+sudo tee /opt/lab-mon/lab-render >/dev/null <<'EOF'
+#!/bin/bash
+# lab: video frame renderer (owned by the media team)
+while :; do :; done
+EOF
+sudo tee /opt/lab-mon/lab-archiver >/dev/null <<'EOF'
+#!/bin/bash
+# lab: metrics archiver
+while :; do
+  dd if=/dev/zero of=/opt/lab-mon/archive/chunk bs=1M count=8 oflag=dsync 2>/dev/null
+done
+EOF
+sudo chmod +x /opt/lab-mon/lab-render /opt/lab-mon/lab-archiver
+sudo bash -c 'nohup /opt/lab-mon/lab-render >/dev/null 2>&1 &'
+sudo bash -c 'nohup /opt/lab-mon/lab-archiver >/dev/null 2>&1 &'
+echo "Setup done. Give it ~60s to build pressure."
+```
+**Situation:** On the Bengaluru single-node cluster, etcd-style symptoms appeared: commits are slow, fsyncs take ages, everything disk-touching crawls. A teammate opened `top`, saw `lab-render` pinned at 100% CPU, and is about to kill it. But `lab-render` belongs to the media team, is *supposed* to burn CPU, and — you suspect — is innocent: high CPU utilization is not the same thing as the I/O saturation you're feeling.
+
+**Your task:** Walk the USE method: use PSI (`/proc/pressure/io` vs `/proc/pressure/cpu`), `iostat -xz`, and `pidstat -d` (or `iotop`) to prove which process is actually causing the disk pain — then terminate **only** the guilty one. `lab-render` must still be running when you're done.
+
+**Verify:**
+```bash
+pgrep -f lab-archiver >/dev/null && echo "NOT SOLVED - archiver still hammering" || { pgrep -f lab-render >/dev/null && echo "SOLVED - right process killed" || echo "WRONG - you killed the innocent renderer"; }
+# expected: "SOLVED - right process killed" (and ~60s later /proc/pressure/io "some avg10" decays toward 0)
+```
+
+### 🔴 Scenario 6 — "Varanasi: the worker frozen mid-startup" (Expert)
+**Setup:**
+```bash
+sudo apt-get update -qq && sudo apt-get install -y -qq strace
+sudo mkdir -p /opt/lab-app
+sudo tee /opt/lab-app/.cache-helper >/dev/null <<'EOF'
+#!/bin/bash
+exec 9>/opt/lab-app/app.lock
+flock 9
+sleep infinity 9>&-
+EOF
+sudo tee /opt/lab-app/lab-worker >/dev/null <<'EOF'
+#!/bin/bash
+exec 9>/opt/lab-app/app.lock
+flock 9
+date "+%F %T worker started" > /opt/lab-app/worker.done
+sleep infinity 9>&-
+EOF
+sudo chmod +x /opt/lab-app/.cache-helper /opt/lab-app/lab-worker
+sudo bash -c 'nohup /opt/lab-app/.cache-helper >/dev/null 2>&1 &'
+sleep 1
+sudo bash -c 'nohup /opt/lab-app/lab-worker >/dev/null 2>&1 &'
+sleep 2
+ls /opt/lab-app/worker.done 2>/dev/null || echo "worker has NOT started - it is stuck"
+```
+**Situation:** The Varanasi batch worker `lab-worker` was started minutes ago but never wrote its "started" marker. It shows **0% CPU, normal memory, no log output** — to every dashboard it "looks fine", which is exactly the hanging-process blind spot from Rung 6. Restarting it doesn't help; it just freezes again. Something on this box is holding a resource the worker needs, and nothing will tell you what — except the kernel.
+
+**Your task:** Attach to the frozen process tree with `strace -p` to name the **exact syscall** it is stuck in, use `lslocks` (or `/proc/locks`, or `lsof` on the contended file) to identify the process **holding** that resource, and evict the holder so the worker finally starts. Do not kill or restart `lab-worker` itself.
+
+**Verify:**
+```bash
+cat /opt/lab-app/worker.done
+# expected: a "<date> <time> worker started" line - the worker acquired the lock and completed startup
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### 🟢 Scenario 1 — "Mumbai: what is eating this CPU?"
+**Solution:**
+```bash
+uptime                                    # load ~1 on an "idle" box -> something is burning
+top -b -n1 -o %CPU | head -15             # or: ps -eo pid,pcpu,comm --sort=-pcpu | head
+# -> report-engine sits at ~100% CPU
+sudo pkill -f report-engine
+```
+**Why this works & what it teaches:** This is pure CPU **Utilization** attribution — Rung 2's U column. `top`/`ps` are pretty-printers over `/proc/<pid>/stat`, so sorting by `%CPU` walks you straight from a load-average *symptom* to a guilty PID, and `pidstat 1 3` would show the same thing as per-interval deltas. Where people go wrong: staring at the load number itself — load tells you saturation *exists*, never *who* causes it.
+**Cleanup:** `sudo rm -f /opt/lab-mon/report-engine`
+
+### 🟢 Scenario 2 — "Kochi: what is writing to this log file?"
+**Solution:**
+```bash
+sudo lsof /tmp/lab-telemetry.log          # or: sudo fuser -v /tmp/lab-telemetry.log
+# COMMAND          PID USER  FD  TYPE ... NAME
+# telemetry-agent <PID> root   3w  REG ... /tmp/lab-telemetry.log   <- fd 3, open for Write
+sudo pkill -f telemetry-agent             # or: sudo kill <PID>
+```
+**Why this works & what it teaches:** `lsof` is literally "list open files" — it reads `/proc/<PID>/fd/` (Rung 3's counter files) and maps the file back to the process and fd holding it, the same move used in Rung 5 to find who holds the etcd WAL. The `3w` FD column is the proof it's the *writer*, not just a reader. Where people go wrong: deleting the file first — the writer keeps the fd, the "growth" continues invisibly, and you've accidentally built Scenario 3.
+**Cleanup:** `sudo rm -f /tmp/lab-telemetry.log /opt/lab-mon/telemetry-agent`
+
+### 🟡 Scenario 3 — "Chennai: df and du tell different stories"
+**Solution:**
+```bash
+df -h /opt                                # usage high and climbing
+sudo du -xsh /opt /var/log /tmp           # du can't find it -> classic deleted-but-open fd
+sudo lsof +L1                             # +L1 = files with 0 links (deleted) still held open
+# COMMAND       PID ... FD ... NAME
+# debug-logg  <PID>     4w     /opt/lab-mon/.debug.log (deleted)
+sudo kill <PID>                           # closing the last fd frees the blocks
+# zero-downtime alternative (if you couldn't kill it): sudo truncate -s 0 /proc/<PID>/fd/4
+df -h /opt                                # ~300 MB back
+```
+**Why this works & what it teaches:** `rm` only removes the *directory entry*; the kernel frees an inode's blocks when the **last open fd** closes — so `df` (filesystem view) and `du` (directory-tree view) disagree exactly by the size of deleted-but-open files. `lsof +L1` reads `/proc/<PID>/fd/` and shows link-count-zero files, and `truncate -s 0 /proc/<PID>/fd/4` reclaims space *without* killing the process — the production-grade move. Where people go wrong: rebooting ("destroys the evidence", Rung 1) or deleting more logs that are also still held open.
+**Cleanup:** `sudo rm -f /opt/lab-mon/debug-logger`
+
+### 🟡 Scenario 4 — "Hyderabad: who killed the payments worker?"
+**Solution:**
+```bash
+sudo dmesg -T | grep -i -B1 "killed process"
+# [ts] oom-kill:constraint=CONSTRAINT_MEMCG,...,oom_memcg=/system.slice/lab-payments.service,...
+# [ts] Memory cgroup out of memory: Killed process <pid> (tail) total-vm:... anon-rss:...
+sudo journalctl -k | grep -i oom          # persistent sibling of dmesg (survives ring-buffer rotation)
+echo "tail CONSTRAINT_MEMCG" > /tmp/lab-oom-verdict
+```
+**Why this works & what it teaches:** This is Prediction 4 made real: the OOM killer *narrates* every kill into the kernel ring buffer, and `constraint=CONSTRAINT_MEMCG` is the single word proving a **cgroup** `MemoryMax` (here 64M — the analog of a pod's `memory.max`) fired, not node RAM — which is why "gigabytes free" and "OOM-killed" are both true. Cross-checks: `systemctl status lab-payments.service` shows `Result: oom-kill`, and the cgroup's own tally lives in `memory.events` (`oom_kill 1`). Where people go wrong: seeing free node RAM and declaring "it can't be OOM" — kubectl-level tools can never show you the `constraint=` line.
+**Cleanup:** `sudo systemctl reset-failed lab-payments.service 2>/dev/null; rm -f /tmp/lab-oom-verdict`
+
+### 🟠 Scenario 5 — "Bengaluru: the wrong suspect"
+**Solution:**
+```bash
+cat /proc/pressure/cpu /proc/pressure/io  # io "some avg10" is high -> the *pain* is I/O, not CPU
+iostat -xz 1 3                            # ignore line 1! %util high, w_await elevated = disk SATURATED
+sudo pidstat -d 1 5                       # per-PID disk I/O: kB_wr/s column
+# -> lab-archiver's dd dominates writes; lab-render writes 0 kB/s despite 100% CPU
+sudo pkill -f lab-archiver                # kill ONLY the guilty writer
+pgrep -f lab-render                       # still alive - the innocent stays up
+```
+**Why this works & what it teaches:** This is the USE method's core trap from Rung 2: `top`'s CPU% is **utilization of the CPU**, but the symptom (slow fsyncs) is **saturation of the disk** — different resource, different letter. PSI answers "*which* resource is anyone actually stalled on" (`/proc/pressure/io` vs `cpu`), `iostat -xz` confirms the queue (`w_await`, `%util` — remember the first line is the since-boot lie), and `pidstat -d` attributes the bytes to a PID, exonerating the CPU burner. Where people go wrong: killing the top CPU consumer — the exact misattribution Rung 1 warns costs you money and 3 a.m. sanity.
+**Cleanup:** `sudo pkill -f lab-render; sudo rm -rf /opt/lab-mon/archive /opt/lab-mon/lab-render /opt/lab-mon/lab-archiver`
+
+### 🔴 Scenario 6 — "Varanasi: the worker frozen mid-startup"
+**Solution:**
+```bash
+pgrep -af lab-worker                      # PID of the worker's bash
+ps --ppid <worker-pid> -o pid,comm,state  # child: `flock`, state S (blocked in a syscall)
+sudo strace -p <flock-child-pid>
+# strace: Process attached
+# flock(9, LOCK_EX          <- frozen INSIDE this syscall, waiting for an exclusive lock on fd 9
+ls -l /proc/<flock-child-pid>/fd/9        # fd 9 -> /opt/lab-app/app.lock (the contended file)
+sudo lslocks | grep app.lock              # or: cat /proc/locks | grep FLOCK, or: sudo lsof /opt/lab-app/app.lock
+# COMMAND        PID  TYPE  MODE  ... PATH
+# .cache-helper <H>   FLOCK WRITE ... /opt/lab-app/app.lock   <- the HOLDER
+ps -p <H> -o pid,args                     # /bin/bash /opt/lab-app/.cache-helper - a forgotten helper
+sudo kill <H>                             # evict the holder; the worker's flock() returns instantly
+cat /opt/lab-app/worker.done              # "<date> worker started"
+```
+**Why this works & what it teaches:** A hung process is the Rung 6 blind spot — 0% CPU and flat memory look "fine" to every dashboard, and only `strace -p` (ptrace onto the live PID, Prediction 3c) names the exact stuck syscall: `flock(9, LOCK_EX`. From the syscall you pivot "everything is a file"-style: `/proc/<pid>/fd/9` names the contended file, and `lslocks`/`/proc/locks` names the PID *holding* the lock — turning "it's frozen" into "PID H holds an exclusive flock on app.lock". Where people go wrong: restarting the victim (it re-blocks forever) or killing the visible worker instead of tracing *what* it waits on — this is exactly how you'd catch a kubelet frozen in a `futex` or a stuck `read`.
+**Cleanup:** `sudo pkill -f lab-worker; sudo rm -rf /opt/lab-app`

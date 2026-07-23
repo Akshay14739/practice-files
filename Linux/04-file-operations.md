@@ -640,3 +640,225 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 **Q:** A teammate "backs up" the CA key with `ln -s /etc/kubernetes/pki/ca.key /backup/ca.key`, then deletes the original during a migration. Why is the backup worthless, and which command would have protected them?
 
 **A:** A symlink is its own tiny inode whose entire contents are the *path string* `/etc/kubernetes/pki/ca.key` — it holds none of the key's data and doesn't even bump the target's link count. When the original name was deleted, its inode's link count hit 0 and the kernel freed the data blocks; the symlink is now *dangling*, pointing at a name that no longer resolves, so reading `/backup/ca.key` returns "No such file or directory." The command that would have protected them is `sudo cp -rp /etc/kubernetes/pki /backup/...` (for the single file, `cp -p`): `cp` creates an independent inode with its own duplicated data blocks that survives deletion of the source, and `-p` preserves the `600` mode, owner, and timestamps so the private key doesn't end up with widened permissions.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Guelph: the backup that weighs nothing" (Easy)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-gue/data /tmp/lab-gue/backup
+echo "customer-db-v9" > /tmp/lab-gue/data/db.cfg
+ln -s /tmp/lab-gue/data/db.cfg /tmp/lab-gue/backup/db.cfg
+```
+**Situation:** A migration is scheduled for tonight that ends with `rm -rf /tmp/lab-gue/data`. The teammate running it says "relax, I already backed up the config to `/tmp/lab-gue/backup/` last week" — and indeed `cat /tmp/lab-gue/backup/db.cfg` prints the right content. Something about the backup directory's `ls -l` output makes you nervous.
+
+**Your task:** Prove what the "backup" actually is (what does its inode contain — data, or something else?), explain exactly what would happen to it the moment `data/` is deleted, and replace it with a backup that will genuinely survive the migration.
+
+**Verify:**
+```bash
+rm -rf /tmp/lab-gue/data; cat /tmp/lab-gue/backup/db.cfg   # expected: "customer-db-v9" — the backup survives the deletion of the source
+```
+
+### 🟢 Scenario 2 — "Lethbridge: the archive that keeps rewriting itself" (Easy)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-let
+echo "day1 entries" > /tmp/lab-let/current.log
+ln /tmp/lab-let/current.log /tmp/lab-let/archive.log
+```
+**Situation:** Ops "froze" yesterday's log by creating `archive.log` next to the live `current.log`. But every time the app appends to `current.log`, the *archive* changes too — same new lines, same size, always identical. The team suspects a rogue process is copying data into the archive and has started auditing cron jobs.
+
+**Your task:** Using inode evidence (`ls -li`, `stat`), prove there is no rogue process — explain what `archive.log` really is and why writes through one name appear under the other. Then give the archive an independent existence so future writes to `current.log` no longer touch it.
+
+**Verify:**
+```bash
+echo "day2 entries" >> /tmp/lab-let/current.log; grep -c day2 /tmp/lab-let/archive.log; ls -i /tmp/lab-let/   # expected: grep prints 0 (archive no longer follows the live log) and the two names now show DIFFERENT inode numbers
+```
+
+### 🟡 Scenario 3 — "Nanaimo: the disk is full but the file is gone" (Medium)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-nan
+cat > /tmp/lab-nan/appender.sh <<'EOF'
+#!/bin/bash
+exec 3>>/tmp/lab-nan/service.log
+while true; do echo "$(date) filler line for the service log" >&3; sleep 0.2; done
+EOF
+chmod +x /tmp/lab-nan/appender.sh
+nohup /tmp/lab-nan/appender.sh >/dev/null 2>&1 &
+sleep 2
+rm /tmp/lab-nan/service.log
+```
+**Situation:** Last night, on-call deleted a runaway `service.log` to free disk space. This morning: `df` shows usage *still climbing*, but `du` and `ls` agree the file is gone — there is no `service.log` anywhere. The bytes are going somewhere `find` cannot see, and nobody saved a copy of the log before deleting it.
+
+**Your task:** Find the process still holding the deleted log open (its `/proc/<pid>/fd/` entry will say `(deleted)`). First **recover the log's full content** into `/tmp/lab-nan/rescued.log` — yes, the data of a deleted file can be read back — and only then stop the invisible leak.
+
+**Verify:**
+```bash
+grep -q 'filler line' /tmp/lab-nan/rescued.log && ! ls -l /proc/[0-9]*/fd 2>/dev/null | grep -q 'lab-nan/service.log (deleted)' && echo SOLVED   # expected: SOLVED (content rescued, and no process holds the deleted inode any more)
+```
+
+### 🟡 Scenario 4 — "Sherbrooke: the config readers keep catching half a file" (Medium)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-she
+cat > /tmp/lab-she/publisher.sh <<'EOF'
+#!/bin/bash
+while true; do
+  echo "begin" > /tmp/lab-she/app.conf
+  echo "value=$(date +%s)" >> /tmp/lab-she/app.conf
+  sleep 1
+  echo "end" >> /tmp/lab-she/app.conf
+  sleep 1
+done
+EOF
+chmod +x /tmp/lab-she/publisher.sh
+nohup /tmp/lab-she/publisher.sh >/dev/null 2>&1 &
+```
+**Situation:** A publisher rewrites `/tmp/lab-she/app.conf` every couple of seconds; a valid config always starts with `begin` and ends with `end`. Consumers keep intermittently crashing on "truncated config" — run `tail -1 /tmp/lab-she/app.conf` a few times and you'll catch the file *mid-write*, with no `end` line. The publisher's author argues the writes "only take a millisecond."
+
+**Your task:** Explain why writing a multi-step file in place can never be safe for concurrent readers, no matter how fast. Then kill the publisher, rewrite it to publish **atomically** (build the complete file elsewhere, then one `mv` — the same-directory rename trick from Rung 5), restart it, and prove readers can no longer catch a torn file.
+
+**Verify:**
+```bash
+torn=0; for i in $(seq 1 10); do tail -1 /tmp/lab-she/app.conf | grep -q '^end$' || torn=$((torn+1)); sleep 0.5; done; [ "$torn" -eq 0 ] && echo SOLVED   # expected: SOLVED — 10 spot-reads over 5 seconds, every one saw a complete file
+```
+
+### 🟠 Scenario 5 — "Red Deer: the rotation that rotated nothing" (Hard)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-red
+cat > /tmp/lab-red/logger.sh <<'EOF'
+#!/bin/bash
+exec 3>>/tmp/lab-red/service.log
+while true; do echo "$(date '+%T') request handled" >&3; sleep 0.5; done
+EOF
+chmod +x /tmp/lab-red/logger.sh
+nohup /tmp/lab-red/logger.sh >/dev/null 2>&1 &
+sleep 1
+mv /tmp/lab-red/service.log /tmp/lab-red/service.log.1
+touch /tmp/lab-red/service.log
+```
+**Situation:** Someone hand-rolled a log rotation: rename the log to `.1`, create a fresh empty one. Hours later: `service.log` is still **0 bytes**, while `service.log.1` — the "closed" archive — keeps growing forever. The writer service must NOT be restarted (pretend it drops customer requests on restart).
+
+**Your task:** Explain which layer the `mv` changed and which layer the writer's open fd points at — why the writer never noticed the rotation. Then fix it **without restarting the writer**, ending in this state: the history preserved in `/tmp/lab-red/service.log.rotated`, live entries landing in `/tmp/lab-red/service.log` again, and no `service.log.1` left behind. (Hint: this is what logrotate's `copytruncate` mode exists for.)
+
+**Verify:**
+```bash
+a=$(wc -l < /tmp/lab-red/service.log); sleep 2; b=$(wc -l < /tmp/lab-red/service.log); [ "$b" -gt "$a" ] && grep -q 'request handled' /tmp/lab-red/service.log.rotated && [ ! -e /tmp/lab-red/service.log.1 ] && echo SOLVED   # expected: SOLVED (live log growing again, history archived, stray file gone)
+```
+
+### 🔴 Scenario 6 — "Barrie: flip the release, drop zero reads" (Expert)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-bar/releases/v1
+printf 'color=blue\nchecksum=blue\n' > /tmp/lab-bar/releases/v1/app.conf
+ln -s releases/v1 /tmp/lab-bar/data
+cat > /tmp/lab-bar/monitor.sh <<'EOF'
+#!/bin/bash
+while true; do
+  c=$(cat /tmp/lab-bar/data/app.conf 2>/dev/null)
+  color=$(echo "$c" | awk -F= '/^color/{print $2}')
+  sum=$(echo "$c" | awk -F= '/^checksum/{print $2}')
+  if [ -z "$color" ] || [ "$color" != "$sum" ]; then
+    echo "$(date +%s.%N) TORN-READ color=[$color] sum=[$sum]" >> /tmp/lab-bar/monitor.log
+  fi
+  sleep 0.05
+done
+EOF
+chmod +x /tmp/lab-bar/monitor.sh
+nohup /tmp/lab-bar/monitor.sh >/dev/null 2>&1 &
+```
+**Situation:** This is the kubelet's ConfigMap `..data` dance from Rung 5 — now it's your turn to perform it. An app reads its config through the stable path `/tmp/lab-bar/data/app.conf` (where `data` is a symlink to the current release directory). A monitor reads that path 20 times a second and logs a `TORN-READ` line if it *ever* sees a missing file or a config whose `color` and `checksum` disagree. You must ship v2 (`color=green` / `checksum=green`). Editing the file in place tears it; even `ln -sf` has a fatal flaw here (two, actually — try it and check the log).
+
+**Your task:** Publish release v2 so that `/tmp/lab-bar/data/app.conf` serves the green config, with **zero** `TORN-READ` lines ever appearing in `/tmp/lab-bar/monitor.log`. Build the new release fully off to the side, then swap the `data` symlink with a genuinely atomic operation. (If an attempt tears reads, study *why*, reset with `: > /tmp/lab-bar/monitor.log`, and find the method that leaves it empty.)
+
+**Verify:**
+```bash
+sleep 2; grep -q 'color=green' /tmp/lab-bar/data/app.conf && [ ! -s /tmp/lab-bar/monitor.log ] && echo SOLVED   # expected: SOLVED — green config live and the torn-read log is EMPTY
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Guelph: the backup that weighs nothing"
+**Solution:**
+```bash
+ls -l /tmp/lab-gue/backup/db.cfg      # lrwxrwxrwx ... db.cfg -> /tmp/lab-gue/data/db.cfg — a SYMLINK
+readlink /tmp/lab-gue/backup/db.cfg   # it contains only a path string, zero data
+rm /tmp/lab-gue/backup/db.cfg
+cp -p /tmp/lab-gue/data/db.cfg /tmp/lab-gue/backup/db.cfg   # a real, independent inode + data blocks
+```
+**Why this works & what it teaches:** The "backup" was a symlink — its own tiny inode whose entire contents are the *path string* of the target (Rung 3C); it holds none of the data and doesn't bump the target's link count, so deleting `data/` frees the real inode and leaves the symlink dangling. `cp -p` creates an independent inode with duplicated data blocks that survives on its own — the Rung 6 rule: a link is never a backup. **Where people go wrong:** trusting `cat` on the "backup" as proof — a healthy-looking symlink reads perfectly right up until the instant its target dies.
+
+### Scenario 2 — "Lethbridge: the archive that keeps rewriting itself"
+**Solution:**
+```bash
+ls -li /tmp/lab-let/current.log /tmp/lab-let/archive.log
+# SAME inode number on both lines, link count 2 — they are ONE file with two names
+rm /tmp/lab-let/archive.log                       # drop one name (count 2 → 1)
+cp -p /tmp/lab-let/current.log /tmp/lab-let/archive.log   # a genuinely separate file
+```
+**Why this works & what it teaches:** `ln` (no `-s`) created a **hard link**: a second directory entry pointing at the *same* inode (Rung 3B), so "both files" were always one set of data blocks reachable by two equal names — no rogue process, just the machinery. A frozen archive needs its own inode, which only `cp` provides. **Where people go wrong:** hunting for the "process syncing the two files" — `ls -li` settles it in one command; matching inode numbers mean *one file*, full stop.
+
+### Scenario 3 — "Nanaimo: the disk is full but the file is gone"
+**Solution:**
+```bash
+# 1) Find who holds the deleted inode open:
+ls -l /proc/[0-9]*/fd 2>/dev/null | grep -B5 'lab-nan/service.log (deleted)'
+# → /proc/<pid>/fd/3 -> /tmp/lab-nan/service.log (deleted)
+# 2) RESCUE FIRST — the fd is a live pointer to the data; read it back:
+cp /proc/<pid>/fd/3 /tmp/lab-nan/rescued.log
+# 3) Then release the inode:
+kill <pid>
+```
+**Why this works & what it teaches:** `rm` removed the *name*, but the writer's open fd is an extra reference the kernel counts (Rung 3B's "invisible link"), so the blocks stayed allocated and kept growing — the classic df-vs-du divergence. Because `/proc/<pid>/fd/3` is a working handle to that inode, the "deleted" data remains fully readable until the last reference closes; killing the process drops it and the kernel finally frees the space. (To reclaim space *without* killing the writer: `: > /proc/<pid>/fd/3` truncates the open file in place.) **Where people go wrong:** killing the process first — the moment the fd closes, the inode is freed and the data is gone forever; always rescue, *then* release.
+
+### Scenario 4 — "Sherbrooke: the config readers keep catching half a file"
+**Solution:**
+```bash
+pkill -f lab-she/publisher.sh
+cat > /tmp/lab-she/publisher.sh <<'EOF'
+#!/bin/bash
+while true; do
+  {
+    echo "begin"
+    echo "value=$(date +%s)"
+    echo "end"
+  } > /tmp/lab-she/app.conf.tmp
+  mv /tmp/lab-she/app.conf.tmp /tmp/lab-she/app.conf   # atomic same-dir rename
+  sleep 2
+done
+EOF
+chmod +x /tmp/lab-she/publisher.sh
+nohup /tmp/lab-she/publisher.sh >/dev/null 2>&1 &
+```
+**Why this works & what it teaches:** In-place writing exposes every intermediate state to readers — there is *always* an instant where the file is partial, and speed only shrinks the window, never closes it. A same-filesystem `mv` is a single `rename()` — just a directory-entry rewrite (Rung 3A/Rung 5) — so the name `app.conf` flips from pointing at the complete old inode to the complete new inode in one indivisible step; a reader sees fully-old or fully-new, never in-between. This is precisely Step 4 of the kubelet's ConfigMap update. **Where people go wrong:** writing the temp file on a *different* filesystem (e.g. `/run` → `/tmp`) — cross-filesystem `mv` degrades to copy+delete and the atomicity silently vanishes.
+
+### Scenario 5 — "Red Deer: the rotation that rotated nothing"
+**Solution:**
+```bash
+# Diagnosis: the writer's fd 3 points at an INODE, not a name — mv only rewrote the name.
+ls -l /proc/$(pgrep -f lab-red/logger.sh)/fd/3    # → /tmp/lab-red/service.log.1 (the fd followed the rename)
+# Fix without restarting the writer:
+rm /tmp/lab-red/service.log                        # drop the empty decoy name
+mv /tmp/lab-red/service.log.1 /tmp/lab-red/service.log        # give the live inode its name back
+cp /tmp/lab-red/service.log /tmp/lab-red/service.log.rotated  # archive the history
+: > /tmp/lab-red/service.log                       # truncate IN PLACE — same inode, fd stays valid
+```
+**Why this works & what it teaches:** An open fd binds to the **inode**; `mv` rewrites only the **directory entry** (Rung 3A) — so the writer sailed on, appending to the renamed file, and the fresh `touch`-ed file had no writer at all. The fix is logrotate's `copytruncate` idea: copy the data away, then truncate the *same inode* so the still-open fd keeps working — and because the writer opened with `>>` (O_APPEND), every append re-seeks to the new end-of-file, so no bytes land at stale offsets. **Where people go wrong:** exactly what this setup did — rename-based rotation only works when the writer is *told* to reopen its log (that's why logrotate has a `postrotate` reload signal, and why containers just write to stdout instead).
+
+### Scenario 6 — "Barrie: flip the release, drop zero reads"
+**Solution:**
+```bash
+mkdir -p /tmp/lab-bar/releases/v2
+printf 'color=green\nchecksum=green\n' > /tmp/lab-bar/releases/v2/app.conf   # build FULLY, off to the side
+ln -s releases/v2 /tmp/lab-bar/data.tmp     # a complete new pointer, under a temp name
+mv -T /tmp/lab-bar/data.tmp /tmp/lab-bar/data   # ONE atomic rename() onto the old symlink
+```
+**Why this works & what it teaches:** This is the kubelet's `..data` flip (Rung 5) reproduced by hand: the new release directory is complete *before* anything points at it, and `mv -T` (treat destination as a plain file, never descend into it) atomically renames the temp symlink over the old one — at no instant does `data` not exist or point anywhere partial. The two flaws of `ln -sf`: without `-n` it *dereferences* the existing `data` symlink and drops the new link **inside** `releases/v1/`; and even `ln -sfn` is implemented as unlink-then-symlink — two syscalls, with a real window where `data` is missing, which the 20 Hz monitor catches as `color=[]`. **Where people go wrong:** believing `-f` means atomic — only `rename()` is; everything Kubernetes does to update a mounted ConfigMap without tearing your app's reads rests on that one syscall.

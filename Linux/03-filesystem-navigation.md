@@ -597,3 +597,201 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 **Q:** Why can you move `/var/lib/containerd` onto a brand-new disk without reconfiguring containerd, while the equivalent on a drive-letter system would break it?
 
 **A:** Because Linux decouples the *name* of a file from the *device* it lives on. containerd hardcodes the path `/var/lib/containerd`, and a path is just a route through the single tree rooted at `/` — it says nothing about which disk backs it. You mount the new disk at `/var` (or `/var/lib/containerd`) and the same path now transparently resolves onto the new filesystem; containerd never notices the seam. On a drive-letter system, the volume is *part of the path* (`C:\data` vs `D:\data`), so moving the data to a new disk changes its name, and anything that hardcoded the old path — as containerd hardcodes its state dir — breaks.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things (including mounting filesystems over live directories). For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Saskatoon: the script that only works from one desk" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-sas/app/data
+echo "port=8123" | sudo tee /opt/lab-sas/app/data/config.txt >/dev/null
+sudo tee /opt/lab-sas/app/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo "config loaded: $(cat data/config.txt)"
+EOF
+sudo chmod 755 /opt/lab-sas/app/run.sh
+```
+**Situation:** A deploy helper "works on the author's machine": if you `cd /opt/lab-sas/app` first, `./run.sh` prints the config fine. But the scheduler runs it as `/opt/lab-sas/app/run.sh` from some other directory, and it dies with `cat: data/config.txt: No such file or directory`. The author insists "the file is right there next to the script!"
+
+**Your task:** Explain where the kernel actually *started* resolving `data/config.txt` in the failing case (whose CWD?), then fix `run.sh` so it loads its config correctly no matter which directory it is launched from.
+
+**Verify:**
+```bash
+cd /tmp && /opt/lab-sas/app/run.sh   # expected: "config loaded: port=8123" — even though CWD is /tmp
+```
+
+### 🟢 Scenario 2 — "Thunder Bay: the invisible disk hog" (Easy)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-tb/reports /tmp/lab-tb/.cache-lab
+echo "Q3 summary" > /tmp/lab-tb/reports/q3.txt
+touch /tmp/lab-tb/.labrc
+dd if=/dev/zero of=/tmp/lab-tb/.cache-lab/blob.bin bs=1M count=120 status=none
+```
+**Situation:** A shared scratch area `/tmp/lab-tb` is flagged as consuming over 100 MB, but when the owner looks — `ls -l /tmp/lab-tb` — all they see is a tiny `reports` directory with one text file. They've filed a ticket claiming the disk-usage monitoring is broken.
+
+**Your task:** Find what is really consuming the space (something `ls -l` doesn't show by default), remove the hog, and leave the legitimate `reports` data untouched.
+
+**Verify:**
+```bash
+du -sk /tmp/lab-tb | awk '{print ($1<1024) ? "SOLVED" : "NOT YET"}'; cat /tmp/lab-tb/reports/q3.txt   # expected: SOLVED, then "Q3 summary" still intact
+```
+
+### 🟡 Scenario 3 — "Charlottetown: the report that fell behind the wall" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-cha/data
+echo "quarterly numbers: 42" | sudo tee /opt/lab-cha/data/report.txt >/dev/null
+sudo mount -t tmpfs -o size=64m tmpfs /opt/lab-cha/data
+```
+**Situation:** Yesterday `/opt/lab-cha/data/report.txt` existed — the analytics team read it. Today the directory is *empty*, yet `df` insists nothing was deleted and the disk has exactly as much data as before. Meanwhile a teammate mutters something about having "prepared a fast RAM disk for the new pipeline" in that area.
+
+**Your task:** Figure out what is *really* at `/opt/lab-cha/data` right now (is it even the same filesystem as its parent?), explain where `report.txt` went, and bring it back — nothing about the file was ever deleted.
+
+**Verify:**
+```bash
+findmnt /opt/lab-cha/data; cat /opt/lab-cha/data/report.txt   # expected: findmnt prints NOTHING (no separate fs mounted there) and the report prints "quarterly numbers: 42"
+```
+
+### 🟡 Scenario 4 — "Kamloops: the counter with amnesia" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-kam
+sudo tee /opt/lab-kam/counter.sh >/dev/null <<'EOF'
+#!/bin/bash
+d=/run/lab-kam
+mkdir -p "$d"
+n=$(cat "$d/counter" 2>/dev/null || echo 0)
+n=$((n+1))
+echo "$n" > "$d/counter"
+echo "run count: $n"
+EOF
+sudo chmod 755 /opt/lab-kam/counter.sh
+sudo tee /opt/lab-kam/reboot-sim.sh >/dev/null <<'EOF'
+#!/bin/bash
+rm -rf /run/lab-kam
+echo "reboot simulated: /run contents gone"
+EOF
+sudo chmod 755 /opt/lab-kam/reboot-sim.sh
+sudo /opt/lab-kam/counter.sh
+```
+**Situation:** A billing agent keeps a lifetime run-counter — and every single reboot it starts back at 1. The `reboot-sim.sh` script faithfully reproduces what a real reboot does to this box. The developer chose `/run/lab-kam/` for the counter file because "it was world-writable-ish and always there."
+
+**Your task:** Using the FHS purpose rules from Rung 3A, explain *exactly* why `/run` guarantees this data loss (what kind of filesystem is it, and what's its lifetime rule?). Then fix `counter.sh` to keep its state in the FHS-correct directory for persistent program state, so the count survives "reboots."
+
+**Verify:**
+```bash
+sudo /opt/lab-kam/counter.sh; sudo /opt/lab-kam/reboot-sim.sh; sudo /opt/lab-kam/counter.sh   # expected: the count AFTER the simulated reboot is higher than the count before it (e.g. "run count: 2" then "run count: 3")
+```
+
+### 🟠 Scenario 5 — "Brandon: the release chain with a missing link" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-bra/releases /opt/lab-bra/builds/build-4812
+echo "release v4 OK" | sudo tee /opt/lab-bra/builds/build-4812/index.html >/dev/null
+sudo ln -s ../builds/build-4711 /opt/lab-bra/releases/current-blue
+sudo ln -s releases/current-blue /opt/lab-bra/current
+```
+**Situation:** The web tier serves whatever `/opt/lab-bra/current/index.html` resolves to — a blue/green pointer scheme built from symlinks. After last night's "cleanup of old builds," the site 404s: `cat /opt/lab-bra/current/index.html` says `No such file or directory`. Yet `ls -l /opt/lab-bra/current` looks perfectly healthy, and the new build `build-4812` is definitely on disk.
+
+**Your task:** Walk the symlink chain hop by hop (`ls -l`, `readlink`, `namei -l`) and identify *which* hop dangles and why (careful: one target is a *relative* path — relative to what?). Then repair the chain — by re-pointing the broken link, not by copying files — so `current` serves the v4 build.
+
+**Verify:**
+```bash
+cat /opt/lab-bra/current/index.html && readlink -f /opt/lab-bra/current   # expected: "release v4 OK" and a fully-resolved path ending in /opt/lab-bra/builds/build-4812
+```
+
+### 🔴 Scenario 6 — "Yellowknife: 200 MB that du swears doesn't exist" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-yk/data
+sudo dd if=/dev/zero of=/opt/lab-yk/data/core-4211.dump bs=1M count=200 status=none
+sudo mount -t tmpfs -o size=16m tmpfs /opt/lab-yk/data
+echo "active-service-data" | sudo tee /opt/lab-yk/data/live.txt >/dev/null
+```
+**Situation:** The root filesystem fired a capacity alert: `df -h /` shows ~200 MB more used than yesterday, but `sudo du -xsh /opt /var /home /tmp` can't find it anywhere — every directory adds up small. There *is* a busy little tmpfs mounted at `/opt/lab-yk/data` serving a live service, and ops has made one thing crystal clear: **that tmpfs must not be unmounted, even for a second.**
+
+**Your task:** Explain why `du` is blind here (what does a mount do to the files that were in the directory *before* it was mounted?). Then, without touching the live tmpfs mount, get a view of the root filesystem *underneath* all mounts, find the hidden 200 MB, and delete it.
+
+**Verify:**
+```bash
+sudo mkdir -p /mnt/lab-yk-check && sudo mount --bind / /mnt/lab-yk-check && ls /mnt/lab-yk-check/opt/lab-yk/data/ && cat /opt/lab-yk/data/live.txt; sudo umount /mnt/lab-yk-check   # expected: the underneath view lists NO core-4211.dump (directory empty), while live.txt still prints "active-service-data" (tmpfs untouched)
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Saskatoon: the script that only works from one desk"
+**Solution:**
+```bash
+sudo tee /opt/lab-sas/app/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+cd "$(dirname "$0")"
+echo "config loaded: $(cat data/config.txt)"
+EOF
+# (equally valid: use the absolute path /opt/lab-sas/app/data/config.txt in the cat)
+```
+**Why this works & what it teaches:** `data/config.txt` has no leading `/`, so the kernel's path walk (Rung 3C) starts at the **calling process's CWD** — which was the scheduler's directory, not the script's home. Relative paths resolve from where the *process stands*, not from where the script file lives. `cd "$(dirname "$0")"` moves the script's own process to its install directory first, making every relative reference stable (an absolute path achieves the same by starting the walk at the root inode instead). **Where people go wrong:** believing "next to the script" is a location the kernel knows about — it isn't; only CWD and `/` are starting points.
+
+### Scenario 2 — "Thunder Bay: the invisible disk hog"
+**Solution:**
+```bash
+ls -la /tmp/lab-tb            # reveals .cache-lab and .labrc — names starting with '.' are hidden by default
+du -sh /tmp/lab-tb/.[!.]*     # .cache-lab is ~120M
+rm -rf /tmp/lab-tb/.cache-lab
+```
+**Why this works & what it teaches:** `ls` hides any directory entry whose *name* starts with a dot — a pure convention, not a filesystem feature; the bytes are all still there in the name→inode table and `du` (which walks the table itself) counts them fine. `-a` shows the full table, resolving the "monitoring vs ls" contradiction (Rung 7, Prediction 2's `-a` lesson). **Where people go wrong:** trusting bare `ls` during a disk investigation — always `ls -la` or `du -a` when bytes are "missing," because dotfiles are exactly where caches hide.
+
+### Scenario 3 — "Charlottetown: the report that fell behind the wall"
+**Solution:**
+```bash
+findmnt /opt/lab-cha/data     # tmpfs is mounted HERE — the directory shows a different filesystem
+sudo umount /opt/lab-cha/data
+cat /opt/lab-cha/data/report.txt    # quarterly numbers: 42 — it was there all along
+```
+**Why this works & what it teaches:** A mount *grafts another filesystem onto a directory* (Rung 3B) — from that instant, path resolution crosses the seam into the new filesystem, and everything in the *underlying* directory becomes unreachable (shadowed), though not deleted. The teammate's tmpfs turned `/opt/lab-cha/data` into an empty RAM disk; unmounting removes the graft and the original ext4 contents reappear. This is why `df` never showed a deletion: no inode was freed. **Where people go wrong:** restoring "lost" files from backup on top of the *mount* — the copy lands in the tmpfs and evaporates on reboot while the originals still sit beneath.
+
+### Scenario 4 — "Kamloops: the counter with amnesia"
+**Solution:**
+```bash
+sudo tee /opt/lab-kam/counter.sh >/dev/null <<'EOF'
+#!/bin/bash
+d=/var/lib/lab-kam
+mkdir -p "$d"
+n=$(cat "$d/counter" 2>/dev/null || echo 0)
+n=$((n+1))
+echo "$n" > "$d/counter"
+echo "run count: $n"
+EOF
+```
+**Why this works & what it teaches:** `/run` is a **tmpfs** — RAM-backed and wiped at every boot; its FHS-assigned purpose is *volatile runtime state* (sockets, PIDs), so storing a lifetime counter there guarantees amnesia by design (Rung 3A's four buckets). Persistent state written by a running program belongs in `/var/lib/<program>` — exactly why kubelet uses `/var/lib/kubelet` and containerd `/var/lib/containerd` for state but `/run/containerd` for its socket. **Where people go wrong:** choosing directories by convenience ("it was writable") instead of by *lifetime rule* — the FHS's whole value is that the directory name encodes the data's fate.
+
+### Scenario 5 — "Brandon: the release chain with a missing link"
+**Solution:**
+```bash
+namei -l /opt/lab-bra/current/index.html   # shows the chain and where it breaks
+readlink /opt/lab-bra/current              # releases/current-blue
+readlink /opt/lab-bra/releases/current-blue   # ../builds/build-4711  ← relative, resolved FROM /opt/lab-bra/releases → build-4711 is GONE
+sudo ln -sfn ../builds/build-4812 /opt/lab-bra/releases/current-blue
+cat /opt/lab-bra/current/index.html        # release v4 OK
+```
+**Why this works & what it teaches:** A symlink is a file whose *content is another path* (Rung 4), and a **relative** symlink target is resolved from the directory containing the *link*, not from your CWD — so `../builds/build-4711` means `/opt/lab-bra/builds/build-4711`, which the cleanup deleted while the link itself stayed perfectly "healthy"-looking (`ls -l` never validates targets). `namei -l` walks the chain hop by hop and marks the dangling component instantly. `ln -sfn` atomically re-points the pointer — the same pattern as Kubernetes' own `..data` symlink swap for ConfigMap updates. **Where people go wrong:** "fixing" it by copying build files over the link, which silently breaks the whole blue/green switch mechanism for the next release.
+
+### Scenario 6 — "Yellowknife: 200 MB that du swears doesn't exist"
+**Solution:**
+```bash
+df -h /; sudo du -xsh /opt        # confirm the disagreement: df sees the usage, du can't
+findmnt | grep lab-yk             # a tmpfs is mounted at /opt/lab-yk/data
+# Peek UNDER every mount by bind-mounting the root filesystem itself elsewhere:
+sudo mkdir -p /mnt/lab-yk-under
+sudo mount --bind / /mnt/lab-yk-under
+sudo du -sh /mnt/lab-yk-under/opt/lab-yk/data     # there's the 200M — the shadowed dir
+sudo rm /mnt/lab-yk-under/opt/lab-yk/data/core-4211.dump
+sudo umount /mnt/lab-yk-under
+```
+**Why this works & what it teaches:** Files that lived in a directory *before* something was mounted on it still occupy blocks on the underlying filesystem, but path resolution can no longer reach them — `df` (which asks the filesystem for totals) and `du` (which walks reachable paths) disagree by exactly the shadowed amount. A **bind mount of `/`** creates a second pathway into the root filesystem where *no child mounts follow*, so `/mnt/lab-yk-under/opt/lab-yk/data` shows the real ext4 directory underneath while the production tmpfs stays mounted and untouched — the standard SRE trick for "df and du disagree" incidents. **Where people go wrong:** unmounting the live mount to look underneath (an outage), or trusting `du -xsh /` alone and concluding the kernel is lying.

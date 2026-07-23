@@ -535,3 +535,217 @@ setenforce 1   # back to Enforcing — do NOT leave a shared node permissive
 **Q:** Two pods run as UID 0 on the same node with SELinux enforcing, sharing a hostPath. Pod A cannot read Pod B's volume. Which field of the context does the isolating, and what differs between the pods?
 
 **A:** The **level** field — the fourth field, specifically its **MCS categories** (`c0`…`c1023`). The container runtime assigns each pod a unique category pair (e.g. Pod A gets `s0:c123,c456`, Pod B gets `s0:c247,c811`) and labels each pod's files with the matching pair. Two contexts must share categories to interact, so even though both processes are the same domain (`container_t`) and both run as UID 0 — making DAC useless here — Pod A's categories don't match the categories on Pod B's files, and the kernel denies the access. This per-instance MCS isolation is exactly what path-based AppArmor has no equivalent for, and what the `:Z` mount flag / `seLinuxOptions.level` automates.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** SELinux is the RHEL-family MAC, so these scenarios need a **disposable Rocky / AlmaLinux / Fedora VM with SELinux `Enforcing`** — **not** Ubuntu/Debian (which ship AppArmor and where `getenforce` returns `Disabled`). Each scenario's intro names the distro. Install helpers once: `sudo dnf install -y policycoreutils policycoreutils-python-utils container-selinux setools-console`. Several setups need `sudo` and some deliberately break things. Run the **Setup**, read the **Situation**, do the **Task**, and prove it with **Verify** — *without* peeking at the solutions. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Florianopolis: read the labels, find the odd one out" (Easy)
+*(Rocky/Alma/Fedora, SELinux Enforcing.)*
+**Setup:**
+```bash
+getenforce   # expected: Enforcing  (if it says Disabled you are on the wrong distro)
+sudo mkdir -p /opt/lab-floripa
+for f in one two three four; do echo x | sudo tee /opt/lab-floripa/$f >/dev/null; done
+sudo chcon -t etc_t /opt/lab-floripa/three   # force ONE file to a different type
+ls -Z /opt/lab-floripa
+```
+**Situation:** You're on a Rocky/Alma/Fedora node with SELinux enforcing. A tenant reports that one file in `/opt/lab-floripa` "behaves differently" from its siblings. All four look identical to `ls -l`. You suspect a label mismatch — the thing `ls -l` cannot show you.
+
+**Your task:** Using SELinux context tooling, identify which file carries a **different type** than the others, and name that type.
+
+**Verify:**
+```bash
+ls -Z /opt/lab-floripa
+# expected: 'three' shows type etc_t; the other three show default_t (the dir's inherited type)
+```
+
+### 🟢 Scenario 2 — "Ushuaia: chmod 777 didn't help" (Easy)
+*(Rocky/Alma/Fedora, SELinux Enforcing.)*
+**Setup:**
+```bash
+sudo mkdir -p /var/www/html
+echo "<h1>hi</h1>" | sudo tee /var/www/html/index.html >/dev/null
+sudo chmod 777 /var/www/html/index.html
+sudo chcon -t user_home_t /var/www/html/index.html   # clobber the label
+ls -Z /var/www/html/index.html   # ...:user_home_t:...  (wrong for a web root)
+```
+**Situation:** On a Rocky/Alma/Fedora web node, `index.html` returns `403` to the web server even though it's mode `777` and correctly owned. Someone already tried `chmod 777` — no help, because the block is coming from the *second* gate (SELinux), not DAC. The file lives under `/var/www/html`, whose correct label the policy already knows.
+
+**Your task:** Restore the file to the correct SELinux type the policy defines for `/var/www/html`, using the tool that consults the **file-context database** (don't hand-guess the type with `chcon`).
+
+**Verify:**
+```bash
+ls -Z /var/www/html/index.html
+# expected: type httpd_sys_content_t
+```
+
+### 🟡 Scenario 3 — "Sucre: the volume label that won't survive" (Medium)
+*(Rocky/Alma/Fedora, SELinux Enforcing.)*
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-sucre/data
+echo data | sudo tee /opt/lab-sucre/data/app.log >/dev/null
+ls -Z /opt/lab-sucre/data   # default_t — NOT container_file_t
+```
+**Situation:** A container-style workload needs `/opt/lab-sucre/data` labeled `container_file_t`. A colleague already ran `chcon -t container_file_t`, and it worked — until the nightly `restorecon` sweep reverted the label to `default_t` and the workload broke again. You need a label that is **permanent**.
+
+**Your task:** Make `container_file_t` the **canonical, durable** label for `/opt/lab-sucre/data` (surviving any future `restorecon`), then apply it. Prove durability by deliberately mislabeling with `chcon` and showing `restorecon` restores the correct type.
+
+**Verify:**
+```bash
+sudo chcon -t default_t /opt/lab-sucre/data/app.log     # deliberately break the label
+sudo restorecon -v /opt/lab-sucre/data/app.log          # policy-driven repair
+ls -Z /opt/lab-sucre/data/app.log
+# expected: type container_file_t (restorecon put it back from the fcontext DB)
+```
+
+### 🟡 Scenario 4 — "Trujillo: worked yesterday, broke after reboot" (Medium)
+*(Rocky/Alma/Fedora, SELinux Enforcing.)*
+**Setup:**
+```bash
+getsebool container_manage_cgroup      # container_manage_cgroup --> off
+sudo setsebool container_manage_cgroup on   # someone set it WITHOUT -P
+getsebool container_manage_cgroup      # on ... but only until the next reboot
+```
+**Situation:** A workload needs the `container_manage_cgroup` SELinux boolean enabled. It works right now, but every time the node reboots the feature breaks and the on-call re-runs a `setsebool` by hand. The change never survives a reboot — the classic "worked yesterday, broke after the node rebooted" ticket.
+
+**Your task:** Make the boolean setting **persistent** so it survives reboots, using the correct flag.
+
+**Verify:**
+```bash
+sudo semanage boolean -l | grep container_manage_cgroup
+# expected: the (current, persisted-default) pair reads (on   ,  on) — both on
+```
+
+### 🟠 Scenario 5 — "Cuenca: the confined service denied on a wide-open dir" (Hard)
+*(Rocky/Alma/Fedora, SELinux Enforcing; needs container-selinux for the `container_t` domain.)*
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-cuenca/data
+sudo chmod 777 /opt/lab-cuenca/data
+ls -Zd /opt/lab-cuenca/data   # default_t (wrong type for container_t to write)
+# reproduce the denial: run a writer in the container_t domain
+runcon -t container_t bash -c 'echo hello > /opt/lab-cuenca/data/out.txt' 2>&1 || echo "WRITE DENIED"
+ls /opt/lab-cuenca/data   # out.txt is absent — it was blocked
+```
+**Situation:** On a Rocky/Alma/Fedora node, a task in the `container_t` domain must write `/opt/lab-cuenca/data/out.txt`. The directory is mode `777` and root-owned, but the write fails and `out.txt` never appears. `chmod` can't fix a label problem, and even root doesn't bypass SELinux.
+
+**Your task:** Use the audit log (`ausearch` / `audit2why`) to diagnose the denial, determine it is a **mislabel** (not a genuinely-missing policy rule), relabel the directory to the correct type **durably**, then re-run the `container_t` writer and confirm the file appears.
+
+**Verify:**
+```bash
+sudo ausearch -m avc -ts recent | tail -n 5
+# shows: avc: denied { write/create } ... tcontext=...:default_t:... tclass=... permissive=0
+runcon -t container_t bash -c 'echo hello > /opt/lab-cuenca/data/out.txt' && cat /opt/lab-cuenca/data/out.txt
+# expected: hello  (after the relabel to container_file_t)
+```
+
+### 🔴 Scenario 6 — "Maracaibo: two denials, two different fixes" (Expert)
+*(Rocky/Alma/Fedora, SELinux Enforcing; needs container-selinux + policycoreutils-python-utils.)*
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-maracaibo/data
+sudo chmod 777 /opt/lab-maracaibo/data
+ls -Zd /opt/lab-maracaibo/data     # default_t   (label problem #1)
+getsebool container_connect_any    # container_connect_any --> off   (boolean problem #2)
+# start a plain listener the confined task will try to reach:
+( python3 -m http.server 8093 --bind 127.0.0.1 >/dev/null 2>&1 & )
+sleep 1
+# reproduce BOTH denials from the container_t domain:
+runcon -t container_t bash -c 'echo x > /opt/lab-maracaibo/data/out.txt' 2>&1 || echo "WRITE DENIED"
+runcon -t container_t bash -c 'exec 3<>/dev/tcp/127.0.0.1/8093 && echo CONNECT_OK || echo CONNECT_DENIED' 2>&1 || echo "CONNECT DENIED"
+```
+**Situation:** On a Rocky/Alma/Fedora node, a `container_t` task has **two separate** SELinux problems: it can't write its data dir, and it can't open an outbound TCP connection to a service on `127.0.0.1:8093`. A junior engineer wants to `audit2allow` everything into a custom policy module. You must fix each denial with the **correct, minimal** mechanism — a durable relabel for the file access and a persistent boolean for the network access — leaving **no** hand-written allow rules behind.
+
+**Your task:** Diagnose both AVCs, relabel the data dir to `container_file_t` durably, enable `container_connect_any` persistently, then prove **both** the write and the outbound connection succeed from the `container_t` domain.
+
+**Verify:**
+```bash
+# write works after the relabel:
+runcon -t container_t bash -c 'echo x > /opt/lab-maracaibo/data/out.txt' && cat /opt/lab-maracaibo/data/out.txt   # expected: x
+# connection works after the boolean:
+runcon -t container_t bash -c 'exec 3<>/dev/tcp/127.0.0.1/8093 && echo CONNECT_OK'   # expected: CONNECT_OK
+# and the boolean is persisted:
+sudo semanage boolean -l | grep container_connect_any   # expected: (on   ,  on)
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Florianopolis: read the labels, find the odd one out"
+**Solution:**
+```bash
+ls -Z /opt/lab-floripa
+# system_u:object_r:default_t:s0     one
+# system_u:object_r:default_t:s0     two
+# unconfined_u:object_r:etc_t:s0     three   ← the odd one: type etc_t
+# system_u:object_r:default_t:s0     four
+```
+**Why this works & what it teaches:** Every file carries a `user:role:type:level` context stored in the `security.selinux` xattr, and `ls -Z` prints it. The **type** (3rd field) is what Type Enforcement decides on — 95% of SELinux troubleshooting is "wrong type." `ls -l` shows mode/owner but never the label, which is exactly why label bugs feel invisible. Here `three` was forced to `etc_t` while its siblings inherited the directory's `default_t`. **Where people go wrong:** staring at `rwx`/owner when the difference lives in a field only `-Z` reveals. **Cleanup:** `sudo rm -rf /opt/lab-floripa`.
+
+### Scenario 2 — "Ushuaia: chmod 777 didn't help"
+**Solution:**
+```bash
+sudo restorecon -v /var/www/html/index.html
+# Relabeled /var/www/html/index.html from ...:user_home_t:s0 to ...:httpd_sys_content_t:s0
+ls -Z /var/www/html/index.html   # ...:httpd_sys_content_t:s0
+```
+**Why this works & what it teaches:** SELinux is a second gate *after* DAC — both must pass — so `chmod 777` (a DAC change) can't fix a label denial. `restorecon` resets a file's label to whatever the **file-context database** (`/etc/selinux/targeted/contexts/files/file_contexts`) says the path *should* be; the policy already knows `/var/www/html` → `httpd_sys_content_t`, and the web server's domain (`httpd_t`) has an `allow` rule to read that type. **Where people go wrong:** `chcon -t httpd_sys_content_t` also works but is a hand-typed hotfix; for a path the policy already knows, `restorecon` is the right, guess-free tool. **Cleanup:** `sudo rm -rf /var/www/html/index.html`.
+
+### Scenario 3 — "Sucre: the volume label that won't survive"
+**Solution:**
+```bash
+sudo semanage fcontext -a -t container_file_t "/opt/lab-sucre/data(/.*)?"
+sudo restorecon -Rv /opt/lab-sucre/data
+ls -Z /opt/lab-sucre/data   # ...:container_file_t:s0
+# durability proof:
+sudo chcon -t default_t /opt/lab-sucre/data/app.log
+sudo restorecon -v /opt/lab-sucre/data/app.log   # reverts to container_file_t
+```
+**Why this works & what it teaches:** `chcon` writes the xattr **directly** and is temporary — the canonical path→label rule still says something else, so the next `restorecon`/autorelabel wipes it. `semanage fcontext -a` edits the **policy database** of what the path *should* be; `restorecon` then applies that rule, and forever after the database owns the path — a stray `chcon` gets undone. That is the exact hotfix-vs-durable-fix split (`chcon` vs `semanage fcontext`). **Where people go wrong:** relying on `chcon` in automation and getting mysteriously reverted at the next relabel. **Cleanup:** `sudo semanage fcontext -d "/opt/lab-sucre/data(/.*)?"; sudo rm -rf /opt/lab-sucre`.
+
+### Scenario 4 — "Trujillo: worked yesterday, broke after reboot"
+**Solution:**
+```bash
+sudo setsebool -P container_manage_cgroup on
+sudo semanage boolean -l | grep container_manage_cgroup   # (on   ,  on)
+```
+**Why this works & what it teaches:** A boolean is a runtime switch that gates a bundle of `allow` rules. `setsebool NAME on` flips only the **current** (in-memory) value — lost at reboot. The `-P` flag also writes the **on-disk** policy so the setting persists. `semanage boolean -l` shows both values as a pair `(current, persisted)`; without `-P` you'd see `(on, off)` — the tell-tale of a change that will vanish on reboot. **Where people go wrong:** omitting `-P` and re-fixing the same boolean after every reboot. **Cleanup:** `sudo setsebool -P container_manage_cgroup off`.
+
+### Scenario 5 — "Cuenca: the confined service denied on a wide-open dir"
+**Solution:**
+```bash
+# 1) Diagnose: read the AVC and let audit2why explain it.
+sudo ausearch -m avc -ts recent | audit2why
+#   ... tcontext=...:default_t:... — "Missing type enforcement (TE) allow rule."
+#   The subject container_t wants a file the policy only lets it touch as container_file_t → it's a LABEL bug.
+# 2) Fix by relabeling (NOT audit2allow), durably:
+sudo semanage fcontext -a -t container_file_t "/opt/lab-cuenca/data(/.*)?"
+sudo restorecon -Rv /opt/lab-cuenca/data
+# 3) Prove it:
+runcon -t container_t bash -c 'echo hello > /opt/lab-cuenca/data/out.txt' && cat /opt/lab-cuenca/data/out.txt
+```
+**Why this works & what it teaches:** The AVC's `tcontext` type (`default_t`) is the culprit: the policy ships `allow container_t container_file_t:file { create write ... }`, but the wide-open volume was `default_t`, for which no rule exists → default-deny, even at mode `777` and even for root. Relabeling to `container_file_t` makes the *existing* rule match. Reading `audit2why` teaches the discrimination: this is a mislabel, so the fix is **relabel**, not a new rule. **Where people go wrong:** piping the denial into `audit2allow` and shipping `allow container_t default_t:file write` — far too broad (it grants container_t write to *all* `default_t`), papering over a simple label mistake. **Cleanup:** `sudo semanage fcontext -d "/opt/lab-cuenca/data(/.*)?"; sudo rm -rf /opt/lab-cuenca`.
+
+### Scenario 6 — "Maracaibo: two denials, two different fixes"
+**Solution:**
+```bash
+# Diagnose both AVCs:
+sudo ausearch -m avc -ts recent | audit2why
+#   - one denial: tcontext=...:default_t:... file write  → LABEL bug (relabel)
+#   - one denial: ...:tcp_socket name_connect... → gated by boolean container_connect_any
+# Fix #1 — durable relabel for the file access:
+sudo semanage fcontext -a -t container_file_t "/opt/lab-maracaibo/data(/.*)?"
+sudo restorecon -Rv /opt/lab-maracaibo/data
+# Fix #2 — persistent boolean for the network access:
+sudo setsebool -P container_connect_any on
+# Prove both:
+runcon -t container_t bash -c 'echo x > /opt/lab-maracaibo/data/out.txt' && cat /opt/lab-maracaibo/data/out.txt   # x
+runcon -t container_t bash -c 'exec 3<>/dev/tcp/127.0.0.1/8093 && echo CONNECT_OK'                                # CONNECT_OK
+sudo semanage boolean -l | grep container_connect_any   # (on   ,  on)
+```
+**Why this works & what it teaches:** The two denials look similar in the log but demand different remedies. The file-write denial is a **label** problem — the existing `container_t → container_file_t` rule just needs the volume labeled right (`semanage fcontext` + `restorecon`, durable). The network denial is not a missing rule at all; the policy already contains the rule *guarded by a boolean*, so the fix is to flip `container_connect_any` on **persistently** (`setsebool -P`). Neither needs a custom module. This is the core operating skill: read `audit2why`, then choose relabel vs boolean vs (rarely) a real new rule — not `audit2allow` for everything. **Where people go wrong:** generating a broad custom policy module that grants both accesses to all of `default_t`/all ports, masking the real cause and widening the attack surface. **Cleanup:** `sudo setsebool -P container_connect_any off; sudo semanage fcontext -d "/opt/lab-maracaibo/data(/.*)?"; sudo rm -rf /opt/lab-maracaibo; pkill -f 'http.server 8093'`.

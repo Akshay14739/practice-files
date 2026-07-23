@@ -732,3 +732,217 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 **Q:** Why does `for f in $(ls)` break on a file named `my report.txt` but `ls | while read -r f` does not — in terms of *when and on what* the shell splits?
 
 **A:** In `for f in $(ls)`, the shell expands `$(ls)` first and then word-splits the whole result on **all whitespace** — spaces, tabs, and newlines alike — and also performs glob expansion on the pieces. So `my report.txt` is split at the space into two separate iterations, `my` and `report.txt`, neither of which exists. `while read -r f` never does that expansion-then-split: `read` consumes the stream **one full line at a time**, so the line `my report.txt` lands intact in `$f` (and `-r` additionally stops `read` from treating backslashes as escapes). The rule of thumb: iterate lines with `while read -r`, never with `for … in $(…)` — the difference is splitting on any whitespace at expansion time versus splitting only on newlines at read time.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance). Each **Setup** drops a small script or data file under `/opt/lab-*`; your job is to wire streams together with the right redirection/pipe/`xargs`/heredoc/process-substitution move and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6. Every fix is a file-descriptor move from this chapter, not a Kubernetes trick.
+
+### 🟢 Scenario 1 — "Toyama: keep the findings, bin the noise" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-toyama
+sudo tee /opt/lab-toyama/scan.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo "result: alpha"
+echo "scan error: cannot read /root/secret" >&2
+echo "result: bravo"
+echo "scan error: permission denied /etc/shadow" >&2
+echo "result: charlie"
+EOF
+sudo chmod +x /opt/lab-toyama/scan.sh
+```
+**Situation:** A scanner writes real findings to **stdout** and permission-error noise to **stderr**. You want a clean file containing only the findings, with the error spam thrown away.
+
+**Your task:** Run `/opt/lab-toyama/scan.sh`, capturing **only its stdout** (the `result:` lines) into `/tmp/lab-toyama.out`, and discard the error output entirely.
+
+**Verify:**
+```bash
+[ "$(wc -l < /tmp/lab-toyama.out)" = 3 ] && ! grep -q error /tmp/lab-toyama.out && echo CORRECT
+# expected: CORRECT  (3 result lines, zero error lines)
+```
+
+### 🟢 Scenario 2 — "Fukui: one timeline, both streams" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-fukui
+sudo tee /opt/lab-fukui/deploy.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo "INFO: starting rollout"
+echo "WARN: replica 2 not ready" >&2
+echo "INFO: rollout complete"
+EOF
+sudo chmod +x /opt/lab-fukui/deploy.sh
+```
+**Situation:** For an incident timeline you need a **single** log file that contains both the `INFO` output (stdout) and the `WARN` diagnostics (stderr) together — and nothing should scroll past on your terminal.
+
+**Your task:** Run `/opt/lab-fukui/deploy.sh` capturing **both** stdout and stderr into `/tmp/lab-fukui.log`.
+
+**Verify:**
+```bash
+grep -q 'INFO: rollout complete' /tmp/lab-fukui.log \
+  && grep -q 'WARN: replica 2 not ready' /tmp/lab-fukui.log && echo CORRECT
+# expected: CORRECT  (both streams landed in the one file)
+```
+
+### 🟡 Scenario 3 — "Matsue: quarantine every crash-looper" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-matsue
+sudo tee /opt/lab-matsue/pods.txt >/dev/null <<'EOF'
+NAME     STATUS             NODE
+web-1    Running            node-a
+web-2    CrashLoopBackOff   node-b
+api-1    Running            node-a
+api-2    CrashLoopBackOff   node-c
+db-1     CrashLoopBackOff   node-b
+EOF
+```
+**Situation:** You need to run a bulk action on every crash-looping pod. Simulate it: for each pod whose STATUS is `CrashLoopBackOff`, drop a marker file named after the pod under `/tmp/lab-matsue-quarantine/`. The pod names come out of a pipeline as a *stream*, but `touch` needs them as *arguments*.
+
+**Your task:** Extract the `CrashLoopBackOff` pod names from the table and, turning that stream into command arguments, create one empty marker file per pod under `/tmp/lab-matsue-quarantine/`.
+
+**Verify:**
+```bash
+[ "$(ls /tmp/lab-matsue-quarantine 2>/dev/null | sort | tr '\n' ',')" = "api-2,db-1,web-2," ] && echo CORRECT
+# expected: CORRECT  (exactly the three crash-loopers, no others)
+```
+
+### 🟡 Scenario 4 — "Matsuyama: names with spaces break the loop" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-matsuyama
+sudo tee /opt/lab-matsuyama/services.txt >/dev/null <<'EOF'
+payment gateway
+user service
+order queue
+EOF
+```
+**Situation:** A list of service display-names — each containing a space — must each get its own directory under `/tmp/lab-matsuyama-out/`. A naive `for name in $(cat services.txt)` splits on every space and creates six wrong directories (`payment`, `gateway`, `user`, …). You must iterate so each **full line** becomes exactly one directory.
+
+**Your task:** Create one directory per line (spaces preserved) under `/tmp/lab-matsuyama-out/` — three directories total.
+
+**Verify:**
+```bash
+[ "$(ls /tmp/lab-matsuyama-out 2>/dev/null | wc -l)" = 3 ] \
+  && [ -d "/tmp/lab-matsuyama-out/payment gateway" ] \
+  && [ -d "/tmp/lab-matsuyama-out/user service" ] \
+  && [ -d "/tmp/lab-matsuyama-out/order queue" ] && echo CORRECT
+# expected: CORRECT  (three dirs, each a whole line)
+```
+
+### 🟠 Scenario 5 — "Kochi: the failures the pipe swallowed" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-kochi
+sudo tee /opt/lab-kochi/job.sh >/dev/null <<'EOF'
+#!/bin/bash
+for i in 1 2 3 4 5; do
+  if (( i % 2 == 0 )); then
+    echo "task $i FAILED" >&2
+  else
+    echo "task $i ok"
+  fi
+done
+EOF
+sudo chmod +x /opt/lab-kochi/job.sh
+```
+**Situation:** A batch job writes its `ok` lines to stdout and its `FAILED` lines to **stderr**. You need a count of how many tasks failed, but the obvious `job.sh | grep -c FAILED` returns `0` — because a pipe carries **only stdout (FD 1)**, and the failures rode away on FD 2 to the terminal, never entering the pipe.
+
+**Your task:** Count how many tasks `FAILED` and write just that number to `/tmp/lab-kochi.txt`.
+
+**Verify:**
+```bash
+grep -qx '2' /tmp/lab-kochi.txt && echo CORRECT   # expected: CORRECT (2 tasks failed)
+```
+
+### 🔴 Scenario 6 — "Naha: what runs in prod but not stage?" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-naha
+sudo tee /opt/lab-naha/prod-pods.txt >/dev/null <<'EOF'
+api
+cache
+db
+frontend
+worker
+EOF
+sudo tee /opt/lab-naha/stage-pods.txt >/dev/null <<'EOF'
+api
+db
+frontend
+metrics
+worker
+EOF
+```
+**Situation:** You must find which workloads run in **prod but not in stage**. You have two name lists. The clean way — no temp files — is to feed two *sorted live streams* into a two-input comparison tool by making each stream look like a file.
+
+**Your task:** Using **process substitution** to hand a comparison tool two sorted inputs at once, list the names present in `prod-pods.txt` but absent from `stage-pods.txt`, and write them (one per line) to `/tmp/lab-naha.txt`.
+
+**Verify:**
+```bash
+grep -qx 'cache' /tmp/lab-naha.txt && [ "$(wc -l < /tmp/lab-naha.txt)" = 1 ] && echo CORRECT
+# expected: CORRECT  (only "cache" is prod-only)
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Toyama: keep the findings, bin the noise"
+**Solution:**
+```bash
+/opt/lab-toyama/scan.sh > /tmp/lab-toyama.out 2>/dev/null
+cat /tmp/lab-toyama.out    # only the three result: lines
+```
+**Why this works & what it teaches:** `find`-style noise and real results travel on **separate channels** — results on FD 1, errors on FD 2 (Rung 3A). `> /tmp/lab-toyama.out` re-points FD 1 at the file; `2>/dev/null` re-points FD 2 at the kernel's discard device. Because the two are independent slots, keeping one and binning the other is trivial. **Where people go wrong:** writing `2>/tmp/lab-toyama.out` (capturing the *errors* instead of the results) or `&>` (capturing *both*) — the digit before `>` selects exactly which slot you are rewiring.
+
+### Scenario 2 — "Fukui: one timeline, both streams"
+**Solution:**
+```bash
+/opt/lab-fukui/deploy.sh > /tmp/lab-fukui.log 2>&1
+# equivalently (bash shorthand):
+#   /opt/lab-fukui/deploy.sh &> /tmp/lab-fukui.log
+cat /tmp/lab-fukui.log     # INFO lines and the WARN line, interleaved
+```
+**Why this works & what it teaches:** `> file` first points FD 1 at the log; then `2>&1` points FD 2 at **whatever FD 1 currently references** — the file — so both streams converge there (Rung 3B). **Where people go wrong:** the classic order trap — writing `2>&1 > file` clones FD 2 onto FD 1 *while FD 1 still points at the terminal*, so errors leak to the screen and only stdout reaches the file. `2>&1` is a snapshot of FD 1's target at that instant, not a live link, so it must come **after** the `> file`.
+
+### Scenario 3 — "Matsue: quarantine every crash-looper"
+**Solution:**
+```bash
+mkdir -p /tmp/lab-matsue-quarantine
+grep CrashLoopBackOff /opt/lab-matsue/pods.txt | awk '{print $1}' \
+  | xargs -I{} touch /tmp/lab-matsue-quarantine/{}
+ls /tmp/lab-matsue-quarantine    # api-2  db-1  web-2
+```
+**Why this works & what it teaches:** `grep`+`awk` produce a *stream* of pod names on stdout, but `touch` takes its targets from **argv**, not stdin — piping directly at `touch` would do nothing. `xargs` is the adapter that drains the stream and rebuilds it as arguments (Rung 3C / Rung 5, the same reason `xargs kubectl delete pod` exists). `-I{}` runs `touch` once per name with `{}` substituted, so the name can sit mid-path. **Where people go wrong:** expecting `... | touch` to work (a pipe feeds FD 0, but `touch` reads argv), or using plain `xargs touch DIR/` where the name isn't the trailing argument — that's exactly when `-I{}` templating is required.
+
+### Scenario 4 — "Matsuyama: names with spaces break the loop"
+**Solution:**
+```bash
+mkdir -p /tmp/lab-matsuyama-out
+while read -r name; do
+  mkdir -p "/tmp/lab-matsuyama-out/$name"
+done < /opt/lab-matsuyama/services.txt
+ls /tmp/lab-matsuyama-out    # 'order queue'  'payment gateway'  'user service'
+```
+**Why this works & what it teaches:** `while read -r` consumes stdin **one whole line at a time**, so a line containing spaces lands intact in `$name` (and `-r` stops backslashes being eaten) — Rung 6, Contrast B. The redirection `< file` points the loop's FD 0 at the file. **Where people go wrong:** `for name in $(cat services.txt)` — the shell word-splits the command substitution on *all* whitespace (and globs it) at expansion time, shattering `payment gateway` into two iterations and producing six wrong directories. Iterate lines with `while read -r`, never with `for … in $(…)`; and always quote `"$name"`.
+
+### Scenario 5 — "Kochi: the failures the pipe swallowed"
+**Solution:**
+```bash
+/opt/lab-kochi/job.sh 2>&1 | grep -c FAILED > /tmp/lab-kochi.txt
+cat /tmp/lab-kochi.txt     # 2
+```
+**Why this works & what it teaches:** A pipe wires only the producer's **FD 1** into the consumer's FD 0 (Rung 3C) — the `FAILED` lines were written to FD 2, so `job.sh | grep` never saw them and counted `0`. Prefixing the pipe with `2>&1` merges FD 2 into FD 1 **before** the `|`, so both streams flow into `grep`, which now counts the two failures. **Where people go wrong:** putting the merge in the wrong place (`job.sh | grep -c FAILED 2>&1` merges *grep's* streams, far too late) — stderr must be folded into stdout on the **producer** side of the pipe, i.e. immediately after `job.sh`.
+
+### Scenario 6 — "Naha: what runs in prod but not stage?"
+**Solution:**
+```bash
+comm -23 <(sort /opt/lab-naha/prod-pods.txt) <(sort /opt/lab-naha/stage-pods.txt) \
+  > /tmp/lab-naha.txt
+cat /tmp/lab-naha.txt      # cache
+```
+**Why this works & what it teaches:** `comm` needs **two** sorted file inputs at once — something a single pipe (one stdin) can never provide. Each `<(sort …)` runs its command in the background, wraps its stdout as a `/dev/fd/NN` **filename**, and hands that path to `comm` (Rung 3D). `comm -23` suppresses column 2 (lines only in stage) and column 3 (shared), leaving column 1 — names only in prod: `cache`. No temp files touch disk. **Where people go wrong:** reaching for temp files (`sort a > /tmp/a; sort b > /tmp/b; comm …`) and forgetting to clean them, or trying to feed both lists through one `|` — two-input tools like `comm`/`diff` are precisely what process substitution exists for. (`diff <(sort a) <(sort b)` is the same idea when you want the full delta.)
+

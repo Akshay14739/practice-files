@@ -474,3 +474,351 @@ journalctl -k | grep -i oom
 **Q:** A static pod and a systemd service both "run a process and restart it if it dies." Derive who the supervisor is in each case, and why you'd never wrap a static pod's container in its own systemd unit.
 
 **A:** For a systemd service (kubelet, containerd), the supervisor is **systemd/PID 1**: it fork+execs the process, tracks it in a cgroup, and applies `Restart=`. For a static pod (a manifest in `/etc/kubernetes/manifests/`), the supervisor is **kubelet**: kubelet watches that directory, tells containerd to run the containers, and restarts them per the pod spec — Kubernetes *is* their supervisor. You'd never wrap the static pod's container in its own systemd unit because that would create two supervisors fighting over one process: kubelet restarts a dead container itself, so a systemd unit doing the same would race it, double-start, and confuse both restart loops. The layering is "supervise the supervisor": systemd manages kubelet; kubelet manages pods; a container runs one process, not a whole init system.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Buenos Aires: it works… until the reboot" (Easy)
+**Setup:**
+```bash
+sudo tee /opt/lab-pulse.sh >/dev/null <<'SH'
+#!/bin/bash
+while true; do echo "pulse OK $(date +%T)"; sleep 10; done
+SH
+sudo chmod +x /opt/lab-pulse.sh
+sudo tee /etc/systemd/system/lab-pulse.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab heartbeat publisher
+
+[Service]
+ExecStart=/opt/lab-pulse.sh
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-pulse.service
+```
+**Situation:** Monitoring pages you after every planned node maintenance: the heartbeat agent `lab-pulse` is down again after each reboot. Every time, the previous on-call "fixed" it by SSH-ing in and starting it by hand — and every reboot it dies again. Right now `systemctl status lab-pulse` says `active (running)`, which is exactly why the team keeps closing the ticket as "works for me."
+
+**Your task:** Make `lab-pulse.service` both run now *and* come back on every future boot. Do not edit the unit file — it already contains everything you need.
+
+**Verify:**
+```bash
+systemctl is-active lab-pulse && systemctl is-enabled lab-pulse   # expected: "active" then "enabled"
+```
+
+### 🟢 Scenario 2 — "Montevideo: the service that died in silence" (Easy)
+**Setup:**
+```bash
+sudo tee /opt/lab-ticker.sh >/dev/null <<'SH'
+#!/bin/bash
+if [[ ! -f /etc/lab-ticker/feed.url ]]; then
+  echo "FATAL: config file /etc/lab-ticker/feed.url is missing - refusing to start" >&2
+  exit 1
+fi
+while true; do echo "tick $(date +%T) feed=$(cat /etc/lab-ticker/feed.url)"; sleep 15; done
+SH
+sudo chmod +x /opt/lab-ticker.sh
+sudo tee /etc/systemd/system/lab-ticker.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab market ticker
+
+[Service]
+ExecStart=/opt/lab-ticker.sh
+Restart=no
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-ticker.service 2>/dev/null || true
+```
+**Situation:** A teammate pings you: "lab-ticker is dead on the new box, and there's *nothing* in `/var/log` — no ticker log file at all. I have no idea why it exits." They have been running `ls /var/log | grep ticker` for twenty minutes.
+
+**Your task:** Find out — from the journal, not from reading the script — exactly why `lab-ticker.service` exits, fix the root cause, and get the service running.
+
+**Verify:**
+```bash
+systemctl is-active lab-ticker   # expected: active
+```
+
+### 🟡 Scenario 3 — "Santiago: the upgrade that ate the port flag" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-api
+sudo tee /opt/lab-api/api.sh >/dev/null <<'SH'
+#!/bin/bash
+exec python3 -m http.server "${LAB_API_PORT:-8400}" --bind 127.0.0.1
+SH
+sudo chmod +x /opt/lab-api/api.sh
+sudo tee /opt/lab-api/shipped.unit >/dev/null <<'UNIT'
+[Unit]
+Description=Lab API (vendor unit - do not edit)
+
+[Service]
+ExecStart=/opt/lab-api/api.sh
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo cp /opt/lab-api/shipped.unit /lib/systemd/system/lab-api.service
+sudo tee /usr/local/sbin/lab-api-upgrade >/dev/null <<'SH'
+#!/bin/bash
+# Simulates the package manager reinstalling lab-api: rewrites the vendor unit in /lib
+cp /opt/lab-api/shipped.unit /lib/systemd/system/lab-api.service
+systemctl daemon-reload
+systemctl restart lab-api.service
+echo "lab-api upgraded (vendor unit rewritten)"
+SH
+sudo chmod +x /usr/local/sbin/lab-api-upgrade
+sudo systemctl daemon-reload
+sudo systemctl enable --now lab-api.service
+```
+**Situation:** The internal API must listen on **port 8420** — the only port the host firewall allows. Last month someone made that happen by editing the vendor unit in `/lib/systemd/system/` directly. Last night's package upgrade (simulated here by `sudo lab-api-upgrade`) rewrote that file, and the API silently fell back to port 8400; every client is now getting connection-refused. This will happen again on the next upgrade unless you fix it the right way.
+
+**Your task:** Make `lab-api.service` serve on 127.0.0.1:8420 in a way that **survives** any future run of `sudo lab-api-upgrade` — without touching `/lib/systemd/system/lab-api.service`.
+
+**Verify:**
+```bash
+sudo lab-api-upgrade && sleep 1 && curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8420/   # expected: 200 even right after an upgrade
+```
+
+### 🟡 Scenario 4 — "Lima: start request repeated too quickly" (Medium)
+**Setup:**
+```bash
+sudo tee /etc/systemd/system/lab-worker.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab queue worker
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+EnvironmentFile=/etc/lab-worker.env
+ExecStart=/bin/bash -c 'echo "lab-worker: consuming queue $${LAB_QUEUE:?LAB_QUEUE is not set}"; exec sleep infinity'
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl start lab-worker.service 2>/dev/null || true
+sleep 8
+```
+**Situation:** The queue worker was deployed an hour ago and has never come up. `systemctl status lab-worker` shows `failed` and mentions nothing useful beyond a `start-limit-hit` / "Start request repeated too quickly" — and when a colleague tried `systemctl start` again, it refused immediately without even trying. The deploy pipeline says the unit file was installed correctly.
+
+**Your task:** Dig the *original* failure reason out of the journal (it is not the rate limit — that is only the symptom), fix the root cause, clear the failure state, and get `lab-worker` running stably.
+
+**Verify:**
+```bash
+systemctl is-active lab-worker && sleep 5 && systemctl is-active lab-worker   # expected: "active" twice (not restarting in a loop)
+```
+
+### 🟠 Scenario 5 — "Quito: a dependency in chains" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-db
+sudo tee /opt/lab-db/start.sh >/dev/null <<'SH'
+#!/bin/bash
+echo "lab-db: accepting connections"
+exec sleep infinity
+SH
+sudo tee /etc/systemd/system/lab-db.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab database engine
+
+[Service]
+ExecStart=/opt/lab-db/start.sh
+Restart=on-failure
+UNIT
+sudo tee /etc/systemd/system/lab-frontend.service >/dev/null <<'UNIT'
+[Unit]
+Description=Lab frontend
+Requires=lab-db.service
+After=lab-db.service
+
+[Service]
+ExecStart=/bin/bash -c 'echo "lab-frontend: serving"; exec sleep infinity'
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl mask lab-db.service
+sudo systemctl start lab-frontend.service 2>/dev/null || true
+```
+**Situation:** During an incident two weeks ago, the then-on-call "temporarily" took the database out of rotation and then left the company. Now the frontend won't start at all: `systemctl start lab-frontend` errors out instantly, and every attempt to bring the stack up dies with dependency errors. Management wants both services running *and* guaranteed to come up after the next reboot.
+
+**Your task:** Untangle the chain: get `lab-db.service` startable again, fix whatever else prevents it from actually running, bring `lab-frontend` up through its dependency, and make **both** units start at boot. (One of the two units cannot be enabled as shipped — you must fix that too.)
+
+**Verify:**
+```bash
+systemctl is-active lab-db lab-frontend && systemctl is-enabled lab-db lab-frontend   # expected: active, active, enabled, enabled
+```
+
+### 🔴 Scenario 6 — "Bogota: retire the nohup, ship a real service" (Expert)
+**Setup:**
+```bash
+sudo useradd -r -s /usr/sbin/nologin labuser6 2>/dev/null || true
+sudo mkdir -p /opt/lab-sensor
+sudo tee /opt/lab-sensor/sensor.py >/dev/null <<'PY'
+#!/usr/bin/env python3
+from http.server import HTTPServer, BaseHTTPRequestHandler
+
+class H(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"lab-sensor OK\n")
+    def log_message(self, fmt, *args):
+        print("lab-sensor: " + (fmt % args), flush=True)
+
+print("lab-sensor: listening on 127.0.0.1:8460", flush=True)
+HTTPServer(("127.0.0.1", 8460), H).serve_forever()
+PY
+sudo chown -R labuser6: /opt/lab-sensor
+# The "previous admin" way: run it as root with nohup-style detachment, zero supervision
+sudo setsid bash -c 'cd /opt/lab-sensor && exec python3 sensor.py >> nohup.out 2>&1' < /dev/null &
+sleep 1
+curl -s http://127.0.0.1:8460/ && echo "legacy sensor is up (root, unsupervised)"
+```
+**Situation:** The sensor-fleet endpoint on this box is a `python3 sensor.py` that the previous admin launched **as root with nohup** — there is a `nohup.out` in `/opt/lab-sensor` to prove it. When it crashed last Tuesday, nobody noticed for six hours, and the security review flagged "network daemon running as root, unmanaged." You have been told to do it properly this time.
+
+**Your task:** Replace the legacy process with a real `lab-sensor.service`: it must run as **labuser6** (not root), restart itself within a few seconds if it dies, be wired into boot, and keep serving on 127.0.0.1:8460. Then prove the self-healing by SIGKILL-ing its main process. (Careful: the legacy process is still squatting on the port — your unit's logs will tell you about it.)
+
+**Verify:**
+```bash
+PID=$(systemctl show -p MainPID --value lab-sensor); [ "$PID" -gt 1 ] && sudo kill -9 "$PID"; sleep 5
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8460/   # expected: 200 (it healed itself)
+ps -o user= -p "$(systemctl show -p MainPID --value lab-sensor)"  # expected: labuser6
+systemctl is-enabled lab-sensor                                   # expected: enabled
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Buenos Aires: it works… until the reboot"
+**Solution:**
+```bash
+sudo systemctl enable lab-pulse.service    # writes the .wants/ symlink for future boots
+systemctl is-active lab-pulse              # already active from the earlier start
+systemctl is-enabled lab-pulse             # now: enabled
+# (on a fresh box you'd do both in one shot: sudo systemctl enable --now lab-pulse)
+```
+**Why this works & what it teaches:** This is Rung 3.3 verbatim: `start` is imperative and touches only the live system, while `enable` reads the `[Install]` section (`WantedBy=multi-user.target`) and materializes it as a symlink in `/etc/systemd/system/multi-user.target.wants/` — the only thing the next boot ever looks at. The previous on-call kept running `start`, which writes nothing to disk, so every reboot forgot the service. Where people go wrong: assuming `active (running)` implies "will survive a reboot" — `systemctl status` even tells you (`; disabled;` on the `Loaded:` line) if you know to look.
+**Cleanup:** `sudo systemctl disable --now lab-pulse; sudo rm /etc/systemd/system/lab-pulse.service /opt/lab-pulse.sh; sudo systemctl daemon-reload`
+
+### Scenario 2 — "Montevideo: the service that died in silence"
+**Solution:**
+```bash
+journalctl -u lab-ticker -n 20 --no-pager
+#   lab-ticker.sh: FATAL: config file /etc/lab-ticker/feed.url is missing - refusing to start
+sudo mkdir -p /etc/lab-ticker
+echo "https://feeds.example.com/ticks" | sudo tee /etc/lab-ticker/feed.url
+sudo systemctl start lab-ticker
+systemctl is-active lab-ticker             # active
+```
+**Why this works & what it teaches:** Rung 3.6: a systemd-managed service's stdout/stderr never becomes a file in `/var/log` — systemd wires fd 1/2 to journald before exec, and every line is indexed by `_SYSTEMD_UNIT=lab-ticker.service`. So the *only* place the FATAL line exists is `journalctl -u lab-ticker`. Your teammate's `ls /var/log` reflex is the exact pain from Rung 1. Where people go wrong: reading the script instead of the logs — fine here, hopeless when the binary is a 40 MB Go daemon.
+**Cleanup:** `sudo systemctl disable --now lab-ticker 2>/dev/null; sudo rm -rf /etc/systemd/system/lab-ticker.service /opt/lab-ticker.sh /etc/lab-ticker; sudo systemctl daemon-reload`
+
+### Scenario 3 — "Santiago: the upgrade that ate the port flag"
+**Solution:**
+```bash
+# Interactive way: sudo systemctl edit lab-api   (opens override.conf in an editor)
+# Non-interactive equivalent:
+sudo mkdir -p /etc/systemd/system/lab-api.service.d
+sudo tee /etc/systemd/system/lab-api.service.d/override.conf >/dev/null <<'INI'
+[Service]
+Environment="LAB_API_PORT=8420"
+INI
+sudo systemctl daemon-reload
+sudo systemctl restart lab-api
+systemctl cat lab-api        # shipped unit first, your override.conf listed after it (= higher precedence)
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8420/   # 200
+sudo lab-api-upgrade         # vendor unit rewritten again...
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8420/   # ...still 200
+```
+**Why this works & what it teaches:** Rung 3.1's precedence rule is the whole game: `/etc/systemd/system/` beats `/lib/systemd/system/`, and a drop-in under `lab-api.service.d/` *merges into* the vendor unit instead of replacing it. The fake upgrade only ever rewrites `/lib`, so your `Environment=` line survives every run — exactly how `KUBELET_EXTRA_ARGS` survives kubelet package upgrades in Rung 7 Example 2. Where people go wrong: editing `/lib` directly (works until the next upgrade, then silently reverts), or writing the drop-in but forgetting `daemon-reload`, so the in-memory unit is stale and the restart changes nothing.
+**Cleanup:** `sudo systemctl disable --now lab-api; sudo rm -rf /lib/systemd/system/lab-api.service /etc/systemd/system/lab-api.service.d /opt/lab-api /usr/local/sbin/lab-api-upgrade; sudo systemctl daemon-reload`
+
+### Scenario 4 — "Lima: start request repeated too quickly"
+**Solution:**
+```bash
+systemctl status lab-worker --no-pager
+#   Active: failed (Result: start-limit-hit)          <- symptom, not cause
+journalctl -u lab-worker -n 30 --no-pager
+#   lab-worker.service: Failed to load environment files: No such file or directory
+#   lab-worker.service: Failed to run 'start' task: No such file or directory
+#   ... Scheduled restart job, restart counter is at 3 ... start request repeated too quickly
+echo 'LAB_QUEUE=orders' | sudo tee /etc/lab-worker.env
+sudo systemctl reset-failed lab-worker     # clear the failed state + rate-limit counter
+sudo systemctl start lab-worker
+systemctl is-active lab-worker             # active, and stays active
+```
+**Why this works & what it teaches:** The unit's `EnvironmentFile=` (no `-` prefix, so it is mandatory) points at a file that does not exist, so systemd can't even reach fork+exec; `Restart=always` (Rung 3.5's supervisor loop) retried every second until `StartLimitBurst=3` within `StartLimitIntervalSec=60` tripped, and from then on every start attempt is rejected with the rate-limit message — burying the real error several restarts back in the journal. `reset-failed` clears the counter so you don't have to wait out the interval. Where people go wrong: treating `start-limit-hit` as the root cause and "fixing" it by raising the limit — the limit is doing its job; read the *first* failure in the journal, not the last.
+**Cleanup:** `sudo systemctl disable --now lab-worker 2>/dev/null; sudo rm -f /etc/systemd/system/lab-worker.service /etc/lab-worker.env; sudo systemctl daemon-reload`
+
+### Scenario 5 — "Quito: a dependency in chains"
+**Solution:**
+```bash
+sudo systemctl start lab-frontend
+#   Failed to start ... Unit lab-db.service is masked.
+sudo systemctl unmask lab-db               # remove the /dev/null symlink from the incident
+sudo systemctl start lab-frontend 2>&1 || true
+#   A dependency job for lab-frontend.service failed. See 'journalctl -xe'.
+journalctl -u lab-db -n 10 --no-pager
+#   ... Failed at step EXEC ... Permission denied  (status=203/EXEC)
+sudo chmod +x /opt/lab-db/start.sh
+sudo systemctl start lab-frontend          # Requires= + After= pull lab-db in first, then frontend
+sudo systemctl enable lab-frontend
+sudo systemctl enable lab-db 2>&1 || true
+#   The unit files have no installation config (WantedBy=, RequiredBy= ...)
+sudo tee -a /etc/systemd/system/lab-db.service >/dev/null <<'INI'
+
+[Install]
+WantedBy=multi-user.target
+INI
+sudo systemctl daemon-reload
+sudo systemctl enable lab-db
+```
+**Why this works & what it teaches:** Three separate pieces of Rung 3 machinery stack up here. (1) `mask` is a symlink to `/dev/null` in `/etc` — the highest-precedence layer from 3.1 — so *nothing* can start the unit until you `unmask`. (2) `Requires=` + `After=` (Rung 3.2) mean frontend refuses to run until lab-db actually starts, and lab-db can't exec a non-executable script (`203/EXEC` in the journal). (3) `enable` is powered *only* by the `[Install]` section (Rung 3.3) — a unit without one is startable but not enableable, so you add `WantedBy=` and `daemon-reload`. Where people go wrong: deleting `Requires=` to "make the error go away" — the frontend then starts happily with no database behind it.
+**Cleanup:** `sudo systemctl disable --now lab-frontend lab-db; sudo rm -rf /etc/systemd/system/lab-frontend.service /etc/systemd/system/lab-db.service /opt/lab-db; sudo systemctl daemon-reload`
+
+### Scenario 6 — "Bogota: retire the nohup, ship a real service"
+**Solution:**
+```bash
+# 1. Find and retire the legacy root process squatting on 8460:
+sudo ss -ltnp 'sport = :8460'              # shows the python3 run by root, with its PID
+sudo pkill -f 'python3 sensor.py'          # the nohup-era process (unit not running yet, so safe)
+# 2. Write the real unit:
+sudo tee /etc/systemd/system/lab-sensor.service >/dev/null <<'INI'
+[Unit]
+Description=Lab sensor fleet endpoint
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=labuser6
+ExecStart=/usr/bin/python3 /opt/lab-sensor/sensor.py
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target
+INI
+sudo systemctl daemon-reload
+sudo systemctl enable --now lab-sensor
+# 3. Prove self-healing:
+PID=$(systemctl show -p MainPID --value lab-sensor); sudo kill -9 "$PID"; sleep 5
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:8460/   # 200 again
+systemctl show lab-sensor -p NRestarts     # >= 1: the supervisor did the restart, not you
+```
+**Why this works & what it teaches:** This is the whole file in one exercise. If you skip step 1, your unit crash-loops with `OSError: [Errno 98] Address already in use` — visible only via `journalctl -u lab-sensor`, which is how the port squatter is *meant* to be found. The unit then encodes everything the nohup approach lacked (Rung 6's contrast table): `User=` drops root, `Restart=always` + `RestartSec=2` arms the supervisor loop from Rung 3.5 (your `kill -9` is exactly the 3 a.m. crash, and `NRestarts` incrementing proves PID 1 — not you — brought it back), `enable` wires it into `multi-user.target` for boot, and stdout lands in the journal instead of `nohup.out`. Where people go wrong: `kill -9`-ing the *unit's* process to "free the port" while leaving the legacy one alive — check `ps -o user=` on who actually owns the listener.
+**Cleanup:** `sudo systemctl disable --now lab-sensor; sudo rm -rf /etc/systemd/system/lab-sensor.service /opt/lab-sensor; sudo userdel labuser6 2>/dev/null; sudo systemctl daemon-reload`

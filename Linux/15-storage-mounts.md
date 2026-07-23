@@ -650,3 +650,215 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 **Q:** Explain structurally why OverlayFS saves disk across 10 identical pods — which directories are shared, which are per-container, and what does copy-up do?
 
 **A:** The image's layers are unpacked once into read-only **lowerdirs** under `/var/lib/containerd`, and all 10 containers' overlay mounts point at those *same* shared directories — the ~500MB of image content exists exactly once on disk, not ten times. Each container gets only its own tiny private **upperdir** (plus a workdir), which starts empty; a container consumes extra disk only for the specific files it creates or changes. **Copy-up** is what makes the sharing safe: the first time a container writes to an image file, OverlayFS copies just that one file into that container's upperdir and applies the write there, leaving the shared lowerdir byte-for-byte untouched. So the structural saving is: full copies would cost 10× the image size, while overlay costs ~1× the image plus each container's small delta — file-level copy-on-write with no special setup, which is exactly why it won over full copies and devicemapper.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6. Everything lives under dedicated `/opt/lab-*` and `/tmp/lab-*` paths, so nothing real is clobbered.
+
+### 🟢 Scenario 1 — "Cork: the directory that emptied itself" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-cork/data
+echo "cork-data-safe" | sudo tee /opt/lab-cork/data/important.txt >/dev/null
+sudo mount -t tmpfs -o size=8m tmpfs /opt/lab-cork/data
+```
+**Situation:** Panic ticket: "our app's data directory `/opt/lab-cork/data` is suddenly EMPTY — everything is gone!" Backups are three days old. But nobody ran `rm`, the disk shows no errors, and the amount of *used space* on the root filesystem hasn't changed at all. Files that vanish while their bytes stay put usually haven't gone anywhere — something is standing in front of them.
+
+**Your task:** Figure out why the directory appears empty, undo it, and bring `important.txt` back — no restore from backup.
+
+**Verify:**
+```bash
+cat /opt/lab-cork/data/important.txt      # expected: cork-data-safe
+findmnt /opt/lab-cork/data | wc -l        # expected: 0  (nothing mounted there anymore)
+```
+
+### 🟢 Scenario 2 — "Leipzig: root can't run its own script" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-leipzig
+sudo mount -t tmpfs -o size=16m,noexec,nosuid tmpfs /opt/lab-leipzig
+printf '#!/bin/sh\necho leipzig-deployed\n' | sudo tee /opt/lab-leipzig/deploy.sh >/dev/null
+sudo chmod +x /opt/lab-leipzig/deploy.sh
+```
+**Situation:** A deploy job drops `deploy.sh` into `/opt/lab-leipzig` and runs it. It fails with `Permission denied`. The on-call engineer checked everything obvious: the file is `rwxr-xr-x`, owned by root, `sh -n` says the syntax is fine — and even `sudo /opt/lab-leipzig/deploy.sh` is *denied*. When root itself can't execute a `+x` file, the file isn't the problem; the ground it's standing on is.
+
+**Your task:** Find what's really denying execution and fix it so the script runs from its current location (don't move or copy the script).
+
+**Verify:**
+```bash
+/opt/lab-leipzig/deploy.sh    # expected: leipzig-deployed
+```
+
+### 🟡 Scenario 3 — "Toulouse: df says full, du says empty" (Medium)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-toulouse-img && sudo mkdir -p /opt/lab-toulouse
+dd if=/dev/zero of=/tmp/lab-toulouse-img/disk.img bs=1M count=300 status=none
+mkfs.ext4 -q -F /tmp/lab-toulouse-img/disk.img
+sudo mount -o loop /tmp/lab-toulouse-img/disk.img /opt/lab-toulouse
+sudo dd if=/dev/zero of=/opt/lab-toulouse/ghost.log bs=1M count=200 status=none
+sudo setsid tail -f /opt/lab-toulouse/ghost.log >/dev/null 2>&1 < /dev/null &
+sleep 1
+sudo rm /opt/lab-toulouse/ghost.log
+```
+**Situation:** The 300 MB "log volume" mounted at `/opt/lab-toulouse` is nearly full — `df` shows ~200 MB used and alerts are firing. Someone already "fixed" it the obvious way: they found the giant log and deleted it. The alert never cleared. Now `ls` shows the volume is empty, `du -sh /opt/lab-toulouse` agrees (~0), yet `df` still reports the space as used. The bytes are alive; only the *name* died.
+
+**Your task:** Explain the df-vs-du gap, find who is keeping the deleted file's bytes alive, and release the space **without unmounting** the volume.
+
+**Verify:**
+```bash
+df --output=used -BM /opt/lab-toulouse | tail -1    # expected: under 30M (was ~215M)
+sudo lsof +L1 /opt/lab-toulouse | wc -l              # expected: 0  (no deleted-but-open files remain)
+```
+
+### 🟡 Scenario 4 — "Valencia: we fixed the image, the container disagrees" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-valencia/lower /opt/lab-valencia/upper /opt/lab-valencia/work /opt/lab-valencia/merged
+echo "version=2-fixed"  | sudo tee /opt/lab-valencia/lower/config.conf >/dev/null
+echo "version=1-broken" | sudo tee /opt/lab-valencia/upper/config.conf >/dev/null
+sudo mount -t overlay overlay \
+  -o lowerdir=/opt/lab-valencia/lower,upperdir=/opt/lab-valencia/upper,workdir=/opt/lab-valencia/work \
+  /opt/lab-valencia/merged
+```
+**Situation:** A "container" (the overlay mount at `/opt/lab-valencia/merged`) keeps reading `version=1-broken` from its config. The platform team already shipped the fix into the image layer — you can verify yourself that the lowerdir copy says `version=2-fixed`. Yet the merged view stubbornly serves the broken version. Long ago, *this* container once edited that config at runtime, and OverlayFS never forgets a write.
+
+**Your task:** Make the merged view show `version=2-fixed` — and it must still be a live overlay mount afterwards, not a plain directory. Careful: the obvious `rm` through the merged view makes things *worse*, not better.
+
+**Verify:**
+```bash
+cat /opt/lab-valencia/merged/config.conf                          # expected: version=2-fixed
+mount | grep -c 'overlay on /opt/lab-valencia/merged'             # expected: 1
+```
+
+### 🟠 Scenario 5 — "Rotterdam: the 150 MB that df can see and du cannot find" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-rotterdam/data
+sudo dd if=/dev/zero of=/opt/lab-rotterdam/data/old-hog.bin bs=1M count=150 status=none
+echo "rotterdam-hidden" | sudo tee /opt/lab-rotterdam/data/marker.txt >/dev/null
+sudo mount -t tmpfs -o size=8m tmpfs /opt/lab-rotterdam/data
+echo "fresh-disk" | sudo tee /opt/lab-rotterdam/data/README >/dev/null
+```
+**Situation:** The root filesystem is ~150 MB heavier than anything you can find: `df` counts the bytes, but `du` on every visible directory comes up short — the classic under-the-mount mystery. History: the app once wrote directly into `/opt/lab-rotterdam/data` on the root disk; later a "data disk" was mounted **on top of** that very directory, entombing the old files underneath — invisible, undeletable, but still charged to the root filesystem. One of the entombed files (`marker.txt`) also holds a credential the team needs back. The mount must stay up: the "database" on the data disk is in production and **cannot be unmounted, even briefly**.
+
+**Your task:** Reach *underneath* the live mount without disturbing it, save the marker file's content to `/tmp/lab-rotterdam-answer.txt`, and delete the 150 MB hog to reclaim the root filesystem's space.
+
+**Verify:**
+```bash
+cat /tmp/lab-rotterdam-answer.txt                                  # expected: rotterdam-hidden
+findmnt /opt/lab-rotterdam/data >/dev/null && echo still-mounted    # expected: still-mounted
+df -BM /   # expected: ~150M more available on / than before your fix (the hog is truly gone)
+```
+
+### 🔴 Scenario 6 — "Bratislava: three containers, one of them is eating the node" (Expert)
+**Setup:**
+```bash
+for c in c1 c2 c3; do
+  sudo mkdir -p /opt/lab-bratislava/$c/lower /opt/lab-bratislava/$c/upper /opt/lab-bratislava/$c/work /opt/lab-bratislava/$c/merged
+  echo "base-image-$c" | sudo tee /opt/lab-bratislava/$c/lower/base.txt >/dev/null
+  sudo mount -t overlay overlay \
+    -o lowerdir=/opt/lab-bratislava/$c/lower,upperdir=/opt/lab-bratislava/$c/upper,workdir=/opt/lab-bratislava/$c/work \
+    /opt/lab-bratislava/$c/merged
+done
+sudo setsid sh -c 'while true; do dd if=/dev/zero bs=64K count=16 >> /opt/lab-bratislava/c2/merged/app.log 2>/dev/null; sleep 1; done' >/dev/null 2>&1 < /dev/null &
+```
+**Situation:** DiskPressure, miniaturized. This node runs three "containers" — three overlay mounts, exactly the shape containerd builds under `/var/lib/containerd` — and free space is draining at about 1 MB/s. `df` can tell you the disk is dying but not *who* is killing it: each container writes into its merged view, and the bytes physically land somewhere on the host. Your job is the Rung 7 / Prediction 4 triage, but at overlay granularity: rank the writable layers, catch the writer, stop the bleed, reclaim the space.
+
+**Your task:** Identify which container is filling the disk *by measuring where overlay writes physically land*, find and stop the process doing the writing, then remove the runaway log so all three writable layers are back to near-zero — with all three overlay mounts still up.
+
+**Verify:**
+```bash
+pgrep -f 'lab-bratislava.*app.log' | wc -l           # expected: 0  (the writer is gone)
+sudo du -sk /opt/lab-bratislava/c1/upper /opt/lab-bratislava/c2/upper /opt/lab-bratislava/c3/upper
+                                                      # expected: every upperdir ≤ ~8 KB
+mount | grep -c 'overlay on /opt/lab-bratislava'      # expected: 3  (all containers still mounted)
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Cork: the directory that emptied itself"
+**Solution:**
+```bash
+findmnt /opt/lab-cork/data
+# TARGET               SOURCE  FSTYPE  OPTIONS
+# /opt/lab-cork/data   tmpfs   tmpfs   rw,size=8192k...   <- something is mounted OVER the data
+sudo umount /opt/lab-cork/data
+cat /opt/lab-cork/data/important.txt      # cork-data-safe — it was there all along
+```
+**Why this works & what it teaches:** Rung 3B says it plainly: mounting grafts a filesystem onto a directory, and *whatever was there before is hidden (not deleted) until you umount*. An empty tmpfs mounted over the data made the files unreachable while their bytes never moved — which is exactly why root-fs usage didn't drop. `findmnt <path>` is the one-command test that should precede any "files disappeared" panic. Where people go wrong: reaching for backups or `fsck` before asking the mount table what is actually grafted at that path.
+**Cleanup:** `sudo rm -rf /opt/lab-cork`
+
+### Scenario 2 — "Leipzig: root can't run its own script"
+**Solution:**
+```bash
+findmnt -o TARGET,FSTYPE,OPTIONS /opt/lab-leipzig
+# /opt/lab-leipzig  tmpfs  rw,nosuid,noexec,...          <- there's the denial
+sudo mount -o remount,exec /opt/lab-leipzig               # lift ONLY the noexec flag, in place
+/opt/lab-leipzig/deploy.sh                                # leipzig-deployed
+```
+**Why this works & what it teaches:** Mount options are enforced at the VFS layer on every access, so `noexec` overrides both the `+x` permission bits *and* root itself (Prediction 2) — `execve` on anything from that mount returns EACCES no matter who asks. The tell that separates "permissions problem" from "mount-option problem" is precisely that root is refused too. `mount -o remount,exec` changes the graft's constraints without unmounting. Where people go wrong: an hour of `chmod`/`chown`/ACL archaeology on a file whose bits were never the issue; and note the workaround `sh /opt/lab-leipzig/deploy.sh` *would* run (that's reading, not executing) — a hint, not a fix.
+**Cleanup:** `sudo umount /opt/lab-leipzig; sudo rmdir /opt/lab-leipzig`
+
+### Scenario 3 — "Toulouse: df says full, du says empty"
+**Solution:**
+```bash
+sudo lsof +L1 /opt/lab-toulouse
+# COMMAND  PID ... NLINK ... NAME
+# tail    4711 ...     0 ... /opt/lab-toulouse/ghost.log (deleted)   <- zero links, still open
+sudo kill 4711                     # (use the PID lsof printed) release the last reference
+df --output=used -BM /opt/lab-toulouse | tail -1    # space is back
+```
+**Why this works & what it teaches:** `rm` removes a *name* from a directory, but the inode and its blocks survive as long as any process holds the file open — `df` asks the filesystem's block accounting (blocks still allocated), `du` walks directory entries (name gone), and the gap between them *is* the deleted-but-open file. `lsof +L1` lists open files with link count 0 — the exact tool for the gap. Killing the holder (or, to keep the process alive, truncating via its fd: `sudo sh -c ': > /proc/4711/fd/3'`) frees the blocks instantly, no unmount needed. Where people go wrong: deleting a busy log instead of truncating it — the space doesn't return until the writer closes the fd, which for a long-lived daemon may be never. This is the #1 real-world cause of "disk full but nothing's there" on nodes.
+**Cleanup:** `sudo umount /opt/lab-toulouse; sudo rmdir /opt/lab-toulouse; rm -rf /tmp/lab-toulouse-img`
+
+### Scenario 4 — "Valencia: we fixed the image, the container disagrees"
+**Solution:**
+```bash
+cat /opt/lab-valencia/upper/config.conf     # version=1-broken  <- a stale COPY-UP is shadowing the fix
+sudo umount /opt/lab-valencia/merged        # never edit upperdir while the overlay is mounted
+sudo rm /opt/lab-valencia/upper/config.conf # drop the stale upper copy
+sudo mount -t overlay overlay \
+  -o lowerdir=/opt/lab-valencia/lower,upperdir=/opt/lab-valencia/upper,workdir=/opt/lab-valencia/work \
+  /opt/lab-valencia/merged
+cat /opt/lab-valencia/merged/config.conf    # version=2-fixed — lookup falls through to lower again
+```
+**Why this works & what it teaches:** Overlay lookups are top-down and the first hit wins (Rung 3D): the container's long-ago runtime edit copy-upped `config.conf` into upperdir, and that private copy permanently shadows every later improvement to the lower layer — the exact reason "we pushed a fixed image but the container still sees old files" happens when writable layers are reused. Two traps ambush the fix: `rm` through the *merged* view writes a **whiteout** that hides the lower file too (worse!), and modifying upperdir while mounted is undefined behavior — so the correct sequence is umount → clean upper → remount. In real Kubernetes the equivalent fix is simply recreating the container (fresh, empty upperdir), which is why "restart the pod picked up the fix" works. Where people go wrong: editing the lowerdir harder, instead of asking *which layer is actually serving this file?*
+**Cleanup:** `sudo umount /opt/lab-valencia/merged; sudo rm -rf /opt/lab-valencia`
+
+### Scenario 5 — "Rotterdam: the 150 MB that df can see and du cannot find"
+**Solution:**
+```bash
+mkdir -p /tmp/lab-rotterdam-peek
+sudo mount --bind /opt/lab-rotterdam /tmp/lab-rotterdam-peek   # bind the PARENT; binds don't recurse into submounts
+ls /tmp/lab-rotterdam-peek/data                                 # old-hog.bin  marker.txt — the entombed originals!
+cat /tmp/lab-rotterdam-peek/data/marker.txt | tee /tmp/lab-rotterdam-answer.txt   # rotterdam-hidden
+sudo rm /tmp/lab-rotterdam-peek/data/old-hog.bin                # reclaim the 150 MB from the ROOT fs
+sudo umount /tmp/lab-rotterdam-peek && rmdir /tmp/lab-rotterdam-peek
+findmnt /opt/lab-rotterdam/data                                 # the "database disk" never blinked
+```
+**Why this works & what it teaches:** A mount hides, never deletes (Rung 3B) — the old files still occupy root-fs blocks, which is why `df` counts them while every `du` walk gets deflected onto the tmpfs at the mount point. The escape hatch: a plain (non-recursive) bind mount of the *parent* directory replays the underlying filesystem's tree **without** its submounts, so `/tmp/lab-rotterdam-peek/data` shows the entombed originals while the production mount stays untouched — the same "same inodes, second window" mechanism as Prediction 1, used as a periscope. Where people go wrong: `umount`ing production storage "just for a second" to look underneath, or trusting `du` alone and concluding the kernel is miscounting; when `df` and `du` disagree, the bytes are either held by a deleted-open file (Toulouse) or buried under a mount (here).
+**Cleanup:** `sudo umount /opt/lab-rotterdam/data; sudo rm -rf /opt/lab-rotterdam; rm -f /tmp/lab-rotterdam-answer.txt`
+
+### Scenario 6 — "Bratislava: three containers, one of them is eating the node"
+**Solution:**
+```bash
+# 1) WHERE do overlay writes land? In each container's upperdir. Rank them:
+sudo du -sk /opt/lab-bratislava/*/upper | sort -rn
+# 123456  /opt/lab-bratislava/c2/upper      <- the offender, and growing on every re-run
+# 8       /opt/lab-bratislava/c1/upper
+# 8       /opt/lab-bratislava/c3/upper
+# 2) WHO is writing? Find the process aimed at that container's merged view:
+pgrep -af 'lab-bratislava'
+# 4711 sh -c while true; do dd ... >> /opt/lab-bratislava/c2/merged/app.log ...; sleep 1; done
+sudo kill 4711                                       # stop the bleed (kills the loop; its dd dies with it)
+# 3) Reclaim: app.log was born in upperdir (new file, no copy-up), so rm through merged truly frees it:
+sudo rm /opt/lab-bratislava/c2/merged/app.log
+sudo du -sk /opt/lab-bratislava/*/upper              # all back to ~4-8K; mounts untouched
+```
+**Why this works & what it teaches:** Every byte a container writes lands in its private **upperdir** on the host (Rung 3D / Rung 5 step 4) — so node-level disk triage at container granularity is `du` over upperdirs, which is literally what you do under `/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs` when a real node hits DiskPressure and `df` names the filesystem but not the culprit (Prediction 4's finale: "the container writes into its upperdir — that's where a runaway container log grows"). Deleting through the merged view is safe *here* because `app.log` exists only in upper — no lower copy means a real deletion, not a whiteout — and the space returns the moment no process holds it open (the Toulouse rule, obeyed by killing the writer first). Where people go wrong: `rm`-ing the log while the writer lives (deleted-but-open, zero bytes freed), or restarting all three containers when the evidence pinned it to one.
+**Cleanup:** `for c in c1 c2 c3; do sudo umount /opt/lab-bratislava/$c/merged; done; sudo rm -rf /opt/lab-bratislava`

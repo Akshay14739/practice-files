@@ -465,3 +465,190 @@ Normally every program on a Linux box shares one process list, one network, one 
 **Q:** A security team says "containers aren't a security boundary." Using the shared-kernel row of the table, derive what they mean and name the one class of exploit a namespace cannot stop but a VM can.
 
 **A:** All containers on a node share **one kernel** — namespaces are just private lookup tables inside that single kernel's data structures, not virtual hardware. So any workload that can exploit a bug in the shared kernel is exploiting code that sits *underneath* every namespace on the machine; the "wall" is made of the very thing being attacked. The class a namespace cannot stop is the **kernel exploit** (privilege-escalation via a kernel vulnerability): a compromised container that pops the kernel escapes into every other container and the host. A VM can stop it because each VM runs its **own separate kernel** behind a hypervisor boundary — a guest-kernel compromise stays inside the guest — which is why hostile-multi-tenant platforms wrap containers in microVMs (Kata, Firecracker, gVisor).
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6. Everything uses dedicated names (`labns-*`, `labveth*`, `/tmp/lab-*`, ports 8000–8999) so nothing real is clobbered.
+
+### 🟢 Scenario 1 — "Seville: the listener that isn't on this machine" (Easy)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-seville && echo "seville-ok" > /tmp/lab-seville/index.html
+for ns in labns-a labns-b labns-c; do sudo ip netns add "$ns" 2>/dev/null || true; done
+TARGET=$(echo "labns-a labns-b labns-c" | tr ' ' '\n' | sed -n 2p)
+sudo ip netns exec "$TARGET" ip link set lo up
+sudo ip netns exec "$TARGET" sh -c 'cd /tmp/lab-seville && setsid python3 -m http.server 8211 >/dev/null 2>&1 < /dev/null &'
+```
+**Situation:** Monitoring insists a debug HTTP endpoint is alive on port 8211 of this node — the agent scrapes it successfully every 30 seconds. But `ss -tlnp | grep 8211` on the node returns *nothing*, and `curl 127.0.0.1:8211` is refused. Three experimental "pod sandboxes" were created on this box last sprint. The listener is real; it just doesn't live in the world you're looking at.
+
+**Your task:** Find which network namespace hides the listener, write that namespace's name into `/tmp/lab-seville/answer.txt`, and fetch the page from inside it.
+
+**Verify:**
+```bash
+sudo ip netns exec "$(cat /tmp/lab-seville/answer.txt)" curl -s -m 2 http://127.0.0.1:8211/   # expected: seville-ok
+```
+
+### 🟢 Scenario 2 — "Dresden: PID 1 is lying to you" (Easy)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-dresden
+sudo setsid unshare --pid --fork --mount-proc sleep 86400 >/dev/null 2>&1 < /dev/null &
+```
+**Situation:** A developer's "mini container" is stuck and burning a slot on this node. From inside their tooling it reports itself as **PID 1**, and the developer keeps insisting "I ran `kill 1`, nothing happens, the kernel is broken." You know PID 1 inside a PID namespace is just a private numbering — outside, in the host's namespace, the same process wears a completely different number.
+
+**Your task:** From the host, find the runaway `sleep`'s **host** PID, save its pid-namespace identity (the `pid:[inode]` symlink target from `/proc/<PID>/ns/pid`) into `/tmp/lab-dresden/answer.txt` to prove it differs from the host's, then terminate it.
+
+**Verify:**
+```bash
+grep -Eo 'pid:\[[0-9]+\]' /tmp/lab-dresden/answer.txt        # expected: pid:[...] and NOT equal to: readlink /proc/1/ns/pid
+pgrep -f 'sleep 86400' | wc -l                                # expected: 0
+```
+
+### 🟡 Scenario 3 — "Tallinn: the pod with half a cable" (Medium)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-tallinn && echo "tallinn-ok" > /tmp/lab-tallinn/index.html
+sudo ip netns add labns-tal 2>/dev/null || true
+sudo ip netns exec labns-tal ip link set lo up
+sudo ip netns exec labns-tal sh -c 'cd /tmp/lab-tallinn && setsid python3 -m http.server 8220 >/dev/null 2>&1 < /dev/null &'
+sudo ip link add labveth0 type veth peer name labveth1 2>/dev/null || true
+# ...and here the homegrown "CNI plugin" crashed, mid-wiring.
+```
+**Situation:** A "pod" (the netns `labns-tal`) is up and its app is listening on port 8220 inside — but it is a brain in a jar: no `eth0`, no IP, unreachable from the node. The CNI plugin got as far as creating the veth pair `labveth0`/`labveth1` in the host namespace, then died. The runbook says the pod's address must be `10.244.88.2/24`, with the node end at `10.244.88.1/24`.
+
+**Your task:** Finish the CNI's job by hand — exactly steps 4–6 of the Rung 5 trace — so the node can reach the app at `10.244.88.2:8220`.
+
+**Verify:**
+```bash
+curl -s -m 3 http://10.244.88.2:8220/   # expected: tallinn-ok
+```
+
+### 🟡 Scenario 4 — "Riga: exec into a container that has no name" (Medium)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-riga && echo "riga-secret-7431" > /tmp/lab-riga/index.html
+sudo setsid unshare --net --uts sh -c 'hostname lab-pod-riga; ip link set lo up; cd /tmp/lab-riga && setsid python3 -m http.server 8230 >/dev/null 2>&1 < /dev/null & exec sleep 86300' >/dev/null 2>&1 < /dev/null &
+```
+**Situation:** Somebody hand-launched a pause-container-style sandbox on this node: an anchor process holding a private net (and uts) namespace open, with a distroless-style app serving on `127.0.0.1:8230` *inside* it. There is no named netns — `ip netns list` prints nothing, so `ip netns exec` is useless. The image has no shell, so "exec into it" the kubectl way is off the table too. You need what's on that endpoint.
+
+**Your task:** Find the anchor process, join **only its network namespace** with the node's own tools (the Prediction 4 technique), fetch `http://127.0.0.1:8230/`, and save the response to `/tmp/lab-riga/flag.txt`.
+
+**Verify:**
+```bash
+grep -c riga-secret-7431 /tmp/lab-riga/flag.txt   # expected: 1
+```
+
+### 🟠 Scenario 5 — "Oslo: the config file that exists for one process only" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-oslo/data
+mkdir -p /tmp/lab-oslo
+sudo setsid unshare --mount sh -c 'mount -t tmpfs tmpfs /opt/lab-oslo/data; echo "oslo-mount-secret-4711" > /opt/lab-oslo/data/config.txt; exec sleep 86200' >/dev/null 2>&1 < /dev/null &
+```
+**Situation:** An agent process generated a one-time credential and swears it wrote it to `/opt/lab-oslo/data/config.txt`. On the host that directory is **empty** — `ls`, `find`, even `lsof` on the path find nothing. The agent, still running, can read the file just fine. Classic split reality: the agent lives in its own **mount namespace**, and its tmpfs mount is invisible in yours. The process must **not** be restarted — the credential exists nowhere else.
+
+**Your task:** Without killing the agent, recover the file's contents into `/tmp/lab-oslo/recovered.txt`.
+
+**Verify:**
+```bash
+grep -c oslo-mount-secret-4711 /tmp/lab-oslo/recovered.txt    # expected: 1
+pgrep -f 'sleep 86200' >/dev/null && echo anchor-alive         # expected: anchor-alive
+```
+
+### 🔴 Scenario 6 — "Helsinki: do the CNI's job with your bare hands" (Expert)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-helsinki && echo "helsinki-ok" > /tmp/lab-helsinki/index.html
+sudo setsid unshare --net --pid --fork --mount-proc sh -c 'ip link set lo up; cd /tmp/lab-helsinki && exec python3 -m http.server 8240' >/dev/null 2>&1 < /dev/null &
+```
+**Situation:** A full "container" is running on this node — private net **and** pid namespaces, app serving on port 8240 inside — but the CNI never ran at all: its netns contains only `lo`, it has no name under `/var/run/netns/`, and it is unreachable from everywhere. The team needs it reachable from the node at `10.244.99.2:8240` *without restarting the app* (it holds in-memory state). You get to be the CNI plugin: veth pair, move one end in **by PID** (there is no netns name to use), address both ends, bring it all up.
+
+**Your task:** Make `curl http://10.244.99.2:8240/` work from the host, using a `labveth2`/`labveth3` pair, `10.244.99.1/24` on the host end and `10.244.99.2/24` on the container end — with the app process untouched.
+
+**Verify:**
+```bash
+curl -s -m 3 http://10.244.99.2:8240/                 # expected: helsinki-ok
+pgrep -f 'http.server 8240' >/dev/null && echo app-untouched   # expected: app-untouched
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Seville: the listener that isn't on this machine"
+**Solution:**
+```bash
+ip netns list                                             # labns-a labns-b labns-c
+for ns in labns-a labns-b labns-c; do echo "== $ns"; sudo ip netns exec "$ns" ss -tlnp; done
+# only labns-b shows *:8211 LISTEN (python3)
+echo labns-b > /tmp/lab-seville/answer.txt
+sudo ip netns exec labns-b curl -s http://127.0.0.1:8211/  # seville-ok
+```
+**Why this works & what it teaches:** Listening sockets are per-network-namespace state (§3.1, kind #2) — the host's `ss` walks only the host netns's socket table, so a listener one namespace over is genuinely invisible, not hidden. `ip netns exec <ns> <cmd>` runs the *node's* tooling inside the target namespace, which is how you audit each private world in turn; comparing `readlink /proc/<pid>/ns/net` inodes (§3.2) is the formal proof of which world a socket lives in. Where people go wrong: concluding "monitoring is broken" because the host can't see the port — the first question on a node is always *which namespace am I asking?*
+**Cleanup:** `for ns in labns-a labns-b labns-c; do sudo ip netns pids "$ns" | xargs -r sudo kill; sudo ip netns del "$ns"; done; rm -rf /tmp/lab-seville`
+
+### Scenario 2 — "Dresden: PID 1 is lying to you"
+**Solution:**
+```bash
+PID=$(pgrep -f 'sleep 86400')                    # the HOST pid — e.g. 48213
+sudo readlink /proc/$PID/ns/pid | tee /tmp/lab-dresden/answer.txt
+# pid:[4026532xxx]  — compare: readlink /proc/1/ns/pid -> pid:[4026531836] (different!)
+sudo lsns -t pid | grep "$PID"                   # the namespace row, NPROCS, the sleep as its PID 1
+sudo kill "$PID"                                 # signal it by its HOST pid — this works fine
+```
+**Why this works & what it teaches:** A PID namespace is a private *numbering*, not a private process (§3.1 #1): the same task is PID 1 inside and PID 48213 outside, and `/proc/<PID>/ns/pid` inode comparison (§3.2) is the two-integer proof they're different worlds. The dev's `kill 1` failed for a different reason — inside a PID namespace, PID 1 ignores signals it has no handler for, and processes inside can't signal *out* anyway; from the host namespace, the process is just an ordinary PID you can signal. Where people go wrong: trusting the number a process reports about itself — inside a container, every PID is a namespace-local alias.
+**Cleanup:** `rm -rf /tmp/lab-dresden` (the namespace died with its last member — reference counting from §3.2.)
+
+### Scenario 3 — "Tallinn: the pod with half a cable"
+**Solution:**
+```bash
+sudo ip link set labveth1 netns labns-tal                       # step 4: move one end INTO the pod (it vanishes from the host)
+sudo ip netns exec labns-tal ip addr add 10.244.88.2/24 dev labveth1   # step 5: address the pod end
+sudo ip netns exec labns-tal ip link set labveth1 up
+sudo ip addr add 10.244.88.1/24 dev labveth0                    # step 6: address + raise the host end
+sudo ip link set labveth0 up
+curl -s http://10.244.88.2:8220/                                 # tallinn-ok
+```
+**Why this works & what it teaches:** This is Rung 5, steps 4–6, executed literally: `ip link set <if> netns <ns>` is *the* namespace primitive — the interface disappears from the host's view the instant its membership changes, yet the veth "cable" keeps working because the pairing is kernel-internal plumbing, not a namespaced resource (Rung 6 answer). With both ends addressed on `10.244.88.0/24`, the kernel's connected-route handling gives each side a route to the other, and packets from the host flow into `labveth0` and pop out of `labveth1` inside the pod. Where people go wrong: forgetting to `up` *both* ends (a veth pair is only carrier-up when both ends are up), or addressing the host end before moving the peer.
+**Cleanup:** `sudo ip netns pids labns-tal | xargs -r sudo kill; sudo ip netns del labns-tal; rm -rf /tmp/lab-tallinn` (deleting the netns destroys the veth pair with it.)
+
+### Scenario 4 — "Riga: exec into a container that has no name"
+**Solution:**
+```bash
+sudo lsns -t net                                        # find the row whose COMMAND is the sleep anchor; note its PID
+PID=$(pgrep -f 'sleep 86300')
+sudo nsenter -t "$PID" --net -- curl -s http://127.0.0.1:8230/ | tee /tmp/lab-riga/flag.txt
+# riga-secret-7431
+sudo nsenter -t "$PID" --uts -- hostname                # lab-pod-riga — the sandbox's private uts world
+```
+**Why this works & what it teaches:** `ip netns` only knows namespaces that have a bind-mount under `/var/run/netns/` (Rung 4: `ip netns add` = `unshare --net` + that bind-mount); a namespace created by bare `unshare` is referenced only by its member processes, so the way in is `nsenter -t <PID>` — `setns(2)` on `/proc/<PID>/ns/net` (§3.3). Entering **only** `--net` is the Prediction 4 discipline: the node's `curl` stays available because you kept the node's mount namespace, which is exactly how you debug a distroless container that `kubectl exec` can't enter. Where people go wrong: reaching for `--all`/`--mount` and stranding themselves in a rootfs with no tools, or hunting for a netns *name* that never existed.
+**Cleanup:** `sudo pkill -f 'sleep 86300'; sudo pkill -f 'http.server 8230'; rm -rf /tmp/lab-riga`
+
+### Scenario 5 — "Oslo: the config file that exists for one process only"
+**Solution:**
+```bash
+PID=$(pgrep -f 'sleep 86200')
+# Option A — the magic symlink: the node's cat, the agent's filesystem view:
+sudo cat /proc/$PID/root/opt/lab-oslo/data/config.txt | tee /tmp/lab-oslo/recovered.txt
+# Option B — join only the mount namespace:
+sudo nsenter -t "$PID" --mount -- cat /opt/lab-oslo/data/config.txt > /tmp/lab-oslo/recovered.txt
+```
+**Why this works & what it teaches:** Mounts are per-mount-namespace state (§3.1 #3): the agent's tmpfs graft happened in *its* private copy of the mount table, so the host's `/opt/lab-oslo/data` is genuinely a different (empty) view of the same path. `/proc/<PID>/root` is the kernel's escape hatch — a magic symlink into that process's filesystem view, usable with the *node's* tools (Prediction 4's distroless trick); `nsenter --mount` is the same reach expressed as `setns`. Both read the live namespace without disturbing the process, honoring the "don't restart it" constraint. Where people go wrong: assuming a file that `ls` can't see was never written — on a container host, *whose mount table did you ask?* is the first question, not the last.
+**Cleanup:** `sudo pkill -f 'sleep 86200'; sudo rmdir /opt/lab-oslo/data /opt/lab-oslo; rm -rf /tmp/lab-oslo` (the tmpfs and the namespace evaporate when the anchor dies.)
+
+### Scenario 6 — "Helsinki: do the CNI's job with your bare hands"
+**Solution:**
+```bash
+PID=$(pgrep -f 'http.server 8240')                       # the app's HOST pid — its /proc/PID/ns/net is our "netns path"
+sudo ip link add labveth2 type veth peer name labveth3   # step 3: the cable, both ends on the host
+sudo ip link set labveth3 netns "$PID"                   # step 4: move one end in — BY PID, no name needed
+sudo nsenter -t "$PID" --net -- ip addr add 10.244.99.2/24 dev labveth3   # step 5: pod-end IP...
+sudo nsenter -t "$PID" --net -- ip link set labveth3 up                    # ...and up
+sudo ip addr add 10.244.99.1/24 dev labveth2             # step 6: host end
+sudo ip link set labveth2 up
+curl -s http://10.244.99.2:8240/                          # helsinki-ok
+```
+**Why this works & what it teaches:** This is the entire Rung 5 CNI trace performed against a *nameless* namespace: `ip link set <if> netns <PID>` accepts a process ID directly (the kernel resolves it via `/proc/<PID>/ns/net`, the same file `setns` would use — §3.2's "a namespace is a file" made practical), and `nsenter -t $PID --net` stands in for `ip netns exec` for every inside-the-pod step. The already-running server needs no restart because it bound `0.0.0.0:8240` — the socket automatically answers on the interface that appears later; namespaces isolate *which* interfaces exist, and adding one is invisible to the app. Where people go wrong: thinking a netns needs a `/var/run/netns` name to be operable, or restarting the app "so it picks up the new interface" — a wildcard bind never needed that.
+**Cleanup:** `sudo pkill -f 'http.server 8240'; sudo ip link del labveth2 2>/dev/null; rm -rf /tmp/lab-helsinki` (killing the last member destroys the netns; the veth end inside it is destroyed too.)

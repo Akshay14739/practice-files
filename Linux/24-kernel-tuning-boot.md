@@ -637,3 +637,310 @@ Fill this in for any kernel knob or module you touch:
 **Q:** Your team wants every node to force cgroup v2. Why is this different from setting `ip_forward=1` — which mechanism, which file, and why won't `sysctl -w` or a drop-in do it?
 
 **A:** Forcing cgroup v2 is a **boot-time-only** setting, not a runtime sysctl dial: the cgroup hierarchy mode is decided as the kernel comes up, before any live tuning is possible, so it must go on the **kernel command line** that GRUB hands the kernel — e.g. `systemd.unified_cgroup_hierarchy=1` (or `cgroup_no_v1=all`). The mechanism is editing **`/etc/default/grub`**, rerunning `update-grub`, and rebooting; you can confirm it took effect with `cat /proc/cmdline` and `stat -f -c %T /sys/fs/cgroup` (expect `cgroup2fs`). `sysctl -w` and `/etc/sysctl.d/` drop-ins can't do it because there is no `/proc/sys` file backing this choice — it isn't a tunable of the running kernel at all; it's a parameter that must exist *before* the live kernel does, unlike `ip_forward`, which is an ordinary live dial you flip and then persist.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+>
+> **Lab safety design:** every scenario stays strictly on the *safe* side of this chapter's machinery — runtime sysctls, module load/unload, drop-in files under `/etc/sysctl.d/` and `/etc/modules-load.d/` (all lab files carry a city name so you can delete them cleanly), and **inspection-only** GRUB work (`grub-mkconfig` dry-runs to a lab path). Nothing here edits `/etc/default/grub`, `/boot`, or anything else that could make the VM unbootable.
+
+### 🟢 Scenario 1 — "Darjeeling: the dial that reads zero" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-kernel/sc1
+sudo tee /opt/lab-kernel/sc1/preflight.sh >/dev/null <<'CHK'
+#!/bin/bash
+v=$(cat /proc/sys/net/ipv4/ip_forward)
+if [ "$v" = "1" ]; then
+  echo "PREFLIGHT PASS: ip_forward=1"
+else
+  echo "PREFLIGHT FAIL: /proc/sys/net/ipv4/ip_forward contents are not set to 1 (got: $v)"
+  exit 1
+fi
+CHK
+sudo chmod +x /opt/lab-kernel/sc1/preflight.sh
+sudo sysctl -w net.ipv4.ip_forward=0
+```
+**Situation:** You are bootstrapping a new node and the team's preflight script — a miniature of the `kubeadm` preflight from Rung 0 — refuses to continue: `/proc/sys/net/ipv4/ip_forward contents are not set to 1`. Until this dial reads `1`, the node will never route a packet from one pod veth to another; CNI is dead on arrival.
+
+**Your task:** Flip the forwarding dial on the **live** kernel so the preflight passes — and prove to yourself, both via `sysctl` *and* via the raw `/proc/sys` file, that the name and the file are the same object.
+
+**Verify:**
+```bash
+sudo /opt/lab-kernel/sc1/preflight.sh
+# expected: PREFLIGHT PASS: ip_forward=1
+cat /proc/sys/net/ipv4/ip_forward
+# expected: 1
+```
+
+### 🟢 Scenario 2 — "Leh: the switch that isn't on the wall" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-kernel/sc2
+sudo rm -f /etc/modules-load.d/lab-leh.conf
+sudo modprobe -r br_netfilter 2>/dev/null || true   # may refuse if in use — that's fine, check lsmod
+lsmod | grep br_netfilter || echo "br_netfilter is NOT loaded — setup complete"
+```
+**Situation:** A junior engineer is following a kubeadm guide and pastes `sysctl -w net.bridge.bridge-nf-call-iptables=1` — it explodes with `cannot stat /proc/sys/net/bridge/bridge-nf-call-iptables: No such file or directory`. He's now convinced the kernel is "missing bridge support" and wants to reinstall the OS. The switch he's trying to flip isn't broken — it *isn't on the wall yet*.
+
+**Your task:** Make the sysctl exist, set it to `1`, and make sure the module that registers it is loaded again on **every future boot** via a drop-in at `/etc/modules-load.d/lab-leh.conf`.
+
+**Verify:**
+```bash
+sysctl -n net.bridge.bridge-nf-call-iptables
+# expected: 1
+lsmod | grep -c '^br_netfilter'
+# expected: 1
+cat /etc/modules-load.d/lab-leh.conf
+# expected: a line reading exactly: br_netfilter
+```
+
+### 🟡 Scenario 3 — "Surat: the file that keeps winning" (Medium)
+**Setup:**
+```bash
+sudo tee /etc/sysctl.d/60-lab-surat-k8s.conf >/dev/null <<'CFG'
+# Kubernetes node tuning — many pods, many file watchers
+fs.inotify.max_user_watches = 524288
+fs.inotify.max_user_instances = 512
+CFG
+sudo tee /etc/sysctl.d/95-lab-surat-legacy.conf >/dev/null <<'CFG'
+# imported from the 2019 base-image repo -- "conservative defaults"
+fs.inotify.max_user_watches = 8192
+CFG
+sudo sysctl --system >/dev/null
+sysctl -n fs.inotify.max_user_watches   # shows 8192 — the "mystery"
+```
+**Situation:** Weeks ago you persisted the Kubernetes inotify tuning in `/etc/sysctl.d/60-lab-surat-k8s.conf` — you can `cat` the file, the value is right there: `524288`. Yet after **every** reboot, pods on this node crash with `too many open files`, and the live kernel stubbornly reports `8192`. Someone — or something — keeps winning the argument after you.
+
+**Your task:** Find out why the persisted value never survives the boot replay, fix it so `524288` wins both **now** and **after any reboot**, and prove it by re-running the full boot-style replay (`sysctl --system`) rather than a one-off `sysctl -w`.
+
+**Verify:**
+```bash
+sudo sysctl --system >/dev/null && sysctl -n fs.inotify.max_user_watches
+# expected: 524288   (survives a full replay of ALL sysctl.d files, i.e. what boot does)
+```
+
+### 🟡 Scenario 4 — "Coimbatore: make this node Kubernetes-ready — and keep it that way" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-kernel/sc4
+sudo tee /opt/lab-kernel/sc4/preflight.sh >/dev/null <<'CHK'
+#!/bin/bash
+ok=1
+lsmod | grep -q '^overlay'       || { echo "FAIL: overlay module not loaded"; ok=0; }
+lsmod | grep -q '^br_netfilter'  || { echo "FAIL: br_netfilter module not loaded"; ok=0; }
+[ "$(cat /proc/sys/net/bridge/bridge-nf-call-iptables 2>/dev/null)" = "1" ] \
+  || { echo "FAIL: net.bridge.bridge-nf-call-iptables is not 1"; ok=0; }
+[ "$(cat /proc/sys/net/ipv4/ip_forward)" = "1" ] \
+  || { echo "FAIL: net.ipv4.ip_forward is not 1"; ok=0; }
+grep -qs '^overlay'      /etc/modules-load.d/lab-coimbatore.conf || { echo "FAIL: overlay not persisted for boot"; ok=0; }
+grep -qs '^br_netfilter' /etc/modules-load.d/lab-coimbatore.conf || { echo "FAIL: br_netfilter not persisted for boot"; ok=0; }
+grep -qs 'net.ipv4.ip_forward'                /etc/sysctl.d/99-lab-coimbatore.conf || { echo "FAIL: ip_forward not persisted for boot"; ok=0; }
+grep -qs 'net.bridge.bridge-nf-call-iptables' /etc/sysctl.d/99-lab-coimbatore.conf || { echo "FAIL: bridge sysctl not persisted for boot"; ok=0; }
+[ "$ok" = "1" ] && echo "ALL CHECKS PASS — node is Kubernetes-ready and reboot-safe"
+CHK
+sudo chmod +x /opt/lab-kernel/sc4/preflight.sh
+# break the node: unload what we can, zero the dial, delete any persistence
+sudo modprobe -r br_netfilter 2>/dev/null || true
+sudo sysctl -w net.ipv4.ip_forward=0
+sudo rm -f /etc/modules-load.d/lab-coimbatore.conf /etc/sysctl.d/99-lab-coimbatore.conf
+sudo /opt/lab-kernel/sc4/preflight.sh   # watch it fail on several counts
+```
+**Situation:** This node must join a cluster tonight, and the change-review board's checker script is stricter than `kubeadm` itself: it demands the full Rung 3 "Kubernetes-critical set" **live** (modules loaded, dials at 1) *and* **persisted** (the exact drop-in files a reboot replays — `/etc/modules-load.d/lab-coimbatore.conf` and `/etc/sysctl.d/99-lab-coimbatore.conf`). A live-only fix is an automatic review rejection: that's the "works until the 3 a.m. kernel patch" anti-pattern from Rung 2.
+
+**Your task:** Do the whole Rung 7 Example 3 dance for real: load both modules now, set both sysctls now, and write both drop-in files so `systemd-modules-load` and `systemd-sysctl` will replay everything at boot. Mind the ordering trap from Rung 3 — one of these sysctls doesn't even exist until its module is loaded.
+
+**Verify:**
+```bash
+sudo /opt/lab-kernel/sc4/preflight.sh
+# expected: ALL CHECKS PASS — node is Kubernetes-ready and reboot-safe
+```
+
+### 🟠 Scenario 5 — "Bhopal: the errors hiding in the boot log" (Hard)
+**Setup:**
+```bash
+sudo rm -f /etc/modules-load.d/lab-bhopal.conf
+sudo modprobe -r br_netfilter 2>/dev/null || true   # if it refuses (in use), the typo below still reproduces the symptom
+sudo tee /etc/sysctl.d/70-lab-bhopal.conf >/dev/null <<'CFG'
+# node tuning pushed fleet-wide by a former teammate's ansible role
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forwardd = 1
+CFG
+sudo systemctl restart systemd-sysctl
+sudo sysctl -w net.ipv4.ip_forward=0 >/dev/null    # simulate the untuned state a reboot would leave
+```
+**Situation:** Every reboot, this node comes up subtly mis-tuned: Services black-hole until someone runs a hand-fix, then it works — until the next reboot. Nobody sees an error because nobody *looks where the boot writes them*: the replay units run long before anyone logs in. A departed teammate's config file is failing half-silently at every boot, and `systemctl status systemd-sysctl` still says `active (exited)` — the unit doesn't fail, it *logs and shrugs*.
+
+**Your task:** Read the boot-time evidence with `journalctl -u systemd-sysctl -b` (this boot's journal for the replay unit). You'll find two distinct "Couldn't write" failures with two *different* root causes — one is a missing prerequisite (Rung 3's ordering dependency), one is a plain typo. Fix both root causes properly (the prerequisite must also survive reboots — use `/etc/modules-load.d/lab-bhopal.conf`), then re-run the replay and show it comes through clean.
+
+**Verify:**
+```bash
+sudo systemctl restart systemd-sysctl && sleep 1 && \
+  journalctl -u systemd-sysctl --since "-30s" --no-pager | grep -c "Couldn't write"
+# expected: 0   (the replay now applies every line without error)
+sysctl -n net.bridge.bridge-nf-call-iptables net.ipv4.ip_forward
+# expected: 1 (on both lines)
+```
+
+### 🔴 Scenario 6 — "Guwahati: audit the boot without breaking it" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-kernel/sc6
+if [ -f /etc/default/grub ]; then
+  sudo cp /etc/default/grub /opt/lab-kernel/sc6/grub.lab
+else
+  sudo tee /opt/lab-kernel/sc6/grub.lab >/dev/null <<'CFG'
+GRUB_DEFAULT=0
+GRUB_TIMEOUT=0
+GRUB_CMDLINE_LINUX=""
+CFG
+fi
+# a colleague STAGED this cmdline change for the next reboot window — with two mistakes:
+sudo tee -a /opt/lab-kernel/sc6/grub.lab >/dev/null <<'CFG'
+GRUB_CMDLINE_LINUX_DEFAULT="quiet splash systemd.unified_cgroup_hierarchy=1 cgroup_no_v1=alll
+CFG
+sudo tee /opt/lab-kernel/sc6/grade.sh >/dev/null <<'GRD'
+#!/bin/bash
+f=/opt/lab-kernel/sc6/grub.lab
+a=/opt/lab-kernel/sc6/audit.txt
+p=/opt/lab-kernel/sc6/grub-preview.cfg
+cmd=$( ( set -e; . "$f" >/dev/null 2>&1; printf '%s' "$GRUB_CMDLINE_LINUX_DEFAULT" ) ) \
+  || { echo "FAIL: grub.lab does not source cleanly — the shell syntax error is still there"; exit 1; }
+echo "$cmd" | grep -q 'cgroup_no_v1=alll' && { echo "FAIL: the cgroup_no_v1 value is still the typo"; exit 1; }
+echo "$cmd" | grep -q 'cgroup_no_v1=all'  || { echo "FAIL: cgroup_no_v1=all missing from the staged cmdline"; exit 1; }
+grep -q 'BEGIN /etc/grub.d' "$p" 2>/dev/null \
+  || { echo "FAIL: no grub-mkconfig dry-run preview found at $p"; exit 1; }
+grep -qF "running-cmdline: $(cat /proc/cmdline)" "$a" 2>/dev/null \
+  || { echo "FAIL: audit.txt missing the running-cmdline line"; exit 1; }
+grep -qF "cgroup-mode: $(stat -f -c %T /sys/fs/cgroup)" "$a" 2>/dev/null \
+  || { echo "FAIL: audit.txt missing the cgroup-mode line"; exit 1; }
+grep -qF "overlay-ko: $(modinfo -n overlay)" "$a" 2>/dev/null \
+  || { echo "FAIL: audit.txt missing the overlay-ko line"; exit 1; }
+echo "GUWAHATI AUDIT COMPLETE — staged change is valid, boot facts recorded, bootloader untouched"
+GRD
+sudo chmod +x /opt/lab-kernel/sc6/grade.sh
+```
+**Situation:** Change window is Friday: the fleet must move to cgroup-v2-only (`cgroup_no_v1=all` on the kernel command line — the Rung 6 "boot-time-only" case that no sysctl can do). A colleague staged the edit in `/opt/lab-kernel/sc6/grub.lab` (a *lab copy*, exactly so a mistake can't brick anyone) and went on PTO. Your job is the pre-flight audit — and the review rules are absolute: **you may not modify `/etc/default/grub`, run `update-grub`, or write anything under `/boot`.** Inspection and lab files only. (Needs a real VM with GRUB — not a container.)
+
+**Your task:** (1) Fix the staged file so it sources cleanly and carries the *intended* flag — it currently contains a shell-syntax bug **and** a value typo; find both. (2) Do a **dry-run** render of the current bootloader config to the lab path `/opt/lab-kernel/sc6/grub-preview.cfg` with `grub-mkconfig -o` — proving you can preview without touching `/boot`. (3) Record ground truth in `/opt/lab-kernel/sc6/audit.txt` with exactly these three lines (values from the live system):
+```
+running-cmdline: <contents of /proc/cmdline>
+cgroup-mode: <output of stat -f -c %T /sys/fs/cgroup>
+overlay-ko: <output of modinfo -n overlay>
+```
+
+**Verify:**
+```bash
+sudo /opt/lab-kernel/sc6/grade.sh
+# expected: GUWAHATI AUDIT COMPLETE — staged change is valid, boot facts recorded, bootloader untouched
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Darjeeling: the dial that reads zero"
+**Solution:**
+```bash
+sudo sysctl -w net.ipv4.ip_forward=1
+# net.ipv4.ip_forward = 1
+cat /proc/sys/net/ipv4/ip_forward          # 1 — the name and the file are the SAME object
+# (equivalently: echo 1 | sudo tee /proc/sys/net/ipv4/ip_forward)
+sudo /opt/lab-kernel/sc1/preflight.sh      # PREFLIGHT PASS: ip_forward=1
+```
+**Why this works & what it teaches:** This is the One Idea's first dial, straight from Rung 7 Example 1: `net.ipv4.ip_forward` *is* `/proc/sys/net/ipv4/ip_forward` (dots become slashes), and writing it flips the IPv4 stack's forwarding flag on the live kernel instantly — the next packet between a pod veth and eth0 gets routed instead of dropped. **Where people go wrong:** stopping here — this write is RAM-backed and volatile; without a `/etc/sysctl.d/*.conf` drop-in it dies at the next reboot (that persistence half is exactly what Scenarios 4 and 5 drill).
+**Cleanup:** `sudo sysctl -w net.ipv4.ip_forward=0` if you want the stock default back (leave it at 1 if this VM will run containers); `sudo rm -rf /opt/lab-kernel/sc1`
+
+### Scenario 2 — "Leh: the switch that isn't on the wall"
+**Solution:**
+```bash
+sudo modprobe br_netfilter                          # the module REGISTERS the net/bridge sysctl subtree
+lsmod | grep br_netfilter                           # br_netfilter … and its pulled-in dep: bridge
+sudo sysctl -w net.bridge.bridge-nf-call-iptables=1 # the file exists now — same command, now it works
+echo br_netfilter | sudo tee /etc/modules-load.d/lab-leh.conf   # boot replay: systemd-modules-load
+```
+**Why this works & what it teaches:** This is Rung 3's ordering dependency and Rung 7 Example 2 made muscle memory: the `net/bridge/` sysctl subtree is *created by* the `br_netfilter` module, so the "switch" literally does not exist until the module is loaded — `No such file or directory` is not an error in the guide, it's the kernel telling you the wall is bare. `modprobe` (not `insmod`) also drags in the `bridge` dependency via `modules.dep`, and the one-line drop-in means `systemd-modules-load.service` re-attaches the module every boot so the sysctl file exists *before* `systemd-sysctl` runs. **Where people go wrong:** persisting the sysctl but not the module — then every reboot, the sysctl replay fails against a file that doesn't exist yet.
+**Cleanup:** `sudo rm -f /etc/modules-load.d/lab-leh.conf; sudo modprobe -r br_netfilter 2>/dev/null || true`
+
+### Scenario 3 — "Surat: the file that keeps winning"
+**Solution:**
+```bash
+# See the replay in apply order — lexical order across /etc/sysctl.d:
+sudo sysctl --system | grep -A1 surat
+# * Applying /etc/sysctl.d/60-lab-surat-k8s.conf ...      ← yours applies FIRST
+# * Applying /etc/sysctl.d/95-lab-surat-legacy.conf ...   ← the legacy file applies AFTER and wins
+grep -r inotify /etc/sysctl.d/                            # finds the 8192 in 95-lab-surat-legacy.conf
+# Fix: remove the stale legacy override (it has no other content worth keeping):
+sudo rm /etc/sysctl.d/95-lab-surat-legacy.conf
+# (alternative: renumber it BELOW 60, e.g. 10-lab-surat-legacy.conf, so yours wins)
+sudo sysctl --system >/dev/null
+sysctl -n fs.inotify.max_user_watches                     # 524288
+```
+**Why this works & what it teaches:** `sysctl --system` — and `systemd-sysctl` at boot, which is the same replay (Rung 4's pattern: boot unit replays a drop-in directory) — applies `/etc/sysctl.d/*.conf` in **lexical filename order**, and for a key set twice, the *last* write wins. `60-…` before `95-…` meant the legacy file silently overwrote the Kubernetes tuning at every boot, which is why the live value "kept coming back" as 8192 while your file looked perfect. This is also Rung 6's argument for drop-in dirs: per-concern files compose, but only if you respect the numbering convention. **Where people go wrong:** "fixing" it with `sysctl -w fs.inotify.max_user_watches=524288` — the live value changes, the verification `sysctl --system` (or the next boot) puts 8192 straight back.
+**Cleanup:** `sudo rm -f /etc/sysctl.d/60-lab-surat-k8s.conf /etc/sysctl.d/95-lab-surat-legacy.conf && sudo sysctl --system >/dev/null`
+
+### Scenario 4 — "Coimbatore: make this node Kubernetes-ready — and keep it that way"
+**Solution:**
+```bash
+# 1. Modules FIRST (br_netfilter registers the bridge sysctls — Rung 3's ordering trap):
+sudo modprobe overlay
+sudo modprobe br_netfilter
+# 2. Persist the modules for the boot replay (systemd-modules-load):
+printf 'overlay\nbr_netfilter\n' | sudo tee /etc/modules-load.d/lab-coimbatore.conf
+# 3. Persist the sysctls for the boot replay (systemd-sysctl):
+sudo tee /etc/sysctl.d/99-lab-coimbatore.conf >/dev/null <<'CFG'
+net.bridge.bridge-nf-call-iptables = 1
+net.ipv4.ip_forward                = 1
+CFG
+# 4. Apply them to the LIVE kernel now, boot-style (all files, in order):
+sudo sysctl --system >/dev/null
+sudo /opt/lab-kernel/sc4/preflight.sh
+# ALL CHECKS PASS — node is Kubernetes-ready and reboot-safe
+```
+**Why this works & what it teaches:** This is Rung 7 Example 3 end to end — the exact four-beat rhythm of every real node bootstrap: *load now, persist for boot, set now, persist for boot*. The order inside it is load-bearing: `modprobe br_netfilter` must precede the sysctl write because the module registers `/proc/sys/net/bridge/` (Scenario 2's lesson), and at boot the same ordering holds because `systemd-modules-load` runs before `systemd-sysctl`. The checker demanding both live state *and* drop-in files encodes Rung 2's catch: live changes are instant but volatile; only files the boot process replays make them permanent. **Where people go wrong:** writing the sysctl drop-in but forgetting the modules file — everything passes today, and the first reboot resurrects the "ClusterIP silently fails" ghost from Rung 1.
+**Cleanup:** `sudo rm -f /etc/modules-load.d/lab-coimbatore.conf /etc/sysctl.d/99-lab-coimbatore.conf; sudo rm -rf /opt/lab-kernel/sc4; sudo sysctl --system >/dev/null`
+
+### Scenario 5 — "Bhopal: the errors hiding in the boot log"
+**Solution:**
+```bash
+# 1. Read what the replay unit actually logged (the -b flag scopes to THIS boot):
+journalctl -u systemd-sysctl -b --no-pager | tail -10
+#   Couldn't write '1' to 'net/bridge/bridge-nf-call-iptables' … No such file or directory
+#   Couldn't write '1' to 'net/ipv4/ip_forwardd' … No such file or directory
+# 2. Root cause A — missing prerequisite: the bridge sysctl needs br_netfilter loaded (and at boot!):
+sudo modprobe br_netfilter
+echo br_netfilter | sudo tee /etc/modules-load.d/lab-bhopal.conf
+# 3. Root cause B — the typo: ip_forwardd is not a sysctl that exists. Fix the file:
+sudo sed -i 's/^net.ipv4.ip_forwardd = 1$/net.ipv4.ip_forward = 1/' /etc/sysctl.d/70-lab-bhopal.conf
+# 4. Re-run the replay and confirm it is clean:
+sudo systemctl restart systemd-sysctl
+journalctl -u systemd-sysctl --since "-30s" --no-pager | grep -c "Couldn't write"   # 0
+sysctl -n net.bridge.bridge-nf-call-iptables net.ipv4.ip_forward                    # 1 / 1
+```
+**Why this works & what it teaches:** The deep lesson is *where boot-time failures live*: `systemd-sysctl` doesn't fail its unit on a bad line — it logs `Couldn't write …` and stays `active (exited)`, so `systemctl status` looks green while the node comes up mis-tuned; only `journalctl -u systemd-sysctl -b` (the journal, scoped to the replay unit and this boot) shows the truth. The two errors then map to two chapters of Rung 3: the bridge line fails because of the module→sysctl ordering dependency (fixed *persistently*, so `systemd-modules-load` wins the race at every future boot), and the second is a typo'd key that simply has no `/proc/sys` file behind it. **Where people go wrong:** hand-running `sysctl -w` to make the symptom vanish and never opening the journal — the file keeps failing at every boot, and the "fix" evaporates with each kernel patch.
+**Cleanup:** `sudo rm -f /etc/sysctl.d/70-lab-bhopal.conf /etc/modules-load.d/lab-bhopal.conf; sudo modprobe -r br_netfilter 2>/dev/null || true; sudo sysctl --system >/dev/null`
+
+### Scenario 6 — "Guwahati: audit the boot without breaking it"
+**Solution:**
+```bash
+# 1. Find the two staged mistakes. Try to source the file the way grub-mkconfig would:
+bash -c '. /opt/lab-kernel/sc6/grub.lab'           # "unexpected end of file" → unclosed quote
+sudo grep cgroup_no_v1 /opt/lab-kernel/sc6/grub.lab # …cgroup_no_v1=alll   ← and a value typo
+# Fix both in one stroke — close the quote AND correct alll→all:
+sudo sed -i 's/cgroup_no_v1=alll$/cgroup_no_v1=all"/' /opt/lab-kernel/sc6/grub.lab
+bash -c '. /opt/lab-kernel/sc6/grub.lab && echo "$GRUB_CMDLINE_LINUX_DEFAULT"'
+# quiet splash systemd.unified_cgroup_hierarchy=1 cgroup_no_v1=all      ← sources cleanly now
+# 2. Dry-run render of the bootloader config to a LAB path — /boot is never written:
+sudo grub-mkconfig -o /opt/lab-kernel/sc6/grub-preview.cfg
+# 3. Record the live system's ground truth in the exact required format:
+{ echo "running-cmdline: $(cat /proc/cmdline)"
+  echo "cgroup-mode: $(stat -f -c %T /sys/fs/cgroup)"
+  echo "overlay-ko: $(modinfo -n overlay)"
+} | sudo tee /opt/lab-kernel/sc6/audit.txt
+sudo /opt/lab-kernel/sc6/grade.sh
+# GUWAHATI AUDIT COMPLETE — staged change is valid, boot facts recorded, bootloader untouched
+```
+**Why this works & what it teaches:** This is the Rung 6 boot-time-only case practiced with production discipline. `cgroup_no_v1=all` can't be a sysctl — the cgroup hierarchy is decided before the live kernel exists — so it belongs on the kernel command line, and `/etc/default/grub` is just a *shell fragment* that `grub-mkconfig` sources: an unclosed quote in it would make `update-grub` blow up during a change window (and a typo'd flag would boot but silently not do what you meant — check `/proc/cmdline` after any reboot, as the audit line does). `grub-mkconfig -o <lab-path>` is the safe dry-run: it renders the full config so you can inspect it, while the real `/boot/grub/grub.cfg` is only ever replaced when you point `-o` at it (which `update-grub` does). The audit rounds out the chapter's inspection toolkit: `/proc/cmdline` is what GRUB *actually* handed this kernel, `stat -f -c %T /sys/fs/cgroup` reads the resulting cgroup mode, and `modinfo -n` locates the `.ko` a module loads from. **Where people go wrong:** validating GRUB edits by rebooting — the one feedback loop this chapter teaches you to never need.
+**Cleanup:** `sudo rm -rf /opt/lab-kernel/sc6` (nothing outside `/opt/lab-kernel` was ever touched)

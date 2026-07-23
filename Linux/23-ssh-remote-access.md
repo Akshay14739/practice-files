@@ -525,3 +525,421 @@ ssh node bash -s < script.sh
 **Q:** A node is `NotReady` because kubelet stopped posting status. Why will `kubectl exec` into a pod on that node likely fail, while `ssh node1 "systemctl status kubelet"` still works? Which component does each path depend on?
 
 **A:** `kubectl exec` depends on the Kubernetes control path: your request goes to the **API server**, which connects to the node's **kubelet**, which drives the container runtime to open the exec session in the pod. The kubelet is precisely the component that has died (it stopped posting status), so the exec path fails — the mechanism that would carry your session is the patient. `ssh node1` depends only on **`sshd`** listening on TCP 22 on the node's OS — it is completely independent of Kubernetes, the API server, and the kubelet. That's why SSH still lands you a shell where you can run `systemctl status kubelet` and `journalctl -u kubelet` to get the node's ground truth: SSH is the tool that still works after `kubectl` has gone dark.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+>
+> **Lab safety design:** every scenario runs a **second, disposable `sshd`** on a high port (8022–8027) with its own config file, host keys, and PID file under `/opt/lab-ssh/` — your real SSH daemon on port 22 and `/etc/ssh/sshd_config` are **never touched**, so you cannot lock yourself out of the VM no matter how badly a scenario goes.
+
+### 🟢 Scenario 1 — "Mysuru: the key that was left unlocked" (Easy)
+**Setup:**
+```bash
+command -v /usr/sbin/sshd >/dev/null || sudo apt-get install -y openssh-server
+sudo mkdir -p /run/sshd /opt/lab-ssh/sc1
+sudo useradd -m -s /bin/bash labuser1 2>/dev/null || true
+mkdir -p /tmp/lab-ssh-sc1 && chmod 700 /tmp/lab-ssh-sc1
+ssh-keygen -q -t ed25519 -N '' -f /tmp/lab-ssh-sc1/mysuru_key
+sudo mkdir -p /home/labuser1/.ssh
+sudo cp /tmp/lab-ssh-sc1/mysuru_key.pub /home/labuser1/.ssh/authorized_keys
+sudo chmod 700 /home/labuser1/.ssh && sudo chmod 600 /home/labuser1/.ssh/authorized_keys
+sudo chown -R labuser1:labuser1 /home/labuser1/.ssh
+sudo rm -f /opt/lab-ssh/sc1/ssh_host_ed25519_key /opt/lab-ssh/sc1/ssh_host_ed25519_key.pub
+sudo ssh-keygen -q -t ed25519 -N '' -f /opt/lab-ssh/sc1/ssh_host_ed25519_key
+sudo tee /opt/lab-ssh/sc1/sshd_config >/dev/null <<'CFG'
+Port 8022
+ListenAddress 127.0.0.1
+HostKey /opt/lab-ssh/sc1/ssh_host_ed25519_key
+PidFile /opt/lab-ssh/sc1/sshd.pid
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication no
+PermitRootLogin no
+AllowUsers labuser1
+CFG
+sudo /usr/sbin/sshd -f /opt/lab-ssh/sc1/sshd_config
+chmod 644 /tmp/lab-ssh-sc1/mysuru_key      # ← the teammate's "helpful" change
+```
+**Situation:** A teammate wanted the whole team to share the deploy key for the lab node, so he made it "readable for everyone" before going on leave. Since then, every deploy fails with `Permission denied (publickey)` — even though the public key is definitely installed in `authorized_keys` on the server, and nothing on the server changed.
+
+**Your task:** Run the connection below, work out why the client refuses to authenticate, and fix it so key-based login works again:
+
+```bash
+ssh -i /tmp/lab-ssh-sc1/mysuru_key -p 8022 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc1/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser1@127.0.0.1 'echo MYSURU-OK'
+```
+
+**Verify:**
+```bash
+ssh -i /tmp/lab-ssh-sc1/mysuru_key -p 8022 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc1/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser1@127.0.0.1 'echo MYSURU-OK'
+# expected: prints MYSURU-OK with NO password prompt and NO key warning
+```
+
+### 🟢 Scenario 2 — "Shimla: the server that changed its face" (Easy)
+**Setup:**
+```bash
+command -v /usr/sbin/sshd >/dev/null || sudo apt-get install -y openssh-server
+sudo mkdir -p /run/sshd /opt/lab-ssh/sc2
+sudo useradd -m -s /bin/bash labuser2 2>/dev/null || true
+mkdir -p /tmp/lab-ssh-sc2 && chmod 700 /tmp/lab-ssh-sc2
+ssh-keygen -q -t ed25519 -N '' -f /tmp/lab-ssh-sc2/shimla_key
+sudo mkdir -p /home/labuser2/.ssh
+sudo cp /tmp/lab-ssh-sc2/shimla_key.pub /home/labuser2/.ssh/authorized_keys
+sudo chmod 700 /home/labuser2/.ssh && sudo chmod 600 /home/labuser2/.ssh/authorized_keys
+sudo chown -R labuser2:labuser2 /home/labuser2/.ssh
+sudo rm -f /opt/lab-ssh/sc2/ssh_host_ed25519_key /opt/lab-ssh/sc2/ssh_host_ed25519_key.pub
+sudo ssh-keygen -q -t ed25519 -N '' -f /opt/lab-ssh/sc2/ssh_host_ed25519_key
+sudo tee /opt/lab-ssh/sc2/sshd_config >/dev/null <<'CFG'
+Port 8023
+ListenAddress 127.0.0.1
+HostKey /opt/lab-ssh/sc2/ssh_host_ed25519_key
+PidFile /opt/lab-ssh/sc2/sshd.pid
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication no
+PermitRootLogin no
+AllowUsers labuser2
+CFG
+sudo /usr/sbin/sshd -f /opt/lab-ssh/sc2/sshd_config
+sleep 1
+ssh-keyscan -p 8023 127.0.0.1 2>/dev/null > /tmp/lab-ssh-sc2/known_hosts   # "first visit": cache the host key
+# --- overnight, the node was reimaged: new OS, NEW host keys, same IP ---
+sudo kill "$(sudo cat /opt/lab-ssh/sc2/sshd.pid)"
+sudo rm -f /opt/lab-ssh/sc2/ssh_host_ed25519_key /opt/lab-ssh/sc2/ssh_host_ed25519_key.pub
+sudo ssh-keygen -q -t ed25519 -N '' -f /opt/lab-ssh/sc2/ssh_host_ed25519_key
+sudo /usr/sbin/sshd -f /opt/lab-ssh/sc2/sshd_config
+```
+**Situation:** Last night the infra team reimaged the lab node (fresh OS image, same IP). This morning your connection is refused before you even get to authenticate, screaming `WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!` and `Host key verification failed.` A colleague suggests deleting the whole known_hosts file; you know better — that would throw away *every* trusted host, not just this one.
+
+**Your task:** Inspect the cached entry for `[127.0.0.1]:8023` in `/tmp/lab-ssh-sc2/known_hosts`, remove **only** the stale entry (not the file), confirm the new fingerprint against the server's own public host key, and reconnect:
+
+```bash
+ssh -i /tmp/lab-ssh-sc2/shimla_key -p 8023 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc2/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser2@127.0.0.1 'echo SHIMLA-OK'
+```
+
+**Verify:**
+```bash
+ssh -i /tmp/lab-ssh-sc2/shimla_key -p 8023 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc2/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser2@127.0.0.1 'echo SHIMLA-OK'
+# expected: prints SHIMLA-OK (no "REMOTE HOST IDENTIFICATION HAS CHANGED" warning)
+ssh-keygen -f /tmp/lab-ssh-sc2/known_hosts -F '[127.0.0.1]:8023' | grep -c ssh-ed25519
+# expected: 1   (exactly one — the NEW — cached entry for the lab host)
+```
+
+### 🟡 Scenario 3 — "Udaipur: the guest list that forgot you" (Medium)
+**Setup:**
+```bash
+command -v /usr/sbin/sshd >/dev/null || sudo apt-get install -y openssh-server
+sudo mkdir -p /run/sshd /opt/lab-ssh/sc3
+sudo useradd -m -s /bin/bash labuser3 2>/dev/null || true
+mkdir -p /tmp/lab-ssh-sc3 && chmod 700 /tmp/lab-ssh-sc3
+ssh-keygen -q -t ed25519 -N '' -f /tmp/lab-ssh-sc3/udaipur_key
+sudo mkdir -p /home/labuser3/.ssh
+sudo cp /tmp/lab-ssh-sc3/udaipur_key.pub /home/labuser3/.ssh/authorized_keys
+sudo chmod 700 /home/labuser3/.ssh && sudo chmod 600 /home/labuser3/.ssh/authorized_keys
+sudo chown -R labuser3:labuser3 /home/labuser3/.ssh
+sudo rm -f /opt/lab-ssh/sc3/ssh_host_ed25519_key /opt/lab-ssh/sc3/ssh_host_ed25519_key.pub
+sudo ssh-keygen -q -t ed25519 -N '' -f /opt/lab-ssh/sc3/ssh_host_ed25519_key
+sudo tee /opt/lab-ssh/sc3/sshd_config >/dev/null <<'CFG'
+Port 8024
+ListenAddress 127.0.0.1
+HostKey /opt/lab-ssh/sc3/ssh_host_ed25519_key
+PidFile /opt/lab-ssh/sc3/sshd.pid
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication no
+PermitRootLogin no
+LogLevel VERBOSE
+AllowUsers deploybot
+CFG
+sudo /usr/sbin/sshd -f /opt/lab-ssh/sc3/sshd_config -E /opt/lab-ssh/sc3/sshd.log
+```
+**Situation:** A hardening ticket was closed yesterday: "restrict lab sshd to approved accounts." Today `labuser3` cannot log in — `Permission denied (publickey)` — although the keypair is fresh, the client-side permissions are perfect, and `authorized_keys` on the server verifiably contains the right public key. `ssh -v` shows the key being *offered* and the server just saying no. The client side is a dead end: the answer is on the **server**.
+
+**Your task:** Use the client's verbose output and the lab daemon's own log (`/opt/lab-ssh/sc3/sshd.log`) to find out why `sshd` rejects `labuser3` before ever checking the key, fix the daemon's config (validate it before restarting!), restart the **lab** sshd, and log in.
+
+**Verify:**
+```bash
+ssh -i /tmp/lab-ssh-sc3/udaipur_key -p 8024 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc3/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser3@127.0.0.1 'echo UDAIPUR-OK'
+# expected: prints UDAIPUR-OK
+```
+
+### 🟡 Scenario 4 — "Madurai: the tunnel that was administratively prohibited" (Medium)
+**Setup:**
+```bash
+command -v /usr/sbin/sshd >/dev/null || sudo apt-get install -y openssh-server
+command -v curl >/dev/null || sudo apt-get install -y curl
+sudo mkdir -p /run/sshd /opt/lab-ssh/sc4/www
+sudo useradd -m -s /bin/bash labuser4 2>/dev/null || true
+mkdir -p /tmp/lab-ssh-sc4 && chmod 700 /tmp/lab-ssh-sc4
+ssh-keygen -q -t ed25519 -N '' -f /tmp/lab-ssh-sc4/madurai_key
+sudo mkdir -p /home/labuser4/.ssh
+sudo cp /tmp/lab-ssh-sc4/madurai_key.pub /home/labuser4/.ssh/authorized_keys
+sudo chmod 700 /home/labuser4/.ssh && sudo chmod 600 /home/labuser4/.ssh/authorized_keys
+sudo chown -R labuser4:labuser4 /home/labuser4/.ssh
+sudo rm -f /opt/lab-ssh/sc4/ssh_host_ed25519_key /opt/lab-ssh/sc4/ssh_host_ed25519_key.pub
+sudo ssh-keygen -q -t ed25519 -N '' -f /opt/lab-ssh/sc4/ssh_host_ed25519_key
+sudo tee /opt/lab-ssh/sc4/sshd_config >/dev/null <<'CFG'
+Port 8025
+ListenAddress 127.0.0.1
+HostKey /opt/lab-ssh/sc4/ssh_host_ed25519_key
+PidFile /opt/lab-ssh/sc4/sshd.pid
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication no
+PermitRootLogin no
+LogLevel VERBOSE
+AllowUsers labuser4
+AllowTcpForwarding no
+CFG
+sudo /usr/sbin/sshd -f /opt/lab-ssh/sc4/sshd_config -E /opt/lab-ssh/sc4/sshd.log
+echo 'MADURAI-DASHBOARD-OK' | sudo tee /opt/lab-ssh/sc4/www/marker.txt >/dev/null
+nohup python3 -m http.server 8580 --bind 127.0.0.1 --directory /opt/lab-ssh/sc4/www \
+    > /tmp/lab-ssh-sc4/dashboard.log 2>&1 &
+```
+**Situation:** An internal "cluster dashboard" listens on the node's loopback only (`127.0.0.1:8580`) — by design unreachable from outside. The standard workaround is an SSH local forward, exactly like `ssh -L 8080:10.96.100.5:80` in Rung 3.6. But when you build the tunnel and curl through it, the page never loads — curl gets an empty reply — and the tunnel's ssh process whines `open failed: administratively prohibited`. Pretend `127.0.0.1:8580` is unreachable except *through* the tunnel — the point is to make the forward work.
+
+**Your task:** Establish the local forward with
+```bash
+ssh -i /tmp/lab-ssh-sc4/madurai_key -p 8025 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc4/known_hosts \
+    -o StrictHostKeyChecking=accept-new \
+    -N -f -L 8581:127.0.0.1:8580 labuser4@127.0.0.1
+```
+watch it fail on use, find the server-side option that forbids forwarding, fix the **lab** sshd config, restart the daemon, kill the old tunnel, and rebuild it so the dashboard is reachable at `http://127.0.0.1:8581/`.
+
+**Verify:**
+```bash
+curl -s http://127.0.0.1:8581/marker.txt
+# expected: MADURAI-DASHBOARD-OK
+ss -tlnp | grep 8581
+# expected: the LISTEN socket on 127.0.0.1:8581 is owned by an "ssh" process (the tunnel)
+```
+
+### 🟠 Scenario 5 — "Pondicherry: three locks on one door" (Hard)
+**Setup:**
+```bash
+command -v /usr/sbin/sshd >/dev/null || sudo apt-get install -y openssh-server
+sudo mkdir -p /run/sshd /opt/lab-ssh/sc5
+sudo useradd -m -s /bin/bash labuser5 2>/dev/null || true
+mkdir -p /tmp/lab-ssh-sc5 && chmod 700 /tmp/lab-ssh-sc5
+ssh-keygen -q -t ed25519 -N '' -f /tmp/lab-ssh-sc5/pondicherry_key
+sudo mkdir -p /home/labuser5/.ssh
+sudo cp /tmp/lab-ssh-sc5/pondicherry_key.pub /home/labuser5/.ssh/authorized_keys
+sudo chmod 600 /home/labuser5/.ssh/authorized_keys
+sudo chown -R labuser5:labuser5 /home/labuser5/.ssh
+sudo rm -f /opt/lab-ssh/sc5/ssh_host_ed25519_key /opt/lab-ssh/sc5/ssh_host_ed25519_key.pub
+sudo ssh-keygen -q -t ed25519 -N '' -f /opt/lab-ssh/sc5/ssh_host_ed25519_key
+sudo tee /opt/lab-ssh/sc5/sshd_config >/dev/null <<'CFG'
+Port 8026
+ListenAddress 127.0.0.1
+HostKey /opt/lab-ssh/sc5/ssh_host_ed25519_key
+PidFile /opt/lab-ssh/sc5/sshd.pid
+AuthorizedKeysFile .ssh/authorized_keys2
+PasswordAuthentication no
+PermitRootLogin no
+LogLevel DEBUG
+AllowUsers labuser5
+CFG
+sudo /usr/sbin/sshd -f /opt/lab-ssh/sc5/sshd_config -E /opt/lab-ssh/sc5/sshd.log
+# the three "improvements" made during a rushed migration:
+chmod 664 /tmp/lab-ssh-sc5/pondicherry_key      # lock 1 (client side)
+sudo chmod 777 /home/labuser5/.ssh              # lock 2 (server side)
+# lock 3 is already hiding in the sshd_config above
+```
+**Situation:** During a rushed node migration, three different people "helped": someone shared the client key with the team, someone "opened up" the service account's `.ssh` directory so a config-management tool could write to it, and someone copied a hardened `sshd_config` template from another fleet. Individually each change looks harmless; together, key auth is stone dead — `Permission denied (publickey)` — and fixing any *one* of them changes nothing, which is exactly what makes this a classic. There are **three independent faults**: one on the client, one in the server's filesystem, one in the daemon's config.
+
+**Your task:** Peel the onion. Use `ssh -vvv` output on the client and `LogLevel DEBUG` output in `/opt/lab-ssh/sc5/sshd.log` on the server, fix **all three** faults (validate the config with `sshd -t -f …` before restarting the lab daemon), and get a passwordless login.
+
+**Verify:**
+```bash
+ssh -i /tmp/lab-ssh-sc5/pondicherry_key -p 8026 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc5/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser5@127.0.0.1 'echo PONDICHERRY-OK'
+# expected: prints PONDICHERRY-OK with no password prompt and no warnings
+```
+
+### 🔴 Scenario 6 — "Rishikesh: the passphrase, the agent, and the call home" (Expert)
+**Setup:**
+```bash
+command -v /usr/sbin/sshd >/dev/null || sudo apt-get install -y openssh-server
+command -v curl >/dev/null || sudo apt-get install -y curl
+sudo mkdir -p /run/sshd /opt/lab-ssh/sc6
+sudo useradd -m -s /bin/bash labuser6 2>/dev/null || true
+mkdir -p /tmp/lab-ssh-sc6/www && chmod 700 /tmp/lab-ssh-sc6
+ssh-keygen -q -t ed25519 -N 'rishikesh-lab-2026' -f /tmp/lab-ssh-sc6/rishikesh_key
+echo 'rishikesh-lab-2026' | sudo tee /opt/lab-ssh/sc6/passphrase.txt >/dev/null
+sudo mkdir -p /home/labuser6/.ssh
+sudo cp /tmp/lab-ssh-sc6/rishikesh_key.pub /home/labuser6/.ssh/authorized_keys
+sudo chmod 700 /home/labuser6/.ssh && sudo chmod 600 /home/labuser6/.ssh/authorized_keys
+sudo chown -R labuser6:labuser6 /home/labuser6/.ssh
+sudo rm -f /opt/lab-ssh/sc6/ssh_host_ed25519_key /opt/lab-ssh/sc6/ssh_host_ed25519_key.pub
+sudo ssh-keygen -q -t ed25519 -N '' -f /opt/lab-ssh/sc6/ssh_host_ed25519_key
+sudo tee /opt/lab-ssh/sc6/sshd_config >/dev/null <<'CFG'
+Port 8027
+ListenAddress 127.0.0.1
+HostKey /opt/lab-ssh/sc6/ssh_host_ed25519_key
+PidFile /opt/lab-ssh/sc6/sshd.pid
+AuthorizedKeysFile .ssh/authorized_keys
+PasswordAuthentication no
+PermitRootLogin no
+AllowUsers labuser6
+CFG
+sudo /usr/sbin/sshd -f /opt/lab-ssh/sc6/sshd_config
+echo 'RISHIKESH-HOOK-OK' > /tmp/lab-ssh-sc6/www/hook.txt
+nohup python3 -m http.server 8690 --bind 127.0.0.1 --directory /tmp/lab-ssh-sc6/www \
+    > /tmp/lab-ssh-sc6/hook-server.log 2>&1 &
+```
+**Situation:** A CI worker (played by the lab sshd on port 8027) must deliver build results to a webhook receiver that runs **on your workstation** on loopback only (`127.0.0.1:8690`) — the worker cannot reach it, so the delivery has to travel *backwards* through a reverse tunnel you open **to** the worker. Security policy adds two twists: the deploy key **must** keep its passphrase (it's in `/opt/lab-ssh/sc6/passphrase.txt`), and all tunnel commands run non-interactively (`BatchMode=yes`), so nothing may ever prompt for that passphrase — type it once into an agent, never again.
+
+**Your task:** (1) Start an `ssh-agent` and load the passphrase-protected key into it. (2) Open a **remote forward** so that port `8691` on the worker side tunnels back to `127.0.0.1:8690` on yours, using `-o BatchMode=yes` (it must succeed *without* any passphrase prompt — proof the agent is doing the signing). (3) Prove delivery works by SSH-ing to the worker and fetching the hook **through the tunnel**.
+
+**Verify:**
+```bash
+ssh-add -l
+# expected: one ED25519 key listed (the rishikesh lab key) — the agent holds it
+ssh -i /tmp/lab-ssh-sc6/rishikesh_key -p 8027 -o BatchMode=yes -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc6/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser6@127.0.0.1 \
+    'curl -s http://127.0.0.1:8691/hook.txt'
+# expected: RISHIKESH-HOOK-OK   (BatchMode forbids prompts — only the agent can sign)
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Mysuru: the key that was left unlocked"
+**Solution:**
+```bash
+ls -l /tmp/lab-ssh-sc1/mysuru_key          # -rw-r--r-- ← world-readable private key
+# Running the connection shows the real error before the denial:
+#   WARNING: UNPROTECTED PRIVATE KEY FILE!
+#   Permissions 0644 for '/tmp/lab-ssh-sc1/mysuru_key' are too open.
+#   This private key will be ignored.
+chmod 600 /tmp/lab-ssh-sc1/mysuru_key
+ssh -i /tmp/lab-ssh-sc1/mysuru_key -p 8022 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc1/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser1@127.0.0.1 'echo MYSURU-OK'
+# MYSURU-OK
+```
+**Why this works & what it teaches:** This is Rung 3.4 verbatim — permissions on key files are *load-bearing*. The client refuses to even offer a group/world-readable private key, because a private key another user can read must be assumed stolen; with the key ignored and `PasswordAuthentication no` on the server, the only remaining outcome is `Permission denied (publickey)`. `chmod 600` restores the "you only" contract and the challenge-signing flow of Rung 3.3 steps 5–6 proceeds normally. **Where people go wrong:** they read only the *last* line of output (the denial) and start debugging the server, when the client printed the actual cause three lines earlier.
+**Cleanup:** `sudo kill "$(sudo cat /opt/lab-ssh/sc1/sshd.pid)"; sudo deluser --remove-home labuser1; sudo rm -rf /opt/lab-ssh/sc1 /tmp/lab-ssh-sc1`
+
+### Scenario 2 — "Shimla: the server that changed its face"
+**Solution:**
+```bash
+# 1. Inspect what is cached for this host:port (note -f for the lab file):
+ssh-keygen -f /tmp/lab-ssh-sc2/known_hosts -F '[127.0.0.1]:8023'
+# 2. Surgically remove ONLY that stale entry:
+ssh-keygen -f /tmp/lab-ssh-sc2/known_hosts -R '[127.0.0.1]:8023'
+# 3. Out-of-band fingerprint check — what SHOULD the new key look like?
+sudo ssh-keygen -lf /opt/lab-ssh/sc2/ssh_host_ed25519_key.pub
+# 4. Reconnect; accept-new caches the new (now verified) key and logs in:
+ssh -i /tmp/lab-ssh-sc2/shimla_key -p 8023 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc2/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser2@127.0.0.1 'echo SHIMLA-OK'
+# SHIMLA-OK
+```
+**Why this works & what it teaches:** `known_hosts` is the server-to-you half of mutual identity (Rung 3.1/3.3 step 4): the reimaged node presents a brand-new host key, the client sees it differs from the cached one, and — exactly like Rung 7 Example 2 — refuses rather than risk a man-in-the-middle. `ssh-keygen -F/-R` (with `-f` pointing at the lab file) is the surgical fix; comparing the fresh prompt's fingerprint against `ssh-keygen -lf` on the server's own `.pub` is the out-of-band verification you would do from provisioning logs in production. **Where people go wrong:** `rm ~/.ssh/known_hosts` — it "fixes" the error by throwing away *every* trusted server identity, and hides a genuine MITM the day one actually happens.
+**Cleanup:** `sudo kill "$(sudo cat /opt/lab-ssh/sc2/sshd.pid)"; sudo deluser --remove-home labuser2; sudo rm -rf /opt/lab-ssh/sc2 /tmp/lab-ssh-sc2`
+
+### Scenario 3 — "Udaipur: the guest list that forgot you"
+**Solution:**
+```bash
+ssh -v -i /tmp/lab-ssh-sc3/udaipur_key -p 8024 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc3/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser3@127.0.0.1 'true' 2>&1 | tail -5
+#   the key IS offered; the server just denies — so look at the SERVER's log:
+sudo grep -i allowusers /opt/lab-ssh/sc3/sshd.log
+#   "User labuser3 from 127.0.0.1 not allowed because not listed in AllowUsers"
+sudo sed -i 's/^AllowUsers deploybot$/AllowUsers labuser3/' /opt/lab-ssh/sc3/sshd_config
+sudo sshd -t -f /opt/lab-ssh/sc3/sshd_config          # validate FIRST (Rung 3.9)
+sudo kill "$(sudo cat /opt/lab-ssh/sc3/sshd.pid)"
+sudo /usr/sbin/sshd -f /opt/lab-ssh/sc3/sshd_config -E /opt/lab-ssh/sc3/sshd.log
+ssh -i /tmp/lab-ssh-sc3/udaipur_key -p 8024 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc3/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser3@127.0.0.1 'echo UDAIPUR-OK'
+# UDAIPUR-OK
+```
+**Why this works & what it teaches:** `AllowUsers` is an sshd_config gate (Rung 3.9's hardening family) that rejects the user *before* `authorized_keys` is ever consulted — which is why every client-side check comes back clean and only the daemon's own log names the real reason. The habit this builds is the debugging split from Rung 7 Example 1: `ssh -v` tells you what the *client* did (key offered), the server log tells you what the *server* decided (user not on the list) — you need both halves. The `sshd -t` before restart is the Rung 3.9 typo-safety ritual, and because this is a *lab* daemon on 8024, even a botched restart could never lock you out of the VM. **Where people go wrong:** hours lost regenerating perfectly good keys because "Permission denied (publickey)" *sounds* like a key problem when it's an allow-list problem.
+**Cleanup:** `sudo kill "$(sudo cat /opt/lab-ssh/sc3/sshd.pid)"; sudo deluser --remove-home labuser3; sudo rm -rf /opt/lab-ssh/sc3 /tmp/lab-ssh-sc3`
+
+### Scenario 4 — "Madurai: the tunnel that was administratively prohibited"
+**Solution:**
+```bash
+# 1. Build the tunnel (it authenticates fine!) and try it:
+ssh -i /tmp/lab-ssh-sc4/madurai_key -p 8025 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc4/known_hosts \
+    -o StrictHostKeyChecking=accept-new -N -f -L 8581:127.0.0.1:8580 labuser4@127.0.0.1
+curl -s http://127.0.0.1:8581/marker.txt          # empty reply / reset
+sudo grep -i 'forwarding\|prohibited' /opt/lab-ssh/sc4/sshd.log | tail -3
+# 2. The server forbids it — flip the option and restart the LAB daemon:
+sudo sed -i 's/^AllowTcpForwarding no$/AllowTcpForwarding yes/' /opt/lab-ssh/sc4/sshd_config
+sudo sshd -t -f /opt/lab-ssh/sc4/sshd_config
+sudo kill "$(sudo cat /opt/lab-ssh/sc4/sshd.pid)"
+sudo /usr/sbin/sshd -f /opt/lab-ssh/sc4/sshd_config -E /opt/lab-ssh/sc4/sshd.log
+# 3. The OLD tunnel still talks to the old child process AND holds port 8581 — replace it:
+pkill -f 'ssh.*-L 8581:127.0.0.1:8580'
+ssh -i /tmp/lab-ssh-sc4/madurai_key -p 8025 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc4/known_hosts \
+    -o StrictHostKeyChecking=accept-new -N -f -L 8581:127.0.0.1:8580 labuser4@127.0.0.1
+curl -s http://127.0.0.1:8581/marker.txt
+# MADURAI-DASHBOARD-OK
+```
+**Why this works & what it teaches:** A `-L` forward is just another *channel* on the one tunnel (Rung 3.5/3.6) — and channels can be vetoed by the server: `AllowTcpForwarding no` lets you authenticate and even hold a session, but every attempt to open a forwarded-TCP channel dies with `administratively prohibited`. That's why the failure appears *on use* (at the first curl), not at tunnel creation — a signature worth memorizing. Step 3 matters because killing the master `sshd` does not kill the already-established connection's child, so the stale tunnel both keeps the old policy alive *and* squats on port 8581 (`Address already in use` otherwise). **Where people go wrong:** blaming the dashboard ("service must be down") because `curl` through the tunnel fails, when `ss -tlnp` proves the tunnel listener exists and only the channel open is being refused.
+**Cleanup:** `pkill -f "ssh.*-L 8581:127.0.0.1:8580"; sudo kill "$(sudo cat /opt/lab-ssh/sc4/sshd.pid)"; pkill -f "http.server 8580"; sudo deluser --remove-home labuser4; sudo rm -rf /opt/lab-ssh/sc4 /tmp/lab-ssh-sc4`
+
+### Scenario 5 — "Pondicherry: three locks on one door"
+**Solution:**
+```bash
+# LOCK 1 — client: the connection banner itself says the key is ignored:
+#   "Permissions 0664 ... are too open ... This private key will be ignored."
+chmod 600 /tmp/lab-ssh-sc5/pondicherry_key
+# Retry → STILL denied. Move to the server log (LogLevel DEBUG):
+sudo tail -20 /opt/lab-ssh/sc5/sshd.log
+# LOCK 3 — the log shows sshd looking in the WRONG file:
+#   "Could not open user 'labuser5' authorized keys '/home/labuser5/.ssh/authorized_keys2'"
+sudo sed -i 's|^AuthorizedKeysFile .ssh/authorized_keys2$|AuthorizedKeysFile .ssh/authorized_keys|' /opt/lab-ssh/sc5/sshd_config
+sudo sshd -t -f /opt/lab-ssh/sc5/sshd_config
+sudo kill "$(sudo cat /opt/lab-ssh/sc5/sshd.pid)"
+sudo /usr/sbin/sshd -f /opt/lab-ssh/sc5/sshd_config -E /opt/lab-ssh/sc5/sshd.log
+# Retry → STILL denied. Back to the log:
+#   "Authentication refused: bad ownership or modes for directory /home/labuser5/.ssh"
+# LOCK 2 — StrictModes rejects the world-writable .ssh directory:
+sudo chmod 700 /home/labuser5/.ssh
+ssh -i /tmp/lab-ssh-sc5/pondicherry_key -p 8026 -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc5/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser5@127.0.0.1 'echo PONDICHERRY-OK'
+# PONDICHERRY-OK
+```
+**Why this works & what it teaches:** All three locks are the same principle from Rung 3.4 applied at different layers: the *client* ignores a too-open private key, the *server's* StrictModes refuses keys guarded by a writable directory (a `.ssh` others can write to means anyone could plant their own key), and `AuthorizedKeysFile` decides where the server even *looks* — the guest list from Rung 3.1 was in the right place, but the doorman was reading the wrong clipboard. The meta-skill is iterative diagnosis: fix one fault, retry, and let the *next* error message surface — with `ssh -vvv` narrating the client and `LogLevel DEBUG` narrating the server, every layer names itself. **Where people go wrong:** fixing one fault, seeing the same `Permission denied`, and concluding the fix "didn't work" — in a multi-fault system the symptom stays constant while the cause moves.
+**Cleanup:** `sudo kill "$(sudo cat /opt/lab-ssh/sc5/sshd.pid)"; sudo deluser --remove-home labuser5; sudo rm -rf /opt/lab-ssh/sc5 /tmp/lab-ssh-sc5`
+
+### Scenario 6 — "Rishikesh: the passphrase, the agent, and the call home"
+**Solution:**
+```bash
+# 1. Start an agent in THIS shell and load the key (type the passphrase ONCE):
+eval "$(ssh-agent -s)"
+ssh-add /tmp/lab-ssh-sc6/rishikesh_key          # passphrase: rishikesh-lab-2026
+ssh-add -l                                       # the ED25519 key is now held in memory
+# 2. Open the REVERSE tunnel non-interactively — the agent signs, nothing prompts:
+ssh -i /tmp/lab-ssh-sc6/rishikesh_key -p 8027 -o BatchMode=yes -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc6/known_hosts \
+    -o StrictHostKeyChecking=accept-new \
+    -N -f -R 8691:127.0.0.1:8690 labuser6@127.0.0.1
+# 3. Prove it end-to-end from the WORKER's side of the tunnel:
+ssh -i /tmp/lab-ssh-sc6/rishikesh_key -p 8027 -o BatchMode=yes -o IdentitiesOnly=yes \
+    -o UserKnownHostsFile=/tmp/lab-ssh-sc6/known_hosts \
+    -o StrictHostKeyChecking=accept-new labuser6@127.0.0.1 \
+    'curl -s http://127.0.0.1:8691/hook.txt'
+# RISHIKESH-HOOK-OK
+```
+**Why this works & what it teaches:** Three Rung-3 mechanisms interlock. The **agent** (3.8) holds the *decrypted* key in memory after one `ssh-add`, and because `BatchMode=yes` forbids all prompting, a passphrase-protected key is *unusable* without it — the verify command therefore objectively proves the agent is doing the challenge-signing from Rung 3.3 step 6. The **`-R` remote forward** (3.6) is the mirror image of `-L`: the *listening* socket (8691) opens on the far end and traffic flows *back* to your side (8690) — "push a service from my side to the remote," exactly the direction a callback/webhook needs. And both the interactive-less exec channel and the forwarded port are just independent channels multiplexed on one encrypted tunnel (3.5). **Where people go wrong:** running `ssh-agent` without `eval` (the agent starts but this shell never learns `SSH_AUTH_SOCK`, so `ssh-add -l` says "Could not open a connection to your authentication agent"), and mixing up which end of `-R` listens.
+**Cleanup:** `pkill -f "ssh.*-R 8691:127.0.0.1:8690"; sudo kill "$(sudo cat /opt/lab-ssh/sc6/sshd.pid)"; pkill -f "http.server 8690"; ssh-add -D; eval "$(ssh-agent -k)"; sudo deluser --remove-home labuser6; sudo rm -rf /opt/lab-ssh/sc6 /tmp/lab-ssh-sc6`

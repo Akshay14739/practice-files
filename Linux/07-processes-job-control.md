@@ -478,3 +478,208 @@ ps -eo pid,ni,comm     # custom columns: PID, niceness, command — the priority
 **Q:** `kubectl delete pod x --grace-period=0 --force` — translate that flag into the exact sequence of signals (or absence of one) the node performs, versus a normal delete.
 
 **A:** A normal delete performs: `kill(PID, SIGTERM)` at second 0 (after any preStop hook), a wait of up to `terminationGracePeriodSeconds` (default 30) for the app to clean up and exit, then `kill(PID, SIGKILL)` at the deadline if it's still alive. With `--grace-period=0 --force` the grace window is collapsed to zero: the node skips the meaningful SIGTERM-and-wait phase and goes effectively straight to **SIGKILL** — no cleanup opportunity, no draining, and the pod object is removed from the API immediately without waiting for confirmation the process is gone. It's the "skip the 30s, go straight to the uncatchable hammer" escape hatch — and note that even SIGKILL cannot free a process wedged in `D` (uninterruptible I/O) state.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups spawn background processes and some deliberately misbehave. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6. (Tip: `pgrep -f`/`pkill -f` match the full command line, which is how these markers are found.)
+
+### 🟢 Scenario 1 — "Sendai: the idle process nobody remembers starting" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-hog
+sudo tee /opt/lab-hog/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+exec -a lab-sleepy sleep 4000
+EOF
+sudo chmod +x /opt/lab-hog/run.sh
+setsid /opt/lab-hog/run.sh >/dev/null 2>&1 </dev/null &
+```
+**Situation:** A monitoring dashboard shows a stray process called `lab-sleepy` that has been idling on the node for hours. Nobody owns it and change management wants it gone — but *cleanly*, in case it ever holds a resource.
+
+**Your task:** Find the PID of `lab-sleepy` and terminate it with a **polite, catchable** signal (the default `kill`, not `-9`).
+
+**Verify:**
+```bash
+pgrep -f lab-sleepy   # expected: no output (process is gone)
+```
+
+### 🟢 Scenario 2 — "Hiroshima: the process frozen mid-stride" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-frozen
+sudo tee /opt/lab-frozen/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+exec -a lab-frozen sleep 4000
+EOF
+sudo chmod +x /opt/lab-frozen/run.sh
+setsid /opt/lab-frozen/run.sh >/dev/null 2>&1 </dev/null &
+sleep 1
+kill -STOP "$(pgrep -f lab-frozen)"
+```
+**Situation:** A worker named `lab-frozen` shows up in `ps` with state `T` and is making zero progress. It wasn't killed — someone (or a stray `Ctrl-Z`) suspended it, and it's stuck frozen. You must wake it, not restart it (restarting would lose its in-memory state).
+
+**Your task:** Return `lab-frozen` to a running/sleeping state (out of `T`) **without** killing or restarting it.
+
+**Verify:**
+```bash
+ps -o stat= -p "$(pgrep -f lab-frozen)"   # expected: starts with S or R (NOT T)
+```
+
+### 🟡 Scenario 3 — "Kanazawa: the service that refuses to shut down" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-stubborn
+sudo tee /opt/lab-stubborn/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+trap '' TERM INT HUP      # swallow every polite signal
+while :; do sleep 5; done
+EOF
+sudo chmod +x /opt/lab-stubborn/run.sh
+setsid bash /opt/lab-stubborn/run.sh >/dev/null 2>&1 </dev/null &
+```
+**Situation:** A misbehaving wrapper `lab-stubborn` installed a handler that *discards* SIGTERM, SIGINT, and SIGHUP. Your normal `kill` and even a terminal close do nothing — it just keeps looping. You need it stopped now.
+
+**Your task:** Stop the `lab-stubborn` process (the `bash` running `run.sh`). First confirm that a polite `SIGTERM` is ignored, then use the one signal it **cannot** catch.
+
+**Verify:**
+```bash
+pgrep -f 'lab-stubborn/run.sh'   # expected: no output
+```
+
+### 🟡 Scenario 4 — "Nara: the batch job hogging a core" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-noisy
+sudo tee /opt/lab-noisy/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+exec -a lab-cpuhog bash -c 'while :; do :; done'
+EOF
+sudo chmod +x /opt/lab-noisy/run.sh
+setsid /opt/lab-noisy/run.sh >/dev/null 2>&1 </dev/null &
+```
+**Situation:** A batch process `lab-cpuhog` is pinning a CPU core at niceness 0 and starving interactive work on the node. You can't kill it — it must run to completion — but it should yield the CPU whenever anything else needs it, until you can fix it properly with cgroup CPU limits.
+
+**Your task:** Lower `lab-cpuhog`'s scheduling priority to the **most generous** niceness (`+19`) while leaving it running.
+
+**Verify:**
+```bash
+ps -o ni= -p "$(pgrep -f lab-cpuhog)" | tr -d ' '   # expected: 19
+```
+
+### 🟠 Scenario 5 — "Kobe: the PID table filling with the dead" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-zombie
+sudo tee /opt/lab-zombie/parent.sh >/dev/null <<'EOF'
+#!/bin/bash
+# Fork children that exit immediately but are NEVER wait()ed -> zombies
+for i in 1 2 3 4 5; do
+  ( exit 0 ) &
+done
+# Rename self so it's findable, then sleep forever without ever reaping
+exec -a lab-zombie-parent sleep 5000
+EOF
+sudo chmod +x /opt/lab-zombie/parent.sh
+setsid /opt/lab-zombie/parent.sh >/dev/null 2>&1 </dev/null &
+```
+**Situation:** `ps` is showing a growing pile of `<defunct>` (state `Z`) entries all parented by `lab-zombie-parent`. The process forked children that exited but it never reaps them, so their exit-status slots linger and threaten the PID limit. You already tried `kill -9` on the zombies themselves — nothing happened.
+
+**Your task:** Clear the zombie entries left by `lab-zombie-parent`. (Remember what a zombie *is* — and who is capable of reaping one.)
+
+**Verify:**
+```bash
+pgrep -f lab-zombie-parent && echo "PARENT-STILL-ALIVE" || echo "REAPED-AND-GONE"
+# expected: REAPED-AND-GONE  (the zombies vanish once PID 1 adopts and reaps them)
+```
+
+### 🔴 Scenario 6 — "Yokohama: the process that won't stay dead" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-respawn
+sudo tee /opt/lab-respawn/worker.sh >/dev/null <<'EOF'
+#!/bin/bash
+exec -a lab-respawn-worker sleep 3600
+EOF
+sudo tee /opt/lab-respawn/supervisor.sh >/dev/null <<'EOF'
+#!/bin/bash
+while :; do
+  /opt/lab-respawn/worker.sh
+  sleep 1
+done
+EOF
+sudo chmod +x /opt/lab-respawn/worker.sh /opt/lab-respawn/supervisor.sh
+setsid bash /opt/lab-respawn/supervisor.sh >/dev/null 2>&1 </dev/null &
+```
+**Situation:** A worker process `lab-respawn-worker` keeps hogging a slot. Every time you `kill` it, it's back within a second. There is a supervisor loop quietly restarting it whenever it dies — and killing the worker first just triggers another respawn.
+
+**Your task:** Stop the worker **permanently** — after a few seconds, neither the supervisor nor any `lab-respawn-worker` process should remain. (Order of operations matters.)
+
+**Verify:**
+```bash
+sleep 3; pgrep -af 'lab-respawn'   # expected: no output (nothing respawns)
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Sendai: the idle process nobody remembers starting"
+**Solution:**
+```bash
+pgrep -af lab-sleepy                 # find the PID (and confirm the command line)
+kill "$(pgrep -f lab-sleepy)"        # no signal number => default SIGTERM (15)
+pgrep -f lab-sleepy                  # (empty)
+```
+**Why this works & what it teaches:** You never reach into a process — you *send it a signal* (Rung 2). Plain `kill` sends `SIGTERM` (15), the catchable "please shut down" request; `sleep` installs no handler, so the default action (terminate) fires and it dies cleanly. `pgrep -f` finds it because the `exec -a lab-sleepy` set the process's `argv[0]`, which lives in the full command line. **Where people go wrong:** reaching for `kill -9` reflexively — SIGKILL gives the process no chance to release resources; SIGTERM first is the on-call default.
+
+### Scenario 2 — "Hiroshima: the process frozen mid-stride"
+**Solution:**
+```bash
+kill -CONT "$(pgrep -f lab-frozen)"          # resume: SIGCONT (18)
+ps -o pid,stat,comm -p "$(pgrep -f lab-frozen)"   # STAT no longer T
+```
+**Why this works & what it teaches:** State `T` (stopped) is produced by `SIGSTOP`/`SIGTSTP` and is *only* cleared by `SIGCONT` (Rung 3.3, 3.6). The process isn't dead — it's frozen with all state intact — so waking it with SIGCONT is exactly what `bg`/`fg` do under the hood after a `Ctrl-Z`. **Where people go wrong:** trying to "fix" a `T` process by killing/restarting it, or by re-sending `SIGSTOP`; only `SIGCONT` un-freezes it, and it preserves in-memory work.
+
+### Scenario 3 — "Kanazawa: the service that refuses to shut down"
+**Solution:**
+```bash
+PID=$(pgrep -f 'lab-stubborn/run.sh')
+kill -TERM "$PID"; sleep 1
+pgrep -f 'lab-stubborn/run.sh'   # still there — TERM was trapped and discarded
+kill -9 "$PID"                   # SIGKILL: the kernel handles it; the process gets no say
+```
+**Why this works & what it teaches:** `SIGTERM`, `SIGINT`, and `SIGHUP` are all catchable, so a `trap '' TERM INT HUP` handler can swallow them and the process keeps looping (Rung 3.6). `SIGKILL` (9) and `SIGSTOP` (19) are the only two signals that **cannot** be caught, blocked, or ignored — the kernel acts on them directly. This is the exact reason Kubernetes' termination contract ends in a SIGKILL backstop after the grace period. **Where people go wrong:** escalating with more polite signals (HUP, INT) — if the app traps TERM it almost certainly traps those too; only `-9` is guaranteed.
+
+### Scenario 4 — "Nara: the batch job hogging a core"
+**Solution:**
+```bash
+renice -n 19 -p "$(pgrep -f lab-cpuhog)"      # raise niceness to +19 (most generous)
+ps -o pid,ni,comm -p "$(pgrep -f lab-cpuhog)" # NI column now shows 19
+# (cleanup when done: kill "$(pgrep -f lab-cpuhog)")
+```
+**Why this works & what it teaches:** Niceness is the scheduler weight from `-20` (greediest) to `+19` (most generous); higher nice = less CPU (Rung 3.7). `renice` changes it on an already-running PID without stopping it, so the hog keeps working but steps aside the instant anything else wants the core. **Where people go wrong:** trying to *lower* niceness below the current value as a non-root user (`renice -n -5` fails with `Operation not permitted`) — only root can make a process greedier; anyone may make it nicer. This is the single-process stopgap for what cgroup `cpu.weight` does per-pod.
+
+### Scenario 5 — "Kobe: the PID table filling with the dead"
+**Solution:**
+```bash
+PP=$(pgrep -f lab-zombie-parent)
+ps -o pid,ppid,stat,comm --ppid "$PP"   # several rows in state Z, "<defunct>"
+# kill -9 on a zombie does nothing — it's already dead. Remove the PARENT instead:
+kill -9 "$PP"                            # PID 1 adopts the orphans and reaps them
+sleep 1; pgrep -f lab-zombie-parent      # (empty) — parent gone, zombies cleared
+```
+**Why this works & what it teaches:** A zombie (`Z`) is a process that has *already exited*; it exists only as an uncollected exit-status entry, so signals — including `SIGKILL` — have nothing to act on (Rung 3.3). The only thing that clears a zombie is a `wait()` by its parent. This parent never reaps, so you kill *it*; its zombie children are re-parented to PID 1 (the init/subreaper), which immediately `wait()`s and reaps them (Rung 3.4). **Where people go wrong:** hammering the `<defunct>` PIDs with `kill -9` and being baffled — you must target the *negligent parent*, not the dead children. This is exactly why a container whose app is PID 1 and never reaps needs `tini`.
+
+### Scenario 6 — "Yokohama: the process that won't stay dead"
+**Solution:**
+```bash
+# Kill the RESPAWNER first — otherwise it immediately restarts the worker:
+sudo pkill -f 'lab-respawn/supervisor.sh'
+# Then the current worker (now an orphan re-parented to PID 1); it won't come back:
+sudo pkill -f 'lab-respawn-worker'
+sleep 3; pgrep -af 'lab-respawn'          # (empty)
+```
+**Why this works & what it teaches:** Killing the worker alone fails because its parent — the supervisor loop — catches the child's exit and forks a fresh one every second. You must stop the source of new processes first, then clean up the survivor. When you kill the supervisor, any worker it had just spawned is re-parented to PID 1 but keeps running until you signal it directly (Rung 3.4, orphan re-parenting). **Where people go wrong:** killing the worker first and concluding it's "un-killable," or killing only the supervisor and leaving the last-spawned orphan worker behind. Order and tree-awareness are the whole lesson — the same reason a real fix uses the supervisor (systemd) to *stop* the unit rather than sniping PIDs.
+

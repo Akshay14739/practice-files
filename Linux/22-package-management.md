@@ -497,3 +497,234 @@ A wrong result — `yum update` proposing a kubelet bump — would tell you the 
 **Q:** You need `kubelet` AND `kubectl` on a node. Which install method for each, and why does the split fall exactly there?
 
 **A:** `kubelet` goes through the **package manager** (repo + exact version + `apt-mark hold`): it has real dependencies (kubernetes-cni, conntrack, coupling to containerd/runc), ships a systemd unit via maintainer scripts, and is load-bearing node infrastructure that must move in lockstep with the fleet and the control-plane version — exactly what the resolver, receipt, and hold flag exist for. `kubectl` fits the **raw-binary path** (`curl` + `sha256sum --check` + `install -m 0755`): it is a single static Go binary with zero dependencies, consumed by a human operator rather than by the node itself, and you often want a precise release matching your cluster instantly (or several versions side by side) without depending on a repo's packaging schedule. The line falls exactly at "has dependencies and must be fleet-managed" versus "self-contained client tool you pin yourself" — and on both sides the non-negotiables are verified trust and a deliberately frozen version.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Pune: who put this binary here?" (Easy)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-audit
+echo "/usr/bin/mawk" > /tmp/lab-audit/flagged-binary.txt
+cat /tmp/lab-audit/flagged-binary.txt
+```
+**Situation:** A security scan of the Pune node flagged the binary listed in `/tmp/lab-audit/flagged-binary.txt` as "origin unknown". Your lead wants proof from the package database — the receipt, not a guess — of which package placed that file and exactly which version of it is installed.
+
+**Your task:** Query the dpkg database to find the owning package and its exact installed version, then write one line in the form `<package> <version>` to `/tmp/lab-pkg-owner`.
+
+**Verify:**
+```bash
+[ "$(cat /tmp/lab-pkg-owner)" = "mawk $(dpkg-query -W -f='${Version}' mawk)" ] && echo "SOLVED - receipt matches the database"
+# expected: "SOLVED - receipt matches the database"
+```
+
+### 🟢 Scenario 2 — "Jaipur: the hold nobody owns" (Easy)
+**Setup:**
+```bash
+sudo apt-mark hold tar mawk
+mkdir -p /tmp/lab-audit
+echo "policy: only 'tar' is approved to carry an apt hold on this node" > /tmp/lab-audit/hold-policy.txt
+```
+**Situation:** During a fleet audit of the Jaipur nodes you must reconcile apt **holds** against policy. The policy file (`/tmp/lab-audit/hold-policy.txt`) approves exactly one held package. Somebody has quietly frozen something else too — the kind of stray flag that one day makes a security patch silently skip a package.
+
+**Your task:** List every package currently on hold, compare against the policy, and release **only** the unapproved hold. The approved one must stay frozen.
+
+**Verify:**
+```bash
+apt-mark showhold | grep -qx mawk && echo "NOT SOLVED - mawk still held" || { apt-mark showhold | grep -qx tar && echo "SOLVED - only the approved hold remains"; }
+# expected: "SOLVED - only the approved hold remains"
+```
+
+### 🟡 Scenario 3 — "Lucknow: the catalog that won't sync" (Medium)
+**Setup:**
+```bash
+echo 'deb [trusted=yes] http://127.0.0.1:8599/lab-repo stable main' | sudo tee /etc/apt/sources.list.d/lab-internal.list
+sudo apt-get update 2>&1 | tail -3
+```
+**Situation:** Overnight, every `apt-get update` on the Lucknow build box started failing, so this morning's security-patch automation is red across the board. A teammate vaguely remembers "adding our internal mirror" last week. The internal mirror project was cancelled — its server no longer exists.
+
+**Your task:** Diagnose why the catalog sync fails, identify exactly which source definition is at fault, remove (or disable) it, and get `apt-get update` completing successfully again.
+
+**Verify:**
+```bash
+sudo apt-get update >/dev/null 2>&1 && echo "SOLVED - catalog syncs cleanly" || echo "NOT SOLVED - update still failing"
+# expected: "SOLVED - catalog syncs cleanly"
+```
+
+### 🟡 Scenario 4 — "Nagpur: the uninvited package" (Medium)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-widget-build/DEBIAN /tmp/lab-widget-build/opt/lab-widget
+printf 'Package: lab-widget\nVersion: 1.0-1\nArchitecture: all\nMaintainer: Lab <lab@devopsinminutes.com>\nDescription: mystery lab widget (troubleshooting lab)\n' > /tmp/lab-widget-build/DEBIAN/control
+echo "/opt/lab-widget/widget.conf" > /tmp/lab-widget-build/DEBIAN/conffiles
+echo "mode=chaos" > /tmp/lab-widget-build/opt/lab-widget/widget.conf
+printf '#!/bin/sh\nexec sleep infinity\n' > /tmp/lab-widget-build/opt/lab-widget/widgetd
+chmod +x /tmp/lab-widget-build/opt/lab-widget/widgetd
+dpkg-deb --build --root-owner-group /tmp/lab-widget-build /tmp/lab-widget_1.0-1_all.deb
+sudo dpkg -i /tmp/lab-widget_1.0-1_all.deb
+rm -rf /tmp/lab-widget-build
+ls /opt/lab-widget/
+```
+**Situation:** Files nobody recognizes have appeared under `/opt/lab-widget/` on the Nagpur node: a daemon and a config. Nothing in your team's deploy history mentions them. Before you may delete anything, change control demands you (a) prove from the dpkg receipts which package owns these files and what else it shipped, and (b) remove it **completely** — receipts, config file and all — leaving zero trace on disk or in the database.
+
+**Your task:** Use the dpkg database to map the mystery files to their package, inspect the package's full file inventory and status, then remove it so thoroughly that the database no longer knows it and `/opt/lab-widget` is gone. (Hint: plain "remove" is not enough — find out why.)
+
+**Verify:**
+```bash
+dpkg -s lab-widget >/dev/null 2>&1 && echo "NOT SOLVED - still in the dpkg database" || { [ ! -e /opt/lab-widget ] && echo "SOLVED - purged, receipts and files gone"; }
+# expected: "SOLVED - purged, receipts and files gone"
+```
+
+### 🟠 Scenario 5 — "Indore: the version that must not move" (Hard)
+**Setup:**
+```bash
+sudo apt-get update -qq && sudo apt-get install -y -qq dpkg-dev
+sudo mkdir -p /opt/lab-repo
+for V in 1.0-1 2.0-1; do
+  rm -rf /tmp/lab-agent-build
+  mkdir -p /tmp/lab-agent-build/DEBIAN /tmp/lab-agent-build/opt/lab-agent
+  printf 'Package: lab-agent\nVersion: %s\nArchitecture: all\nMaintainer: Lab <lab@devopsinminutes.com>\nDescription: lab node agent (troubleshooting lab)\n' "$V" > /tmp/lab-agent-build/DEBIAN/control
+  echo "lab-agent $V" > /tmp/lab-agent-build/opt/lab-agent/BUILD
+  dpkg-deb --build --root-owner-group /tmp/lab-agent-build "/tmp/lab-agent_${V}_all.deb" >/dev/null
+  sudo mv "/tmp/lab-agent_${V}_all.deb" /opt/lab-repo/
+done
+rm -rf /tmp/lab-agent-build
+( cd /opt/lab-repo && dpkg-scanpackages --multiversion . /dev/null > /tmp/lab-Packages )
+gzip -9c /tmp/lab-Packages | sudo tee /opt/lab-repo/Packages.gz >/dev/null && rm -f /tmp/lab-Packages
+echo 'deb [trusted=yes] file:/opt/lab-repo ./' | sudo tee /etc/apt/sources.list.d/lab-repo.list
+sudo apt-get update -qq
+sudo apt-get install -y -qq lab-agent=1.0-1
+dpkg -l lab-agent | tail -1
+```
+**Situation:** `lab-agent` is this node's stand-in for kubelet: the Indore control plane only speaks to agents on **1.0**, but the team's internal repo now also publishes **2.0**. A nightly `apt-get upgrade` job runs on every node at 03:00. Tonight, unprotected, this node's agent drifts to 2.0 and the node goes `NotReady` — the exact 02:00-pager story from Rung 0, reproduced in miniature.
+
+**Your task:** First prove from the catalog which versions the repo offers and which one is the upgrade candidate (`apt-cache madison` / `apt-cache policy`). Then freeze `lab-agent` at `1.0-1` the way you would freeze kubelet, and demonstrate that even an explicit upgrade attempt cannot move it.
+
+**Verify:**
+```bash
+sudo apt-get install --only-upgrade -y lab-agent >/dev/null 2>&1; [ "$(dpkg-query -W -f='${Version}' lab-agent)" = "1.0-1" ] && apt-mark showhold | grep -qx lab-agent && echo "SOLVED - lab-agent frozen at 1.0-1"
+# expected: "SOLVED - lab-agent frozen at 1.0-1" (the upgrade attempt bounced off the hold)
+```
+
+### 🔴 Scenario 6 — "Amritsar: the half-configured hostage" (Expert)
+**Setup:**
+```bash
+mkdir -p /tmp/lab-daemon-build/DEBIAN /tmp/lab-daemon-build/opt/lab-daemon
+printf 'Package: lab-daemon\nVersion: 3.1-2\nArchitecture: all\nMaintainer: Lab <lab@devopsinminutes.com>\nDescription: lab background daemon (troubleshooting lab)\n' > /tmp/lab-daemon-build/DEBIAN/control
+cat > /tmp/lab-daemon-build/DEBIAN/postinst <<'EOF'
+#!/bin/sh
+set -e
+if [ ! -f /opt/lab-daemon/LICENSE-ACCEPTED ]; then
+  echo "lab-daemon: FATAL: /opt/lab-daemon/LICENSE-ACCEPTED not found" >&2
+  exit 1
+fi
+exit 0
+EOF
+chmod 0755 /tmp/lab-daemon-build/DEBIAN/postinst
+printf '#!/bin/sh\nexec sleep infinity\n' > /tmp/lab-daemon-build/opt/lab-daemon/daemon.sh
+chmod +x /tmp/lab-daemon-build/opt/lab-daemon/daemon.sh
+dpkg-deb --build --root-owner-group /tmp/lab-daemon-build /tmp/lab-daemon_3.1-2_all.deb
+sudo dpkg -i /tmp/lab-daemon_3.1-2_all.deb || true
+rm -rf /tmp/lab-daemon-build
+sudo apt-get install -f -y 2>&1 | tail -4
+```
+**Situation:** A vendor emailed the Amritsar team a `.deb` and someone installed it straight with `dpkg -i` (skipping apt — remember what that skips). Its install script failed halfway, and now the package is wedged in a half-configured state that **every** apt operation trips over: upgrades, installs of unrelated packages, the nightly patch job — all ending in `Sub-process /usr/bin/dpkg returned an error code (1)`. The whole package pipeline on this node is hostage to one broken maintainer script.
+
+**Your task:** Diagnose the package state from the dpkg database (`dpkg -l` state letters, `dpkg --audit`), find and read the failing maintainer script under `/var/lib/dpkg/info/`, understand exactly why it exits non-zero, and un-wedge the node — either by satisfying the script's requirement and completing configuration, or by purging the package. Every pending package must end up configured and the database clean.
+
+**Verify:**
+```bash
+sudo dpkg --configure -a >/dev/null 2>&1; [ -z "$(dpkg --audit)" ] && echo "SOLVED - dpkg database healthy again" || dpkg --audit
+# expected: "SOLVED - dpkg database healthy again"
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### 🟢 Scenario 1 — "Pune: who put this binary here?"
+**Solution:**
+```bash
+dpkg -S /usr/bin/mawk                     # -> "mawk: /usr/bin/mawk"  (file -> owning package)
+dpkg-query -W -f='${Package} ${Version}\n' mawk   # exact installed version from the receipt DB
+echo "mawk $(dpkg-query -W -f='${Version}' mawk)" > /tmp/lab-pkg-owner
+# (RHEL twin: rpm -qf /usr/bin/mawk)
+```
+**Why this works & what it teaches:** `dpkg -S` greps the per-package file inventories under `/var/lib/dpkg/info/*.list` — the exact receipts Rung 3 says dpkg writes at install time — so the answer is the *database's* testimony, not a guess. `dpkg -l`/`dpkg-query -W` read the master inventory `/var/lib/dpkg/status` for the version. Where people go wrong: answering from `mawk --version` (that asks the binary, not the supply chain) — an attacker's replaced binary would happily lie, but the receipt says what apt actually placed.
+**Cleanup:** `rm -rf /tmp/lab-audit /tmp/lab-pkg-owner`
+
+### 🟢 Scenario 2 — "Jaipur: the hold nobody owns"
+**Solution:**
+```bash
+apt-mark showhold                         # -> tar, mawk : two frozen packages
+cat /tmp/lab-audit/hold-policy.txt        # policy approves only 'tar'
+dpkg -l tar mawk | grep '^h'              # 'hi' = hold+installed, the flag in /var/lib/dpkg/status
+sudo apt-mark unhold mawk                 # release ONLY the unapproved one
+apt-mark showhold                         # -> tar alone remains
+```
+**Why this works & what it teaches:** A hold is nothing mystical — it is a **state flag** in the local receipt database (`Status: hold ok installed` in `/var/lib/dpkg/status`, the `hi` you see in `dpkg -l`), and `apt-mark showhold`/`unhold` are just reads/writes of that flag. This is Rung 2's "freeze" move in reverse: holds are how kubelet stays put, but *forgotten* holds are how a CVE patch silently skips a package for months. Where people go wrong: `apt-mark unhold` on both packages — the task (like real policy work) is surgical, not wholesale.
+**Cleanup:** `sudo apt-mark unhold tar; rm -rf /tmp/lab-audit`
+
+### 🟡 Scenario 3 — "Lucknow: the catalog that won't sync"
+**Solution:**
+```bash
+sudo apt-get update
+# Err: http://127.0.0.1:8599/lab-repo stable InRelease -> "Could not connect ... 8599"
+# E: Some index files failed to download.        <- the whole update exits non-zero
+grep -r 8599 /etc/apt/sources.list /etc/apt/sources.list.d/
+# -> /etc/apt/sources.list.d/lab-internal.list : the dead internal mirror
+sudo rm /etc/apt/sources.list.d/lab-internal.list    # (or comment the 'deb' line out)
+sudo apt-get update                        # all sources now fetch; exit code 0
+```
+**Why this works & what it teaches:** Rung 3's part 3: the files under `/etc/apt/sources.list.d/` are the *only* place repos are declared, so a failing `apt-get update` is always traceable to one `deb` line — and because `update` must fetch and verify **every** configured catalog, one dead repo turns the whole catalog sync red and breaks automation fleet-wide. Removing the drop-in file is the entire fix; `update` then caches fresh verified catalogs under `/var/lib/apt/lists/`. Where people go wrong: "fixing" it with `apt-get update --allow-...` flags or ignoring the red output — automation checks exit codes, and stale catalogs mean you install yesterday's versions (Rung 3, part 4).
+**Cleanup:** already clean — the fix removed the only state the setup added.
+
+### 🟡 Scenario 4 — "Nagpur: the uninvited package"
+**Solution:**
+```bash
+dpkg -S /opt/lab-widget/widgetd           # -> "lab-widget: /opt/lab-widget/widgetd"
+dpkg -l lab-widget                        # ii  lab-widget  1.0-1  (installed, from the status DB)
+dpkg -L lab-widget                        # full shipped inventory: widget.conf + widgetd
+cat /var/lib/dpkg/info/lab-widget.list    # the raw receipt behind dpkg -L
+sudo dpkg -P lab-widget                   # PURGE - not 'dpkg -r'
+# why not -r? try it: dpkg -r leaves widget.conf behind, because it is a registered
+# conffile, and dpkg -s would still show "deinstall ok config-files"
+ls /opt/lab-widget 2>/dev/null            # gone
+```
+**Why this works & what it teaches:** This is the receipt machinery end to end: `dpkg -S` maps file→package, `dpkg -L` package→files, both reading `/var/lib/dpkg/info/*.list` — the "exact removal is possible because the receipt is exact" promise of Rung 2. The twist is remove-vs-purge: `widget.conf` was declared a **conffile**, and `dpkg -r` deliberately keeps conffiles (state `rc`/"config-files") so a reinstall preserves config — only `dpkg -P` (purge) deletes them and erases the package from the database entirely. Where people go wrong: `rm -rf /opt/lab-widget` first — files vanish but the database still lists the package, and the audit finding ("zero trace in the database") stays open.
+**Cleanup:** `rm -f /tmp/lab-widget_1.0-1_all.deb`
+
+### 🟠 Scenario 5 — "Indore: the version that must not move"
+**Solution:**
+```bash
+apt-cache madison lab-agent               # catalog offers: 2.0-1 and 1.0-1, from file:/opt/lab-repo
+apt-cache policy lab-agent                # Installed: 1.0-1   Candidate: 2.0-1  <- tonight's drift
+sudo apt-mark hold lab-agent              # set the freeze flag - the kubelet move
+dpkg -l lab-agent | grep '^hi'            # hi = hold + installed, straight from /var/lib/dpkg/status
+sudo apt-get install --only-upgrade -y lab-agent
+# E: Held packages were changed and -y was used without --allow-change-held-packages.
+dpkg-query -W lab-agent                   # still 1.0-1
+```
+**Why this works & what it teaches:** `apt-cache madison`/`policy` read the cached catalog from `/var/lib/apt/lists/` — they show you what the resolver *would* do (candidate 2.0-1) before it does it. `apt-mark hold` flips the state flag in the receipt database, and from then on the resolver treats 1.0-1 as immovable: `upgrade` reports it "kept back", and even an explicit install-upgrade refuses without `--allow-change-held-packages`. This is Prediction 1 and 2 fused: the exact-version + hold discipline that keeps a kubelet at 1.28.5 while the repo publishes 1.29. Where people go wrong: holding *after* the nightly job has already bumped it — a hold pins whatever version is installed at that moment, so freeze at build time, not after the page.
+**Cleanup:** `sudo apt-mark unhold lab-agent; sudo apt-get purge -y lab-agent; sudo rm -f /etc/apt/sources.list.d/lab-repo.list; sudo rm -rf /opt/lab-repo; sudo apt-get update`
+
+### 🔴 Scenario 6 — "Amritsar: the half-configured hostage"
+**Solution:**
+```bash
+dpkg -l lab-daemon                        # iF  lab-daemon  3.1-2   <- unpacked, Failed-config
+dpkg --audit                              # "The following packages are only half configured..."
+cat /var/lib/dpkg/info/lab-daemon.postinst
+# -> the maintainer script demands /opt/lab-daemon/LICENSE-ACCEPTED and exits 1 without it
+# Fix path A - satisfy the script, then let dpkg finish the interrupted configure:
+sudo touch /opt/lab-daemon/LICENSE-ACCEPTED
+sudo dpkg --configure -a                  # "Setting up lab-daemon (3.1-2) ..." -> now 'ii'
+# Fix path B (if the package is unwanted junk) - eject it instead:
+#   sudo dpkg -P lab-daemon
+dpkg --audit                              # silence = healthy database
+sudo apt-get install -f -y                # apt operations work again
+```
+**Why this works & what it teaches:** `dpkg -i` unpacks, then runs the package's **maintainer scripts** (Rung 3, part 5) — and a failing `postinst` strands the package in `iF` (half-configured), a state recorded in `/var/lib/dpkg/status` that apt refuses to step over: every later operation retries the configure and inherits the failure, which is why one bad vendor `.deb` hostages the whole node. The scripts live in plain sight under `/var/lib/dpkg/info/<pkg>.postinst`, so you can read *exactly* why it fails, satisfy it (or purge), and `dpkg --configure -a` — the low-level "finish what was interrupted" command apt itself tells you to run — completes the receipt. Where people go wrong: reinstalling or `apt-get -f install` in a loop without ever reading the script — apt can't fix what the script's own logic forbids; and note this whole mess began by feeding `dpkg -i` a `.deb` that never passed a signed catalog's checksum (the Rung 3 check-yourself).
+**Cleanup:** `sudo dpkg -P lab-daemon 2>/dev/null; sudo rm -rf /opt/lab-daemon /tmp/lab-daemon_3.1-2_all.deb`

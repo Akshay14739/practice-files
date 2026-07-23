@@ -730,3 +730,216 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 **Q:** Explain why `su` *structurally cannot* give someone "restart kubelet but nothing else" — why does its design make it impossible?
 
 **A:** Because of what `su` asks for and what it hands back: it asks for the *target account's* password (usually root's) and hands back a *full interactive shell* as that account. There is no per-command step anywhere in that design — no rulebook is consulted, so there is nothing to scope; once you have the root shell you can run anything, and anyone who needs any root power must know the whole root password. `sudo` fixes this structurally by inserting a rulebook (`/etc/sudoers`) and a log between the user and the elevation: it hands over a key to one specific door and writes down each use, whereas `su` can only hand over the keys to the whole house.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Tokyo: the account that can't get a shell" (Easy)
+**Setup:**
+```bash
+sudo useradd -m -s /sbin/nologin labuser1
+echo 'labuser1:LabPass123' | sudo chpasswd
+```
+**Situation:** A new hire's account `labuser1` was provisioned last week, but every time they try to open a session they get `This account is currently not available.` The password is definitely correct — you set it yourself. Something about the account itself is refusing to give them a shell.
+
+**Your task:** Make `labuser1` able to run an interactive `bash` login shell, without deleting and recreating the account.
+
+**Verify:**
+```bash
+getent passwd labuser1 | cut -d: -f7   # expected: /bin/bash  (not /sbin/nologin)
+```
+
+### 🟢 Scenario 2 — "Osaka: denied at the deploy drop-box" (Easy)
+**Setup:**
+```bash
+sudo groupadd lab-deploy
+sudo useradd -m -s /bin/bash labuser2
+echo 'labuser2:LabPass123' | sudo chpasswd
+sudo mkdir -p /opt/lab-deploy
+sudo chgrp lab-deploy /opt/lab-deploy
+sudo chmod 2775 /opt/lab-deploy
+```
+**Situation:** Your CI drop-box `/opt/lab-deploy` is group-writable by the `lab-deploy` group so the release team can push artifacts there. `labuser2` just joined that team but every `cp` into the directory fails with `Permission denied`. The directory's ownership and mode are exactly as designed — do not touch them.
+
+**Your task:** Give `labuser2` write access to `/opt/lab-deploy` purely by group membership, changing nothing about the directory itself.
+
+**Verify:**
+```bash
+id -nG labuser2 | tr ' ' '\n' | grep -qx lab-deploy && echo OK   # expected: OK
+```
+
+### 🟡 Scenario 3 — "Kyoto: the password is right but login still fails" (Medium)
+**Setup:**
+```bash
+sudo useradd -m -s /bin/bash labuser3
+echo 'labuser3:LabPass123' | sudo chpasswd
+sudo usermod -L labuser3        # lock the password (prepends ! to the hash)
+sudo chage -E 0 labuser3        # and expire the account (epoch day 0 = long past)
+```
+**Situation:** `labuser3` has a valid `/bin/bash` shell and you *know* the password is correct, yet SSH and `su - labuser3` both reject them. There is no `nologin` shell this time — the block is hiding in the credential/aging layer, and there are actually **two** separate obstacles stacked on top of each other.
+
+**Your task:** Restore `labuser3` to a fully usable account: an unlocked, working password **and** an account that is not expired.
+
+**Verify:**
+```bash
+sudo passwd -S labuser3 | grep -q ' P ' && sudo chage -l labuser3 | grep -qi 'Account expires.*never' && echo SOLVED
+# expected: SOLVED   (passwd status P = usable/unlocked, and account never expires)
+```
+
+### 🟡 Scenario 4 — "Sapporo: let on-call bounce the service, nothing more" (Medium)
+**Setup:**
+```bash
+sudo useradd -m -s /bin/bash labuser4
+echo 'labuser4:LabPass123' | sudo chpasswd
+sudo tee /etc/systemd/system/lab-web.service >/dev/null <<'EOF'
+[Unit]
+Description=Lab web placeholder
+[Service]
+ExecStart=/bin/sleep infinity
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl start lab-web.service
+```
+**Situation:** `labuser4` is joining the on-call rotation and must be able to restart the `lab-web` service at 3AM. Policy forbids handing out the root password or a broad sudo grant. Right now `labuser4` has no sudo rights at all.
+
+**Your task:** Configure sudo so `labuser4` can run **exactly** `systemctl restart lab-web.service` as root with **no password prompt** — and nothing else.
+
+**Verify:**
+```bash
+sudo -u labuser4 sudo -n systemctl restart lab-web.service && echo RESTART-OK
+sudo -u labuser4 sudo -n id 2>&1 | grep -q 'not allowed' && echo OTHER-BLOCKED
+# expected: RESTART-OK  then  OTHER-BLOCKED
+```
+
+### 🟠 Scenario 5 — "Fukuoka: the audit flagged a wide-open sudo rule" (Hard)
+**Setup:**
+```bash
+sudo useradd -m -s /bin/bash labuser5
+echo 'labuser5:LabPass123' | sudo chpasswd
+sudo tee /etc/systemd/system/lab-api.service >/dev/null <<'EOF'
+[Unit]
+Description=Lab api placeholder
+[Service]
+ExecStart=/bin/sleep infinity
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl start lab-api.service
+sudo tee /etc/sudoers.d/labuser5-broken >/dev/null <<'EOF'
+labuser5 ALL=(ALL) NOPASSWD: ALL
+EOF
+sudo chmod 440 /etc/sudoers.d/labuser5-broken
+```
+**Situation:** A security audit found that `labuser5` — who only ever needs to restart `lab-api` — was granted passwordless **full root** (`NOPASSWD: ALL`). That single line lets them get a root shell or read `/etc/shadow`. You must clamp it down to least privilege without breaking their one legitimate task.
+
+**Your task:** Reconfigure sudo so `sudo systemctl restart lab-api.service` still works passwordless for `labuser5`, but `sudo -i`, `sudo su`, and `sudo cat /etc/shadow` are all **denied**.
+
+**Verify:**
+```bash
+sudo -u labuser5 sudo -n systemctl restart lab-api.service && echo RESTART-OK
+sudo -u labuser5 sudo -n -i 2>&1 | grep -q 'not allowed' && echo SHELL-BLOCKED
+sudo -u labuser5 sudo -n cat /etc/shadow 2>&1 | grep -q 'not allowed' && echo SHADOW-BLOCKED
+# expected: RESTART-OK, SHELL-BLOCKED, SHADOW-BLOCKED all printed
+```
+
+### 🔴 Scenario 6 — "Nagoya: two backdoors to root" (Expert)
+**Setup:**
+```bash
+# Backdoor 1: a second account that shares root's UID (0)
+sudo useradd -o -u 0 -g 0 -M -s /bin/bash labops
+echo 'labops:Backdoor123' | sudo chpasswd
+# Backdoor 2: a normal user handed passwordless full sudo
+sudo useradd -m -s /bin/bash labuser6
+echo 'labuser6:LabPass123' | sudo chpasswd
+sudo tee /etc/sudoers.d/zz-labuser6-backdoor >/dev/null <<'EOF'
+labuser6 ALL=(ALL) NOPASSWD: ALL
+EOF
+sudo chmod 440 /etc/sudoers.d/zz-labuser6-backdoor
+```
+**Situation:** Incident response on a compromised node. The attacker left two persistence mechanisms: a second login account whose UID is **0** (so the kernel treats it as root even though it isn't named `root`), and a normal user silently granted passwordless full sudo via a drop-in. Both must go.
+
+**Your task:** Neutralize both backdoors so that the **only** account with UID 0 is the genuine `root`, and **no** non-root user retains a blanket `NOPASSWD: ALL` sudo grant.
+
+**Verify:**
+```bash
+awk -F: '$3==0 {print $1}' /etc/passwd                                   # expected: only 'root'
+sudo grep -rl 'NOPASSWD:[[:space:]]*ALL' /etc/sudoers /etc/sudoers.d/ 2>/dev/null   # expected: no output
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Tokyo: the account that can't get a shell"
+**Solution:**
+```bash
+sudo usermod -s /bin/bash labuser1     # or: sudo chsh -s /bin/bash labuser1
+getent passwd labuser1 | cut -d: -f7   # /bin/bash
+su - labuser1 -c 'echo it works'       # now returns: it works
+```
+**Why this works & what it teaches:** Field 7 of the `/etc/passwd` row is the login shell (Rung 3B). `/sbin/nologin` is a real program that just prints "This account is currently not available" and exits non-zero — the account, password, and UID were all fine; only the shell field was refusing a session. Swapping field 7 to `/bin/bash` is the entire fix. **Where people go wrong:** resetting the password again and again, when the credential layer was never the problem — the block was the shell field.
+
+### Scenario 2 — "Osaka: denied at the deploy drop-box"
+**Solution:**
+```bash
+sudo usermod -aG lab-deploy labuser2      # -a APPENDS; never use -G alone here
+id -nG labuser2                            # ... lab-deploy
+# labuser2 must start a NEW login session (or run `newgrp lab-deploy`)
+# before the group is active in an existing shell.
+```
+**Why this works & what it teaches:** Write access here comes from being a **supplementary** member of the directory's group (Rung 3B, the `/etc/group` member column). `usermod -aG` edits exactly one file — `/etc/group` — appending `labuser2` to `lab-deploy`'s member list. The directory's `2775` mode already grants group write; the missing piece was membership. **Where people go wrong:** two classics — (1) using `-G` without `-a`, which *replaces* every supplementary group and can silently drop the user from `sudo`; and (2) expecting the change to take effect in an already-open shell, when the kernel snapshots your group list at login.
+
+### Scenario 3 — "Kyoto: the password is right but login still fails"
+**Solution:**
+```bash
+sudo usermod -U labuser3        # unlock the password (removes the ! prefix)
+sudo chage -E -1 labuser3       # -1 = "never expire" the account
+sudo passwd -S labuser3         # labuser3 P ...   (P = usable password)
+sudo chage -l labuser3          # Account expires: never
+```
+**Why this works & what it teaches:** Two independent gates in the shadow/aging layer were stacked: `usermod -L` had prepended `!` to the hash so no password could ever match, and `chage -E 0` had set the account-expiry date to the epoch (long past), which PAM's account phase rejects regardless of password. Unlocking fixes authentication; clearing expiry (`-E -1`) fixes the account validity check. **Where people go wrong:** fixing only the lock and declaring victory — the account-expiry gate is a separate check (`chage`, not `passwd`) and login stays broken until both are cleared.
+
+### Scenario 4 — "Sapporo: let on-call bounce the service, nothing more"
+**Solution:**
+```bash
+SYSCTL=$(command -v systemctl)     # usually /usr/bin/systemctl on Ubuntu
+sudo visudo -cf /dev/stdin <<EOF   # syntax-check before committing
+labuser4 ALL=(root) NOPASSWD: $SYSCTL restart lab-web.service
+EOF
+printf 'labuser4 ALL=(root) NOPASSWD: %s restart lab-web.service\n' "$SYSCTL" \
+  | sudo tee /etc/sudoers.d/labuser4-web >/dev/null
+sudo chmod 440 /etc/sudoers.d/labuser4-web
+```
+**Why this works & what it teaches:** sudo matches the *exact fully-qualified command* against the rulebook (Rung 3D / Trace B). A drop-in in `/etc/sudoers.d/` scoping `labuser4` to only `systemctl restart lab-web.service` grants that one action passwordless while every other command falls through to "not allowed" and is logged. **Where people go wrong:** writing the rule with a bare `systemctl` instead of its absolute path (sudo won't match it), or editing the main `/etc/sudoers` by hand without `visudo -c`, risking a parse error that locks out all sudo.
+
+### Scenario 5 — "Fukuoka: the audit flagged a wide-open sudo rule"
+**Solution:**
+```bash
+SYSCTL=$(command -v systemctl)
+# Replace the blanket-root drop-in with a scoped one:
+printf 'labuser5 ALL=(root) NOPASSWD: %s restart lab-api.service\n' "$SYSCTL" \
+  | sudo tee /etc/sudoers.d/labuser5-broken >/dev/null   # overwrite the wide rule
+sudo chmod 440 /etc/sudoers.d/labuser5-broken
+sudo visudo -c    # validate the whole sudoers tree parses
+```
+**Why this works & what it teaches:** `NOPASSWD: ALL` means "any command as root, no password" — a full shell (`sudo -i`), `sudo su`, and reading `/etc/shadow` all match `ALL`. Narrowing the command spec to a single `systemctl restart lab-api.service` means every other invocation no longer matches any rule, so sudo denies and logs it (Rung 6, least privilege). The legitimate restart still fires. **Where people go wrong:** leaving `ALL` and merely adding `!` blacklist entries — command blacklisting in sudoers is famously bypassable (rename/copy the binary, shell escapes). The correct model is *whitelist the one thing*, deny-by-default everything else.
+
+### Scenario 6 — "Nagoya: two backdoors to root"
+**Solution:**
+```bash
+# Backdoor 1 — the rogue UID-0 account. Audit, then remove it:
+awk -F: '$3==0 {print $1}' /etc/passwd     # root  labops   <-- labops is the imposter
+sudo userdel labops                         # deletes the /etc/passwd + /etc/shadow rows
+# Backdoor 2 — the passwordless-root sudo drop-in:
+sudo grep -rl 'NOPASSWD:[[:space:]]*ALL' /etc/sudoers /etc/sudoers.d/
+sudo rm -f /etc/sudoers.d/zz-labuser6-backdoor
+sudo visudo -c                              # confirm sudoers still parses cleanly
+```
+**Why this works & what it teaches:** "root" is not a name — it is **UID 0** (Rung 3A: the kernel skips permission checks for UID 0). Any account whose passwd field 3 is `0` is root, whatever it's called, which is why `useradd -o -u 0` creates a fully privileged imposter and why auditing must key on the *number*, not the name (`awk -F: '$3==0'`). The second backdoor lives in the sudoers layer: a `NOPASSWD: ALL` drop-in is passwordless full root by policy rather than by UID. Removing the rogue passwd row and the drop-in closes both. **Where people go wrong:** grepping `/etc/passwd` for the literal string `root` and missing `labops` entirely — the imposter has a different name but the same lethal number; you must scan on UID 0, not on the word "root".
+

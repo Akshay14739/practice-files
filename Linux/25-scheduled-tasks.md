@@ -487,3 +487,278 @@ atrm 3         # cancel it before it fires
 **Q:** Your etcd backup needs etcd up *and* the disk mounted before it runs. Which systemd-timer/service feature makes this safe, and what's the closest cron can offer?
 
 **A:** The feature is systemd's **dependency and ordering directives** — because the scheduled job is a real service unit, its `[Unit]` section can declare `After=` / `Requires=` / `Wants=` (e.g. `After=network-online.target`, or after the etcd service and the relevant mount unit), so PID 1 will not start the backup until its prerequisites are actually up; this is exactly the "Dependencies / ordering" row of the contrast table where cron scores "None." Cron has no dependency graph at all — the closest it can offer is workarounds: schedule the job "late enough" and hope, use `@reboot` with a sleep, or write guard logic into the script itself (check etcd health and the mountpoint, and bail/retry if not ready). That gap — a backup that fires before etcd is ready — is one of the core reasons node operators prefer timers to cron for anything that matters.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — several setups need `sudo` and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Sydney: the report that only runs when you're watching" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-sydney/bin /tmp/lab-sydney
+sudo tee /opt/lab-sydney/bin/lab-sysreport >/dev/null <<'EOF'
+#!/bin/bash
+echo "$(date '+%F %T') load=$(cut -d' ' -f1 /proc/loadavg)" >> /tmp/lab-sydney/report.log
+EOF
+sudo chmod 755 /opt/lab-sydney/bin/lab-sysreport
+echo 'export PATH=$PATH:/opt/lab-sydney/bin' | sudo tee -a /root/.bashrc >/dev/null
+sudo tee /etc/cron.d/lab-sydney >/dev/null <<'EOF'
+* * * * * root lab-sysreport
+EOF
+sudo chmod 644 /etc/cron.d/lab-sydney
+echo "setup complete — wait 2 minutes, then look for /tmp/lab-sydney/report.log"
+```
+**Situation:** The previous platform engineer wrote a tiny load-report collector and swears it works — "I ran `lab-sysreport` as root and the log line appeared instantly." He scheduled it in `/etc/cron.d/lab-sydney` to run every minute and went on holiday. Two days later `/tmp/lab-sydney/report.log` still doesn't exist, and there is no error anywhere anyone thought to look.
+
+**Your task:** Find out why the job never produces the log file, and fix the cron entry so a new report line appears every minute.
+
+**Verify:**
+```bash
+sleep 70; tail -n 2 /tmp/lab-sydney/report.log   # expected: timestamped "load=" lines, growing one per minute
+```
+
+### 🟢 Scenario 2 — "Melbourne: the snapshot log that never materializes" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /tmp/lab-melbourne
+sudo tee /etc/cron.d/lab-melbourne >/dev/null <<'EOF'
+* * * * * root echo "etcd-snapshot-$(date +%F).db created" >> /tmp/lab-melbourne/snapshots.log
+EOF
+sudo chmod 644 /etc/cron.d/lab-melbourne
+echo "setup complete — wait 2 minutes, then look for /tmp/lab-melbourne/snapshots.log"
+```
+**Situation:** A teammate added a one-liner to `/etc/cron.d/` that should append a dated snapshot record every minute (a rehearsal for the real nightly etcd snapshot). The exact same `echo` command works perfectly when pasted into a root shell. Yet `/tmp/lab-melbourne/snapshots.log` is never created, and `grep CRON /var/log/syslog` shows the job *is* being launched every minute.
+
+**Your task:** Figure out what cron does to this command line that your shell doesn't, and fix the entry so dated lines like `etcd-snapshot-2026-07-23.db created` appear in the log.
+
+**Verify:**
+```bash
+sleep 70; grep -E 'etcd-snapshot-[0-9]{4}-[0-9]{2}-[0-9]{2}\.db' /tmp/lab-melbourne/snapshots.log | tail -n 1   # expected: one dated line, with more arriving each minute
+```
+
+### 🟡 Scenario 3 — "Perth: the backup that reports nothing, not even failure" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-perth
+sudo tee /opt/lab-perth/backup.sh >/dev/null <<'EOF'
+#!/bin/bash
+# config backup (lab copy runs every minute instead of nightly)
+tar -czf "/opt/lab-perth/backups/config-$(date +%s).tar.gz" /etc/hostname /etc/hosts
+echo "backup written"
+EOF
+sudo chmod 755 /opt/lab-perth/backup.sh
+sudo tee /etc/cron.d/lab-perth >/dev/null <<'EOF'
+* * * * * root /opt/lab-perth/backup.sh
+EOF
+sudo chmod 644 /etc/cron.d/lab-perth
+echo "setup complete — the 'backups' have been running for days, allegedly"
+```
+**Situation:** After the etcd postmortem, your team scheduled a config backup script via `/etc/cron.d/lab-perth`. The post-incident checklist item "verify backups exist" just landed on you — and `/opt/lab-perth/backups/` contains nothing. Syslog cheerfully shows the job launching every minute with no hint of trouble, the script is executable, and running it by hand *appears* to print `backup written`. Nobody has received a single error in days.
+
+**Your task:** Find out where the script's error output has been going and why no archive is ever produced, then fix the pipeline twice over: make the job's output land in a log file you can read (`/var/log/lab-perth.log`), and fix the underlying failure so real `.tar.gz` archives appear.
+
+**Verify:**
+```bash
+sleep 70; ls /opt/lab-perth/backups/*.tar.gz | wc -l   # expected: 1 or more, growing each minute; /var/log/lab-perth.log shows "backup written"
+```
+
+### 🟡 Scenario 4 — "Hobart: the timer that was enabled, honest" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /tmp/lab-hobart
+sudo tee /etc/systemd/system/lab-hobart.service >/dev/null <<'EOF'
+[Unit]
+Description=Lab Hobart - heartbeat snapshot
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo "$(date "+%%F %%T") snapshot ok" >> /tmp/lab-hobart/heartbeat.log'
+EOF
+sudo tee /etc/systemd/system/lab-hobart.timer >/dev/null <<'EOF'
+[Unit]
+Description=Lab Hobart - run heartbeat every minute
+
+[Timer]
+OnCalendar=*-*-* *:0/1:75
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl start lab-hobart.service
+sudo systemctl enable --now lab-hobart.timer 2>/dev/null || true
+echo "setup complete — the 'scheduled' heartbeat is supposedly live"
+```
+**Situation:** A colleague migrated the Hobart heartbeat job from cron to a systemd timer pair, ran "some systemctl commands", saw a line appear in `/tmp/lab-hobart/heartbeat.log`, and closed the ticket as done. The log has contained exactly **one** line ever since, and `systemctl list-timers` doesn't show `lab-hobart` at all. Two distinct mistakes are hiding here — one in what was started, one inside the timer unit itself.
+
+**Your task:** Find both problems, fix the timer unit (validate your calendar expression with `systemd-analyze calendar` before trusting it), and get the heartbeat actually firing every minute on the schedule.
+
+**Verify:**
+```bash
+systemctl list-timers lab-hobart.timer --no-pager   # expected: a NEXT fire time within the coming minute
+sleep 70; tail -n 2 /tmp/lab-hobart/heartbeat.log   # expected: fresh "snapshot ok" lines arriving once per minute
+```
+
+### 🟠 Scenario 5 — "Darwin: the 2 AM job on a machine that sleeps at 2 AM" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-darwin/snapshots
+sudo tee /opt/lab-darwin/snapshot.sh >/dev/null <<'EOF'
+#!/bin/bash
+out="/opt/lab-darwin/snapshots/etcd-$(date +%s).db"
+echo "snapshot data $(date)" > "$out"
+echo "Snapshot saved at $out"
+EOF
+sudo chmod 755 /opt/lab-darwin/snapshot.sh
+sudo tee /etc/systemd/system/lab-darwin.service >/dev/null <<'EOF'
+[Unit]
+Description=Lab Darwin - nightly etcd-style snapshot
+
+[Service]
+Type=oneshot
+ExecStart=/opt/lab-darwin/snapshot.sh
+EOF
+sudo tee /etc/systemd/system/lab-darwin.timer >/dev/null <<'EOF'
+[Unit]
+Description=Lab Darwin - snapshot at 02:00
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=false
+
+[Install]
+WantedBy=timers.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now lab-darwin.timer
+sudo mkdir -p /var/lib/systemd/timers
+sudo touch -d '2 days ago' /var/lib/systemd/timers/stamp-lab-darwin.timer
+echo "setup complete — this box has 'missed' its 02:00 snapshot for two days running"
+```
+**Situation:** This edge node gets powered off every night to save money — which is exactly when its 02:00 snapshot timer fires. The timer is enabled and healthy, `systemctl list-timers` shows a NEXT time of tomorrow 02:00... and `/opt/lab-darwin/snapshots/` is empty, because the machine is never awake at 02:00 (the setup has simulated two days of missed runs, exactly as systemd would record them on disk). Waiting until 02:00 with the box on is not an option, and neither is running the service by hand — the fix must survive *every future* missed night automatically.
+
+**Your task:** Make the missed snapshot run execute now and ensure every future missed 02:00 is caught up automatically after the machine wakes — **without** changing `OnCalendar` and **without** manually starting `lab-darwin.service`.
+
+**Verify:**
+```bash
+ls /opt/lab-darwin/snapshots/ | wc -l   # expected: 1 or more — the missed run was executed as catch-up
+journalctl -u lab-darwin.service -n 3 --no-pager   # expected: a "Snapshot saved at ..." line just now
+```
+
+### 🔴 Scenario 6 — "Auckland: three saboteurs in one cron job" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-auckland /tmp/lab-auckland/cache
+sudo tee /opt/lab-auckland/purge.sh >/dev/null <<'EOF'
+#!/bin/bash
+find /tmp/lab-auckland/cache -type f -mmin +5 -delete
+echo "$(date '+%F %T') purge completed" >> /tmp/lab-auckland/purge.log
+EOF
+sudo chmod 644 /opt/lab-auckland/purge.sh
+sudo tee '/etc/cron.d/lab.auckland' >/dev/null <<'EOF'
+* * * * * /opt/lab-auckland/purge.sh
+EOF
+sudo chmod 644 /etc/cron.d/lab.auckland
+echo "setup complete — the cache purge job was 'installed' by a leaving contractor"
+```
+**Situation:** A departing contractor installed a cache-purge cron job as their final task, demoed the script running by hand with `bash purge.sh`, and left the company. The purge has never once fired: `/tmp/lab-auckland/purge.log` does not exist, and — the truly unsettling part — `grep -r lab.auckland /var/log/syslog` shows cron has never even *attempted* the job. There are three independent defects between this job and a clean minute-by-minute run, and you'll only discover the second and third after you've fixed the first.
+
+**Your task:** Find and fix all three defects so the purge job runs successfully every minute. (Hints if you're truly stuck, one per defect: `man 8 cron` on `/etc/cron.d` file *naming*; compare the entry's field count against other files in `/etc/cron.d/`; `ls -l` the script.)
+
+**Verify:**
+```bash
+sleep 70; tail -n 2 /tmp/lab-auckland/purge.log   # expected: "purge completed" lines with current timestamps, one per minute
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Sydney: the report that only runs when you're watching"
+**Solution:**
+```bash
+# Diagnose: cron launched the job, but the command was never found.
+grep CRON /var/log/syslog | tail -n 5           # the job fires every minute...
+sudo grep -c lab-sysreport /var/mail/root 2>/dev/null   # ...and the "command not found" went to mail (if an MTA exists at all)
+# Fix: cron's forked child gets a minimal PATH that never saw /root/.bashrc — use the absolute path.
+sudo tee /etc/cron.d/lab-sydney >/dev/null <<'EOF'
+* * * * * root /opt/lab-sydney/bin/lab-sysreport
+EOF
+```
+**Why this works & what it teaches:** This is Rung 3.3 in the flesh: cron forks a fresh child with a hardcoded environment (`PATH=/usr/bin:/bin`, no `.bashrc`, no login shell), so the bare name `lab-sysreport` resolves to nothing even though root's interactive shell — with its `.bashrc` PATH addition — finds it instantly. Absolute paths (or an explicit `PATH=` line at the top of the cron file) are the only reliable fix. **Where people go wrong:** "testing" the job in an interactive root shell, which proves nothing about the environment cron will actually provide. **Cleanup:** `sudo rm /etc/cron.d/lab-sydney; sudo sed -i '/lab-sydney/d' /root/.bashrc; sudo rm -rf /opt/lab-sydney /tmp/lab-sydney`
+
+### Scenario 2 — "Melbourne: the snapshot log that never materializes"
+**Solution:**
+```bash
+# The % sign is special in crontab lines: it means "newline", and everything after
+# the first unescaped % becomes the command's STDIN. Cron therefore ran the truncated
+# command   echo "etcd-snapshot-$(date +   — a shell syntax error, mailed into the void.
+# Fix: escape the % with a backslash.
+sudo tee /etc/cron.d/lab-melbourne >/dev/null <<'EOF'
+* * * * * root echo "etcd-snapshot-$(date +\%F).db created" >> /tmp/lab-melbourne/snapshots.log
+EOF
+```
+**Why this works & what it teaches:** `man 5 crontab` hides this landmine: in the command field, `%` is translated to a newline and the remainder becomes stdin — a feature designed for feeding input to jobs, and the classic killer of `date +%F` one-liners. Escaping as `\%` (or moving the command into a script file, where `%` is ordinary) restores the intended meaning; syslog showing the job "running" while nothing appears is the signature of this bug, because the failure output takes the MAILTO route (Rung 3.4) instead of any log. **Where people go wrong:** assuming a line that works in bash is crontab-safe — the crontab command field is *not* plain shell. **Cleanup:** `sudo rm /etc/cron.d/lab-melbourne; sudo rm -rf /tmp/lab-melbourne`
+
+### Scenario 3 — "Perth: the backup that reports nothing, not even failure"
+**Solution:**
+```bash
+# Step 1 — make the job's output observable (defeat the mail void of Rung 3.4):
+sudo tee /etc/cron.d/lab-perth >/dev/null <<'EOF'
+* * * * * root /opt/lab-perth/backup.sh >> /var/log/lab-perth.log 2>&1
+EOF
+# Step 2 — wait a minute, then read the error you were never shown:
+sleep 65; cat /var/log/lab-perth.log
+#   tar: /opt/lab-perth/backups/config-....tar.gz: Cannot open: No such file or directory
+# Step 3 — fix the actual bug: the target directory never existed.
+sudo mkdir -p /opt/lab-perth/backups
+```
+**Why this works & what it teaches:** Two failures were stacked: `tar` died because `/opt/lab-perth/backups/` didn't exist, and that error went to cron's default output channel — email to the job's owner — which on an MTA-less server vanishes silently (the exact "silent failure" of Rung 3.4; syslog only records that a job *started*, never what it printed). Note the script even ends with `echo "backup written"` and exit code 0, so it *lies* on a manual run too — the discipline is `>> log 2>&1` on every cron job that matters, *before* you need it. **Where people go wrong:** trusting syslog's CRON lines as proof of success, and trusting a script's last echo instead of its artifacts. **Cleanup:** `sudo rm /etc/cron.d/lab-perth /var/log/lab-perth.log; sudo rm -rf /opt/lab-perth`
+
+### Scenario 4 — "Hobart: the timer that was enabled, honest"
+**Solution:**
+```bash
+# Mistake 1: the colleague started the SERVICE (runs once, knows nothing about schedules)
+# and never successfully started the TIMER. Mistake 2: the timer can't start anyway —
+# its OnCalendar has an invalid seconds value (75):
+journalctl -u lab-hobart.timer --no-pager | tail -n 5    # "Failed to parse calendar specification" / refuses to start
+systemd-analyze calendar '*-*-* *:0/1:75'                # proves it's invalid
+systemd-analyze calendar '*-*-* *:*:00'                  # proves the fix is valid, shows next elapse
+sudo sed -i 's|^OnCalendar=.*|OnCalendar=*-*-* *:*:00|' /etc/systemd/system/lab-hobart.timer
+sudo systemctl daemon-reload
+sudo systemctl enable --now lab-hobart.timer
+```
+**Why this works & what it teaches:** This is the enable-the-timer-start-the-service distinction from Rung 7 Example 3 plus OnCalendar syntax from Rung 3.6: the `.service` is the *what* and runs exactly once when poked by hand — only the `.timer` carries the schedule, and a timer whose `OnCalendar` fails to parse (seconds run 0–59) refuses to start at all. `systemd-analyze calendar` is the validator that turns "I think this fires every minute" into a printed next-elapse time you can check before deploying. **Where people go wrong:** seeing one log line after `systemctl start lab-hobart.service` and concluding the schedule works. **Cleanup:** `sudo systemctl disable --now lab-hobart.timer; sudo rm /etc/systemd/system/lab-hobart.{service,timer}; sudo systemctl daemon-reload; sudo rm -rf /tmp/lab-hobart`
+
+### Scenario 5 — "Darwin: the 2 AM job on a machine that sleeps at 2 AM"
+**Solution:**
+```bash
+# The timer's last-trigger stamp on disk says 2 days ago, and 02:00 elapses were missed —
+# but with Persistent=false, systemd never consults that stamp. Flip it on:
+sudo sed -i 's/^Persistent=false/Persistent=true/' /etc/systemd/system/lab-darwin.timer
+sudo systemctl daemon-reload
+sudo systemctl restart lab-darwin.timer
+# On start, systemd reads /var/lib/systemd/timers/stamp-lab-darwin.timer, sees the last
+# trigger predates the most recent 02:00, and fires the service IMMEDIATELY to catch up:
+sleep 3; ls /opt/lab-darwin/snapshots/
+```
+**Why this works & what it teaches:** `Persistent=true` (Rung 3.6) is systemd's built-in anacron: the timer records its last trigger time in a stamp file under `/var/lib/systemd/timers/`, and whenever the timer starts (boot, or a restart like here) systemd compares that stamp against the schedule and immediately runs the service if an elapse was missed — which is exactly what a nightly-powered-off node needs. The cron world would need the separate anacron daemon bolted on for this, with its coarser one-day granularity (Rung 3.5); in systemd it's one directive. **Where people go wrong:** "fixing" missed runs with a manual `systemctl start lab-darwin.service`, which produces one snapshot but leaves every future missed night just as lost. **Cleanup:** `sudo systemctl disable --now lab-darwin.timer; sudo rm /etc/systemd/system/lab-darwin.{service,timer} /var/lib/systemd/timers/stamp-lab-darwin.timer; sudo systemctl daemon-reload; sudo rm -rf /opt/lab-darwin`
+
+### Scenario 6 — "Auckland: three saboteurs in one cron job"
+**Solution:**
+```bash
+# Defect 1 — the FILENAME: /etc/cron.d files must contain only [A-Za-z0-9_-]; cron
+# silently ignores any file with a dot in its name (that's why syslog showed NOTHING):
+sudo mv /etc/cron.d/lab.auckland /etc/cron.d/lab-auckland
+# Defect 2 — now cron reads it and complains (grep CRON /var/log/syslog): cron.d lines
+# need SIX fields — the sixth is the USER to run as, and it's missing:
+# Defect 3 — the script is mode 644; cron will get "Permission denied" trying to exec it:
+sudo chmod 755 /opt/lab-auckland/purge.sh
+sudo tee /etc/cron.d/lab-auckland >/dev/null <<'EOF'
+* * * * * root /opt/lab-auckland/purge.sh
+EOF
+```
+**Why this works & what it teaches:** Each defect fails at a *different layer* of Rung 3.2's machinery, with a different symptom signature: a dotted filename means the file is never parsed (zero syslog traces — the eeriest failure mode); a missing user field means the parser reads the command's first word as a username and logs an error; a non-executable script means the fork/exec fails with a permission error that takes the mail-void route. The contractor's `bash purge.sh` demo sidestepped defect 3 entirely — passing a file to `bash` needs only read permission, while cron execs it directly. **Where people go wrong:** stopping after the first fix — layered failures reveal themselves one at a time, so re-check syslog after *every* change. **Cleanup:** `sudo rm /etc/cron.d/lab-auckland; sudo rm -rf /opt/lab-auckland /tmp/lab-auckland`

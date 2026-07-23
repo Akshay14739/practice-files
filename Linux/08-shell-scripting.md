@@ -784,3 +784,240 @@ If either felt shaky on the check-yourself questions, that's your next 30-minute
 **Q:** A teammate wrote a 400-line bash script that parses JSON with `grep`/`cut`, does percentage math, and has three levels of nested state. Give the *two* specific reasons this should be Python — and the *one* thing bash was still right for at the start.
 
 **A:** Reason one: bash has no floating-point math — `$(( 3/2 ))` is `1` — so percentage math needs `awk`/`bc` hacks, while Python does it natively; likewise JSON parsing with `grep`/`cut` is fragile where Python (or at least `jq`) parses it structurally. Reason two: bash has only flat arrays and no real nested data structures, and past a few hundred lines (the table's ~500-line mark, with only `set -e`/`trap` duct tape for error handling and awkward testing) it becomes unmaintainable — three levels of nested state is exactly that territory. The one thing bash was still right for: the original glue job — orchestrating CLI tools in sequence (calling `kubectl`/`grep`/`awk` with pipes and redirection is first-class and one line each), which is where the script presumably started.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — the setups drop small scripts under `/opt/lab-*` and some deliberately misbehave. For each scenario: run the **Setup**, read the **Situation**, fix the script to accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6. Every fix here is a bash-scripting concept from this file (exit codes, `set -euo pipefail`, `local`, `trap`), not a Kubernetes trick.
+
+### 🟢 Scenario 1 — "Nagasaki: the deploy that always says success" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-deploy
+sudo tee /opt/lab-deploy/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo "starting deploy"
+false                     # stands in for a kubectl step that fails
+echo "deploy succeeded"   # prints even though the previous step failed
+EOF
+sudo chmod +x /opt/lab-deploy/run.sh
+```
+**Situation:** This deploy wrapper prints `deploy succeeded` and returns `0` even when a middle step fails, so CI keeps marking broken releases green. Your lead wants it to fail loudly at the first failing command.
+
+**Your task:** Without changing or removing any of the existing commands, make the script **abort at the first failing command** and exit non-zero (so `deploy succeeded` is never printed).
+
+**Verify:**
+```bash
+bash /opt/lab-deploy/run.sh; echo "exit=$?"   # expected: exit=1  and NO "deploy succeeded" line
+```
+
+### 🟢 Scenario 2 — "Kumamoto: unbound variable at the worst moment" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-replicas
+sudo tee /opt/lab-replicas/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+set -euo pipefail
+# REPLICAS is an OPTIONAL override supplied via the environment.
+echo "scaling to $REPLICAS replicas"
+EOF
+sudo chmod +x /opt/lab-replicas/run.sh
+```
+**Situation:** This script aborts with `REPLICAS: unbound variable` whenever the optional `REPLICAS` env var isn't set. The team wants it to **default to 3** when unset, but still honor an override when provided. You must not remove `set -u` — it catches real typos elsewhere in the file.
+
+**Your task:** Make the script default `REPLICAS` to `3` when it is unset/empty, while keeping `set -euo pipefail` intact.
+
+**Verify:**
+```bash
+unset REPLICAS; bash /opt/lab-replicas/run.sh   # expected: scaling to 3 replicas
+REPLICAS=7 bash /opt/lab-replicas/run.sh        # expected: scaling to 7 replicas
+```
+
+### 🟡 Scenario 3 — "Okayama: the pipeline that hides its own failure" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-metrics
+sudo tee /opt/lab-metrics/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+set -eu
+# NOTE: pipefail is deliberately NOT set.
+fetch_metrics() {
+  echo "fetching metrics..." >&2
+  return 1          # simulate the upstream fetch failing
+}
+fetch_metrics | sort > /opt/lab-metrics/out.txt
+echo "metrics collected OK"
+EOF
+sudo chmod +x /opt/lab-metrics/run.sh
+```
+**Situation:** This collector runs `fetch_metrics | sort`. When the upstream fetch fails, `sort` still exits `0`, so the *pipeline* "succeeds," `set -e` never fires, and the script reports `metrics collected OK` over an empty file. You need an upstream failure to fail the whole script.
+
+**Your task:** Make the script detect the failure of **any** stage in the pipeline and abort non-zero (no `metrics collected OK`).
+
+**Verify:**
+```bash
+bash /opt/lab-metrics/run.sh; echo "exit=$?"   # expected: exit != 0  and NO "metrics collected OK"
+```
+
+### 🟡 Scenario 4 — "Kagoshima: the loop that processes only one" (Medium)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-scope
+sudo tee /opt/lab-scope/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+# Should process all 5 services; a helper accidentally clobbers the loop index.
+process_batch() {
+  for i in $(seq 1 20); do :; done      # reuses the caller's 'i'
+}
+services=(web api db worker cache)
+processed=0
+for (( i=0; i < ${#services[@]}; i++ )); do
+  process_batch
+  echo "processing ${services[i]}"
+  processed=$((processed + 1))
+done
+echo "processed $processed services"
+EOF
+sudo chmod +x /opt/lab-scope/run.sh
+```
+**Situation:** This script is supposed to walk all five services, but it reports only one processed and then quits. The helper function `process_batch` loops with a variable that collides with the outer loop's index, corrupting the iteration.
+
+**Your task:** Fix the scope bug so **all 5 services** are processed — changing **only the function**, not the loops.
+
+**Verify:**
+```bash
+bash /opt/lab-scope/run.sh | tail -1   # expected: processed 5 services
+```
+
+### 🟠 Scenario 5 — "Hamamatsu: the script that leaks on the way out" (Hard)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-cleanup
+sudo tee /opt/lab-cleanup/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+set -eu
+# Creates a temp workspace and a background helper (stand-in for a port-forward),
+# then a step fails partway. Today it leaks BOTH the temp dir and the helper.
+WORKDIR="$(mktemp -d /tmp/lab-cleanup.XXXXXX)"
+( exec -a lab-cleanup-helper sleep 3600 ) &
+HELPER=$!
+echo "workspace=$WORKDIR helper=$HELPER"
+# ... real work would go here ...
+false                       # a step fails mid-run
+echo "done"                 # (never reached under set -e)
+EOF
+sudo chmod +x /opt/lab-cleanup/run.sh
+```
+**Situation:** When this script fails partway, it leaves its `mktemp` workspace under `/tmp` and its background helper process still running — a leak that piles up over many failed runs. You must guarantee both are released no matter how the script exits, while the failure still surfaces to the caller.
+
+**Your task:** Add a cleanup that runs on **every** exit path (success, failure, or Ctrl-C), removing `$WORKDIR` and killing `$HELPER`, while **preserving the failing exit code**.
+
+**Verify:**
+```bash
+bash /opt/lab-cleanup/run.sh; echo "exit=$?"   # expected: exit != 0
+ls -d /tmp/lab-cleanup.* 2>/dev/null            # expected: no output (workspace cleaned)
+pgrep -f lab-cleanup-helper                      # expected: no output (helper killed)
+```
+
+### 🔴 Scenario 6 — "Takamatsu: the failure set -e cannot see" (Expert)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-mask
+sudo tee /opt/lab-mask/run.sh >/dev/null <<'EOF'
+#!/bin/bash
+set -euo pipefail
+# Reads a REQUIRED config value. If the source is missing the script
+# should abort — but today it sails right past the failure.
+get_config() {
+  local value="$(cat /opt/lab-mask/config.value)"   # this file does NOT exist
+  echo "config=$value"
+}
+get_config
+echo "SCRIPT-CONTINUED-PAST-FAILURE"
+EOF
+sudo chmod +x /opt/lab-mask/run.sh
+```
+**Situation:** `/opt/lab-mask/config.value` is missing, so `cat` fails — yet **even with `set -euo pipefail`** the script prints `SCRIPT-CONTINUED-PAST-FAILURE` and exits `0`. The failure is being silently swallowed. You must work out *why* and make the script abort on the missing config.
+
+**Your task:** Make the script abort with a non-zero exit when the config read fails, keeping `set -euo pipefail` (do **not** create the missing file).
+
+**Verify:**
+```bash
+bash /opt/lab-mask/run.sh 2>/dev/null; echo "exit=$?"
+# expected: exit != 0  and NO "SCRIPT-CONTINUED-PAST-FAILURE"
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Nagasaki: the deploy that always says success"
+**Solution:**
+```bash
+# Insert as the line immediately after the shebang:
+#   set -euo pipefail
+sudo sed -i '1a set -euo pipefail' /opt/lab-deploy/run.sh
+bash /opt/lab-deploy/run.sh; echo "exit=$?"   # starting deploy / exit=1
+```
+**Why this works & what it teaches:** By default bash **barrels past failures** (Rung 3D) — the `false` step sets `$?` to 1, but bash runs the next line anyway, so `deploy succeeded` prints and the script's exit code becomes that final `echo`'s 0. `set -e` (errexit) makes bash abort the instant any command outside a condition exits non-zero, so the script stops at `false` and exits 1. **Where people go wrong:** placing `set -e` *after* the failing command (it can't retroactively stop it) — the guards must be the first executed line, right after the shebang.
+
+### Scenario 2 — "Kumamoto: unbound variable at the worst moment"
+**Solution:**
+```bash
+# Give REPLICAS a default via parameter expansion, e.g. change the echo to:
+#   echo "scaling to ${REPLICAS:-3} replicas"
+# or add a defaulting line before it:
+#   REPLICAS="${REPLICAS:-3}"
+sudo sed -i 's/scaling to \$REPLICAS replicas/scaling to ${REPLICAS:-3} replicas/' /opt/lab-replicas/run.sh
+unset REPLICAS; bash /opt/lab-replicas/run.sh   # scaling to 3 replicas
+REPLICAS=7 bash /opt/lab-replicas/run.sh        # scaling to 7 replicas
+```
+**Why this works & what it teaches:** `set -u` (nounset) turns any reference to an unset variable into a fatal error — great for catching typos, but it also trips on legitimately optional variables. `${REPLICAS:-3}` means "use `$REPLICAS`, but if it's unset or empty, substitute `3`" (Rung 3C) — the reference is now always defined, so nounset is satisfied, and an override still wins. **Where people go wrong:** "fixing" it by deleting `set -u` — that throws away the typo protection for the whole script; the `:-` default is the surgical fix.
+
+### Scenario 3 — "Okayama: the pipeline that hides its own failure"
+**Solution:**
+```bash
+# Turn on pipefail (make it the full strict-mode line):
+sudo sed -i 's/^set -eu$/set -euo pipefail/' /opt/lab-metrics/run.sh
+bash /opt/lab-metrics/run.sh; echo "exit=$?"   # fetching metrics... / exit=1
+```
+**Why this works & what it teaches:** A pipeline's exit status is, by default, the exit status of its **last** stage — here `sort`, which happily exits 0 on empty input, so `set -e` sees success and continues (Rung 3D). `set -o pipefail` changes the rule: the pipeline reports the **first non-zero** stage's code, so `fetch_metrics` returning 1 makes the whole pipeline fail and errexit aborts. **Where people go wrong:** assuming `set -e` alone guards pipelines — it only sees the pipeline's final code; `pipefail` is the missing half whenever a producer feeds a `grep`/`sort`/`tee`/`jq`.
+
+### Scenario 4 — "Kagoshima: the loop that processes only one"
+**Solution:**
+```bash
+# Scope the helper's loop variable so it can't stomp the caller's index:
+#   process_batch() { local i; for i in $(seq 1 20); do :; done; }
+sudo sed -i 's/^process_batch() {/process_batch() { local i;/' /opt/lab-scope/run.sh
+bash /opt/lab-scope/run.sh | tail -1   # processed 5 services
+```
+**Why this works & what it teaches:** In bash **every variable is global by default** (Rung 3E), so `process_batch`'s `for i` overwrites the outer C-style loop's index `i`. Its inner loop leaves `i=20`, which pushes the outer `for (( i<5 ))` past its bound after one pass — the loop processes one service and quits. `local i` confines the helper's `i` to that call frame, so the caller's index survives and all five services process. **Where people go wrong:** blaming the `for (( ))` loop or the array indexing; the corruption is pure global-scope leakage — any function longer than a couple of lines should declare its working variables `local`.
+
+### Scenario 5 — "Hamamatsu: the script that leaks on the way out"
+**Solution:**
+```bash
+# Register an EXIT trap right after HELPER=$! . Edit the file to add:
+#   cleanup() { rc=$?; rm -rf "$WORKDIR"; kill "$HELPER" 2>/dev/null || true; exit "$rc"; }
+#   trap cleanup EXIT
+sudo sed -i '/^HELPER=\$!/a cleanup() { rc=$?; rm -rf "$WORKDIR"; kill "$HELPER" 2>/dev/null || true; exit "$rc"; }\ntrap cleanup EXIT' /opt/lab-cleanup/run.sh
+bash /opt/lab-cleanup/run.sh; echo "exit=$?"    # exit=1
+ls -d /tmp/lab-cleanup.* 2>/dev/null || echo "cleaned"
+pgrep -f lab-cleanup-helper || echo "helper gone"
+```
+**Why this works & what it teaches:** `trap cleanup EXIT` registers a handler on the **EXIT pseudo-signal**, which fires on *every* way the script can end — normal completion, a `set -e` abort, an explicit `exit`, or Ctrl-C (Rung 3E). Capturing `rc=$?` as the handler's first line preserves the code that triggered the exit, and re-`exit "$rc"` surfaces the failure to the caller while still guaranteeing the temp dir and helper are released. **Where people go wrong:** registering the trap *after* the code that might fail (a trap only protects exits that happen after it's set), or forgetting to save `$?` first (any command inside `cleanup` overwrites it, so the script would exit 0 and hide the failure).
+
+### Scenario 6 — "Takamatsu: the failure set -e cannot see"
+**Solution:**
+```bash
+# Split the declaration from the assignment so the command's exit code is visible:
+#   get_config() {
+#     local value
+#     value="$(cat /opt/lab-mask/config.value)"
+#     echo "config=$value"
+#   }
+sudo sed -i 's/  local value="\$(cat \/opt\/lab-mask\/config.value)"/  local value; value="$(cat \/opt\/lab-mask\/config.value)"/' /opt/lab-mask/run.sh
+bash /opt/lab-mask/run.sh 2>/dev/null; echo "exit=$?"   # exit=1, no continue line
+```
+**Why this works & what it teaches:** `local value="$(cat …)"` is a single statement whose exit status is that of the **`local` builtin**, which is essentially always `0` — so the failing `cat` inside the command substitution is masked and `set -e` never sees it (this is the notorious `local`/`declare` gotcha, sitting exactly at the intersection of Rung 3B's exit codes and 3E's `local`). Splitting into `local value` (its own statement) then `value="$(cat …)"` (a plain assignment) makes the assignment's exit status equal the command substitution's, so `cat`'s non-zero code reaches errexit and the script aborts. **Where people go wrong:** trusting that `set -euo pipefail` catches everything — it does not catch a failure swallowed by `local`/`declare`/`readonly` on the same line; declare first, assign second whenever the value comes from a command that can fail.
+

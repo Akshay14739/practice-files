@@ -681,3 +681,186 @@ If either check-yourself felt shaky, that's your next 30-minute hands-on session
 **Q:** Why can an SELinux policy block a pod from reading a file even though `ls -l` shows `rw-r--r--` and the pod's UID owns it — i.e., why is rwx satisfied *necessary but not sufficient*?
 
 **A:** Because access is decided by independent gates checked in sequence, and *all* must pass: layer 1 is DAC (the rwx bits + ACLs), and layer 3 is MAC (SELinux/AppArmor) — with capabilities in between. rwx is *discretionary*: the file's owner decides, and here the owner triad grants read, so the DAC gate says yes. SELinux is *mandatory*: a central label-based policy, not the owner, decides — and it can veto an access that rwx already approved (e.g. type enforcement blocking a pod's write to a hostPath). Passing rwx merely gets you through the first gate; MAC is a separate, higher authority that can still say no, which is why it can confine even root-level processes that rwx implicitly trusts.
+
+---
+
+## 🧪 Troubleshooting Lab — SadServers-Style Scenarios
+
+> **How to use this lab:** Use a **disposable** Ubuntu/Debian VM (Multipass, Vagrant, or a throwaway cloud instance) — every setup needs `sudo` (they create users and lock down files) and some deliberately break things. For each scenario: run the **Setup**, read the **Situation**, accomplish the **Task**, and prove it with the **Verify** command — *without* peeking at the solutions at the bottom of this file. Difficulty rises from Scenario 1 to 6.
+
+### 🟢 Scenario 1 — "Gatineau: the key ssh refuses to trust" (Easy)
+**Setup:**
+```bash
+sudo useradd -m -s /bin/bash labuser1 2>/dev/null || true
+sudo -u labuser1 mkdir -p /home/labuser1/.ssh
+sudo -u labuser1 bash -c 'ssh-keygen -t ed25519 -N "" -f /home/labuser1/.ssh/id_ed25519 >/dev/null'
+sudo chmod 0644 /home/labuser1/.ssh/id_ed25519
+sudo chmod 0777 /home/labuser1/.ssh
+```
+**Situation:** A new automation account `labuser1` can't use its own SSH key: any `ssh -i` attempt prints `Permissions 0644 for '.../id_ed25519' are too open. This private key will be ignored.` The account was set up by a script that "made everything nice and accessible" with generous permissions.
+
+**Your task:** Explain which two things ssh objects to (the key file's mode *and* the directory around it), then set the FHS/ssh-correct permissions so the private key is owner-only and its directory is not traversable by others.
+
+**Verify:**
+```bash
+sudo ssh-keygen -y -f /home/labuser1/.ssh/id_ed25519 >/dev/null && stat -c '%a %n' /home/labuser1/.ssh /home/labuser1/.ssh/id_ed25519   # expected: "700 /home/labuser1/.ssh" and "600 /home/labuser1/.ssh/id_ed25519"
+```
+
+### 🟢 Scenario 2 — "Quebec City: the script that forgot how to run" (Easy)
+**Setup:**
+```bash
+sudo mkdir -p /opt/lab-qc
+sudo tee /opt/lab-qc/healthcheck.sh >/dev/null <<'EOF'
+#!/bin/bash
+echo "health: OK"
+EOF
+sudo chmod 0644 /opt/lab-qc/healthcheck.sh
+```
+**Situation:** A monitoring cron entry runs `/opt/lab-qc/healthcheck.sh` and every minute logs `Permission denied`. The file is definitely there and `cat` shows perfectly valid bash. A colleague "fixed permissions so everyone could read it" during a cleanup last week — which is when the alerts started.
+
+**Your task:** Explain, in inode-bit terms, why a readable-but-not-executable script fails to run when invoked directly (and how that differs from `bash healthcheck.sh`). Then grant execute so the script runs by path for owner, group, and other — without making it writable by anyone but the owner.
+
+**Verify:**
+```bash
+/opt/lab-qc/healthcheck.sh; stat -c '%a' /opt/lab-qc/healthcheck.sh   # expected: "health: OK" then "755"
+```
+
+### 🟡 Scenario 3 — "Cornwall: I own it but I can't read it" (Medium)
+**Setup:**
+```bash
+sudo useradd -m -s /bin/bash labuser2 2>/dev/null || true
+echo "quarterly earnings draft" | sudo tee /home/labuser2/report.txt >/dev/null
+sudo chown labuser2:labuser2 /home/labuser2/report.txt
+sudo chmod 0047 /home/labuser2/report.txt
+```
+**Situation:** `labuser2` is losing their mind: they own `report.txt`, they can see it in `ls -l`, and yet `cat report.txt` says `Permission denied` — while a colleague in another group swears they can read it fine. "How can the owner have LESS access than a stranger?"
+
+**Your task:** Read the mode (`0047`) and explain, using the kernel's single-triad check order, exactly why the owner is denied while "other" is allowed. Then restore sane owner-can-read-and-write permissions (leave group/other with no access).
+
+**Verify:**
+```bash
+sudo -u labuser2 cat /home/labuser2/report.txt && stat -c '%a' /home/labuser2/report.txt   # expected: "quarterly earnings draft" then "600"
+```
+
+### 🟡 Scenario 4 — "Medicine Hat: the shared dir that eats everyone's files" (Medium)
+**Setup:**
+```bash
+sudo useradd -M labuser3 2>/dev/null || true
+sudo useradd -M labuser4 2>/dev/null || true
+sudo mkdir -p /opt/lab-mh/dropbox
+sudo chmod 0777 /opt/lab-mh/dropbox
+echo "labuser3 important upload" | sudo tee /opt/lab-mh/dropbox/u3.dat >/dev/null
+sudo chown labuser3:labuser3 /opt/lab-mh/dropbox/u3.dat
+```
+**Situation:** `/opt/lab-mh/dropbox` is a shared upload area (mode `777`). Two incidents this week: `labuser4` deleted `labuser3`'s upload "by accident" — and could, because the directory is world-writable. Ops wants everyone to still be able to drop files, but nobody should be able to delete a file they don't own. This is the exact `/tmp` problem.
+
+**Your task:** Name the single bit that makes `/tmp` safe for exactly this, then apply it to the dropbox so any user may create files but only a file's owner (or root) may remove it. Prove `labuser4` can no longer delete `labuser3`'s file.
+
+**Verify:**
+```bash
+sudo -u labuser4 rm -f /opt/lab-mh/dropbox/u3.dat 2>&1 | grep -q 'Permission denied' && ls -ld /opt/lab-mh/dropbox | cut -c1-10   # expected: "drwxrwxrwt" (sticky bit set) and the rm was refused, so u3.dat still exists
+```
+
+### 🟠 Scenario 5 — "Nelson: the whole team's files keep landing in the wrong group" (Hard)
+**Setup:**
+```bash
+sudo groupadd labproj 2>/dev/null || true
+sudo useradd -m -s /bin/bash labuser5 2>/dev/null || true
+sudo useradd -m -s /bin/bash labuser6 2>/dev/null || true
+sudo usermod -aG labproj labuser5
+sudo usermod -aG labproj labuser6
+sudo mkdir -p /opt/lab-nelson/shared
+sudo chgrp labproj /opt/lab-nelson/shared
+sudo chmod 0775 /opt/lab-nelson/shared
+sudo -u labuser5 bash -c 'echo "u5 data" > /opt/lab-nelson/shared/from-u5.txt'
+```
+**Situation:** A project team shares `/opt/lab-nelson/shared`. Files that `labuser5` creates there come out group-owned by `labuser5`'s *primary* group, not `labproj` — so `labuser6` (in `labproj` but not in labuser5's primary group) gets `Permission denied` trying to append to teammates' files. The team keeps fixing it by hand with `chgrp` after every single file creation, which nobody remembers to do.
+
+**Your task:** Explain why new files inherit the creator's primary group by default, and identify the one directory bit that flips this to "inherit the directory's group instead." Apply it, then fix the group AND group-write permission on the pre-existing `from-u5.txt` so a teammate can write it. Prove a *newly* created file now automatically belongs to `labproj` with group-write.
+
+**Verify:**
+```bash
+sudo -u labuser6 bash -c 'echo "appended by u6" >> /opt/lab-nelson/shared/from-u5.txt' && sudo -u labuser6 bash -c 'echo "u6 new" > /opt/lab-nelson/shared/from-u6.txt' && stat -c '%G %a' /opt/lab-nelson/shared/from-u6.txt   # expected: "labproj 664" — the new file inherited the labproj group automatically and is group-writable
+```
+
+### 🔴 Scenario 6 — "Timmins: the audit found a way in" (Expert)
+**Setup:**
+```bash
+sudo useradd -m -s /bin/bash labuser7 2>/dev/null || true
+echo "TOP-SECRET-CLUSTER-CA" | sudo tee /root/lab-secret.txt >/dev/null
+sudo chmod 0600 /root/lab-secret.txt
+sudo mkdir -p /opt/lab-tim
+sudo cp /bin/cp /opt/lab-tim/labcp
+sudo chown root:root /opt/lab-tim/labcp
+sudo chmod 4755 /opt/lab-tim/labcp
+```
+**Situation:** A CKS-style security sweep of a worker node is your job today. Somewhere under `/opt` a previous "convenience hack" left a privilege-escalation hole: an unprivileged user can read root-only files they should never touch. You must (a) *find* the offending binary with a permission-based `find`, (b) *prove* the hole is real by demonstrating `labuser7` reading `/root/lab-secret.txt` through it, then (c) *close* it.
+
+**Your task:** Use `find` with a permission test to locate the SUID-root binary under `/opt`, demonstrate the exploit as `labuser7`, then neutralize it by stripping the setuid bit (do not delete the file). Explain why a SUID-root copy of a file tool is a full compromise.
+
+**Verify:**
+```bash
+sudo -u labuser7 /opt/lab-tim/labcp /root/lab-secret.txt /tmp/lab-tim-steal.txt 2>&1 | grep -q 'Permission denied' && [ "$(stat -c '%a' /opt/lab-tim/labcp)" = "755" ] && ! test -f /tmp/lab-tim-steal.txt && echo SOLVED   # expected: SOLVED — SUID bit gone (mode 755), and labuser7 can no longer copy the root secret
+```
+
+---
+
+## 🔑 Lab Answers — Solutions & Explanations
+
+### Scenario 1 — "Gatineau: the key ssh refuses to trust"
+**Solution:**
+```bash
+sudo chmod 700 /home/labuser1/.ssh
+sudo chmod 600 /home/labuser1/.ssh/id_ed25519
+sudo chown -R labuser1:labuser1 /home/labuser1/.ssh
+```
+**Why this works & what it teaches:** This is the Rung 5 trace exactly: the kernel would happily let the owner read a `0644` key, but ssh runs its *own* stricter `stat()` gate and refuses any private key whose group/other triads carry `r` — a readable key is a leaked key. `600` clears group+other on the file; `700` on `.ssh` removes others' `x` so nobody can even traverse in (Rung 3C). **Where people go wrong:** fixing only the file and leaving the `0777` directory — a world-traversable key directory is still a finding, and defense in depth (Rung 3C) is the whole reason `~/.ssh` is `700`.
+
+### Scenario 2 — "Quebec City: the script that forgot how to run"
+**Solution:**
+```bash
+sudo chmod 755 /opt/lab-qc/healthcheck.sh   # add x for all; keep w owner-only
+/opt/lab-qc/healthcheck.sh                  # health: OK
+```
+**Why this works & what it teaches:** Running a script *by path* requires the `x` bit in the applicable triad — the kernel checks execute permission at `execve()` time (Rung 3B/3C); `r` alone lets you view or `cat` it but not run it. `bash healthcheck.sh` worked around it because there the executable is `bash` (which only needs to *read* the script), not the script itself. `755` grants `x` to all three triads while `6` keeps write owner-only. **Where people go wrong:** reaching for `chmod 777` — execute needs adding, but world-write on a script cron runs is itself a privilege-escalation hole.
+
+### Scenario 3 — "Cornwall: I own it but I can't read it"
+**Solution:**
+```bash
+# 0047 = owner ---(0), group r--(4), other rwx(7). Owner matches FIRST → --- → denied.
+sudo chmod 600 /home/labuser2/report.txt
+```
+**Why this works & what it teaches:** The kernel's check stops at the *first* class that matches the process's identity (Rung 3B): `labuser2` matches as **owner**, so only the owner triad `---` is consulted — the wider "other" bits are never reached for them, even though a stranger (who matches only "other" = `rwx`) sails through. The triads are not additive; this is the single most counter-intuitive consequence of "the ONE triad." `600` gives the owner `rw-` and locks out everyone else. **Where people go wrong:** assuming permissions are cumulative ("someone can read it, so I can too") — ownership can grant you *less* than a stranger gets.
+
+### Scenario 4 — "Medicine Hat: the shared dir that eats everyone's files"
+**Solution:**
+```bash
+sudo chmod +t /opt/lab-mh/dropbox        # or: sudo chmod 1777 /opt/lab-mh/dropbox
+ls -ld /opt/lab-mh/dropbox               # drwxrwxrwt
+```
+**Why this works & what it teaches:** Deleting a file requires *write on its directory*, not on the file (Rung 3C) — so in a `0777` dir anyone can remove anyone's file. The **sticky bit** (`1000`, the `t`) special-cases this: in a sticky world-writable directory, only a file's owner (or root) may unlink or rename it, while everyone can still create files. This is precisely why `/tmp` is `drwxrwxrwt` and the model for a pod's `emptyDir`/node scratch (Rung 3D). **Where people go wrong:** tightening the directory to `775` to "stop deletes" — that also stops non-group users from *uploading*; sticky is the surgical fix that preserves shared-write.
+
+### Scenario 5 — "Nelson: the whole team's files keep landing in the wrong group"
+**Solution:**
+```bash
+sudo chmod 2775 /opt/lab-nelson/shared          # SGID on the dir → new files inherit group 'labproj'
+sudo chgrp labproj /opt/lab-nelson/shared/from-u5.txt
+sudo chmod 664 /opt/lab-nelson/shared/from-u5.txt   # give the group write on the legacy file
+# optional: fix any other stragglers in bulk:
+# sudo find /opt/lab-nelson/shared -type f -exec chgrp labproj {} + -exec chmod g+w {} +
+```
+**Why this works & what it teaches:** By default a new file's group is the *creator's primary group* (Rung 3A — the inode's GID field is set from the process's egid at creation). The **SGID bit on a directory** (`2000`) changes that rule so new entries inherit the *directory's* group instead — the filesystem-native version of what Kubernetes `fsGroup` enforces on a shared volume (Rung 3D / Rung 7 Prediction 6). Pre-existing files predate the bit, so they must be `chgrp`'d and given group-write once. **Where people go wrong:** setting SGID but forgetting group-write (`g+w`) — the group must own it *and* have `w`, since the group triad is what the teammate's identity matches (Rung 3B).
+
+### Scenario 6 — "Timmins: the audit found a way in"
+**Solution:**
+```bash
+# (a) locate the SUID-root binary:
+sudo find /opt -perm -4000 -type f 2>/dev/null      # /opt/lab-tim/labcp
+ls -l /opt/lab-tim/labcp                            # -rwsr-xr-x root root  ← the 's' = SUID
+# (b) prove the hole (optional demo):
+sudo -u labuser7 /opt/lab-tim/labcp /root/lab-secret.txt /tmp/steal.txt && cat /tmp/steal.txt
+# (c) close it — strip setuid, keep the binary:
+sudo chmod u-s /opt/lab-tim/labcp                   # or chmod 0755
+sudo rm -f /tmp/steal.txt /tmp/lab-tim-steal.txt
+```
+**Why this works & what it teaches:** A SUID-root binary runs with the *file owner's* effective UID (root), regardless of who launches it (Rung 3D / Rung 7 Prediction 5) — so a SUID copy of `cp` (or `cat`, `find`, `dd`, an editor…) lets any user perform root's file access, reading `/etc/shadow`, keys, anything: it *is* a full compromise, which is why `find / -perm -4000` is a standard CKS sweep and why Kubernetes offers `allowPrivilegeEscalation: false` / `no_new_privs`. `chmod u-s` clears bit `4000`, dropping the binary back to an ordinary `755` tool that runs as the caller. **Where people go wrong:** deleting the file (may break packages) or trusting the lowercase/uppercase `s` — an uppercase `S` means SUID-set-but-not-executable, still dangerous; strip the bit rather than reasoning about the letter.
